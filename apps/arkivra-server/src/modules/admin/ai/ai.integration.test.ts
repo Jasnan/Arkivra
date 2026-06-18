@@ -50,17 +50,32 @@ function createMockAiServices() {
     })),
     updateSettings: vi.fn(async settings => settings),
     listModels: vi.fn(async () => [
-      { name: 'gemma4:e4b', size: 1000, modifiedAt: '2026-04-23T12:00:00.000Z' },
+      {
+        name: 'gemma4:e4b',
+        size: 1000,
+        modifiedAt: '2026-04-23T12:00:00.000Z',
+        capabilities: ['completion'],
+      },
     ]),
     listChatModels: vi.fn(async () => [
-      { name: 'gemma4:e4b', size: 1000, modifiedAt: '2026-04-23T12:00:00.000Z' },
+      {
+        name: 'gemma4:e4b',
+        size: 1000,
+        modifiedAt: '2026-04-23T12:00:00.000Z',
+        capabilities: ['completion'],
+      },
     ]),
     checkModelAvailability: vi.fn(async () => ({
       host: 'http://127.0.0.1:11434',
       model: 'gemma4:e4b',
       reachable: true,
       modelAvailable: true,
-      models: [{ name: 'gemma4:e4b', size: 1000, modifiedAt: '2026-04-23T12:00:00.000Z' }],
+      models: [{
+        name: 'gemma4:e4b',
+        size: 1000,
+        modifiedAt: '2026-04-23T12:00:00.000Z',
+        capabilities: ['completion'],
+      }],
       responseTimeMs: 42,
       error: null,
     })),
@@ -151,6 +166,58 @@ describe('admin ai routes integration', () => {
     expect(settings.captioningEnabled).toBe(false);
     expect(settings.embeddingModel).toBe('bge-m3');
     expect(settings.embeddingDimensions).toBe(1024);
+  });
+
+  test('resolves Ollama connection settings from server config instead of stored admin values', async () => {
+    const aiServices = createAdminAiServices({
+      db: {
+        select: () => ({
+          from: () => ({
+            where: () => ({
+              limit: async () => [{
+                aiFeaturesEnabled: true,
+                chatProvider: 'ollama',
+                chatBaseUrl: 'http://stored-ollama.invalid:11434',
+                chatApiKeySecretRef: null,
+                chatModel: 'llama3.2:1b',
+                chatAllowedModels: ['ollama:llama3.2:1b'],
+                geminiApiKeySecretRef: null,
+                ollamaHost: 'http://stored-ollama.invalid:11434',
+                ollamaModel: 'llama3.2:1b',
+                ollamaSummarisationModel: 'llama3.2:1b',
+                ollamaSummarisationMaxImagesPerChunk: 4,
+                ollamaTranslationModel: 'llama3.2:1b',
+                translationProvider: 'ollama',
+                translationBaseUrl: 'http://stored-ollama.invalid:11434',
+                translationApiKeySecretRef: null,
+                ollamaEmbeddingEnabled: true,
+                ollamaEmbeddingHost: 'http://stored-ollama.invalid:11434',
+                ollamaEmbeddingModel: 'bge-m3',
+                ollamaEmbeddingDimensions: 1024,
+              }],
+            }),
+          }),
+        }),
+      } as any,
+      config: {
+        ollama: {
+          host: 'http://env-ollama.local:11434',
+          model: 'gemma4:e4b',
+          logRequests: false,
+        },
+      } as any,
+    });
+
+    const settings = await aiServices.getSettings();
+    const ingestionSettings = await aiServices.getIngestionSettings();
+
+    expect(settings.ollamaHost).toBe('http://env-ollama.local:11434');
+    expect(settings.chat.baseUrl).toBe('http://env-ollama.local:11434');
+    expect(settings.translation.baseUrl).toBe('http://env-ollama.local:11434');
+    expect(settings.embedding.baseUrl).toBe('http://env-ollama.local:11434');
+    expect(ingestionSettings.summarisationHost).toBe('http://env-ollama.local:11434');
+    expect(ingestionSettings.embeddingHost).toBe('http://env-ollama.local:11434');
+    expect(ingestionSettings.captioningHost).toBe('http://env-ollama.local:11434');
   });
 
   test('returns current AI settings for an admin', async () => {
@@ -840,6 +907,69 @@ describe('admin ai routes integration', () => {
     }
   });
 
+  test('filters Ollama chat models by provider-reported embedding capability', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        models: [
+          { name: 'plain-text-model:latest', size: 1000, modified_at: '2026-04-23T12:00:00.000Z' },
+          { name: 'vector-only-local:latest', size: 1000, modified_at: '2026-04-23T12:00:00.000Z' },
+          { name: 'vision-model:latest', size: 1000, modified_at: '2026-04-23T12:00:00.000Z' },
+        ],
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        capabilities: ['completion'],
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        capabilities: ['embedding'],
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        capabilities: ['completion', 'vision'],
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }));
+    const aiServices = createAdminAiServices({
+      db: {
+        select: () => ({
+          from: () => ({
+            where: () => ({
+              limit: async () => [],
+            }),
+          }),
+        }),
+      } as any,
+      config: {
+        ollama: {
+          host: 'http://127.0.0.1:11434',
+          model: 'plain-text-model:latest',
+          logRequests: false,
+        },
+      } as any,
+      fetchImpl: fetchImpl as any,
+    });
+
+    const models = await aiServices.listChatModels({ provider: 'ollama' });
+
+    expect(models.map(model => model.name)).toEqual([
+      'plain-text-model:latest',
+      'vision-model:latest',
+    ]);
+    expect(models.find(model => model.name === 'vision-model:latest')?.capabilities).toEqual([
+      'completion',
+      'vision',
+    ]);
+  });
+
   test('checks Gemini availability with the stored provider secret ref', async () => {
     const previousKey = process.env.ARKIVRA_TEST_GEMINI_PROVIDER_KEY;
     process.env.ARKIVRA_TEST_GEMINI_PROVIDER_KEY = 'configured';
@@ -1013,6 +1143,12 @@ describe('admin ai routes integration', () => {
         headers: { 'content-type': 'application/json' },
       }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
+        capabilities: ['completion'],
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
         response: 'ok',
       }), {
         status: 200,
@@ -1050,6 +1186,12 @@ describe('admin ai routes integration', () => {
         models: [
           { name: 'gemma4:e4b', size: 1000, modified_at: '2026-04-23T12:00:00.000Z' },
         ],
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        capabilities: ['completion'],
       }), {
         status: 200,
         headers: { 'content-type': 'application/json' },

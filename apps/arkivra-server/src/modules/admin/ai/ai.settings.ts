@@ -17,26 +17,6 @@ export const CURATED_GEMINI_CHAT_MODELS = [
   'gemini-2.5-flash-lite',
 ] as const;
 
-const OLLAMA_EMBEDDING_MODEL_PATTERNS = [
-  /^bge[-:]/i,
-  /^e5[-:]/i,
-  /^gte[-:]/i,
-  /^mxbai[-:]/i,
-  /^nomic-embed/i,
-  /^snowflake-arctic-embed/i,
-  /^all-minilm/i,
-  /^jina-embeddings/i,
-  /^qwen\d+(?:\.\d+)?-embedding/i,
-  /^granite-embedding/i,
-  /^embeddinggemma/i,
-  /(?:^|[-:])embed(?:$|[-:])/i,
-  /(?:^|[-:])embedding(?:$|[-:])/i,
-] as const;
-
-export function isLikelyEmbeddingModelName(modelName: string) {
-  return OLLAMA_EMBEDDING_MODEL_PATTERNS.some(pattern => pattern.test(modelName));
-}
-
 export function normalizeHost(host: string) {
   return normalizeOllamaHost(host);
 }

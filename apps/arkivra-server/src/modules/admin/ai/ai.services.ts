@@ -21,7 +21,6 @@ import {
   createDefaultIngestionSettings,
   createDefaultSettings,
   getDefaultChatModel,
-  isLikelyEmbeddingModelName,
   normalizeAllowedChatModels,
   normalizeApiKeySecretRef,
   normalizeChatBaseUrl,
@@ -92,6 +91,10 @@ function createEmptyDocumentStatuses(): AdminEmbeddingIndexSummary['documentStat
   };
 }
 
+function hasModelCapability(model: AdminAiModel, capability: string) {
+  return model.capabilities.some(item => item.toLowerCase() === capability);
+}
+
 function shouldCompareIndexWithCorpus(status: AdminEmbeddingIndexSummary['status']) {
   return status === 'building'
     || status === 'ready'
@@ -122,6 +125,30 @@ export function createAdminAiServices({
   fetchImpl?: typeof fetch;
 }) {
   const ollama = createOllamaProvider({ fetchImpl });
+  const configuredOllamaHost = normalizeHost(config.ollama.host);
+
+  function applyConfiguredOllamaHost(settings: AdminAiSettings): AdminAiSettings {
+    return {
+      ...settings,
+      chat: {
+        ...settings.chat,
+        baseUrl: settings.chat.provider === 'ollama'
+          ? configuredOllamaHost
+          : settings.chat.baseUrl,
+      },
+      translation: {
+        ...settings.translation,
+        baseUrl: settings.translation.provider === 'ollama'
+          ? configuredOllamaHost
+          : settings.translation.baseUrl,
+      },
+      embedding: {
+        ...settings.embedding,
+        baseUrl: configuredOllamaHost,
+      },
+      ollamaHost: configuredOllamaHost,
+    };
+  }
 
   async function getStoredSettings() {
     const [settings] = await db
@@ -138,7 +165,7 @@ export function createAdminAiServices({
     const stored = await getStoredSettings();
 
     if (stored === undefined) {
-      return defaults;
+      return applyConfiguredOllamaHost(defaults);
     }
 
     const storedChatProvider = stored.chatProvider === 'gemini' ? 'gemini' : 'ollama';
@@ -150,17 +177,21 @@ export function createAdminAiServices({
     const chatModel = chatSelection.model;
     const chatBaseUrl = normalizeChatBaseUrl({
       provider: chatProvider,
-      baseUrl: stored.chatBaseUrl ?? stored.ollamaHost,
-      fallbackOllamaHost: stored.ollamaHost,
+      baseUrl: chatProvider === 'ollama'
+        ? configuredOllamaHost
+        : (stored.chatBaseUrl ?? stored.ollamaHost),
+      fallbackOllamaHost: configuredOllamaHost,
     });
     const storedTranslationProvider = stored.translationProvider === 'gemini' ? 'gemini' : 'ollama';
     const translationBaseUrl = normalizeChatBaseUrl({
       provider: storedTranslationProvider,
-      baseUrl: stored.translationBaseUrl ?? stored.ollamaHost,
-      fallbackOllamaHost: stored.ollamaHost,
+      baseUrl: storedTranslationProvider === 'ollama'
+        ? configuredOllamaHost
+        : (stored.translationBaseUrl ?? stored.ollamaHost),
+      fallbackOllamaHost: configuredOllamaHost,
     });
 
-    return {
+    return applyConfiguredOllamaHost({
       aiFeaturesEnabled: stored.aiFeaturesEnabled,
       chat: {
         provider: chatProvider,
@@ -181,7 +212,7 @@ export function createAdminAiServices({
       },
       embedding: {
         provider: 'ollama',
-        baseUrl: stored.ollamaEmbeddingHost,
+        baseUrl: configuredOllamaHost,
         apiKeySecretRef: null,
         model: stored.ollamaEmbeddingModel,
         dimensions: stored.ollamaEmbeddingDimensions,
@@ -192,9 +223,9 @@ export function createAdminAiServices({
           apiKeySecretRef: normalizeApiKeySecretRef(stored.geminiApiKeySecretRef),
         },
       },
-      ollamaHost: stored.ollamaHost,
+      ollamaHost: configuredOllamaHost,
       model: stored.ollamaModel,
-    };
+    });
   }
 
   async function getStatus(): Promise<AdminAiStatus> {
@@ -352,15 +383,15 @@ export function createAdminAiServices({
 
     return {
       summarisationEnabled: stored.aiFeaturesEnabled && stored.aiSummarisationEnabled,
-      summarisationHost: stored.ollamaHost,
+      summarisationHost: configuredOllamaHost,
       summarisationModel: stored.ollamaSummarisationModel,
       summarisationMaxImagesPerChunk: stored.ollamaSummarisationMaxImagesPerChunk,
       embeddingEnabled: stored.aiFeaturesEnabled && stored.ollamaEmbeddingEnabled,
-      embeddingHost: stored.ollamaEmbeddingHost,
+      embeddingHost: configuredOllamaHost,
       embeddingModel: stored.ollamaEmbeddingModel,
       embeddingDimensions: stored.ollamaEmbeddingDimensions,
       captioningEnabled: defaults.captioningEnabled,
-      captioningHost: defaults.captioningHost,
+      captioningHost: configuredOllamaHost,
       captioningModel: defaults.captioningModel,
     };
   }
@@ -418,7 +449,26 @@ export function createAdminAiServices({
 
   async function updateSettings(nextSettings: AdminAiSettings): Promise<AdminAiSettings> {
     const previousSettings = await getSettings();
-    const initialNormalized = normalizeSettings(nextSettings);
+    const initialNormalized = applyConfiguredOllamaHost(normalizeSettings({
+      ...nextSettings,
+      chat: {
+        ...nextSettings.chat,
+        baseUrl: nextSettings.chat.provider === 'ollama'
+          ? configuredOllamaHost
+          : nextSettings.chat.baseUrl,
+      },
+      translation: {
+        ...nextSettings.translation,
+        baseUrl: nextSettings.translation.provider === 'ollama'
+          ? configuredOllamaHost
+          : nextSettings.translation.baseUrl,
+      },
+      embedding: {
+        ...nextSettings.embedding,
+        baseUrl: configuredOllamaHost,
+      },
+      ollamaHost: configuredOllamaHost,
+    }));
     const initialEmbeddingConfigChanged =
       previousSettings.embedding.provider !== initialNormalized.embedding.provider
       || previousSettings.embedding.baseUrl !== initialNormalized.embedding.baseUrl
@@ -524,22 +574,19 @@ export function createAdminAiServices({
   }
 
   async function listModels({ host }: { host?: string } = {}): Promise<AdminAiModel[]> {
-    const effectiveHost = normalizeHost(host ?? (await getSettings()).ollamaHost);
+    const effectiveHost = normalizeHost(host ?? configuredOllamaHost);
     return await ollama.listModels({ host: effectiveHost });
   }
 
   async function listChatModels({
     provider,
-    baseUrl,
     includeEmbeddingModels = false,
   }: {
     provider?: AdminAiSettings['chat']['provider'];
     baseUrl?: string;
     includeEmbeddingModels?: boolean;
   } = {}): Promise<AdminAiModel[]> {
-    const settings = provider === undefined || (provider !== 'gemini' && baseUrl === undefined)
-      ? await getSettings()
-      : null;
+    const settings = provider === 'gemini' ? null : await getSettings();
     const effectiveProvider = provider ?? settings?.chat.provider ?? 'ollama';
 
     if (effectiveProvider === 'gemini') {
@@ -547,10 +594,11 @@ export function createAdminAiServices({
         name: model,
         size: null,
         modifiedAt: null,
+        capabilities: ['completion', 'vision'],
       }));
     }
 
-    const effectiveBaseUrl = baseUrl ?? settings?.chat.baseUrl ?? config.ollama.host;
+    const effectiveBaseUrl = configuredOllamaHost;
     const models = await listModels({ host: effectiveBaseUrl });
 
     if (includeEmbeddingModels) {
@@ -559,7 +607,7 @@ export function createAdminAiServices({
 
     return models.filter(model =>
       model.name !== settings?.embedding.model
-      && !isLikelyEmbeddingModelName(model.name)
+      && !hasModelCapability(model, 'embedding')
     );
   }
 
@@ -590,7 +638,7 @@ export function createAdminAiServices({
     const effectiveProvider = provider ?? settings?.chat.provider ?? 'ollama';
     const effectiveHost = effectiveProvider === 'gemini'
       ? normalizeGeminiBaseUrl(host ?? settings?.chat.baseUrl)
-      : normalizeHost(host ?? settings?.ollamaHost ?? config.ollama.host);
+      : configuredOllamaHost;
     const effectiveModel = (
       model
       ?? settings?.chat.model

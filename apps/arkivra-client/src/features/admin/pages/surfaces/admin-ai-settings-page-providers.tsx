@@ -1,7 +1,7 @@
-import { Box, Grid, Stack, Text } from '@chakra-ui/react';
-import { Plus } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { Box, Flex, HStack, Stack, Table, Text } from '@chakra-ui/react';
+import { MoreVertical, Plus, Server, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import type { AdminAiSettings } from '@/features/admin/admin.types';
 import { formatDate } from '@/features/documents/documents.utils';
 import {
@@ -27,8 +27,6 @@ interface AdminAiProviderSectionProps {
   ollamaProviderStatus: string;
   ollamaProviderTone: 'enabled' | 'inactive' | 'warning';
   onExpandedProviderChange: (provider: 'ollama' | 'gemini' | null) => void;
-  onOllamaBaseUrlChange: (baseUrl: string) => void;
-  onPersistProviderSettings: () => void;
   onTestGeminiConnection: () => void;
   onTestOllamaConnection: () => void;
   onUseGeminiForChat: () => void;
@@ -50,8 +48,6 @@ export function AdminAiProviderSection({
   ollamaProviderStatus,
   ollamaProviderTone,
   onExpandedProviderChange,
-  onOllamaBaseUrlChange,
-  onPersistProviderSettings,
   onTestGeminiConnection,
   onTestOllamaConnection,
   onUseGeminiForChat,
@@ -59,204 +55,249 @@ export function AdminAiProviderSection({
 }: AdminAiProviderSectionProps) {
   return (
     <AiSettingsSection
-      title="Provider"
-      description="Ollama provider configuration, with additional provider slots reserved for future support."
+      title="Providers"
+      description="Manage AI providers for this instance."
       actions={
         <Button type="button" size="sm" variant="outline" disabled>
           <Plus size={14} />
-          Add Provider
+          Add provider
         </Button>
       }
     >
-      <Stack
-        gap="2"
+      <Box
         rounded="md"
         borderWidth="1px"
         borderColor="border.surface"
         bg="bg.surface"
         overflow="hidden"
       >
-        <Box>
-          <ProviderSummaryRow
-            name="Ollama"
-            description="Chat and embedding provider"
-            status={ollamaProviderStatus}
-            statusTone={ollamaProviderTone}
-            modelCount={ollamaModels.length}
-            updatedAt={ollamaDataUpdatedAt}
-            actionLabel={expandedProvider === 'ollama' ? 'Hide details' : 'View details'}
-            actionAriaLabel={expandedProvider === 'ollama' ? 'Hide details' : 'View details'}
-            onAction={() =>
-              onExpandedProviderChange(expandedProvider === 'ollama' ? null : 'ollama')
-            }
-          />
-          {expandedProvider === 'ollama' ? (
-            <Box borderTopWidth="1px" borderColor="border.surface" bg="bg.subtle" px="3" py="2">
-              <SettingsRows density="compact">
-                <SettingsRow
-                  density="compact"
-                  label="Connection information"
-                  description="Provider used for chat completions and embeddings."
-                  control={
-                    aiDraft.chat.provider === 'ollama' ? (
-                      <SettingsStatusBadge tone="enabled" density="compact">
-                        Active for chat
-                      </SettingsStatusBadge>
-                    ) : (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={!effectiveOllamaBaseUrl.trim() || isSaving}
-                        onClick={onUseOllamaForChat}
-                      >
-                        Use for chat
-                      </Button>
-                    )
-                  }
-                />
-                <SettingsRow
-                  density="compact"
-                  label="Ollama base URL"
-                  description="The Ollama endpoint used for chat, translation, and embeddings."
-                  control={
-                    <Input
-                      aria-label="Ollama base URL"
-                      type="url"
-                      value={effectiveOllamaBaseUrl}
-                      placeholder="http://127.0.0.1:11434"
-                      onBlur={onPersistProviderSettings}
-                      onChange={(event) => onOllamaBaseUrlChange(event.target.value)}
+        <Table.ScrollArea>
+          <Table.Root
+            size="sm"
+            variant="line"
+            textStyle="table"
+            css={{
+              '& thead th': {
+                paddingBlock: '0.625rem',
+                color: 'var(--chakra-colors-fg-muted)',
+                fontWeight: '600',
+                borderColor: 'var(--chakra-colors-border-surface)',
+              },
+              '& tbody td': {
+                borderColor: 'var(--chakra-colors-border-divider)',
+                verticalAlign: 'middle',
+              },
+              '& tbody tr:last-of-type td': {
+                borderBottomWidth: '0',
+              },
+            }}
+          >
+            <Table.Header>
+              <Table.Row>
+                <Table.ColumnHeader minW="17rem">Provider</Table.ColumnHeader>
+                <Table.ColumnHeader minW="9rem">Status</Table.ColumnHeader>
+                <Table.ColumnHeader minW="8rem">Models</Table.ColumnHeader>
+                <Table.ColumnHeader minW="11rem">Last checked</Table.ColumnHeader>
+                <Table.ColumnHeader minW="10rem">Actions</Table.ColumnHeader>
+                <Table.ColumnHeader w="3rem" />
+              </Table.Row>
+            </Table.Header>
+            <Table.Body>
+              <ProviderTableRow
+                icon={<Sparkles size={18} />}
+                name="Google Gemini"
+                description="Primary provider"
+                status={geminiProviderStatus}
+                statusTone={geminiProviderTone}
+                modelCount={curatedGeminiChatModels.length}
+                updatedAt={geminiDataUpdatedAt}
+                actionLabel={expandedProvider === 'gemini' ? 'Hide' : 'View'}
+                actionAriaLabel={
+                  expandedProvider === 'gemini'
+                    ? 'Hide Google Gemini provider'
+                    : 'View Google Gemini provider'
+                }
+                onAction={() =>
+                  onExpandedProviderChange(expandedProvider === 'gemini' ? null : 'gemini')
+                }
+              />
+              {expandedProvider === 'gemini' ? (
+                <ProviderDetailsRow>
+                  <SettingsRows density="compact">
+                    <SettingsRow
+                      density="compact"
+                      label="Connection information"
+                      description="Gemini chat uses Google AI Studio's OpenAI-compatible API."
+                      control={
+                        aiDraft.chat.provider === 'gemini' ? (
+                          <SettingsStatusBadge tone="enabled" density="compact">
+                            Active for chat
+                          </SettingsStatusBadge>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={!geminiAvailability?.modelAvailable || isSaving}
+                            onClick={onUseGeminiForChat}
+                          >
+                            Use for chat
+                          </Button>
+                        )
+                      }
                     />
-                  }
-                />
-                <SettingsRow
-                  density="compact"
-                  label="Health status"
-                  meta={
-                    <Text
-                      textStyle="sm"
-                      color={ollamaProviderStatus === 'Error' ? 'fg.error' : 'fg'}
-                    >
-                      {ollamaProviderStatus}
-                    </Text>
-                  }
-                />
-                <SettingsRow
-                  density="compact"
-                  label="Available models"
-                  meta={
-                    <Text textStyle="sm" color="fg">
-                      {ollamaModels.map((model) => model.name).join(', ') ||
-                        'No models discovered'}
-                    </Text>
-                  }
-                />
-                <SettingsRow
-                  density="compact"
-                  label="Test connection"
-                  control={
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={ollamaIsFetching || effectiveOllamaBaseUrl.trim().length === 0}
-                      onClick={onTestOllamaConnection}
-                    >
-                      {ollamaIsFetching ? 'Checking...' : 'Test connection'}
-                    </Button>
-                  }
-                />
-              </SettingsRows>
-            </Box>
-          ) : null}
-        </Box>
+                    <SettingsRow
+                      density="compact"
+                      label="Health status"
+                      meta={
+                        <Text textStyle="sm" color={geminiAvailability?.error ? 'fg.error' : 'fg'}>
+                          {geminiAvailability?.error ?? geminiProviderStatus}
+                        </Text>
+                      }
+                    />
+                    <SettingsRow
+                      density="compact"
+                      label="Available models"
+                      meta={curatedGeminiChatModels.join(', ')}
+                    />
+                    <SettingsRow
+                      density="compact"
+                      label="Test connection"
+                      control={
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={geminiProviderStatus === 'Checking'}
+                          onClick={onTestGeminiConnection}
+                        >
+                          {geminiProviderStatus === 'Checking' ? 'Checking...' : 'Test connection'}
+                        </Button>
+                      }
+                    />
+                  </SettingsRows>
+                </ProviderDetailsRow>
+              ) : null}
 
-        <Box borderTopWidth="1px" borderColor="border.surface">
-          <ProviderSummaryRow
-            name="Google Gemini"
-            description="Provider support reserved for this instance"
-            status={geminiProviderStatus}
-            statusTone={geminiProviderTone}
-            modelCount={curatedGeminiChatModels.length}
-            updatedAt={geminiDataUpdatedAt}
-            actionLabel={expandedProvider === 'gemini' ? 'Hide details' : 'View details'}
-            actionAriaLabel={
-              expandedProvider === 'gemini'
-                ? 'Hide Google Gemini details'
-                : 'View Google Gemini provider'
-            }
-            onAction={() =>
-              onExpandedProviderChange(expandedProvider === 'gemini' ? null : 'gemini')
-            }
-          />
-          {expandedProvider === 'gemini' ? (
-            <Box borderTopWidth="1px" borderColor="border.surface" bg="bg.subtle" px="3" py="2">
-              <SettingsRows density="compact">
-                <SettingsRow
-                  density="compact"
-                  label="Connection information"
-                  description="Gemini chat uses Google AI Studio's OpenAI-compatible API."
-                  control={
-                    aiDraft.chat.provider === 'gemini' ? (
-                      <SettingsStatusBadge tone="enabled" density="compact">
-                        Active for chat
-                      </SettingsStatusBadge>
-                    ) : (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={!geminiAvailability?.modelAvailable || isSaving}
-                        onClick={onUseGeminiForChat}
-                      >
-                        Use for chat
-                      </Button>
-                    )
-                  }
-                />
-                <SettingsRow
-                  density="compact"
-                  label="Health status"
-                  meta={
-                    <Text textStyle="sm" color={geminiAvailability?.error ? 'fg.error' : 'fg'}>
-                      {geminiAvailability?.error ?? geminiProviderStatus}
-                    </Text>
-                  }
-                />
-                <SettingsRow
-                  density="compact"
-                  label="Available models"
-                  meta={curatedGeminiChatModels.join(', ')}
-                />
-                <SettingsRow
-                  density="compact"
-                  label="Test connection"
-                  control={
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={geminiProviderStatus === 'Checking'}
-                      onClick={onTestGeminiConnection}
-                    >
-                      {geminiProviderStatus === 'Checking' ? 'Checking...' : 'Test connection'}
-                    </Button>
-                  }
-                />
-              </SettingsRows>
-            </Box>
-          ) : null}
-        </Box>
-      </Stack>
+              <ProviderTableRow
+                icon={<Server size={18} />}
+                name="Ollama"
+                description="Self-hosted"
+                status={ollamaProviderStatus}
+                statusTone={ollamaProviderTone}
+                modelCount={ollamaModels.length}
+                updatedAt={ollamaDataUpdatedAt}
+                actionLabel={expandedProvider === 'ollama' ? 'Hide' : 'Configure'}
+                actionAriaLabel={
+                  expandedProvider === 'ollama' ? 'Hide details' : 'View details'
+                }
+                onAction={() =>
+                  onExpandedProviderChange(expandedProvider === 'ollama' ? null : 'ollama')
+                }
+              />
+              {expandedProvider === 'ollama' ? (
+                <ProviderDetailsRow>
+                  <SettingsRows density="compact">
+                    <SettingsRow
+                      density="compact"
+                      label="Connection information"
+                      description="Provider used for chat completions, translation, and embeddings."
+                      control={
+                        aiDraft.chat.provider === 'ollama' ? (
+                          <SettingsStatusBadge tone="enabled" density="compact">
+                            Active for chat
+                          </SettingsStatusBadge>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={!effectiveOllamaBaseUrl.trim() || isSaving}
+                            onClick={onUseOllamaForChat}
+                          >
+                            Use for chat
+                          </Button>
+                        )
+                      }
+                    />
+                    <SettingsRow
+                      density="compact"
+                      label="Ollama endpoint"
+                      description="Configured on the API server with ARKIVRA_OLLAMA_HOST."
+                      meta={
+                        <Text textStyle="sm" color="fg" fontFamily="mono">
+                          {effectiveOllamaBaseUrl}
+                        </Text>
+                      }
+                    />
+                    <SettingsRow
+                      density="compact"
+                      label="Health status"
+                      meta={
+                        <Text
+                          textStyle="sm"
+                          color={ollamaProviderStatus === 'Error' ? 'fg.error' : 'fg'}
+                        >
+                          {ollamaProviderStatus}
+                        </Text>
+                      }
+                    />
+                    <SettingsRow
+                      density="compact"
+                      label="Available models"
+                      meta={
+                        <Text textStyle="sm" color="fg">
+                          {ollamaModels.map((model) => model.name).join(', ') ||
+                            'No models discovered'}
+                        </Text>
+                      }
+                    />
+                    <SettingsRow
+                      density="compact"
+                      label="Test connection"
+                      control={
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={ollamaIsFetching || effectiveOllamaBaseUrl.trim().length === 0}
+                          onClick={onTestOllamaConnection}
+                        >
+                          {ollamaIsFetching ? 'Checking...' : 'Test connection'}
+                        </Button>
+                      }
+                    />
+                  </SettingsRows>
+                </ProviderDetailsRow>
+              ) : null}
+
+              <ProviderTableRow
+                icon={<Server size={18} />}
+                name="OpenRouter"
+                description="Not configured"
+                status="Not configured"
+                statusTone="inactive"
+                modelCount={0}
+                updatedAt={0}
+                actionLabel="Configure"
+                actionAriaLabel="Configure OpenRouter provider"
+                disabled
+                onAction={() => undefined}
+              />
+            </Table.Body>
+          </Table.Root>
+        </Table.ScrollArea>
+      </Box>
     </AiSettingsSection>
   );
 }
 
-function ProviderSummaryRow({
+function ProviderTableRow({
   actionAriaLabel,
   actionLabel,
   description,
+  disabled = false,
+  icon,
   modelCount,
   name,
   status,
@@ -267,6 +308,8 @@ function ProviderSummaryRow({
   actionAriaLabel: string;
   actionLabel: string;
   description: string;
+  disabled?: boolean;
+  icon: ReactNode;
   modelCount: number;
   name: string;
   status: string;
@@ -275,43 +318,81 @@ function ProviderSummaryRow({
   onAction: () => void;
 }) {
   return (
-    <Grid
-      templateColumns={{
-        base: '1fr',
-        lg: 'minmax(10rem, 1fr) 8rem 7rem minmax(10rem, 0.8fr) auto',
-      }}
-      gap="3"
-      alignItems="center"
-      px="3"
-      py="2.5"
-    >
-      <Stack gap="0.5" minW="0">
-        <Text textStyle="sm" fontWeight="semibold" color="fg">
-          {name}
+    <Table.Row>
+      <Table.Cell>
+        <HStack gap="3" minW="0">
+          <Flex
+            boxSize="8"
+            align="center"
+            justify="center"
+            rounded="md"
+            bg="bg.subtle"
+            color="fg"
+            flexShrink={0}
+            aria-hidden="true"
+          >
+            {icon}
+          </Flex>
+          <Stack gap="0" minW="0">
+            <Text textStyle="sm" fontWeight="semibold" color="fg" truncate>
+              {name}
+            </Text>
+            <Text textStyle="xs" color="fg.muted" truncate>
+              {description}
+            </Text>
+          </Stack>
+        </HStack>
+      </Table.Cell>
+      <Table.Cell>
+        <SettingsStatusBadge tone={statusTone} density="compact">
+          {status}
+        </SettingsStatusBadge>
+      </Table.Cell>
+      <Table.Cell>
+        <Text textStyle="sm" color="fg.muted">
+          {modelCount.toLocaleString()} models
         </Text>
-        <Text textStyle="xs" color="fg.muted">
-          {description}
+      </Table.Cell>
+      <Table.Cell>
+        <Text textStyle="sm" color="fg.muted">
+          {updatedAt ? formatDate(new Date(updatedAt).toISOString()) : 'Not checked'}
         </Text>
-      </Stack>
-      <SettingsStatusBadge tone={statusTone} density="compact">
-        {status}
-      </SettingsStatusBadge>
-      <Text textStyle="sm" color="fg.muted">
-        {modelCount} models
-      </Text>
-      <Text textStyle="sm" color="fg.muted">
-        {updatedAt ? formatDate(new Date(updatedAt).toISOString()) : 'Not checked'}
-      </Text>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        aria-label={actionAriaLabel}
-        justifySelf={{ base: 'start', lg: 'end' }}
-        onClick={onAction}
-      >
-        {actionLabel}
-      </Button>
-    </Grid>
+      </Table.Cell>
+      <Table.Cell>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          aria-label={actionAriaLabel}
+          disabled={disabled}
+          onClick={onAction}
+        >
+          {actionLabel}
+        </Button>
+      </Table.Cell>
+      <Table.Cell>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          aria-label={`${name} provider actions`}
+          disabled={disabled}
+        >
+          <MoreVertical size={16} />
+        </Button>
+      </Table.Cell>
+    </Table.Row>
+  );
+}
+
+function ProviderDetailsRow({ children }: { children: ReactNode }) {
+  return (
+    <Table.Row>
+      <Table.Cell colSpan={6} bg="bg.subtle" p="0">
+        <Box px="3" py="2">
+          {children}
+        </Box>
+      </Table.Cell>
+    </Table.Row>
   );
 }

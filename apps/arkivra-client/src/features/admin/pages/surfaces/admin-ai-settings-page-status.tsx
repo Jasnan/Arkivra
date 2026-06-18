@@ -1,16 +1,21 @@
-import { Box, Grid, HStack, SimpleGrid, Stack, Text } from '@chakra-ui/react';
-import { Info } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import type { ReactNode } from 'react';
+import { Box, Flex, Grid, HStack, SimpleGrid, Stack, Text } from '@chakra-ui/react';
+import {
+  Database,
+  Info,
+  Languages,
+  MessageSquare,
+  Search,
+  Sparkles,
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import type { AdminEmbeddingIndexSummary } from '@/features/admin/admin.types';
-import { SettingsStatusBadge } from '@/features/settings/components/settings-ui';
-import type { SettingsStatusTone } from '@/features/settings/components/settings-ui';
 import {
   AiSettingsSection,
-  CapabilityStatus,
-  CompactMetric,
+  ChunkProgressBar,
   RequirementStatus,
-  SemanticIndexProgressSummary,
+  SemanticSearchMetric,
 } from './admin-ai-settings-page-sections';
 import type { ChunkProgressVisualStatus } from './admin-ai-settings-page-sections';
 import { formatShortDateTime } from './admin-ai-settings-page-status-helpers';
@@ -22,76 +27,124 @@ interface ReadinessCheck {
   isMet: boolean;
 }
 
-export function AdminAiReadinessSection({
+export function AdminAiPlatformSection({
+  accentColor,
+  aiFeaturesEnabled,
   isAiReady,
+  isSaving,
   readinessChecks,
+  onToggleAiFeatures,
 }: {
+  accentColor: string;
+  aiFeaturesEnabled: boolean;
   isAiReady: boolean;
+  isSaving: boolean;
   readinessChecks: ReadinessCheck[];
+  onToggleAiFeatures: (checked: boolean) => void;
 }) {
+  const completedCount = readinessChecks.filter((check) => check.isMet).length;
+  const progress =
+    readinessChecks.length > 0
+      ? Math.round((completedCount / readinessChecks.length) * 100)
+      : 0;
+
   return (
     <AiSettingsSection
-      title="AI Readiness"
-      description="Requirements that must be in place before AI can be enabled."
-      tone={isAiReady ? 'success' : 'warning'}
+      title={
+        <HStack gap="3" minW="0">
+          <Flex
+            boxSize="10"
+            align="center"
+            justify="center"
+            rounded="md"
+            bg="blue.subtle"
+            color="blue.solid"
+            flexShrink={0}
+          >
+            <Sparkles size={20} />
+          </Flex>
+          <Stack gap="1" minW="0">
+            <HStack gap="2" minW="0" flexWrap="wrap">
+              <Text fontSize="lg" fontWeight="semibold" color="fg" lineHeight="short">
+                AI Platform
+              </Text>
+              <Badge colorPalette={aiFeaturesEnabled ? 'teal' : 'gray'} variant="subtle">
+                {aiFeaturesEnabled ? 'Enabled' : 'Not enabled'}
+              </Badge>
+            </HStack>
+            <Text textStyle="sm" color="fg.muted">
+              Enable AI-powered capabilities in Arkivra.
+            </Text>
+          </Stack>
+        </HStack>
+      }
+      actions={
+        <HStack gap="3" align="center">
+          <Switch
+            aria-label="Enable AI Platform"
+            checked={aiFeaturesEnabled}
+            colorPalette={accentColor}
+            disabled={(!aiFeaturesEnabled && !isAiReady) || isSaving}
+            onCheckedChange={onToggleAiFeatures}
+          />
+          <Text textStyle="sm" fontWeight="medium" color="fg.muted">
+            {aiFeaturesEnabled ? 'Enabled' : 'Disabled'}
+          </Text>
+        </HStack>
+      }
     >
       <Grid
-        templateColumns={{ base: '1fr', xl: 'minmax(0, 1fr) minmax(13rem, 0.32fr)' }}
-        gap="4"
-        alignItems="stretch"
+        templateColumns={{ base: '1fr', xl: 'minmax(0, 1.35fr) minmax(18rem, 0.95fr)' }}
+        gap="5"
+        alignItems="end"
       >
-        <SimpleGrid
-          columns={{ base: 1, md: 2, xl: 5 }}
-          gap="0"
-          rounded="md"
-          borderWidth="1px"
-          borderColor="border.surface"
-          bg="bg.surface"
-          overflow="hidden"
-        >
-          {readinessChecks.map((check, index) => (
-            <Box
-              key={check.label}
-              borderRightWidth={{
-                base: '0',
-                md: index % 2 === 0 && index !== readinessChecks.length - 1 ? '1px' : '0',
-                xl: index === readinessChecks.length - 1 ? '0' : '1px',
-              }}
-              borderBottomWidth={{
-                base: index === readinessChecks.length - 1 ? '0' : '1px',
-                md: index === readinessChecks.length - 1 ? '0' : '1px',
-                xl: '0',
-              }}
-              borderColor="border.surface"
-            >
+        <Stack gap="4" minW="0">
+          <Stack gap="3">
+            <HStack gap="2" flexWrap="wrap">
+              <Text textStyle="sm" fontWeight="semibold" color="fg">
+                Requirements
+              </Text>
+              <Badge colorPalette={isAiReady ? 'teal' : 'gray'} variant="subtle">
+                {completedCount} / {readinessChecks.length} completed
+              </Badge>
+            </HStack>
+            <ChunkProgressBar progress={progress} status={isAiReady ? 'active' : 'idle'} />
+          </Stack>
+
+          <Stack gap="1">
+            {readinessChecks.map((check) => (
               <RequirementStatus
+                key={check.label}
                 label={check.label}
                 statusLabel={check.statusLabel}
                 missingLabel={check.missingLabel}
                 isMet={check.isMet}
               />
-            </Box>
-          ))}
-        </SimpleGrid>
+            ))}
+          </Stack>
+        </Stack>
+
         <Box
-          borderLeftWidth={{ base: '0', xl: '1px' }}
-          borderTopWidth={{ base: '1px', xl: '0' }}
-          borderColor="border.surface"
-          ps={{ base: '0', xl: '4' }}
-          pt={{ base: '3', xl: '0' }}
+          rounded="md"
+          borderWidth="1px"
+          borderColor="blue.muted"
+          bg="blue.subtle"
+          px="4"
+          py="4"
         >
-          <Stack gap="1">
-            <Text
-              textStyle="sm"
-              fontWeight="semibold"
-              color={isAiReady ? 'fg.success' : 'fg.warning'}
-            >
-              {isAiReady ? 'All set!' : 'Configuration required'}
-            </Text>
+          <Stack gap="2.5">
+            <HStack gap="2" align="center">
+              <Box color="fg.info" aria-hidden="true">
+                <Info size={16} />
+              </Box>
+              <Text textStyle="sm" fontWeight="semibold" color="blue.solid">
+                What is the AI Platform?
+              </Text>
+            </HStack>
             <Text textStyle="sm" color="fg.muted">
-              {isAiReady
-                ? 'You can enable AI features.'
-                : 'Configure the missing requirements before enabling AI.'}
+              The AI Platform powers Arkivra's AI capabilities. All requirements must be met
+              before it can be enabled. Once enabled, you can turn on the capabilities you want to
+              use.
             </Text>
           </Stack>
         </Box>
@@ -100,115 +153,84 @@ export function AdminAiReadinessSection({
   );
 }
 
-export function AdminAiFeatureStatusSection({
+export function AdminAiCapabilitiesSection({
   accentColor,
   aiFeaturesEnabled,
-  chatStatus,
-  isAiReady,
-  isChatConfigValid,
-  isEmbeddingConfigValid,
+  chatEnabled,
   isSaving,
-  isTranslationConfigValid,
-  platformStatus,
-  platformTone,
-  semanticStatus,
-  translationStatus,
-  onToggleAiFeatures,
+  semanticEnabled,
+  translationEnabled,
+  onToggleChat,
+  onToggleSemantic,
+  onToggleTranslation,
 }: {
   accentColor: string;
   aiFeaturesEnabled: boolean;
-  chatStatus: string;
-  isAiReady: boolean;
-  isChatConfigValid: boolean;
-  isEmbeddingConfigValid: boolean;
+  chatEnabled: boolean;
   isSaving: boolean;
-  isTranslationConfigValid: boolean;
-  platformStatus: string;
-  platformTone: SettingsStatusTone;
-  semanticStatus: string;
-  translationStatus: string;
-  onToggleAiFeatures: (checked: boolean) => void;
+  semanticEnabled: boolean;
+  translationEnabled: boolean;
+  onToggleChat: (checked: boolean) => void;
+  onToggleSemantic: (checked: boolean) => void;
+  onToggleTranslation: (checked: boolean) => void;
 }) {
+  const isDisabled = !aiFeaturesEnabled || isSaving;
+
   return (
     <AiSettingsSection
-      title="AI features"
-      description="Enable or disable AI capabilities across Arkivra."
-      actions={<SettingsStatusBadge tone={platformTone}>{platformStatus}</SettingsStatusBadge>}
+      title="AI Capabilities"
+      description="Choose which AI capabilities to make available in Arkivra."
     >
-      <Grid
-        templateColumns={{ base: '1fr', lg: 'minmax(18rem, 1fr) minmax(16rem, 0.95fr)' }}
-        gap="4"
-      >
-        <Stack gap="4" minW="0">
-          <Stack gap="2.5">
-            <Text textStyle="sm" fontWeight="semibold" color="fg">
-              AI features
-            </Text>
-            <HStack gap="3">
-              <Switch
-                aria-label="Enable AI features"
-                checked={aiFeaturesEnabled}
-                colorPalette={accentColor}
-                disabled={(!aiFeaturesEnabled && !isAiReady) || isSaving}
-                onCheckedChange={onToggleAiFeatures}
-              />
-              <Text textStyle="sm" fontWeight="semibold" color="fg">
-                {aiFeaturesEnabled ? 'Enabled' : 'Disabled'}
-              </Text>
-            </HStack>
-          </Stack>
-          <Text textStyle="sm" color="fg.muted">
-            When enabled, semantic search indexing and AI chat capabilities will be available.
-          </Text>
-        </Stack>
-
-        <Stack
-          gap="3"
-          minW="0"
-          borderLeftWidth={{ base: '0', lg: '1px' }}
-          borderColor="border.surface"
-          pl={{ base: '0', lg: '5' }}
-        >
-          <Text textStyle="sm" fontWeight="semibold" color="fg">
-            Feature status
-          </Text>
-          <Stack gap="1">
-            <CapabilityStatus
-              label="Semantic Search"
-              status={semanticStatus}
-              tone={
-                aiFeaturesEnabled && isEmbeddingConfigValid
-                  ? 'ready'
-                  : aiFeaturesEnabled
-                    ? 'warning'
-                    : 'disabled'
-              }
-            />
-            <CapabilityStatus
-              label="AI Chat"
-              status={aiFeaturesEnabled ? chatStatus : 'Paused'}
-              tone={
-                aiFeaturesEnabled && isChatConfigValid
-                  ? 'ready'
-                  : aiFeaturesEnabled
-                    ? 'warning'
-                    : 'disabled'
-              }
-            />
-            <CapabilityStatus
-              label="Translation"
-              status={aiFeaturesEnabled ? translationStatus : 'Paused'}
-              tone={
-                aiFeaturesEnabled && isTranslationConfigValid
-                  ? 'ready'
-                  : aiFeaturesEnabled
-                    ? 'warning'
-                    : 'disabled'
-              }
-            />
-          </Stack>
-        </Stack>
+      <Grid templateColumns={{ base: '1fr', xl: '15rem minmax(0, 1fr)' }} gap="4">
+        <Box display={{ base: 'none', xl: 'block' }} />
+        <SimpleGrid columns={{ base: 1, md: 3 }} gap="3" alignItems="stretch">
+          <CapabilityCard
+            accentColor={accentColor}
+            checked={semanticEnabled}
+            description="Find documents by meaning, not keywords."
+            disabled={isDisabled}
+            icon={<Search size={22} />}
+            iconBg="green.subtle"
+            iconColor="green.solid"
+            label="Semantic Search"
+            requirement="Embedding model"
+            onToggle={onToggleSemantic}
+          />
+          <CapabilityCard
+            accentColor={accentColor}
+            checked={chatEnabled}
+            description="Ask questions and get answers from your documents."
+            disabled={isDisabled}
+            icon={<MessageSquare size={22} />}
+            iconBg="blue.subtle"
+            iconColor="blue.solid"
+            label="AI Chat"
+            requirement="Chat model"
+            onToggle={onToggleChat}
+          />
+          <CapabilityCard
+            accentColor={accentColor}
+            checked={translationEnabled}
+            description="Translate documents to multiple languages."
+            disabled={isDisabled}
+            icon={<Languages size={22} />}
+            iconBg="purple.subtle"
+            iconColor="purple.solid"
+            label="Translation"
+            requirement="Vision model"
+            onToggle={onToggleTranslation}
+          />
+        </SimpleGrid>
       </Grid>
+
+      <HStack gap="2" color="fg.muted">
+        <Box color="fg.info" aria-hidden="true">
+          <Info size={14} />
+        </Box>
+        <Text textStyle="xs">
+          Capabilities can only be turned on after the AI Platform is enabled.
+        </Text>
+      </HStack>
     </AiSettingsSection>
   );
 }
@@ -219,103 +241,160 @@ export function AdminAiSemanticSearchSection({
   indexProgress,
   indexedChunks,
   liveIndexModel,
-  semanticIndexTone,
   semanticProgressStatus,
   semanticStatus,
-  semanticStatusMessage,
-  showDetails,
-  onToggleDetails,
+  onViewDetails,
 }: {
   chunkTotal: number;
   currentIndex: AdminEmbeddingIndexSummary | null;
   indexProgress: number;
   indexedChunks: number;
   liveIndexModel: string;
-  semanticIndexTone: SettingsStatusTone;
   semanticProgressStatus: ChunkProgressVisualStatus;
   semanticStatus: string;
-  semanticStatusMessage: string;
-  showDetails: boolean;
-  onToggleDetails: () => void;
+  onViewDetails: () => void;
 }) {
+  const showProgress = semanticProgressStatus === 'building' || semanticProgressStatus === 'paused';
+
   return (
     <AiSettingsSection
       title="Semantic Search"
-      description="The index enables semantic search across your documents."
-      actions={
-        <>
-          <SettingsStatusBadge tone={semanticIndexTone}>{semanticStatus}</SettingsStatusBadge>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            aria-label={showDetails ? 'Hide semantic search details' : 'View semantic search details'}
-            onClick={onToggleDetails}
-          >
-            {showDetails ? 'Hide details' : 'View details'}
-          </Button>
-        </>
-      }
+      description="Overview of your semantic search index."
+      actionLabel="View index details"
+      actionType="external"
+      onAction={onViewDetails}
     >
-      <Stack gap="4">
-        <Grid
-          templateColumns={{ base: '1fr', lg: 'minmax(0, 1.35fr) minmax(18rem, 0.9fr)' }}
-          gap="4"
-          alignItems="stretch"
+      <Stack gap="3">
+        <SimpleGrid
+          columns={{ base: 1, md: 2, xl: 4 }}
+          gap="0"
+          rounded="md"
+          borderWidth="1px"
+          borderColor="border.surface"
+          bg="bg.surface"
+          overflow="hidden"
         >
-          <Stack gap="3">
-            <SemanticIndexProgressSummary
-              indexedChunks={indexedChunks}
-              expectedChunks={chunkTotal}
-              progress={indexProgress}
-              status={semanticProgressStatus}
-            />
-            <SimpleGrid columns={{ base: 1, md: 3 }} gap="3">
-              <CompactMetric
-                label="Live index model"
-                value={currentIndex?.model ?? liveIndexModel}
-              />
-              <CompactMetric label="Index version" value={currentIndex?.id ?? 'No index'} />
-              <CompactMetric
-                label="Last updated"
-                value={formatShortDateTime(currentIndex?.updatedAt)}
-              />
-            </SimpleGrid>
-            {showDetails ? (
-              <SimpleGrid columns={{ base: 1, md: 2 }} gap="3">
-                <CompactMetric
-                  label="Started time"
-                  value={formatShortDateTime(currentIndex?.buildStartedAt ?? currentIndex?.createdAt)}
-                />
-                <CompactMetric label="Expected chunks" value={chunkTotal.toLocaleString()} />
-              </SimpleGrid>
-            ) : null}
-          </Stack>
+          <SemanticSearchMetric
+            icon={<Search size={16} />}
+            label="Status"
+            value={semanticStatus}
+          />
+          <SemanticSearchMetric
+            icon={<Database size={16} />}
+            label="Model"
+            value={currentIndex?.model ?? liveIndexModel}
+            helpText={
+              currentIndex?.dimensions
+                ? `${currentIndex.dimensions.toLocaleString()} dimensions`
+                : undefined
+            }
+          />
+          <SemanticSearchMetric
+            icon={<Info size={16} />}
+            label="Indexed chunks"
+            value={indexedChunks.toLocaleString()}
+            helpText={chunkTotal > 0 ? `${chunkTotal.toLocaleString()} total` : undefined}
+          />
+          <SemanticSearchMetric
+            icon={<Info size={16} />}
+            label="Last updated"
+            value={formatShortDateTime(currentIndex?.updatedAt)}
+          />
+        </SimpleGrid>
 
-          <Box
-            rounded="md"
-            borderWidth="1px"
-            borderColor="blue.muted"
-            bg="blue.subtle"
-            px="4"
-            py="4"
-          >
-            <Stack gap="2">
-              <HStack gap="2" align="flex-start">
-                <Box color="fg.info" mt="0.5" flexShrink={0}>
-                  <Info size={15} />
-                </Box>
-                <Text textStyle="sm" fontWeight="semibold" color="blue.solid">
-                  Current status: {semanticStatus}
-                </Text>
-              </HStack>
-              <Text textStyle="sm" color="fg.muted">
-                {semanticStatusMessage}
+        {showProgress ? (
+          <Stack gap="2">
+            <HStack justify="space-between" gap="3">
+              <Text textStyle="xs" fontWeight="medium" color="fg.muted">
+                {semanticProgressStatus === 'paused' ? 'Paused' : 'Indexing in progress'}
               </Text>
-            </Stack>
-          </Box>
-        </Grid>
+              <Text textStyle="xs" color="fg.muted">
+                {indexProgress}%
+              </Text>
+            </HStack>
+            <ChunkProgressBar progress={indexProgress} status={semanticProgressStatus} />
+          </Stack>
+        ) : null}
       </Stack>
     </AiSettingsSection>
+  );
+}
+
+function CapabilityCard({
+  accentColor,
+  checked,
+  description,
+  disabled,
+  icon,
+  iconBg,
+  iconColor,
+  label,
+  requirement,
+  onToggle,
+}: {
+  accentColor: string;
+  checked: boolean;
+  description: string;
+  disabled: boolean;
+  icon: ReactNode;
+  iconBg: string;
+  iconColor: string;
+  label: string;
+  requirement: string;
+  onToggle: (checked: boolean) => void;
+}) {
+  return (
+    <Stack
+      gap="3"
+      rounded="md"
+      borderWidth="1px"
+      borderColor="border.surface"
+      bg="bg.surface"
+      p="4"
+      minH="14rem"
+      justify="space-between"
+    >
+      <Stack gap="3">
+        <Flex
+          boxSize="12"
+          align="center"
+          justify="center"
+          rounded="md"
+          bg={iconBg}
+          color={iconColor}
+          aria-hidden="true"
+        >
+          {icon}
+        </Flex>
+        <Stack gap="1">
+          <Text textStyle="sm" fontWeight="semibold" color="fg">
+            {label}
+          </Text>
+          <Text textStyle="sm" color="fg.muted">
+            {description}
+          </Text>
+        </Stack>
+        <Stack gap="1">
+          <Text textStyle="xs" color="fg.muted">
+            Requires
+          </Text>
+          <Badge alignSelf="flex-start" colorPalette="gray" variant="subtle">
+            {requirement}
+          </Badge>
+        </Stack>
+      </Stack>
+      <HStack gap="2">
+        <Switch
+          aria-label={`Enable ${label}`}
+          checked={checked}
+          colorPalette={accentColor}
+          disabled={disabled}
+          onCheckedChange={onToggle}
+        />
+        <Text textStyle="sm" color="fg.muted">
+          {checked ? 'On' : 'Off'}
+        </Text>
+      </HStack>
+    </Stack>
   );
 }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Stack, Text } from '@chakra-ui/react';
+import { Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { ExternalLink } from 'lucide-react';
 import { useAccentColor } from '@/components/providers/accent-color-context';
 import { toast } from '@/components/ui/toaster-store';
 import { updateAdminAiSettings } from '@/features/admin/admin.api';
@@ -14,7 +15,6 @@ import {
 import type { AdminAiSettings } from '@/features/admin/admin.types';
 import { meQueryKeys, useMeQuery } from '@/features/me/me.queries';
 import type { MeResponse } from '@/features/me/me.types';
-import type { SettingsStatusTone } from '@/features/settings/components/settings-ui';
 import { AdminAccessBoundary } from './admin-shared';
 import {
   ChatModelsDialog,
@@ -25,25 +25,25 @@ import type { TranslationModelOption } from './admin-ai-settings-page-dialogs';
 import { AdminAiModelSections } from './admin-ai-settings-page-models';
 import { AdminAiProviderSection } from './admin-ai-settings-page-providers';
 import {
-  AdminAiFeatureStatusSection,
-  AdminAiReadinessSection,
+  AdminAiCapabilitiesSection,
+  AdminAiPlatformSection,
   AdminAiSemanticSearchSection,
 } from './admin-ai-settings-page-status';
 import {
   buildEmbeddingModelOptions,
   curatedGeminiChatModels,
   geminiBaseUrl,
-  isCatalogEmbeddingModel,
+  hasModelCapability,
+  isSameOllamaModel,
 } from './admin-ai-settings-page-model-catalog';
 import type { EmbeddingModelOption } from './admin-ai-settings-page-model-catalog';
-import type { ChunkProgressVisualStatus } from './admin-ai-settings-page-sections';
 import { emptyAiSettings } from './admin-ai-settings-page-state';
 import type { AiSettingsDraftOverride } from './admin-ai-settings-page-state';
 import {
   formatIndexStatus,
-  getConnectionStatusLabel,
   getIndexProgress,
 } from './admin-ai-settings-page-status-helpers';
+import type { ChunkProgressVisualStatus } from './admin-ai-settings-page-sections';
 
 export interface ChatModelOption {
   value: string;
@@ -53,6 +53,7 @@ export interface ChatModelOption {
   label: string;
   baseUrl: string;
   description?: string | null;
+  capabilities: string[];
 }
 
 function formatChatModelValue({
@@ -112,7 +113,6 @@ export function AdminAiSettingsPage() {
   const [selectedEmbeddingModelKey, setSelectedEmbeddingModelKey] = useState('');
   const [isTranslationModelDialogOpen, setIsTranslationModelDialogOpen] = useState(false);
   const [selectedTranslationModelKey, setSelectedTranslationModelKey] = useState('');
-  const [showSemanticIndexDetails, setShowSemanticIndexDetails] = useState(false);
   const savedAiSettings = aiSettingsQuery.data?.settings ?? emptyAiSettings;
   const aiDraft: AdminAiSettings = {
     ...savedAiSettings,
@@ -199,9 +199,10 @@ export function AdminAiSettingsPage() {
       label: model.name,
       baseUrl: geminiBaseUrl,
       description: model.description ?? null,
+      capabilities: model.capabilities,
     }));
     const ollamaOptions = availableOllamaModels
-      .filter((model) => !isCatalogEmbeddingModel('ollama', model.name))
+      .filter((model) => !hasModelCapability(model, 'embedding'))
       .map((model) => ({
         value: formatChatModelValue({ provider: 'ollama', model: model.name }),
         provider: 'ollama' as const,
@@ -210,6 +211,7 @@ export function AdminAiSettingsPage() {
         label: model.name,
         baseUrl: effectiveOllamaBaseUrl,
         description: model.description ?? null,
+        capabilities: model.capabilities,
       }));
 
     return [...geminiOptions, ...ollamaOptions];
@@ -227,11 +229,12 @@ export function AdminAiSettingsPage() {
       label: model.name,
       baseUrl: geminiBaseUrl,
       description: model.description ?? null,
+      capabilities: model.capabilities,
       isConfigured:
         aiDraft.translation.provider === 'gemini' && aiDraft.translation.model === model.name,
     }));
     const ollamaOptions = availableOllamaModels
-      .filter((model) => !isCatalogEmbeddingModel('ollama', model.name))
+      .filter((model) => hasModelCapability(model, 'vision'))
       .map((model) => ({
         key: formatChatModelValue({ provider: 'ollama', model: model.name }),
         provider: 'ollama' as const,
@@ -240,6 +243,7 @@ export function AdminAiSettingsPage() {
         label: model.name,
         baseUrl: effectiveOllamaBaseUrl,
         description: model.description ?? null,
+        capabilities: model.capabilities,
         isConfigured:
           aiDraft.translation.provider === 'ollama' && aiDraft.translation.model === model.name,
       }));
@@ -307,17 +311,6 @@ export function AdminAiSettingsPage() {
       : chatModelValues.filter(
           (model) => savedAllowedChatModelValues.includes(model) || model === effectiveDefaultChatModel,
         );
-  const chatAvailabilityQuery = useAdminAiAvailabilityQuery({
-    host: effectiveDefaultChatOption?.baseUrl ?? aiDraft.chat.baseUrl,
-    model: effectiveDefaultChatSelection.model,
-    provider: effectiveDefaultChatSelection.provider,
-    apiKeySecretRef:
-      effectiveDefaultChatSelection.provider === 'gemini'
-        ? (aiDraft.providers?.gemini?.apiKeySecretRef ?? aiDraft.chat.apiKeySecretRef)
-        : null,
-    enabled: effectiveDefaultChatModel.length > 0,
-  });
-  const chatAvailability = chatAvailabilityQuery.data?.availability;
   const geminiAvailabilityQuery = useAdminAiAvailabilityQuery({
     host: geminiBaseUrl,
     model: curatedGeminiChatModels[0],
@@ -325,37 +318,6 @@ export function AdminAiSettingsPage() {
     enabled: isEnabled,
   });
   const geminiAvailability = geminiAvailabilityQuery.data?.availability;
-  const translationAvailabilityQuery = useAdminAiAvailabilityQuery({
-    host: effectiveTranslationOption?.baseUrl ?? aiDraft.translation.baseUrl,
-    model: effectiveTranslationModel,
-    provider: effectiveTranslationOption?.provider ?? aiDraft.translation.provider,
-    apiKeySecretRef:
-      (effectiveTranslationOption?.provider ?? aiDraft.translation.provider) === 'gemini'
-        ? (aiDraft.providers?.gemini?.apiKeySecretRef ?? aiDraft.translation.apiKeySecretRef)
-        : null,
-    enabled:
-      isEnabled &&
-      (effectiveTranslationOption?.baseUrl ?? aiDraft.translation.baseUrl).trim().length > 0 &&
-      effectiveTranslationModel.length > 0,
-  });
-  const translationAvailability = translationAvailabilityQuery.data?.availability;
-  const chatConnectionStatus = getConnectionStatusLabel({
-    enabled:
-      effectiveDefaultChatModel.length > 0 &&
-      (effectiveDefaultChatSelection.provider === 'gemini' ||
-        (effectiveDefaultChatOption?.baseUrl ?? '').trim().length > 0),
-    isLoading: chatAvailabilityQuery.isFetching,
-    reachable: chatAvailability?.reachable,
-    modelAvailable: chatAvailability?.modelAvailable,
-  });
-  const translationConnectionStatus = getConnectionStatusLabel({
-    enabled:
-      (effectiveTranslationOption?.baseUrl ?? (aiDraft.translation.baseUrl || aiDraft.chat.baseUrl)).trim().length > 0 &&
-      effectiveTranslationModel.length > 0,
-    isLoading: translationAvailabilityQuery.isFetching,
-    reachable: translationAvailability?.reachable,
-    modelAvailable: translationAvailability?.modelAvailable,
-  });
   const isChatConfigValid =
     effectiveDefaultChatModel.length > 0 &&
     (effectiveDefaultChatSelection.provider === 'gemini' ||
@@ -390,41 +352,58 @@ export function AdminAiSettingsPage() {
   const isTranslationConfigValid =
     (effectiveTranslationOption?.baseUrl ?? (aiDraft.translation.baseUrl || aiDraft.chat.baseUrl)).trim().length > 0 &&
     effectiveTranslationModel.length > 0;
+  const isTranslationModelMultimodal =
+    effectiveTranslationModel.length > 0 &&
+    (effectiveTranslationOption?.capabilities.includes('vision') ?? false);
+  const selectedEmbeddingProviderModel =
+    aiDraft.embedding.provider === 'ollama'
+      ? availableOllamaModels.find((model) => isSameOllamaModel(model.name, aiDraft.embedding.model))
+      : undefined;
+  const isEmbeddingModelEmbeddingCapable =
+    aiDraft.embedding.provider !== 'ollama' ||
+    (selectedEmbeddingProviderModel !== undefined &&
+      hasModelCapability(selectedEmbeddingProviderModel, 'embedding'));
   const isEmbeddingConfigValid =
     aiDraft.embedding.baseUrl.trim().length > 0 &&
     aiDraft.embedding.model.trim().length > 0 &&
     Number.isInteger(aiDraft.embedding.dimensions) &&
-    aiDraft.embedding.dimensions > 0;
+    aiDraft.embedding.dimensions > 0 &&
+    isEmbeddingModelEmbeddingCapable;
+  const hasConfiguredProvider =
+    effectiveOllamaBaseUrl.trim().length > 0 || geminiProviderStatus === 'Healthy';
   const readinessChecks = [
     {
-      label: 'Chat provider',
+      label: 'At least one AI provider is configured',
       statusLabel: 'Configured',
-      missingLabel: 'No chat provider configured',
-      isMet: aiDraft.chat.provider.length > 0 && aiDraft.chat.baseUrl.trim().length > 0,
+      missingLabel: 'Missing',
+      isMet: hasConfiguredProvider,
     },
     {
-      label: 'Embedding provider',
-      statusLabel: 'Configured',
-      missingLabel: 'No embedding provider configured',
-      isMet: aiDraft.embedding.provider.length > 0 && aiDraft.embedding.baseUrl.trim().length > 0,
+      label: 'An embedding model is selected',
+      statusLabel: 'Completed',
+      missingLabel: 'Missing',
+      isMet: isEmbeddingConfigValid,
     },
     {
-      label: 'Default chat model',
-      statusLabel: 'Selected',
-      missingLabel: 'No default chat model selected',
-      isMet: effectiveDefaultChatModel.length > 0,
+      label: 'A chat model is selected',
+      statusLabel: 'Completed',
+      missingLabel: 'Missing',
+      isMet: isChatConfigValid,
     },
     {
-      label: 'Translation model',
-      statusLabel: 'Selected',
-      missingLabel: 'No translation model selected',
-      isMet: effectiveTranslationModel.length > 0,
+      label: 'A translation model is selected',
+      statusLabel: 'Completed',
+      missingLabel: 'Missing',
+      isMet: isTranslationConfigValid,
     },
     {
-      label: 'Embedding model',
-      statusLabel: 'Selected',
-      missingLabel: 'No embedding model selected',
-      isMet: aiDraft.embedding.model.trim().length > 0,
+      label: 'Translation model is multimodal',
+      statusLabel: 'Completed',
+      missingLabel:
+        effectiveTranslationModel.length > 0
+          ? 'Selected translation model does not support image input.'
+          : 'Missing',
+      isMet: isTranslationModelMultimodal,
     },
   ];
   const isAiReady = readinessChecks.every((check) => check.isMet);
@@ -436,12 +415,6 @@ export function AdminAiSettingsPage() {
           Math.round((chunkCoverage.indexedChunkCount / chunkCoverage.totalChunkCount) * 100),
         )
       : 0;
-  const platformStatus = !aiDraft.aiFeaturesEnabled
-    ? 'Disabled'
-    : isAiReady
-      ? 'Active'
-      : 'Needs configuration';
-  const platformTone = !aiDraft.aiFeaturesEnabled ? 'inactive' : isAiReady ? 'enabled' : 'warning';
   const isSemanticIndexIncomplete =
     aiDraft.aiFeaturesEnabled &&
     indexProgress < 100 &&
@@ -465,27 +438,6 @@ export function AdminAiSettingsPage() {
       : isSemanticIndexIncomplete
         ? 'building'
         : (currentIndex?.status ?? 'idle');
-  const semanticIndexTone: SettingsStatusTone =
-    currentIndex?.status === 'failed'
-      ? 'warning'
-      : !aiDraft.aiFeaturesEnabled
-        ? 'inactive'
-        : isSemanticIndexIncomplete
-          ? 'warning'
-          : currentIndex
-            ? 'enabled'
-            : 'inactive';
-  const chatStatus =
-    chatConnectionStatus === 'Healthy'
-      ? 'Ready'
-      : isChatConfigValid
-        ? chatConnectionStatus
-        : 'Needs configuration';
-  const translationStatus = isTranslationConfigValid
-    ? translationConnectionStatus === 'Error'
-      ? 'Provider error'
-      : 'Ready'
-    : 'Needs configuration';
   const indexedChunks = chunkCoverage.indexedChunkCount;
   const configuredEmbeddingModel = savedAiSettings.embedding.model || aiDraft.embedding.model;
   const configuredEmbeddingProvider =
@@ -686,34 +638,6 @@ export function AdminAiSettingsPage() {
     aiSettingsMutation.mutate(merged);
   }
 
-  function persistProviderSettings() {
-    const ollamaBaseUrl = effectiveOllamaBaseUrl.trim();
-    if (ollamaBaseUrl.length === 0) {
-      return;
-    }
-
-    persistAiDraft({
-      ...(aiDraft.chat.provider === 'ollama' ? { chat: { baseUrl: ollamaBaseUrl } } : {}),
-      ollamaHost: ollamaBaseUrl,
-      translation: {
-        baseUrl: ollamaBaseUrl,
-      },
-      embedding: {
-        baseUrl: ollamaBaseUrl,
-      },
-    });
-  }
-
-  function updateOllamaBaseUrl(baseUrl: string) {
-    setAiDraftOverride((draft) => ({
-      ...draft,
-      ...(aiDraft.chat.provider === 'ollama' ? { chat: { ...(draft.chat ?? {}), baseUrl } } : {}),
-      ollamaHost: baseUrl,
-      translation: { ...(draft.translation ?? {}), baseUrl },
-      embedding: { ...(draft.embedding ?? {}), baseUrl },
-    }));
-  }
-
   function getGeminiChatDraft() {
     const model =
       aiDraft.chat.provider === 'gemini' && aiDraft.chat.model
@@ -812,7 +736,27 @@ export function AdminAiSettingsPage() {
   return (
     <AdminAccessBoundary
       title="AI settings"
-      description="Configure optional AI capabilities and semantic search for this Arkivra instance."
+      description="Configure and manage AI capabilities in Arkivra."
+      actions={
+        <chakra.a
+          href="https://docs.arkivra.app"
+          target="_blank"
+          rel="noreferrer"
+          display="inline-flex"
+          alignItems="center"
+          gap="1.5"
+          rounded="md"
+          px="2.5"
+          py="1.5"
+          textStyle="sm"
+          fontWeight="medium"
+          color="blue.solid"
+          _hover={{ bg: 'bg.subtle', textDecoration: 'none' }}
+        >
+          View documentation
+          <ExternalLink size={14} />
+        </chakra.a>
+      }
       isEnabled={isEnabled}
       isLoading={meQuery.isLoading}
     >
@@ -823,24 +767,15 @@ export function AdminAiSettingsPage() {
           </Text>
         ) : null}
 
-        <AdminAiReadinessSection readinessChecks={readinessChecks} isAiReady={isAiReady} />
-
-        <AdminAiFeatureStatusSection
+        <AdminAiPlatformSection
           accentColor={accentColor}
           aiFeaturesEnabled={aiDraft.aiFeaturesEnabled}
-          chatStatus={chatStatus}
           isAiReady={isAiReady}
-          isChatConfigValid={isChatConfigValid}
-          isEmbeddingConfigValid={isEmbeddingConfigValid}
           isSaving={aiSettingsMutation.isPending}
-          isTranslationConfigValid={isTranslationConfigValid}
-          platformStatus={platformStatus}
-          platformTone={platformTone}
-          semanticStatus={semanticStatus}
-          translationStatus={translationStatus}
+          readinessChecks={readinessChecks}
           onToggleAiFeatures={(checked) => {
             if (checked && !isAiReady) {
-              toast.warning('Complete AI readiness requirements before enabling AI.');
+              toast.warning('Complete AI Platform requirements before enabling AI.');
               return;
             }
 
@@ -848,18 +783,36 @@ export function AdminAiSettingsPage() {
           }}
         />
 
-        <AdminAiSemanticSearchSection
-          chunkTotal={chunkCoverage.totalChunkCount}
-          currentIndex={currentIndex}
-          indexProgress={indexProgress}
-          indexedChunks={indexedChunks}
-          liveIndexModel={aiDraft.embedding.model || 'Not selected'}
-          semanticIndexTone={semanticIndexTone}
-          semanticProgressStatus={semanticProgressStatus}
-          semanticStatus={semanticStatus}
-          semanticStatusMessage={semanticStatusMessage}
-          showDetails={showSemanticIndexDetails}
-          onToggleDetails={() => setShowSemanticIndexDetails((current) => !current)}
+        <AdminAiCapabilitiesSection
+          accentColor={accentColor}
+          aiFeaturesEnabled={aiDraft.aiFeaturesEnabled}
+          chatEnabled={aiDraft.aiFeaturesEnabled && isChatConfigValid}
+          isSaving={aiSettingsMutation.isPending}
+          semanticEnabled={aiDraft.aiFeaturesEnabled && isEmbeddingConfigValid}
+          translationEnabled={
+            aiDraft.aiFeaturesEnabled && isTranslationConfigValid && isTranslationModelMultimodal
+          }
+          onToggleChat={(checked) => {
+            if (checked && !aiDraft.aiFeaturesEnabled) {
+              toast.warning('Enable the AI Platform before turning on AI Chat.');
+              return;
+            }
+            toast.info('AI Chat follows the AI Platform setting in this release.');
+          }}
+          onToggleSemantic={(checked) => {
+            if (checked && !aiDraft.aiFeaturesEnabled) {
+              toast.warning('Enable the AI Platform before turning on Semantic Search.');
+              return;
+            }
+            toast.info('Semantic Search follows the AI Platform setting in this release.');
+          }}
+          onToggleTranslation={(checked) => {
+            if (checked && !aiDraft.aiFeaturesEnabled) {
+              toast.warning('Enable the AI Platform before turning on Translation.');
+              return;
+            }
+            toast.info('Translation follows the AI Platform setting in this release.');
+          }}
         />
 
         <AdminAiModelSections
@@ -868,16 +821,11 @@ export function AdminAiSettingsPage() {
           configuredEmbeddingDimensions={configuredEmbeddingDimensions}
           configuredEmbeddingModel={configuredEmbeddingModel}
           configuredEmbeddingProvider={configuredEmbeddingProvider}
-          effectiveAllowedChatModels={effectiveAllowedChatModels}
           effectiveDefaultChatModel={effectiveDefaultChatOption?.label ?? effectiveDefaultChatSelection.model}
           effectiveTranslationModel={effectiveTranslationModel}
           embeddingModelOptions={embeddingModelOptions}
-          isEmbeddingConfigValid={isEmbeddingConfigValid}
           isSaving={aiSettingsMutation.isPending}
           savedEmbedding={savedAiSettings.embedding}
-          semanticIndexTone={semanticIndexTone}
-          semanticStatus={semanticStatus}
-          translationConnectionStatus={translationConnectionStatus}
           translationModelCount={translationModelOptions.length}
           onChangeEmbeddingModel={setSelectedEmbeddingModelKey}
           onConfigureChatModels={openChatModelsDialog}
@@ -900,8 +848,6 @@ export function AdminAiSettingsPage() {
           ollamaProviderStatus={ollamaProviderStatus}
           ollamaProviderTone={ollamaProviderTone}
           onExpandedProviderChange={setExpandedProvider}
-          onOllamaBaseUrlChange={updateOllamaBaseUrl}
-          onPersistProviderSettings={persistProviderSettings}
           onTestGeminiConnection={() => void geminiAvailabilityQuery.refetch()}
           onTestOllamaConnection={() => void ollamaModelsQuery.refetch()}
           onUseGeminiForChat={() => persistAiDraft({ chat: getGeminiChatDraft() })}
@@ -924,6 +870,19 @@ export function AdminAiSettingsPage() {
               },
             })
           }
+        />
+
+        <AdminAiSemanticSearchSection
+          chunkTotal={chunkCoverage.totalChunkCount}
+          currentIndex={currentIndex}
+          indexProgress={indexProgress}
+          indexedChunks={indexedChunks}
+          liveIndexModel={aiDraft.embedding.model || 'Not selected'}
+          semanticProgressStatus={semanticProgressStatus}
+          semanticStatus={semanticStatus}
+          onViewDetails={() => {
+            toast.info(semanticStatusMessage);
+          }}
         />
       </Stack>
 

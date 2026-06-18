@@ -45,6 +45,7 @@ interface ChatModelOption {
   label: string;
   baseUrl: string;
   description?: string | null;
+  capabilities: string[];
 }
 
 export interface TranslationModelOption {
@@ -55,6 +56,7 @@ export interface TranslationModelOption {
   label: string;
   baseUrl: string;
   description?: string | null;
+  capabilities: string[];
   isConfigured: boolean;
 }
 
@@ -650,7 +652,7 @@ export function EmbeddingModelDialog({
                 <Text px="3" py="3" textStyle="sm" color="fg.muted">
                   {isFetchingOllamaModels
                     ? 'Loading models from Ollama...'
-                    : 'No catalog embedding models were found from the configured Ollama endpoint.'}
+                    : 'No embedding-capable models were reported by the configured Ollama endpoint.'}
                 </Text>
               )}
             </Box>

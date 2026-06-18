@@ -328,11 +328,19 @@ describe('admin and about pages', () => {
               name: 'gemma4:e4b',
               size: 1024,
               modifiedAt: '2026-04-14T19:00:00.000Z',
+              capabilities: ['completion', 'vision'],
             },
             {
               name: 'qwen2.5:7b',
               size: 2048,
               modifiedAt: '2026-04-14T19:30:00.000Z',
+              capabilities: ['completion'],
+            },
+            {
+              name: 'bge-m3',
+              size: 512,
+              modifiedAt: '2026-04-14T19:45:00.000Z',
+              capabilities: ['embedding'],
             },
           ],
         });
@@ -350,6 +358,7 @@ describe('admin and about pages', () => {
                 name: 'gemma4:e4b',
                 size: 1024,
                 modifiedAt: '2026-04-14T19:00:00.000Z',
+                capabilities: ['completion', 'vision'],
               },
             ],
             responseTimeMs: 42,
@@ -435,8 +444,8 @@ describe('admin and about pages', () => {
     view.unmount();
 
     await renderWithProviders(<AdminAiSettingsPage />);
-    expect(await screen.findByText('The index enables semantic search across your documents.')).toBeInTheDocument();
-    await user.click(screen.getByLabelText(/enable ai features/i));
+    expect(await screen.findByText('Overview of your semantic search index.')).toBeInTheDocument();
+    await user.click(screen.getByLabelText(/enable ai platform/i));
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/admin/ai/settings',
@@ -529,7 +538,7 @@ describe('admin and about pages', () => {
     expect(screen.queryByText(/no ai access/i)).not.toBeInTheDocument();
   });
 
-  it('allows saving the Ollama base URL while AI features are disabled and no model is selected', async () => {
+  it('shows Ollama connection as server environment configuration', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -604,15 +613,16 @@ describe('admin and about pages', () => {
             model: 'gemma4:e4b',
             reachable: true,
             modelAvailable: true,
-            models: [{ name: 'gemma4:e4b', size: 1024, modifiedAt: '2026-04-14T19:00:00.000Z' }],
+            models: [{
+              name: 'gemma4:e4b',
+              size: 1024,
+              modifiedAt: '2026-04-14T19:00:00.000Z',
+              capabilities: ['completion', 'vision'],
+            }],
             responseTimeMs: 42,
             error: null,
           },
         });
-      }
-
-      if (url === '/api/admin/ai/settings' && init?.method === 'PUT') {
-        return jsonResponse({ settings: JSON.parse(String(init.body)) });
       }
 
       throw new Error(`Unhandled request ${url}`);
@@ -622,32 +632,14 @@ describe('admin and about pages', () => {
     await renderWithProviders(<AdminAiSettingsPage />);
 
     await user.click(await screen.findByRole('button', { name: /view details/i }));
-    const [chatBaseUrlInput] = await screen.findAllByLabelText(/base url/i);
-    await user.clear(chatBaseUrlInput);
-    await user.type(chatBaseUrlInput, 'http://127.0.0.1:11435');
-    await user.tab();
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/admin/ai/settings',
-        expect.objectContaining({
-          credentials: 'include',
-          method: 'PUT',
-        }),
-      );
-    });
+    expect(await screen.findByText(/configured on the api server with arkivra_ollama_host/i)).toBeInTheDocument();
+    expect(screen.getByText('http://127.0.0.1:11434')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/ollama base url/i)).not.toBeInTheDocument();
 
     const saveCall = fetchMock.mock.calls.find(([url, init]) =>
       String(url) === '/api/admin/ai/settings' && init?.method === 'PUT',
     );
-    expect(saveCall).toBeDefined();
-    const payload = JSON.parse(String(saveCall?.[1]?.body));
-    expect(payload).toMatchObject({
-      chat: { baseUrl: 'http://127.0.0.1:11435' },
-      translation: { baseUrl: 'http://127.0.0.1:11435' },
-      embedding: { baseUrl: 'http://127.0.0.1:11435' },
-      ollamaHost: 'http://127.0.0.1:11435',
-    });
+    expect(saveCall).toBeUndefined();
   });
 
   it('activates Gemini without exposing an API key field in the UI', async () => {
@@ -725,11 +717,26 @@ describe('admin and about pages', () => {
         return jsonResponse({
           models: body.provider === 'gemini'
             ? [
-                { name: 'gemini-3.5-flash', size: null, modifiedAt: null },
-                { name: 'gemini-2.5-flash', size: null, modifiedAt: null },
+                {
+                  name: 'gemini-3.5-flash',
+                  size: null,
+                  modifiedAt: null,
+                  capabilities: ['completion', 'vision'],
+                },
+                {
+                  name: 'gemini-2.5-flash',
+                  size: null,
+                  modifiedAt: null,
+                  capabilities: ['completion', 'vision'],
+                },
               ]
             : [
-                { name: 'gemma4:e4b', size: 1024, modifiedAt: '2026-04-14T19:00:00.000Z' },
+                {
+                  name: 'gemma4:e4b',
+                  size: 1024,
+                  modifiedAt: '2026-04-14T19:00:00.000Z',
+                  capabilities: ['completion', 'vision'],
+                },
               ],
         });
       }
@@ -741,7 +748,12 @@ describe('admin and about pages', () => {
             model: 'gemini-3.5-flash',
             reachable: true,
             modelAvailable: true,
-            models: [{ name: 'gemini-3.5-flash', size: null, modifiedAt: null }],
+            models: [{
+              name: 'gemini-3.5-flash',
+              size: null,
+              modifiedAt: null,
+              capabilities: ['completion', 'vision'],
+            }],
             responseTimeMs: 42,
             error: null,
           },

@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 import { Box, Flex, Grid, HStack, Stack, Text } from '@chakra-ui/react';
-import { AlertTriangle, CheckCircle2, CircleX, Clock3 } from 'lucide-react';
+import { CheckCircle2, ExternalLink, CircleX } from 'lucide-react';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import type { AdminEmbeddingIndexSummary } from '@/features/admin/admin.types';
 
 export function RequirementStatus({
@@ -16,36 +18,42 @@ export function RequirementStatus({
   isMet: boolean;
 }) {
   return (
-    <HStack gap="2" align="flex-start" minW="0" px="3" py="2.5">
+    <HStack gap="3" align="center" minW="0" py="1.5">
       <Flex
-        boxSize="4"
+        boxSize="5"
         align="center"
         justify="center"
         rounded="full"
         bg="transparent"
-        color={isMet ? 'fg.success' : 'fg.warning'}
+        color={isMet ? 'fg.success' : 'fg.error'}
         flexShrink={0}
-        mt="0.5"
       >
-        {isMet ? <CheckCircle2 size={14} /> : <CircleX size={14} />}
+        {isMet ? <CheckCircle2 size={16} /> : <CircleX size={16} />}
       </Flex>
-      <Stack gap="0" minW="0">
-        <Text textStyle="sm" fontWeight="medium" color={isMet ? 'fg' : 'fg.warning'}>
+      <Flex align="center" justify="space-between" gap="3" minW="0" flex="1">
+        <Text textStyle="sm" color="fg.muted" minW="0">
           {label}
         </Text>
-        <Text textStyle="xs" color={isMet ? 'fg.muted' : 'fg.warning'}>
+        <Badge
+          colorPalette={isMet ? 'teal' : 'red'}
+          variant="subtle"
+          flexShrink={0}
+        >
           {isMet ? statusLabel : missingLabel}
-        </Text>
-      </Stack>
+        </Badge>
+      </Flex>
     </HStack>
   );
 }
 
 export function AiSettingsSection({
+  actionLabel,
+  actionType = 'button',
   actions,
   children,
   description,
   minH,
+  onAction,
   titleMeta,
   tone = 'default',
   title,
@@ -54,6 +62,9 @@ export function AiSettingsSection({
   description?: ReactNode;
   minH?: string;
   titleMeta?: ReactNode;
+  actionLabel?: string;
+  actionType?: 'button' | 'external';
+  onAction?: () => void;
   actions?: ReactNode;
   children: ReactNode;
   tone?: 'default' | 'success' | 'warning';
@@ -82,9 +93,13 @@ export function AiSettingsSection({
         >
           <Stack gap="0.5" minW="0">
             <HStack gap="2" minW="0" align="center">
-              <Text fontSize="md" fontWeight="semibold" color="fg" lineHeight="short">
-                {title}
-              </Text>
+              {typeof title === 'string' ? (
+                <Text fontSize="md" fontWeight="semibold" color="fg" lineHeight="short">
+                  {title}
+                </Text>
+              ) : (
+                <Box minW="0">{title}</Box>
+              )}
               {titleMeta}
             </HStack>
             {description ? (
@@ -93,45 +108,18 @@ export function AiSettingsSection({
               </Text>
             ) : null}
           </Stack>
-          {actions ? <HStack flexShrink={0}>{actions}</HStack> : null}
+          {actions ? (
+            <HStack flexShrink={0}>{actions}</HStack>
+          ) : actionLabel ? (
+            <Button type="button" variant="outline" size="sm" flexShrink={0} onClick={onAction}>
+              {actionLabel}
+              {actionType === 'external' ? <ExternalLink size={14} /> : null}
+            </Button>
+          ) : null}
         </Flex>
         {children}
       </Stack>
     </Card>
-  );
-}
-
-export function CapabilityStatus({
-  label,
-  status,
-  tone,
-}: {
-  label: string;
-  status: string;
-  tone: 'ready' | 'warning' | 'disabled';
-}) {
-  const color = tone === 'ready' ? 'fg.success' : tone === 'warning' ? 'fg.warning' : 'fg.muted';
-
-  return (
-    <Flex align="center" justify="space-between" gap="3" py="1.5">
-      <HStack gap="2">
-        <Box color={color} aria-hidden="true">
-          {tone === 'ready' ? (
-            <CheckCircle2 size={16} />
-          ) : tone === 'warning' ? (
-            <AlertTriangle size={16} />
-          ) : (
-            <Clock3 size={16} />
-          )}
-        </Box>
-        <Text textStyle="sm" fontWeight="medium" color="fg">
-          {label}
-        </Text>
-      </HStack>
-      <Text textStyle="sm" color="fg.muted">
-        {status}
-      </Text>
-    </Flex>
   );
 }
 
@@ -193,6 +181,58 @@ export function CompactMetric({ label, value }: { label: string; value: ReactNod
         {value}
       </Box>
     </Stack>
+  );
+}
+
+export function SemanticSearchMetric({
+  helpText,
+  icon,
+  label,
+  value,
+}: {
+  helpText?: ReactNode;
+  icon: ReactNode;
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <HStack
+      gap="3"
+      align="center"
+      px="4"
+      py="3"
+      minH="4.75rem"
+      borderRightWidth={{ base: '0', md: '1px' }}
+      borderBottomWidth={{ base: '1px', md: '0' }}
+      borderColor="border.surface"
+      _last={{ borderRightWidth: '0', borderBottomWidth: '0' }}
+    >
+      <Flex
+        boxSize="9"
+        align="center"
+        justify="center"
+        rounded="full"
+        bg="bg.subtle"
+        color="fg.muted"
+        flexShrink={0}
+        aria-hidden="true"
+      >
+        {icon}
+      </Flex>
+      <Stack gap="0.5" minW="0">
+        <Text textStyle="xs" color="fg.muted">
+          {label}
+        </Text>
+        <Text textStyle="sm" fontWeight="semibold" color="fg" truncate>
+          {value}
+        </Text>
+        {helpText ? (
+          <Text textStyle="xs" color="fg.muted" truncate>
+            {helpText}
+          </Text>
+        ) : null}
+      </Stack>
+    </HStack>
   );
 }
 

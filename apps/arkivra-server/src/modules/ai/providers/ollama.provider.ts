@@ -12,6 +12,10 @@ const ollamaGenerateResponseSchema = z.object({
   response: z.string().optional(),
 });
 
+const ollamaShowResponseSchema = z.object({
+  capabilities: z.array(z.string()).optional().default([]),
+});
+
 const ollamaChatResponseSchema = z.object({
   message: z.object({
     content: z.string().optional().default(''),
@@ -38,6 +42,7 @@ export type OllamaModel = {
   name: string;
   size: number | null;
   modifiedAt: string | null;
+  capabilities: string[];
 };
 
 function chunkIntoBatches<T>(items: T[], batchSize: number) {
@@ -125,6 +130,31 @@ export function createOllamaProvider({
 } = {}) {
   let endpointMode: OllamaEmbeddingEndpointMode | null = null;
 
+  async function getModelCapabilities({
+    host,
+    model,
+  }: {
+    host: string;
+    model: string;
+  }) {
+    const response = await fetchImpl(`${normalizeOllamaHost(host)}/api/show`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model }),
+    });
+
+    if (!response.ok) {
+      return [];
+    }
+
+    const body = ollamaShowResponseSchema.parse(await response.json());
+    return [
+      ...new Set(
+        body.capabilities.map(capability => capability.trim().toLowerCase()).filter(Boolean),
+      ),
+    ];
+  }
+
   async function listModels({ host }: { host: string }): Promise<OllamaModel[]> {
     const normalizedHost = normalizeOllamaHost(host);
     const response = await fetchImpl(`${normalizedHost}/api/tags`);
@@ -135,13 +165,14 @@ export function createOllamaProvider({
 
     const body = ollamaTagsResponseSchema.parse(await response.json());
 
-    return body.models
-      .map(model => ({
-        name: model.name,
-        size: model.size ?? null,
-        modifiedAt: model.modified_at ?? null,
-      }))
-      .sort((left, right) => left.name.localeCompare(right.name));
+    const models = await Promise.all(body.models.map(async model => ({
+      name: model.name,
+      size: model.size ?? null,
+      modifiedAt: model.modified_at ?? null,
+      capabilities: await getModelCapabilities({ host: normalizedHost, model: model.name }),
+    })));
+
+    return models.sort((left, right) => left.name.localeCompare(right.name));
   }
 
   async function probeGenerate({

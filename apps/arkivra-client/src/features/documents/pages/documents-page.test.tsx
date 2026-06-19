@@ -355,6 +355,18 @@ describe('documents page', () => {
     expect(screen.getByRole('menuitem', { name: /^activity$/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /^chat$/i })).toBeInTheDocument();
 
+    await user.click(screen.getByRole('menuitem', { name: /^chat$/i }));
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/chat');
+      expect(router.state.location.search).toEqual({
+        vaultId: 'vlt_1',
+        documentId: 'doc_1',
+        documentName: 'Policy.txt',
+      });
+    });
+
+    await router.navigate({ to: '/vaults/vlt_1/doc_1' });
+    await user.click(screen.getByRole('button', { name: /open actions/i }));
     await user.click(screen.getByRole('menuitem', { name: /^metadata$/i }));
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/vaults/vlt_1/doc_1/metadata');

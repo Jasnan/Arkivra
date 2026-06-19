@@ -6,7 +6,6 @@ import { registerUserPreferencesRoutes } from './user-preferences.routes.js';
 
 function createPreferences() {
   return {
-    themeMode: 'system',
     accentColor: 'teal',
     density: 'comfortable',
     fontFamily: 'inter',
@@ -134,6 +133,19 @@ describe('user preferences routes', () => {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ accentColor: 'brown' }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(services.updatePreferences).not.toHaveBeenCalled();
+  });
+
+  test('rejects theme mode updates because theme is browser-local', async () => {
+    const { app, services } = createTestApp();
+
+    const response = await app.request('/api/me/preferences', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ themeMode: 'dark' }),
     });
 
     expect(response.status).toBe(400);

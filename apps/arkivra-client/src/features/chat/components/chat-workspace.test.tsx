@@ -328,6 +328,27 @@ vi.mock('@/features/vaults/vaults.queries', () => ({
   }),
 }));
 
+vi.mock('@/features/documents/documents.queries', () => ({
+  useDocumentQuery: ({ documentId }: { vaultId: string; documentId: string }) => ({
+    data: documentId
+      ? {
+          document: {
+            id: documentId,
+            name:
+              documentId === 'doc_passport'
+                ? 'Passport.pdf'
+                : documentId === 'doc_1'
+                  ? 'Quarterly Report.pdf'
+                  : 'Document.pdf',
+            mimeType: 'application/pdf',
+            processingStatus: 'completed',
+          },
+        }
+      : undefined,
+    isLoading: false,
+  }),
+}));
+
 vi.mock('../chat.queries', () => ({
   chatQueryKeys: {
     all: ['chat'],
@@ -1199,6 +1220,23 @@ describe('chat workspace new chat drafts', () => {
       expect(screen.queryByText('Preparing the answer')).not.toBeInTheDocument();
     });
     expect(await screen.findByText('Done')).toBeInTheDocument();
+  });
+
+  it('resolves id-only document context labels in the context details dialog', async () => {
+    const user = userEvent.setup();
+
+    await renderWithProviders(
+      <ChatWorkspace
+        scope={{ vaultId: 'vlt_1', documentId: 'doc_passport' }}
+        inputPlaceholder="Ask about this document..."
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /view all/i }));
+
+    expect(await screen.findByRole('dialog', { name: /conversation context/i })).toBeInTheDocument();
+    expect(screen.getByText('Passport.pdf')).toBeInTheDocument();
+    expect(screen.queryByText('doc_passport')).not.toBeInTheDocument();
   });
 
   it('shows the model name on assistant responses', async () => {

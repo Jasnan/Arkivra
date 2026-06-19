@@ -4,7 +4,6 @@ import { eq } from 'drizzle-orm';
 import { userUiPreferencesTable } from '../database/schema/index.js';
 
 const defaultPreferences: Required<UserUiPreferencesUpdate> = {
-  themeMode: 'system',
   accentColor: 'teal',
   density: 'comfortable',
   fontFamily: 'inter',
@@ -27,7 +26,6 @@ function normalizeFontFamily(fontFamily: string): UiFontFamily {
 
 function serializePreferences(row: UserUiPreferencesRow): UserUiPreferences {
   return {
-    themeMode: row.themeMode,
     accentColor: row.accentColor,
     density: row.density,
     fontFamily: normalizeFontFamily(row.fontFamily),

@@ -518,6 +518,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
     aiFeaturesEnabled,
     canShowExtractedTextTab,
     documentId,
+    documentName: document.name,
     isTrashDocumentRoute,
     vault: vaultQuery.data?.vault,
     vaultId,

@@ -32,7 +32,7 @@ const LEGACY_UI_PREFERENCE_STORAGE_KEYS = [
   'arkivra.radius',
 ] as const;
 const defaultFontSize: AppearanceFontSize = 'md';
-const defaultThemeMode: ThemeMode = 'system';
+const defaultThemeMode: ThemeMode = 'light';
 const PREFERENCES_SYNC_DEBOUNCE_MS = 450;
 
 type UserUiPreferenceValues = Pick<
@@ -47,8 +47,11 @@ type UserUiPreferenceValues = Pick<
   | 'dateFormat'
   | 'radius'
   | 'showExtractedTextTab'
-  | 'themeMode'
->;
+> & {
+  themeMode: ThemeMode;
+};
+
+type LocalUiPreferencesUpdate = Partial<UserUiPreferenceValues>;
 
 type PreferenceSource = 'default' | 'local-storage' | 'server';
 
@@ -383,7 +386,7 @@ function isAppearanceFontSize(value: string | null): value is AppearanceFontSize
 }
 
 function isThemeMode(value: string | null): value is ThemeMode {
-  return value === 'system' || value === 'light' || value === 'dark';
+  return value === 'light' || value === 'dark';
 }
 
 function isPreferenceLanguage(value: string | null): value is PreferenceLanguage {
@@ -427,6 +430,17 @@ function removeLegacyPreferenceStorage() {
   for (const key of LEGACY_UI_PREFERENCE_STORAGE_KEYS) {
     removeStoredValue(key);
   }
+}
+
+function applyThemeMode(themeMode: ThemeMode) {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
+  const root = document.documentElement;
+  root.classList.remove('light', 'dark', 'system');
+  root.classList.add(themeMode);
+  root.style.colorScheme = themeMode;
 }
 
 function normalizeCachedPreferences(value: unknown) {
@@ -489,7 +503,20 @@ function normalizeCachedPreferences(value: unknown) {
 }
 
 function normalizePreferenceValues(value: unknown): UserUiPreferenceValues {
-  return normalizeCachedPreferences(value) ?? defaultUiPreferences;
+  return normalizeCachedPreferences(value) ?? getDefaultPreferences();
+}
+
+function getStoredThemeMode(fallback: ThemeMode = defaultThemeMode) {
+  const storedThemeMode = getStoredValue(THEME_MODE_STORAGE_KEY);
+
+  return isThemeMode(storedThemeMode) ? storedThemeMode : fallback;
+}
+
+function getDefaultPreferences(): UserUiPreferenceValues {
+  return {
+    ...defaultUiPreferences,
+    themeMode: getStoredThemeMode(),
+  };
 }
 
 function getInitialPreferences(): InitialPreferences {
@@ -500,8 +527,15 @@ function getInitialPreferences(): InitialPreferences {
       const parsed = normalizeCachedPreferences(JSON.parse(cached));
 
       if (parsed !== null) {
+        const storedThemeMode = getStoredThemeMode(parsed.themeMode);
         removeLegacyPreferenceStorage();
-        return { preferences: parsed, source: 'local-storage' };
+        return {
+          preferences: {
+            ...parsed,
+            themeMode: storedThemeMode,
+          },
+          source: 'local-storage',
+        };
       }
     } catch {
       removeStoredValue(UI_PREFERENCES_CACHE_KEY);
@@ -509,19 +543,39 @@ function getInitialPreferences(): InitialPreferences {
   }
 
   removeLegacyPreferenceStorage();
-  return { preferences: defaultUiPreferences, source: 'default' };
+  return { preferences: getDefaultPreferences(), source: 'default' };
 }
 
 function setCachedPreferences(preferences: UserUiPreferenceValues) {
   if (typeof window.localStorage?.setItem === 'function') {
-    window.localStorage.setItem(UI_PREFERENCES_CACHE_KEY, JSON.stringify(preferences));
-    window.localStorage.setItem(THEME_MODE_STORAGE_KEY, preferences.themeMode);
+    const {
+      themeMode,
+      ...cachedPreferences
+    } = preferences;
+
+    window.localStorage.setItem(UI_PREFERENCES_CACHE_KEY, JSON.stringify(cachedPreferences));
+    window.localStorage.setItem(THEME_MODE_STORAGE_KEY, themeMode);
     removeLegacyPreferenceStorage();
   }
 }
 
-function withoutServerTimestamps(preferences: UserUiPreferences): UserUiPreferenceValues {
-  return normalizePreferenceValues(preferences);
+function withoutServerTimestamps(
+  preferences: UserUiPreferences,
+  currentThemeMode: ThemeMode,
+): UserUiPreferenceValues {
+  return {
+    ...normalizePreferenceValues(preferences),
+    themeMode: currentThemeMode,
+  };
+}
+
+function toServerPreferencePatch(patch: LocalUiPreferencesUpdate): UserUiPreferencesUpdate {
+  const {
+    themeMode: _themeMode,
+    ...serverPatch
+  } = patch;
+
+  return serverPatch;
 }
 
 function applyAccentColor(accentColor: AccentColor, resolvedTheme: string | undefined) {
@@ -676,17 +730,24 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
     setPendingServerPatch(nextPendingPatch);
   }
 
-  function updatePreferences(patch: UserUiPreferencesUpdate) {
+  function updatePreferences(patch: LocalUiPreferencesUpdate) {
     const nextPreferences = {
       ...currentPreferencesRef.current,
       ...patch,
     };
+    const serverPatch = toServerPreferencePatch(patch);
 
     applyPreferences(nextPreferences, 'local-storage');
     setCachedPreferences(nextPreferences);
-    queueServerPatch(patch);
+    if (Object.keys(serverPatch).length > 0) {
+      queueServerPatch(serverPatch);
+    }
 
     queryClient.cancelQueries({ queryKey: userPreferencesQueryKeys.ui() }).catch(() => undefined);
+
+    if (Object.keys(serverPatch).length === 0) {
+      return;
+    }
 
     queryClient.setQueryData<{ preferences: UserUiPreferences }>(
       userPreferencesQueryKeys.ui(),
@@ -694,7 +755,7 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
         ? {
             preferences: {
               ...current.preferences,
-              ...patch,
+              ...serverPatch,
               updatedAt: new Date().toISOString(),
             },
           }
@@ -711,7 +772,10 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    const serverPreferences = withoutServerTimestamps(preferencesQuery.data.preferences);
+    const serverPreferences = withoutServerTimestamps(
+      preferencesQuery.data.preferences,
+      currentPreferencesRef.current.themeMode,
+    );
     applyPreferences(serverPreferences, 'server');
     setCachedPreferences(serverPreferences);
   }, [preferencesQuery.data]);
@@ -736,7 +800,7 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
             return;
           }
 
-          const syncedPreferences = currentPreferencesRef.current;
+          const syncedPreferences = toServerPreferencePatch(currentPreferencesRef.current);
           queryClient.setQueryData(userPreferencesQueryKeys.ui(), {
             preferences: {
               ...data.preferences,
@@ -785,6 +849,7 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
   }, [radius]);
 
   useEffect(() => {
+    applyThemeMode(themeMode);
     setTheme(themeMode);
   }, [setTheme, themeMode]);
 

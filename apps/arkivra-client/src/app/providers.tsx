@@ -16,6 +16,18 @@ const queryClient = new QueryClient({
   },
 });
 
+function normalizeStoredThemeMode() {
+  if (typeof window === 'undefined' || typeof window.localStorage?.getItem !== 'function') {
+    return;
+  }
+
+  const storedThemeMode = window.localStorage.getItem('arkivra.themeMode');
+
+  if (storedThemeMode !== 'light' && storedThemeMode !== 'dark') {
+    window.localStorage.setItem('arkivra.themeMode', 'light');
+  }
+}
+
 function UploadCompletionInvalidation() {
   useEffect(() => {
     async function handleUploadCompleted() {
@@ -32,12 +44,15 @@ function UploadCompletionInvalidation() {
 }
 
 export function AppProviders({ children }: PropsWithChildren) {
+  normalizeStoredThemeMode();
+
   return (
     <ThemeProvider
       attribute="class"
       storageKey="arkivra.themeMode"
-      defaultTheme="system"
-      enableSystem
+      defaultTheme="light"
+      enableSystem={false}
+      themes={['light', 'dark']}
       disableTransitionOnChange
     >
       <QueryClientProvider client={queryClient}>

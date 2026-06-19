@@ -7,6 +7,7 @@ import {
 import { toast } from '@/components/ui/toaster-store';
 import { useWorkspaceSecondary } from '@/components/layout/workspace-context';
 import { useAccentColor } from '@/components/providers/accent-color-context';
+import { useDocumentQuery } from '@/features/documents/documents.queries';
 import { useVaultQuery, useVaultsQuery } from '@/features/vaults/vaults.queries';
 import type { ChatResponseMode } from '../chat.api';
 import {
@@ -156,7 +157,14 @@ export function ChatWorkspace({
   const activeContextSnapshot =
     isContextLocked && lockedContextSnapshot ? lockedContextSnapshot : draftContextSnapshot;
   const activeScope = scopeFromContextSnapshot(activeContextSnapshot);
-  const displayedContext = useMemo(
+  const activeVaultId = activeScope.vaultId;
+  const activeDocumentId = activeScope.documentId;
+  const vaultQuery = useVaultQuery({ vaultId: activeVaultId ?? '' });
+  const activeDocumentQuery = useDocumentQuery({
+    vaultId: activeVaultId ?? '',
+    documentId: activeDocumentId ?? '',
+  });
+  const baseDisplayedContext = useMemo(
     () =>
       isContextLocked && lockedContextSnapshot
         ? hydrateDraftContextLabels({
@@ -166,10 +174,35 @@ export function ChatWorkspace({
         : hydratedDraftContext,
     [hydratedDraftContext, isContextLocked, lockedContextSnapshot, vaultsQuery.data?.vaults],
   );
-  const activeVaultId = activeScope.vaultId;
+  const displayedContext = useMemo(() => {
+    const documentName = activeDocumentQuery.data?.document.name;
+    if (!activeVaultId || !activeDocumentId || !documentName) {
+      return baseDisplayedContext;
+    }
+
+    return {
+      vaults: baseDisplayedContext.vaults,
+      documents: baseDisplayedContext.documents.map((document) =>
+        document.vaultId === activeVaultId && document.documentId === activeDocumentId
+          ? {
+              ...document,
+              name: document.name ?? documentName,
+              vaultName: document.vaultName ?? vaultQuery.data?.vault.name,
+              mimeType: document.mimeType ?? activeDocumentQuery.data?.document.mimeType,
+            }
+          : document,
+      ),
+    };
+  }, [
+    activeDocumentId,
+    activeDocumentQuery.data?.document.mimeType,
+    activeDocumentQuery.data?.document.name,
+    activeVaultId,
+    baseDisplayedContext,
+    vaultQuery.data?.vault.name,
+  ]);
   const isActiveGlobalChat = !activeVaultId;
   const experience = getChatExperienceConfig({ scope: activeScope, documentName });
-  const vaultQuery = useVaultQuery({ vaultId: activeVaultId ?? '' });
   const vaultAiAccessLevel = activeVaultId ? vaultQuery.data?.vault.aiAccessLevel : undefined;
   const aiAccessByVaultId = useMemo(() => {
     const accessByVaultId = new Map<string, 'none' | 'full'>();

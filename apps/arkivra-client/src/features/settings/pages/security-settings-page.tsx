@@ -882,7 +882,7 @@ export function SecuritySettingsPage() {
       description="Manage how you sign in and protect your Arkivra account."
       density="compact"
     >
-      <Box maxW="6xl">
+      <Box w="full">
         <SettingsFlatRows variant="cards">
           <TwoFactorSettingsRow
             isTwoFactorEnabled={isTwoFactorEnabled}

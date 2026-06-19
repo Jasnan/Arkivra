@@ -63,7 +63,6 @@ export function AppShell() {
   const isChatRoute = isChatPath(location.pathname);
   const isVaultIndexRoute = location.pathname === ROUTES.vaults;
   const isVaultBrowserRoute = pathParts[0] === 'vaults' && pathParts.length === 2;
-  const isAdminUsersRoute = location.pathname === ROUTES.adminUsers;
   const activeVaultId = pathParts[0] === 'vaults' ? pathParts[1] : transferVaultId;
   const activeDocumentRoute = useMemo(() => {
     if (pathParts[0] === 'vaults' && pathParts[2] && !isVaultSectionSegment(pathParts[2])) {
@@ -76,7 +75,6 @@ export function AppShell() {
   const isFlushContentRoute =
     isVaultIndexRoute ||
     isVaultWorkspaceRoute ||
-    isAdminUsersRoute ||
     location.pathname === ROUTES.tags ||
     location.pathname === ROUTES.search ||
     pathParts[0] === 'trash';

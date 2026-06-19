@@ -1,7 +1,8 @@
 import type { FormEvent } from 'react';
 import { Box, Flex, Text, chakra } from '@chakra-ui/react';
-import { ClipboardCopy, FileText, Info, Pencil } from 'lucide-react';
+import { ClipboardCopy, FileText, Info, Pencil, Search } from 'lucide-react';
 import { SaveButton } from '@/components/ui/action-buttons';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -20,6 +21,77 @@ const editableDocumentLanguages = [
   { value: 'es', label: 'Spanish' },
   { value: 'fr', label: 'French' },
 ] as const;
+
+type SemanticBadgeTone = 'gray' | 'teal' | 'blue' | 'orange' | 'red';
+
+function getSemanticIndexLabel(document: DocumentDetail) {
+  const semanticIndex = document.semanticIndex;
+
+  if (!semanticIndex) {
+    return {
+      detail: 'No semantic index is available for this document.',
+      label: 'Not indexed',
+      tone: 'gray' as SemanticBadgeTone,
+    };
+  }
+
+  const embedded = semanticIndex.embeddedChunkCount.toLocaleString();
+  const expected = semanticIndex.expectedChunkCount.toLocaleString();
+
+  if (semanticIndex.documentStatus === 'ready') {
+    return {
+      detail: `${embedded} / ${expected} chunks indexed.`,
+      label: 'Indexed',
+      tone: 'teal' as SemanticBadgeTone,
+    };
+  }
+
+  if (semanticIndex.documentStatus === 'indexing') {
+    return {
+      detail: `${embedded} / ${expected} chunks indexed.`,
+      label: 'Indexing',
+      tone: 'blue' as SemanticBadgeTone,
+    };
+  }
+
+  if (semanticIndex.documentStatus === 'pending') {
+    return {
+      detail: 'Waiting for indexing.',
+      label: 'Pending',
+      tone: 'gray' as SemanticBadgeTone,
+    };
+  }
+
+  if (semanticIndex.documentStatus === 'stale') {
+    return {
+      detail: 'Document changed and is waiting for reindexing.',
+      label: 'Stale',
+      tone: 'orange' as SemanticBadgeTone,
+    };
+  }
+
+  if (semanticIndex.documentStatus === 'failed') {
+    return {
+      detail: 'Indexing failed.',
+      label: 'Failed',
+      tone: 'red' as SemanticBadgeTone,
+    };
+  }
+
+  if (semanticIndex.documentStatus === 'skipped') {
+    return {
+      detail: 'This document was skipped by semantic indexing.',
+      label: 'Skipped',
+      tone: 'gray' as SemanticBadgeTone,
+    };
+  }
+
+  return {
+    detail: 'No index record exists for the current document version.',
+    label: 'Not indexed',
+    tone: 'gray' as SemanticBadgeTone,
+  };
+}
 
 export function DocumentMetadataSection({
   document,
@@ -58,6 +130,9 @@ export function DocumentMetadataSection({
   onCopyMetadataValue: (value: string, label: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+  const semanticIndex = document.semanticIndex;
+  const semanticIndexLabel = getSemanticIndexLabel(document);
+
   return (
     <chakra.form maxW="6xl" minH="820px" mx="auto" onSubmit={onSubmit}>
       <Flex direction="column" gap="5">
@@ -268,6 +343,83 @@ export function DocumentMetadataSection({
               ) : null}
             </Flex>
           ))}
+        </Box>
+
+        <Box
+          rounded="xl"
+          borderWidth="1px"
+          borderColor="border.surface"
+          bg="bg.subtle"
+          px={{ base: '4', md: '6' }}
+          py={{ base: '4', md: '5' }}
+        >
+          <Flex align="center" gap="3" color="fg.muted" mb="4">
+            <Search size={18} />
+            <Text
+              fontWeight="semibold"
+              textTransform="uppercase"
+              letterSpacing="wide"
+              fontSize="sm"
+            >
+              Semantic search
+            </Text>
+          </Flex>
+          <Flex
+            align={{ base: 'flex-start', md: 'center' }}
+            direction={{ base: 'column', md: 'row' }}
+            gap={{ base: '2', md: '4' }}
+            py="3"
+            borderTopWidth="1px"
+            borderColor="border.surface"
+          >
+            <Text flex="0 0 12rem" color="fg.muted">
+              Status
+            </Text>
+            <Flex flex="1" minW="0" direction="column" gap="1.5">
+              <Badge alignSelf="flex-start" colorPalette={semanticIndexLabel.tone} variant="subtle">
+                {semanticIndexLabel.label}
+              </Badge>
+              <Text color="fg.muted" fontSize="sm" overflowWrap="anywhere">
+                {semanticIndexLabel.detail}
+              </Text>
+            </Flex>
+          </Flex>
+          {semanticIndex ? (
+            <>
+              {[
+                [
+                  'Chunks',
+                  `${semanticIndex.embeddedChunkCount.toLocaleString()} / ${semanticIndex.expectedChunkCount.toLocaleString()}`,
+                ],
+                [
+                  'Last indexed',
+                  semanticIndex.indexedAt ? formatDate(semanticIndex.indexedAt) : 'Not indexed',
+                ],
+              ].map(([label, value], index) => (
+                <Flex
+                  key={label}
+                  align="center"
+                  gap="4"
+                  py="3"
+                  borderTopWidth="1px"
+                  borderColor="border.surface"
+                >
+                  <Text flex="0 0 12rem" color="fg.muted">
+                    {label}
+                  </Text>
+                  <Text
+                    flex="1"
+                    minW="0"
+                    fontWeight={index === 0 ? 'medium' : undefined}
+                    color="fg"
+                    overflowWrap="anywhere"
+                  >
+                    {value}
+                  </Text>
+                </Flex>
+              ))}
+            </>
+          ) : null}
         </Box>
 
         <Box

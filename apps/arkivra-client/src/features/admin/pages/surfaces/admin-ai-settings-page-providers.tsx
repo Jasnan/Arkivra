@@ -1,14 +1,11 @@
 import type { ReactNode } from 'react';
-import { Box, Flex, HStack, Stack, Table, Text } from '@chakra-ui/react';
+import { Box, Flex, HStack, SimpleGrid, Stack, Table, Text } from '@chakra-ui/react';
 import { MoreVertical, Plus, Server, Sparkles } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { AdminAiSettings } from '@/features/admin/admin.types';
 import { formatDate } from '@/features/documents/documents.utils';
-import {
-  SettingsRow,
-  SettingsRows,
-  SettingsStatusBadge,
-} from '@/features/settings/components/settings-ui';
+import { SettingsStatusBadge } from '@/features/settings/components/settings-ui';
 import { curatedGeminiChatModels } from './admin-ai-settings-page-model-catalog';
 import { AiSettingsSection } from './admin-ai-settings-page-sections';
 
@@ -106,7 +103,6 @@ export function AdminAiProviderSection({
               <ProviderTableRow
                 icon={<Sparkles size={18} />}
                 name="Google Gemini"
-                description="Primary provider"
                 status={geminiProviderStatus}
                 statusTone={geminiProviderTone}
                 modelCount={curatedGeminiChatModels.length}
@@ -123,12 +119,11 @@ export function AdminAiProviderSection({
               />
               {expandedProvider === 'gemini' ? (
                 <ProviderDetailsRow>
-                  <SettingsRows density="compact">
-                    <SettingsRow
-                      density="compact"
-                      label="Connection information"
+                  <ProviderDetailsPanel>
+                    <ProviderDetailCard
+                      title="Connection information"
                       description="Gemini chat uses Google AI Studio's OpenAI-compatible API."
-                      control={
+                      action={
                         aiDraft.chat.provider === 'gemini' ? (
                           <SettingsStatusBadge tone="enabled" density="compact">
                             Active for chat
@@ -146,24 +141,23 @@ export function AdminAiProviderSection({
                         )
                       }
                     />
-                    <SettingsRow
-                      density="compact"
-                      label="Health status"
-                      meta={
-                        <Text textStyle="sm" color={geminiAvailability?.error ? 'fg.error' : 'fg'}>
+                    <ProviderDetailCard
+                      title="Health status"
+                      value={
+                        <Text
+                          textStyle="sm"
+                          color={geminiAvailability?.error ? 'fg.error' : 'fg'}
+                          overflowWrap="anywhere"
+                        >
                           {geminiAvailability?.error ?? geminiProviderStatus}
                         </Text>
                       }
                     />
-                    <SettingsRow
-                      density="compact"
-                      label="Available models"
-                      meta={curatedGeminiChatModels.join(', ')}
-                    />
-                    <SettingsRow
-                      density="compact"
-                      label="Test connection"
-                      control={
+                    <ProviderModelsCard models={curatedGeminiChatModels} />
+                    <ProviderDetailCard
+                      title="Test connection"
+                      description="Refresh provider availability from the API server."
+                      action={
                         <Button
                           type="button"
                           size="sm"
@@ -175,7 +169,7 @@ export function AdminAiProviderSection({
                         </Button>
                       }
                     />
-                  </SettingsRows>
+                  </ProviderDetailsPanel>
                 </ProviderDetailsRow>
               ) : null}
 
@@ -187,22 +181,19 @@ export function AdminAiProviderSection({
                 statusTone={ollamaProviderTone}
                 modelCount={ollamaModels.length}
                 updatedAt={ollamaDataUpdatedAt}
-                actionLabel={expandedProvider === 'ollama' ? 'Hide' : 'Configure'}
-                actionAriaLabel={
-                  expandedProvider === 'ollama' ? 'Hide details' : 'View details'
-                }
+                actionLabel={expandedProvider === 'ollama' ? 'Hide' : 'View'}
+                actionAriaLabel={expandedProvider === 'ollama' ? 'Hide details' : 'View details'}
                 onAction={() =>
                   onExpandedProviderChange(expandedProvider === 'ollama' ? null : 'ollama')
                 }
               />
               {expandedProvider === 'ollama' ? (
                 <ProviderDetailsRow>
-                  <SettingsRows density="compact">
-                    <SettingsRow
-                      density="compact"
-                      label="Connection information"
+                  <ProviderDetailsPanel>
+                    <ProviderDetailCard
+                      title="Connection information"
                       description="Provider used for chat completions, translation, and embeddings."
-                      control={
+                      action={
                         aiDraft.chat.provider === 'ollama' ? (
                           <SettingsStatusBadge tone="enabled" density="compact">
                             Active for chat
@@ -220,42 +211,32 @@ export function AdminAiProviderSection({
                         )
                       }
                     />
-                    <SettingsRow
-                      density="compact"
-                      label="Ollama endpoint"
+                    <ProviderDetailCard
+                      title="Ollama endpoint"
                       description="Configured on the API server with ARKIVRA_OLLAMA_HOST."
-                      meta={
-                        <Text textStyle="sm" color="fg" fontFamily="mono">
+                      value={
+                        <Text textStyle="sm" color="fg" fontFamily="mono" overflowWrap="anywhere">
                           {effectiveOllamaBaseUrl}
                         </Text>
                       }
                     />
-                    <SettingsRow
-                      density="compact"
-                      label="Health status"
-                      meta={
+                    <ProviderDetailCard
+                      title="Health status"
+                      value={
                         <Text
                           textStyle="sm"
                           color={ollamaProviderStatus === 'Error' ? 'fg.error' : 'fg'}
+                          overflowWrap="anywhere"
                         >
                           {ollamaProviderStatus}
                         </Text>
                       }
                     />
-                    <SettingsRow
-                      density="compact"
-                      label="Available models"
-                      meta={
-                        <Text textStyle="sm" color="fg">
-                          {ollamaModels.map((model) => model.name).join(', ') ||
-                            'No models discovered'}
-                        </Text>
-                      }
-                    />
-                    <SettingsRow
-                      density="compact"
-                      label="Test connection"
-                      control={
+                    <ProviderModelsCard models={ollamaModels.map((model) => model.name)} />
+                    <ProviderDetailCard
+                      title="Test connection"
+                      description="Refresh the discovered model list from the configured endpoint."
+                      action={
                         <Button
                           type="button"
                           size="sm"
@@ -267,7 +248,7 @@ export function AdminAiProviderSection({
                         </Button>
                       }
                     />
-                  </SettingsRows>
+                  </ProviderDetailsPanel>
                 </ProviderDetailsRow>
               ) : null}
 
@@ -279,8 +260,8 @@ export function AdminAiProviderSection({
                 statusTone="inactive"
                 modelCount={0}
                 updatedAt={0}
-                actionLabel="Configure"
-                actionAriaLabel="Configure OpenRouter provider"
+                actionLabel="View"
+                actionAriaLabel="View OpenRouter provider"
                 disabled
                 onAction={() => undefined}
               />
@@ -289,6 +270,103 @@ export function AdminAiProviderSection({
         </Table.ScrollArea>
       </Box>
     </AiSettingsSection>
+  );
+}
+
+function ProviderDetailsPanel({ children }: { children: ReactNode }) {
+  return (
+    <SimpleGrid columns={{ base: 1, xl: 2 }} gap="3" minW="0">
+      {children}
+    </SimpleGrid>
+  );
+}
+
+function ProviderDetailCard({
+  action,
+  description,
+  title,
+  value,
+}: {
+  title: string;
+  description?: ReactNode;
+  value?: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <Flex
+      direction={{ base: 'column', md: 'row' }}
+      align={{ base: 'stretch', md: 'flex-start' }}
+      justify="space-between"
+      gap="3"
+      minW="0"
+      rounded="md"
+      borderWidth="1px"
+      borderColor="border.surface"
+      bg="bg.surface"
+      p="3"
+    >
+      <Stack gap="1" minW="0">
+        <Text textStyle="sm" fontWeight="semibold" color="fg">
+          {title}
+        </Text>
+        {description ? (
+          <Text textStyle="sm" color="fg.muted" overflowWrap="anywhere">
+            {description}
+          </Text>
+        ) : null}
+        {value ? <Box minW="0">{value}</Box> : null}
+      </Stack>
+      {action ? (
+        <Flex flexShrink={0} justify={{ base: 'flex-start', md: 'flex-end' }}>
+          {action}
+        </Flex>
+      ) : null}
+    </Flex>
+  );
+}
+
+function ProviderModelsCard({ models }: { models: string[] }) {
+  return (
+    <Box
+      minW="0"
+      rounded="md"
+      borderWidth="1px"
+      borderColor="border.surface"
+      bg="bg.surface"
+      p="3"
+      gridColumn={{ base: 'auto', xl: '1 / -1' }}
+    >
+      <Stack gap="2" minW="0">
+        <HStack justify="space-between" gap="3" align="center">
+          <Text textStyle="sm" fontWeight="semibold" color="fg">
+            Available models
+          </Text>
+          <Badge variant="secondary" flexShrink={0}>
+            {models.length.toLocaleString()}
+          </Badge>
+        </HStack>
+        {models.length > 0 ? (
+          <Flex gap="2" wrap="wrap" minW="0">
+            {models.map((model) => (
+              <Badge
+                key={model}
+                variant="outline"
+                colorPalette="gray"
+                maxW="full"
+                whiteSpace="normal"
+                wordBreak="break-word"
+              >
+                {model}
+              </Badge>
+            ))}
+          </Flex>
+        ) : (
+          <Text textStyle="sm" color="fg.muted">
+            No models discovered.
+          </Text>
+        )}
+      </Stack>
+    </Box>
   );
 }
 
@@ -307,7 +385,7 @@ function ProviderTableRow({
 }: {
   actionAriaLabel: string;
   actionLabel: string;
-  description: string;
+  description?: string;
   disabled?: boolean;
   icon: ReactNode;
   modelCount: number;
@@ -337,9 +415,11 @@ function ProviderTableRow({
             <Text textStyle="sm" fontWeight="semibold" color="fg" truncate>
               {name}
             </Text>
-            <Text textStyle="xs" color="fg.muted" truncate>
-              {description}
-            </Text>
+            {description ? (
+              <Text textStyle="xs" color="fg.muted" truncate>
+                {description}
+              </Text>
+            ) : null}
           </Stack>
         </HStack>
       </Table.Cell>

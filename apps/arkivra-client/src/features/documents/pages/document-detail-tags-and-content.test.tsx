@@ -3,7 +3,11 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DocumentDetailPage } from '@/features/documents/pages/document-detail-page';
 import { renderWithProviders } from '@/test/utils';
-import { enableExtractedTextPreference, jsonResponse, vaultDetailResponse } from '@/features/tags/tags-and-documents.test-utils';
+import {
+  enableExtractedTextPreference,
+  jsonResponse,
+  vaultDetailResponse,
+} from '@/features/tags/tags-and-documents.test-utils';
 
 describe('document detail tags and content', () => {
   beforeEach(() => {
@@ -201,6 +205,65 @@ describe('document detail tags and content', () => {
         }),
       ),
     );
+  });
+
+  it('shows semantic search indexing status in document metadata', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/api/vaults/vlt_1') && (!init || init.method === undefined)) {
+        return jsonResponse(vaultDetailResponse());
+      }
+
+      if (
+        url.endsWith('/api/vaults/vlt_1/documents/doc_1') &&
+        (!init || init.method === undefined)
+      ) {
+        return jsonResponse({
+          document: {
+            id: 'doc_1',
+            name: 'Policy.pdf',
+            originalName: 'policy.pdf',
+            originalSize: 2048,
+            originalSha256Hash: 'abc123',
+            mimeType: 'application/pdf',
+            content: 'Parsed text',
+            createdAt: '2026-04-10T10:00:00.000Z',
+            updatedAt: '2026-04-10T10:00:00.000Z',
+            isDeleted: false,
+            deletedAt: null,
+            createdBy: 'Jane Doe',
+            semanticIndex: {
+              documentStatus: 'ready',
+              expectedChunkCount: 12,
+              embeddedChunkCount: 12,
+              indexedAt: '2026-04-10T10:05:00.000Z',
+              updatedAt: '2026-04-10T10:05:00.000Z',
+            },
+          },
+        });
+      }
+
+      if (
+        url.endsWith('/api/vaults/vlt_1/documents/doc_1/tags') &&
+        (!init || init.method === undefined)
+      ) {
+        return jsonResponse({ tags: [] });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<DocumentDetailPage section="metadata" />, {
+      initialEntries: ['/vaults/vlt_1/documents/doc_1'],
+      routePath: '/vaults/:vaultId/documents/:documentId',
+    });
+
+    expect(await screen.findByText(/semantic search/i)).toBeInTheDocument();
+    expect(screen.getByText('Indexed')).toBeInTheDocument();
+    expect(screen.getByText('12 / 12 chunks indexed.')).toBeInTheDocument();
+    expect(screen.getByText('12 / 12')).toBeInTheDocument();
   });
 
   it('refreshes the document detail when upload extraction completes', async () => {

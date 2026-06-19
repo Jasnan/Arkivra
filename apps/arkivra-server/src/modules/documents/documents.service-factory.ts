@@ -4,9 +4,11 @@ import type { EncryptionServices } from '../encryption/encryption.services.js';
 import { and, asc, desc, eq, exists, inArray, isNull, ne, sql } from 'drizzle-orm';
 import {
   documentChunkAssetsTable,
+  documentEmbeddingIndexStatusTable,
   documentTagsTable,
   documentVersionsTable,
   documentsTable,
+  embeddingIndexesTable,
   usersTable,
   vaultFoldersTable,
   vaultsTable,
@@ -340,6 +342,7 @@ export function createDocumentsServices({
         isDeleted: documentsTable.isDeleted,
         deletedAt: documentsTable.deletedAt,
         createdBy: usersTable.name,
+        currentVersionId: documentsTable.currentVersionId,
       })
       .from(documentsTable)
       .leftJoin(usersTable, eq(documentsTable.createdBy, usersTable.id))
@@ -350,9 +353,72 @@ export function createDocumentsServices({
       return null;
     }
 
+    const semanticIndex = await getDocumentSemanticIndexStatus({
+      documentId,
+      documentVersionId: doc.currentVersionId,
+      vaultId,
+    });
+    const { currentVersionId: _currentVersionId, ...document } = doc;
+
     return {
-      ...doc,
+      ...document,
       displayContent: doc.content,
+      semanticIndex,
+    };
+  }
+
+  async function getDocumentSemanticIndexStatus({
+    documentId,
+    documentVersionId,
+    vaultId,
+  }: {
+    documentId: string;
+    documentVersionId: string | null;
+    vaultId: string;
+  }) {
+    if (documentVersionId === null) {
+      return null;
+    }
+
+    const [row] = await db
+      .select({
+        documentStatus: documentEmbeddingIndexStatusTable.status,
+        expectedChunkCount: documentEmbeddingIndexStatusTable.expectedChunkCount,
+        embeddedChunkCount: documentEmbeddingIndexStatusTable.embeddedChunkCount,
+        indexedAt: documentEmbeddingIndexStatusTable.indexedAt,
+        updatedAt: documentEmbeddingIndexStatusTable.updatedAt,
+      })
+      .from(embeddingIndexesTable)
+      .leftJoin(
+        documentEmbeddingIndexStatusTable,
+        and(
+          eq(documentEmbeddingIndexStatusTable.embeddingIndexId, embeddingIndexesTable.id),
+          eq(documentEmbeddingIndexStatusTable.documentId, documentId),
+          eq(documentEmbeddingIndexStatusTable.documentVersionId, documentVersionId),
+          eq(documentEmbeddingIndexStatusTable.vaultId, vaultId),
+        ),
+      )
+      .where(inArray(embeddingIndexesTable.status, ['active', 'ready', 'building', 'failed']))
+      .orderBy(
+        sql`CASE
+          WHEN ${embeddingIndexesTable.isActive} = true THEN 0
+          WHEN ${embeddingIndexesTable.status} IN ('building', 'ready') THEN 1
+          ELSE 2
+        END`,
+        desc(embeddingIndexesTable.updatedAt),
+      )
+      .limit(1);
+
+    if (row === undefined) {
+      return null;
+    }
+
+    return {
+      documentStatus: row.documentStatus,
+      expectedChunkCount: row.expectedChunkCount ?? 0,
+      embeddedChunkCount: row.embeddedChunkCount ?? 0,
+      indexedAt: row.indexedAt,
+      updatedAt: row.updatedAt,
     };
   }
 

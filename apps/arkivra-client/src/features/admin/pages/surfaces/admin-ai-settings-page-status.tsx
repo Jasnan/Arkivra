@@ -1,13 +1,6 @@
 import type { ReactNode } from 'react';
 import { Box, Flex, Grid, HStack, SimpleGrid, Stack, Text } from '@chakra-ui/react';
-import {
-  Database,
-  Info,
-  Languages,
-  MessageSquare,
-  Search,
-  Sparkles,
-} from 'lucide-react';
+import { Database, Info, Languages, MessageSquare, Search, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import type { AdminEmbeddingIndexSummary } from '@/features/admin/admin.types';
@@ -44,9 +37,7 @@ export function AdminAiPlatformSection({
 }) {
   const completedCount = readinessChecks.filter((check) => check.isMet).length;
   const progress =
-    readinessChecks.length > 0
-      ? Math.round((completedCount / readinessChecks.length) * 100)
-      : 0;
+    readinessChecks.length > 0 ? Math.round((completedCount / readinessChecks.length) * 100) : 0;
 
   return (
     <AiSettingsSection
@@ -124,14 +115,7 @@ export function AdminAiPlatformSection({
           </Stack>
         </Stack>
 
-        <Box
-          rounded="md"
-          borderWidth="1px"
-          borderColor="blue.muted"
-          bg="blue.subtle"
-          px="4"
-          py="4"
-        >
+        <Box rounded="md" borderWidth="1px" borderColor="blue.muted" bg="blue.subtle" px="4" py="4">
           <Stack gap="2.5">
             <HStack gap="2" align="center">
               <Box color="fg.info" aria-hidden="true">
@@ -142,9 +126,8 @@ export function AdminAiPlatformSection({
               </Text>
             </HStack>
             <Text textStyle="sm" color="fg.muted">
-              The AI Platform powers Arkivra's AI capabilities. All requirements must be met
-              before it can be enabled. Once enabled, you can turn on the capabilities you want to
-              use.
+              The AI Platform powers Arkivra's AI capabilities. All requirements must be met before
+              it can be enabled. Once enabled, you can turn on the capabilities you want to use.
             </Text>
           </Stack>
         </Box>
@@ -243,7 +226,6 @@ export function AdminAiSemanticSearchSection({
   liveIndexModel,
   semanticProgressStatus,
   semanticStatus,
-  onViewDetails,
 }: {
   chunkTotal: number;
   currentIndex: AdminEmbeddingIndexSummary | null;
@@ -252,7 +234,6 @@ export function AdminAiSemanticSearchSection({
   liveIndexModel: string;
   semanticProgressStatus: ChunkProgressVisualStatus;
   semanticStatus: string;
-  onViewDetails: () => void;
 }) {
   const showProgress = semanticProgressStatus === 'building' || semanticProgressStatus === 'paused';
 
@@ -260,9 +241,6 @@ export function AdminAiSemanticSearchSection({
     <AiSettingsSection
       title="Semantic Search"
       description="Overview of your semantic search index."
-      actionLabel="View index details"
-      actionType="external"
-      onAction={onViewDetails}
     >
       <Stack gap="3">
         <SimpleGrid
@@ -274,11 +252,7 @@ export function AdminAiSemanticSearchSection({
           bg="bg.surface"
           overflow="hidden"
         >
-          <SemanticSearchMetric
-            icon={<Search size={16} />}
-            label="Status"
-            value={semanticStatus}
-          />
+          <SemanticSearchMetric icon={<Search size={16} />} label="Status" value={semanticStatus} />
           <SemanticSearchMetric
             icon={<Database size={16} />}
             label="Model"

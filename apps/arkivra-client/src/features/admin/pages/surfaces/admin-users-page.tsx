@@ -2,34 +2,68 @@ import type { FormEvent, MouseEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Flex, Grid, HStack, Portal, SimpleGrid, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, CheckCircle2, Clock3, Mail, Plus, Search, Send, ShieldCheck, ShieldX, UserRound, UserRoundPlus, UsersRound } from 'lucide-react';
+import {
+  Check,
+  CheckCircle2,
+  Clock3,
+  Mail,
+  Plus,
+  Search,
+  Send,
+  ShieldCheck,
+  ShieldX,
+  UserRound,
+  UserRoundPlus,
+  UsersRound,
+} from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { ROUTES } from '@/app/routes';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from '@/components/ui/toaster-store';
 import { createAdminEmailInvitation, updateAdminUser } from '@/features/admin/admin.api';
 import { adminQueryKeys, useAdminUsersQuery } from '@/features/admin/admin.queries';
 import type { AdminUser, EmailInvitation } from '@/features/admin/admin.types';
 import { formatShortDate as formatLocalizedShortDate, formatTime } from '@/lib/localization';
 import { useMeQuery } from '@/features/me/me.queries';
-import { KeyValueRows, SettingsPageFrame } from '@/features/settings/components/settings-ui';
+import { KeyValueRows } from '@/features/settings/components/settings-ui';
 import { getUserRoleLabel } from './admin-formatters';
+import { AdminAccessBoundary } from './admin-shared';
 
 type AdminUserStatusFilter = 'all' | 'active' | 'disabled';
 type AdminUserAccessFilter = 'all' | 'admin' | 'create-vaults' | 'member';
 type InviteSystemRole = 'admin' | 'member';
 
-type AdminUserActionKey = 'manage-access' | 'resend-invitation' | 'deactivate-user' | 'view-activity';
+type AdminUserActionKey =
+  | 'manage-access'
+  | 'resend-invitation'
+  | 'deactivate-user'
+  | 'view-activity';
 
 interface AdminUserAction {
   key: AdminUserActionKey;
@@ -47,7 +81,8 @@ type AdminUserContextMenuState = {
   y: number;
 } | null;
 
-const ADMIN_USERS_GRID_COLUMNS = 'minmax(13rem, 1.45fr) 7.5rem 7rem 7.5rem minmax(7.5rem, 0.8fr) minmax(8rem, 0.85fr) 2.75rem';
+const ADMIN_USERS_GRID_COLUMNS =
+  'minmax(13rem, 1.45fr) 7.5rem 7rem 7.5rem minmax(7.5rem, 0.8fr) minmax(8rem, 0.85fr) 2.75rem';
 
 const userStatusFilterOptions = [
   { value: 'all', label: 'All statuses' },
@@ -95,7 +130,10 @@ function AdminUserActionItem({
   isActive: boolean;
   onSelect: () => void;
   setActiveActionKey: (
-    next: AdminUserActionKey | null | ((current: AdminUserActionKey | null) => AdminUserActionKey | null)
+    next:
+      | AdminUserActionKey
+      | null
+      | ((current: AdminUserActionKey | null) => AdminUserActionKey | null),
   ) => void;
 }) {
   const iconTone = action.tone === 'destructive' ? 'destructive' : 'default';
@@ -122,10 +160,10 @@ function AdminUserActionItem({
       onPointerEnter={() => setActiveActionKey(action.key)}
       onPointerMove={() => setActiveActionKey(action.key)}
       onPointerLeave={() =>
-        setActiveActionKey(current => (current === action.key ? null : current))
+        setActiveActionKey((current) => (current === action.key ? null : current))
       }
       onFocus={() => setActiveActionKey(action.key)}
-      onBlur={() => setActiveActionKey(current => (current === action.key ? null : current))}
+      onBlur={() => setActiveActionKey((current) => (current === action.key ? null : current))}
       onSelect={onSelect}
     >
       <Flex h="5" w="4" shrink="0" align="center" justify="center">
@@ -205,7 +243,9 @@ function AdminUserContextMenu({
       window.removeEventListener('resize', onClose);
       window.removeEventListener('scroll', onClose, { capture: true });
       window.document.removeEventListener('pointerdown', closeOnOutsidePointer, { capture: true });
-      window.document.removeEventListener('contextmenu', closeOnOutsideContextMenu, { capture: true });
+      window.document.removeEventListener('contextmenu', closeOnOutsideContextMenu, {
+        capture: true,
+      });
     };
   }, [onClose]);
 
@@ -270,11 +310,11 @@ function AdminUserContextMenu({
                 }}
                 onPointerEnter={() => setActiveActionKey(action.key)}
                 onPointerLeave={() =>
-                  setActiveActionKey(current => (current === action.key ? null : current))
+                  setActiveActionKey((current) => (current === action.key ? null : current))
                 }
                 onFocus={() => setActiveActionKey(action.key)}
                 onBlur={() =>
-                  setActiveActionKey(current => (current === action.key ? null : current))
+                  setActiveActionKey((current) => (current === action.key ? null : current))
                 }
                 onClick={() => {
                   onClose();
@@ -343,13 +383,16 @@ export function AdminUsersPage() {
       return matchesSearch && matchesStatus && matchesAccess;
     });
   }, [accessFilter, statusFilter, userSearch, users]);
-  const userStats = useMemo(() => ({
-    total: users.length,
-    admins: users.filter((user) => user.isAdmin).length,
-    members: users.filter((user) => !user.isAdmin).length,
-    active: users.filter((user) => user.disabledAt === null).length,
-    invited: 0,
-  }), [users]);
+  const userStats = useMemo(
+    () => ({
+      total: users.length,
+      admins: users.filter((user) => user.isAdmin).length,
+      members: users.filter((user) => !user.isAdmin).length,
+      active: users.filter((user) => user.disabledAt === null).length,
+      invited: 0,
+    }),
+    [users],
+  );
 
   const updateUserMutation = useMutation({
     mutationFn: updateAdminUser,
@@ -417,8 +460,9 @@ export function AdminUsersPage() {
       toast.error(error instanceof Error ? error.message : 'Could not create admin invitation.');
     },
   });
-  const isInviteFormDirty = createdInvitation === null
-    && (adminInviteEmail.trim().length > 0 || inviteSystemRole !== 'member' || inviteCanCreateVaults);
+  const isInviteFormDirty =
+    createdInvitation === null &&
+    (adminInviteEmail.trim().length > 0 || inviteSystemRole !== 'member' || inviteCanCreateVaults);
   const canDismissInviteDialog = !isInviteFormDirty && !createAdminInvitationMutation.isPending;
 
   function openInviteDialog() {
@@ -426,37 +470,36 @@ export function AdminUsersPage() {
     setIsInviteDialogOpen(true);
   }
 
-  if (meQuery.isLoading) {
-    return <Text textStyle="sm">Loading admin context...</Text>;
-  }
-
-  if (!isEnabled) {
-    return (
-      <SettingsPageFrame title="Users management" description="Admin access is required to open this page.">
-        <Alert variant="destructive">
-          <AlertDescription>
-            Admin access is required to open this page.
-          </AlertDescription>
-        </Alert>
-      </SettingsPageFrame>
-    );
-  }
-
   return (
-    <Stack as="section" gap="4" h="full" minH="0" overflowY="auto" bg="bg.workspace" px={{ base: '4', lg: '6' }} py={{ base: '4', lg: '5' }}>
-      <Flex align={{ base: 'stretch', xl: 'start' }} direction={{ base: 'column', xl: 'row' }} justify="space-between" gap="3">
-        <Stack gap="1">
-          <Text as="h1" textStyle="2xl" fontWeight="bold" color="fg">
-            Users
-          </Text>
-          <Text textStyle="sm" color="fg.muted">
-            Manage users, roles, and vault access.
-          </Text>
-        </Stack>
-
-        <Flex align={{ base: 'stretch', md: 'center' }} direction={{ base: 'column', md: 'row' }} gap="2.5" minW="0">
+    <AdminAccessBoundary
+      title="Users"
+      description="Manage users, roles, and vault access."
+      actions={
+        <Button size="sm" colorPalette="teal" onClick={openInviteDialog}>
+          <Plus size={14} />
+          Invite
+        </Button>
+      }
+      isEnabled={isEnabled}
+      isLoading={meQuery.isLoading}
+    >
+      <Stack gap="4">
+        <Flex
+          align={{ base: 'stretch', md: 'center' }}
+          direction={{ base: 'column', md: 'row' }}
+          gap="2.5"
+          minW="0"
+          flexWrap="wrap"
+        >
           <Box position="relative" w={{ base: 'full', md: '16rem' }}>
-            <Box position="absolute" left="3" top="50%" transform="translateY(-50%)" color="fg.muted" pointerEvents="none">
+            <Box
+              position="absolute"
+              left="3"
+              top="50%"
+              transform="translateY(-50%)"
+              color="fg.muted"
+              pointerEvents="none"
+            >
               <Search size={16} />
             </Box>
             <Input
@@ -473,190 +516,261 @@ export function AdminUsersPage() {
           </Box>
 
           <Box w={{ base: 'full', md: '10.5rem' }}>
-            <Select size="sm" value={statusFilter} onValueChange={(value) => setStatusFilter(value as AdminUserStatusFilter)}>
-              <SelectTrigger aria-label="Filter users by status" rounded="md" bg="bg.surface" borderColor="border.strong">
+            <Select
+              size="sm"
+              value={statusFilter}
+              onValueChange={(value) => setStatusFilter(value as AdminUserStatusFilter)}
+            >
+              <SelectTrigger
+                aria-label="Filter users by status"
+                rounded="md"
+                bg="bg.surface"
+                borderColor="border.strong"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {userStatusFilterOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </Box>
 
           <Box w={{ base: 'full', md: '10rem' }}>
-            <Select size="sm" value={accessFilter} onValueChange={(value) => setAccessFilter(value as AdminUserAccessFilter)}>
-              <SelectTrigger aria-label="Filter users by role" rounded="md" bg="bg.surface" borderColor="border.strong">
+            <Select
+              size="sm"
+              value={accessFilter}
+              onValueChange={(value) => setAccessFilter(value as AdminUserAccessFilter)}
+            >
+              <SelectTrigger
+                aria-label="Filter users by role"
+                rounded="md"
+                bg="bg.surface"
+                borderColor="border.strong"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {userAccessFilterOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </Box>
-
-          <Button size="sm" colorPalette="teal" onClick={openInviteDialog}>
-            <Plus size={14} />
-            Invite
-          </Button>
         </Flex>
-      </Flex>
 
-      <SimpleGrid columns={{ base: 1, sm: 2, xl: 5 }} gap="3">
-        {[
-          { label: 'Total users', value: userStats.total, icon: UsersRound, color: 'fg.success' },
-          { label: 'Admins', value: userStats.admins, icon: ShieldCheck, color: 'fg.success' },
-          { label: 'Members', value: userStats.members, icon: UserRoundPlus, color: 'fg.success' },
-          { label: 'Active', value: userStats.active, icon: CheckCircle2, color: 'fg.success' },
-          { label: 'Invited', value: userStats.invited, icon: Clock3, color: 'fg.warning' },
-        ].map((stat) => {
-          const Icon = stat.icon;
+        <SimpleGrid columns={{ base: 1, sm: 2, xl: 5 }} gap="3">
+          {[
+            { label: 'Total users', value: userStats.total, icon: UsersRound, color: 'fg.success' },
+            { label: 'Admins', value: userStats.admins, icon: ShieldCheck, color: 'fg.success' },
+            {
+              label: 'Members',
+              value: userStats.members,
+              icon: UserRoundPlus,
+              color: 'fg.success',
+            },
+            { label: 'Active', value: userStats.active, icon: CheckCircle2, color: 'fg.success' },
+            { label: 'Invited', value: userStats.invited, icon: Clock3, color: 'fg.warning' },
+          ].map((stat) => {
+            const Icon = stat.icon;
 
-          return (
-            <Box key={stat.label} rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.surface" px="4" py="3" shadow="xs">
-              <HStack gap="2.5" color="fg.muted">
-                <Box color={stat.color}>
-                  <Icon size={18} />
-                </Box>
-                <Text textStyle="sm" fontWeight="medium" color="fg.muted">
-                  {stat.label}
-                </Text>
-              </HStack>
-              <Text mt="2" fontSize="xl" fontWeight="bold" lineHeight="1" color="fg">
-                {stat.value}
-              </Text>
-            </Box>
-          );
-        })}
-      </SimpleGrid>
-
-      <Box flex="1" minH="0">
-        <Grid
-          display={{ base: 'none', lg: visibleUsers.length > 0 ? 'grid' : 'none' }}
-          gridTemplateColumns={ADMIN_USERS_GRID_COLUMNS}
-          gap="2.5"
-          borderBottomWidth="1px"
-          borderColor="border.surface"
-          px="1"
-          pb="2"
-          textStyle="sm"
-          fontWeight="medium"
-          color="fg.muted"
-        >
-          <Text as="span">User</Text>
-          <Text as="span">Role</Text>
-          <Text as="span">Status</Text>
-          <Text as="span">2FA</Text>
-          <Text as="span">Access</Text>
-          <Text as="span">Joined</Text>
-          <Text as="span" textAlign="center">Actions</Text>
-        </Grid>
-
-        {usersQuery.isLoading ? <Text textStyle="sm" color="fg.muted">Loading users...</Text> : null}
-        {!usersQuery.isLoading && visibleUsers.length === 0 ? (
-          <Box mt="3" rounded="md" borderWidth="1px" borderStyle="dashed" borderColor="border.surface" bg="bg.subtle" p="3" textStyle="sm" color="fg.muted">
-            No users match the current filters.
-          </Box>
-        ) : null}
-
-        {visibleUsers.length > 0 ? (
-          <Stack gap="0">
-            {visibleUsers.map((user) => {
-              const joined = formatJoinedDate(user.createdAt);
-
-              return (
-                <Grid
-                  key={user.id}
-                  as="article"
-                  alignItems="center"
-                  gap="2.5"
-                  borderBottomWidth="1px"
-                  borderColor="border.surface"
-                  px="1"
-                  py={{ base: '3', lg: '3.5' }}
-                  templateColumns={{ base: 'minmax(0, 1fr) auto', lg: ADMIN_USERS_GRID_COLUMNS }}
-                  _last={{ borderBottomWidth: '0' }}
-                  onContextMenu={(event) => openUserContextMenu(event, user)}
-                >
-                  <HStack gap="3" minW="0">
-                    <Flex boxSize="9" shrink="0" align="center" justify="center" rounded="full" bg="bg.muted" color="fg" fontWeight="semibold">
-                      {getUserInitial(user)}
-                    </Flex>
-                    <Stack gap="0.5" minW="0">
-                      <Text fontSize="sm" fontWeight="semibold" color="fg" truncate>
-                        {user.name ?? user.email}
-                      </Text>
-                      <Text truncate fontSize="sm" color="fg.muted">
-                        {user.email}
-                      </Text>
-                    </Stack>
-                  </HStack>
-
-                  <Badge
-                    display={{ base: 'none', lg: 'inline-flex' }}
-                    w="fit-content"
-                    colorPalette={user.isAdmin ? 'purple' : 'blue'}
-                    variant="subtle"
-                    rounded="sm"
-                    px="2"
-                    py="0.5"
-                    textTransform="none"
-                  >
-                    {getUserRoleLabel(user)}
-                  </Badge>
-
-                  <Badge
-                    display={{ base: 'none', lg: 'inline-flex' }}
-                    w="fit-content"
-                    colorPalette={user.disabledAt ? 'orange' : 'green'}
-                    variant="subtle"
-                    rounded="sm"
-                    px="2"
-                    py="0.5"
-                    textTransform="none"
-                  >
-                    {user.disabledAt ? 'Disabled' : 'Active'}
-                  </Badge>
-
-                  <HStack display={{ base: 'none', lg: 'flex' }} gap="2" color={user.twoFactorEnabled ? 'fg.success' : 'fg.muted'}>
-                    {user.twoFactorEnabled ? <ShieldCheck size={16} /> : null}
-                    <Text textStyle="sm">
-                      {user.twoFactorEnabled ? 'Enabled' : 'Not enabled'}
-                    </Text>
-                  </HStack>
-
-                  <Text display={{ base: 'none', lg: 'block' }} truncate textStyle="sm" fontWeight="semibold" color="fg">
-                    {getUserAccessSummary(user)}
-                  </Text>
-
-                  <Stack display={{ base: 'none', lg: 'flex' }} gap="0.5">
-                    <Text textStyle="sm" color="fg.muted">
-                      {joined.date}
-                    </Text>
-                    <Text textStyle="sm" color="fg.muted">
-                      {joined.time}
-                    </Text>
-                  </Stack>
-
-                  <Box justifySelf="end">
-                    <DropdownMenu modal={false}>
-                      <DropdownMenuTrigger asChild>
-                        <ActionMenuTriggerButton label={`User actions for ${user.email}`} />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" minWidth="20rem">
-                        <AdminUserActionMenuItems actions={getUserActions(user)} />
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+            return (
+              <Box
+                key={stat.label}
+                rounded="md"
+                borderWidth="1px"
+                borderColor="border.surface"
+                bg="bg.surface"
+                px="4"
+                py="3"
+                shadow="xs"
+              >
+                <HStack gap="2.5" color="fg.muted">
+                  <Box color={stat.color}>
+                    <Icon size={18} />
                   </Box>
-                </Grid>
-              );
-            })}
-          </Stack>
-        ) : null}
-      </Box>
+                  <Text textStyle="sm" fontWeight="medium" color="fg.muted">
+                    {stat.label}
+                  </Text>
+                </HStack>
+                <Text mt="2" fontSize="xl" fontWeight="bold" lineHeight="1" color="fg">
+                  {stat.value}
+                </Text>
+              </Box>
+            );
+          })}
+        </SimpleGrid>
+
+        <Box overflowX="auto">
+          <Box minW={{ base: '0', lg: '58rem' }}>
+            <Grid
+              display={{ base: 'none', lg: visibleUsers.length > 0 ? 'grid' : 'none' }}
+              gridTemplateColumns={ADMIN_USERS_GRID_COLUMNS}
+              gap="2.5"
+              borderBottomWidth="1px"
+              borderColor="border.surface"
+              px="1"
+              pb="2"
+              textStyle="sm"
+              fontWeight="medium"
+              color="fg.muted"
+            >
+              <Text as="span">User</Text>
+              <Text as="span">Role</Text>
+              <Text as="span">Status</Text>
+              <Text as="span">2FA</Text>
+              <Text as="span">Access</Text>
+              <Text as="span">Joined</Text>
+              <Text as="span" textAlign="center">
+                Actions
+              </Text>
+            </Grid>
+
+            {usersQuery.isLoading ? (
+              <Text textStyle="sm" color="fg.muted">
+                Loading users...
+              </Text>
+            ) : null}
+            {!usersQuery.isLoading && visibleUsers.length === 0 ? (
+              <Box
+                mt="3"
+                rounded="md"
+                borderWidth="1px"
+                borderStyle="dashed"
+                borderColor="border.surface"
+                bg="bg.subtle"
+                p="3"
+                textStyle="sm"
+                color="fg.muted"
+              >
+                No users match the current filters.
+              </Box>
+            ) : null}
+
+            {visibleUsers.length > 0 ? (
+              <Stack gap="0">
+                {visibleUsers.map((user) => {
+                  const joined = formatJoinedDate(user.createdAt);
+
+                  return (
+                    <Grid
+                      key={user.id}
+                      as="article"
+                      alignItems="center"
+                      gap="2.5"
+                      borderBottomWidth="1px"
+                      borderColor="border.surface"
+                      px="1"
+                      py={{ base: '3', lg: '3.5' }}
+                      templateColumns={{
+                        base: 'minmax(0, 1fr) auto',
+                        lg: ADMIN_USERS_GRID_COLUMNS,
+                      }}
+                      _last={{ borderBottomWidth: '0' }}
+                      onContextMenu={(event) => openUserContextMenu(event, user)}
+                    >
+                      <HStack gap="3" minW="0">
+                        <Flex
+                          boxSize="9"
+                          shrink="0"
+                          align="center"
+                          justify="center"
+                          rounded="full"
+                          bg="bg.muted"
+                          color="fg"
+                          fontWeight="semibold"
+                        >
+                          {getUserInitial(user)}
+                        </Flex>
+                        <Stack gap="0.5" minW="0">
+                          <Text fontSize="sm" fontWeight="semibold" color="fg" truncate>
+                            {user.name ?? user.email}
+                          </Text>
+                          <Text truncate fontSize="sm" color="fg.muted">
+                            {user.email}
+                          </Text>
+                        </Stack>
+                      </HStack>
+
+                      <Badge
+                        display={{ base: 'none', lg: 'inline-flex' }}
+                        w="fit-content"
+                        colorPalette={user.isAdmin ? 'purple' : 'blue'}
+                        variant="subtle"
+                        rounded="sm"
+                        px="2"
+                        py="0.5"
+                        textTransform="none"
+                      >
+                        {getUserRoleLabel(user)}
+                      </Badge>
+
+                      <Badge
+                        display={{ base: 'none', lg: 'inline-flex' }}
+                        w="fit-content"
+                        colorPalette={user.disabledAt ? 'orange' : 'green'}
+                        variant="subtle"
+                        rounded="sm"
+                        px="2"
+                        py="0.5"
+                        textTransform="none"
+                      >
+                        {user.disabledAt ? 'Disabled' : 'Active'}
+                      </Badge>
+
+                      <HStack
+                        display={{ base: 'none', lg: 'flex' }}
+                        gap="2"
+                        color={user.twoFactorEnabled ? 'fg.success' : 'fg.muted'}
+                      >
+                        {user.twoFactorEnabled ? <ShieldCheck size={16} /> : null}
+                        <Text textStyle="sm">
+                          {user.twoFactorEnabled ? 'Enabled' : 'Not enabled'}
+                        </Text>
+                      </HStack>
+
+                      <Text
+                        display={{ base: 'none', lg: 'block' }}
+                        truncate
+                        textStyle="sm"
+                        fontWeight="semibold"
+                        color="fg"
+                      >
+                        {getUserAccessSummary(user)}
+                      </Text>
+
+                      <Stack display={{ base: 'none', lg: 'flex' }} gap="0.5">
+                        <Text textStyle="sm" color="fg.muted">
+                          {joined.date}
+                        </Text>
+                        <Text textStyle="sm" color="fg.muted">
+                          {joined.time}
+                        </Text>
+                      </Stack>
+
+                      <Box justifySelf="end">
+                        <DropdownMenu modal={false}>
+                          <DropdownMenuTrigger asChild>
+                            <ActionMenuTriggerButton label={`User actions for ${user.email}`} />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" minWidth="20rem">
+                            <AdminUserActionMenuItems actions={getUserActions(user)} />
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </Box>
+                    </Grid>
+                  );
+                })}
+              </Stack>
+            ) : null}
+          </Box>
+        </Box>
+      </Stack>
 
       {userContextMenu ? (
         <AdminUserContextMenu
@@ -695,16 +809,34 @@ export function AdminUsersPage() {
               });
             }}
           >
-            <Box borderBottomWidth="1px" borderColor="border.surface" px="4" py="2" pr={{ base: '13', lg: '14' }}>
+            <Box
+              borderBottomWidth="1px"
+              borderColor="border.surface"
+              px="4"
+              py="2"
+              pr={{ base: '13', lg: '14' }}
+            >
               <DialogHeader>
                 <HStack gap="2.5" align="center">
-                  <Flex boxSize="9" align="center" justify="center" rounded="md" bg="teal.subtle" color="teal.fg" flexShrink="0">
+                  <Flex
+                    boxSize="9"
+                    align="center"
+                    justify="center"
+                    rounded="md"
+                    bg="teal.subtle"
+                    color="teal.fg"
+                    flexShrink="0"
+                  >
                     <UserRoundPlus size={18} />
                   </Flex>
                   <Stack gap="0.5" minW="0">
-                    <DialogTitle>{createdInvitation ? 'Invitation sent' : 'Invite user'}</DialogTitle>
+                    <DialogTitle>
+                      {createdInvitation ? 'Invitation sent' : 'Invite user'}
+                    </DialogTitle>
                     <DialogDescription>
-                      {createdInvitation ? `Invite created for ${createdInvitation.email}.` : 'Send an invitation to a new user.'}
+                      {createdInvitation
+                        ? `Invite created for ${createdInvitation.email}.`
+                        : 'Send an invitation to a new user.'}
                     </DialogDescription>
                   </Stack>
                 </HStack>
@@ -716,7 +848,14 @@ export function AdminUsersPage() {
                 <Card rounded="xl" borderColor="border.surface" bg="bg.elevated" p="3" shadow="xs">
                   <Stack gap="3">
                     <HStack gap="3" align="start">
-                      <Flex boxSize="9" align="center" justify="center" rounded="full" bg="teal.subtle" color="teal.fg">
+                      <Flex
+                        boxSize="9"
+                        align="center"
+                        justify="center"
+                        rounded="full"
+                        bg="teal.subtle"
+                        color="teal.fg"
+                      >
                         <Check size={19} />
                       </Flex>
                       <Stack gap="1" minW="0">
@@ -729,12 +868,22 @@ export function AdminUsersPage() {
                       </Stack>
                     </HStack>
 
-                    <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.subtle" px="3" py="2">
+                    <Box
+                      rounded="lg"
+                      borderWidth="1px"
+                      borderColor="border.surface"
+                      bg="bg.subtle"
+                      px="3"
+                      py="2"
+                    >
                       <KeyValueRows
                         density="compact"
                         rows={[
                           { label: 'Email', value: createdInvitation.email },
-                          { label: 'System role', value: createdInvitation.systemRole === 'admin' ? 'Admin' : 'Member' },
+                          {
+                            label: 'System role',
+                            value: createdInvitation.systemRole === 'admin' ? 'Admin' : 'Member',
+                          },
                           { label: 'Status', value: 'Pending acceptance' },
                         ]}
                       />
@@ -742,9 +891,17 @@ export function AdminUsersPage() {
                   </Stack>
                 </Card>
 
-                <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" px="3" py="2.5">
+                <Box
+                  rounded="lg"
+                  borderWidth="1px"
+                  borderColor="border.surface"
+                  bg="bg.surface"
+                  px="3"
+                  py="2.5"
+                >
                   <Text textStyle="sm" color="fg.muted">
-                    Advanced vault, AI, and audit controls live in user access management after the account exists.
+                    Advanced vault, AI, and audit controls live in user access management after the
+                    account exists.
                   </Text>
                 </Box>
               </Stack>
@@ -765,7 +922,14 @@ export function AdminUsersPage() {
                           borderColor="border.strong"
                           onChange={(event) => setAdminInviteEmail(event.target.value)}
                         />
-                        <Box position="absolute" right="4" top="50%" transform="translateY(-50%)" color="fg.muted" pointerEvents="none">
+                        <Box
+                          position="absolute"
+                          right="4"
+                          top="50%"
+                          transform="translateY(-50%)"
+                          color="fg.muted"
+                          pointerEvents="none"
+                        >
                           <Mail size={18} />
                         </Box>
                       </Box>
@@ -773,8 +937,16 @@ export function AdminUsersPage() {
 
                     <Field>
                       <FieldLabel>System role</FieldLabel>
-                      <Select size="md" value={inviteSystemRole} onValueChange={(value) => setInviteSystemRole(value as InviteSystemRole)}>
-                        <SelectTrigger aria-label="System role" rounded="md" borderColor="border.strong">
+                      <Select
+                        size="md"
+                        value={inviteSystemRole}
+                        onValueChange={(value) => setInviteSystemRole(value as InviteSystemRole)}
+                      >
+                        <SelectTrigger
+                          aria-label="System role"
+                          rounded="md"
+                          borderColor="border.strong"
+                        >
                           <HStack gap="2.5">
                             <UserRound size={16} />
                             <SelectValue />
@@ -782,7 +954,9 @@ export function AdminUsersPage() {
                         </SelectTrigger>
                         <SelectContent>
                           {inviteSystemRoleOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -794,7 +968,9 @@ export function AdminUsersPage() {
                       alignItems="flex-start"
                     >
                       <Stack gap="1">
-                        <Text color="fg" fontWeight="medium">Can create vaults</Text>
+                        <Text color="fg" fontWeight="medium">
+                          Can create vaults
+                        </Text>
                         <Text textStyle="sm" color="fg.muted">
                           Allow this user to create new vaults.
                         </Text>
@@ -811,7 +987,12 @@ export function AdminUsersPage() {
 
             <Box borderTopWidth="1px" borderColor="border.surface" bg="bg.surface" px="4" py="3">
               <Flex align="center" justify="flex-end" gap="2.5" w="full">
-                <Button type="button" variant="outline" size="sm" onClick={() => setIsInviteDialogOpen(false)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsInviteDialogOpen(false)}
+                >
                   {createdInvitation ? 'Close' : 'Cancel'}
                 </Button>
                 {createdInvitation ? (
@@ -821,13 +1002,22 @@ export function AdminUsersPage() {
                     colorPalette="teal"
                     onClick={() => {
                       setIsInviteDialogOpen(false);
-                      void navigate({ to: ROUTES.adminUserAccess(createdInvitation.acceptedBy ?? createdInvitation.id) });
+                      void navigate({
+                        to: ROUTES.adminUserAccess(
+                          createdInvitation.acceptedBy ?? createdInvitation.id,
+                        ),
+                      });
                     }}
                   >
                     Access
                   </Button>
                 ) : (
-                  <Button type="submit" size="sm" colorPalette="teal" disabled={createAdminInvitationMutation.isPending}>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    colorPalette="teal"
+                    disabled={createAdminInvitationMutation.isPending}
+                  >
                     <Send size={16} />
                     {createAdminInvitationMutation.isPending ? 'Sending...' : 'Send invite'}
                   </Button>
@@ -837,6 +1027,6 @@ export function AdminUsersPage() {
           </chakra.form>
         </DialogContent>
       </Dialog>
-    </Stack>
+    </AdminAccessBoundary>
   );
 }

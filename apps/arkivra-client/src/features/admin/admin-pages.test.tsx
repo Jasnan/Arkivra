@@ -41,12 +41,14 @@ const authClientMock = vi.hoisted(() => ({
 
 vi.mock('@/lib/auth-client', () => ({
   authClient: authClientMock,
-}));function jsonResponse(body: unknown, status = 200) {
+}));
+function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json' },
   });
-}function installLocalStorageMock() {
+}
+function installLocalStorageMock() {
   const store = new Map<string, string>();
 
   Object.defineProperty(window, 'localStorage', {
@@ -526,15 +528,21 @@ describe('admin and about pages', () => {
     expect(await screen.findByLabelText(/email address/i)).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: /system role/i })).toBeInTheDocument();
     expect(screen.getAllByText(/can create vaults/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/the user will receive an email invitation to create their account/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/the user will receive an email invitation to create their account/i),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/invitation flow/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: /user information/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: /system permissions/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: /optional starter access/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('region', { name: /optional starter access/i }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/starter vault/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/add another vault/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/ai features/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/the invited user will receive an email with instructions/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/the invited user will receive an email with instructions/i),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/no ai access/i)).not.toBeInTheDocument();
   });
 
@@ -613,12 +621,14 @@ describe('admin and about pages', () => {
             model: 'gemma4:e4b',
             reachable: true,
             modelAvailable: true,
-            models: [{
-              name: 'gemma4:e4b',
-              size: 1024,
-              modifiedAt: '2026-04-14T19:00:00.000Z',
-              capabilities: ['completion', 'vision'],
-            }],
+            models: [
+              {
+                name: 'gemma4:e4b',
+                size: 1024,
+                modifiedAt: '2026-04-14T19:00:00.000Z',
+                capabilities: ['completion', 'vision'],
+              },
+            ],
             responseTimeMs: 42,
             error: null,
           },
@@ -632,14 +642,167 @@ describe('admin and about pages', () => {
     await renderWithProviders(<AdminAiSettingsPage />);
 
     await user.click(await screen.findByRole('button', { name: /view details/i }));
-    expect(await screen.findByText(/configured on the api server with arkivra_ollama_host/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/configured on the api server with arkivra_ollama_host/i),
+    ).toBeInTheDocument();
     expect(screen.getByText('http://127.0.0.1:11434')).toBeInTheDocument();
     expect(screen.queryByLabelText(/ollama base url/i)).not.toBeInTheDocument();
 
-    const saveCall = fetchMock.mock.calls.find(([url, init]) =>
-      String(url) === '/api/admin/ai/settings' && init?.method === 'PUT',
+    const saveCall = fetchMock.mock.calls.find(
+      ([url, init]) => String(url) === '/api/admin/ai/settings' && init?.method === 'PUT',
     );
     expect(saveCall).toBeUndefined();
+  });
+
+  it('does not show semantic indexing as building when there are no document chunks', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_admin',
+          sessionId: 'ses_admin',
+          systemRole: 'admin',
+          systemCapabilities: ['system.create_vaults'],
+          isAdmin: true,
+          canCreateVault: true,
+        });
+      }
+
+      if (url === '/api/admin/ai/settings' && (!init || init.method === undefined)) {
+        return jsonResponse({
+          settings: {
+            aiFeaturesEnabled: true,
+            chat: {
+              provider: 'ollama',
+              baseUrl: 'http://127.0.0.1:11434',
+              apiKeySecretRef: null,
+              model: 'gemma4:e4b',
+              allowedModels: ['gemma4:e4b'],
+            },
+            translation: {
+              provider: 'ollama',
+              baseUrl: 'http://127.0.0.1:11434',
+              apiKeySecretRef: null,
+              model: 'gemma4:e4b',
+            },
+            embedding: {
+              provider: 'ollama',
+              baseUrl: 'http://127.0.0.1:11434',
+              apiKeySecretRef: null,
+              model: 'bge-m3',
+              dimensions: 1024,
+            },
+            ollamaHost: 'http://127.0.0.1:11434',
+            model: 'gemma4:e4b',
+          },
+        });
+      }
+
+      if (url === '/api/admin/ai/status') {
+        return jsonResponse({
+          status: {
+            aiFeaturesEnabled: true,
+            chat: {
+              provider: 'ollama',
+              baseUrl: 'http://127.0.0.1:11434',
+              model: 'gemma4:e4b',
+              allowedModels: ['gemma4:e4b'],
+            },
+            embedding: {
+              semanticSearchAvailable: true,
+              activeIndex: null,
+              candidateIndexes: [
+                {
+                  id: 'eix_empty_building',
+                  providerConfigId: 'aip_embedding',
+                  provider: 'ollama',
+                  model: 'bge-m3',
+                  dimensions: 1024,
+                  distanceMetric: 'cosine',
+                  status: 'building',
+                  isActive: false,
+                  expectedChunkCount: 0,
+                  embeddedChunkCount: 0,
+                  failedChunkCount: 0,
+                  failureMessage: null,
+                  buildStartedAt: '2026-06-19T11:49:00.000Z',
+                  buildCompletedAt: null,
+                  activatedAt: null,
+                  createdAt: '2026-06-19T11:49:00.000Z',
+                  updatedAt: '2026-06-19T11:49:00.000Z',
+                  documentStatuses: {
+                    pending: 0,
+                    indexing: 0,
+                    ready: 0,
+                    failed: 0,
+                    stale: 0,
+                    skipped: 0,
+                  },
+                },
+              ],
+              recentIndexes: [],
+              chunkCoverage: {
+                indexedChunkCount: 0,
+                totalChunkCount: 0,
+              },
+            },
+          },
+        });
+      }
+
+      if (url === '/api/admin/ai/models' && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body));
+        return jsonResponse({
+          models:
+            body.provider === 'ollama'
+              ? [
+                  {
+                    name: 'bge-m3',
+                    size: 1024,
+                    modifiedAt: '2026-06-19T11:00:00.000Z',
+                    capabilities: ['embedding'],
+                  },
+                  {
+                    name: 'gemma4:e4b',
+                    size: 1024,
+                    modifiedAt: '2026-06-19T11:00:00.000Z',
+                    capabilities: ['completion', 'vision'],
+                  },
+                ]
+              : [
+                  {
+                    name: 'gemini-3.5-flash',
+                    size: null,
+                    modifiedAt: null,
+                    capabilities: ['completion', 'vision'],
+                  },
+                ],
+        });
+      }
+
+      if (url === '/api/admin/ai/availability' && init?.method === 'POST') {
+        return jsonResponse({
+          availability: {
+            host: 'https://generativelanguage.googleapis.com/v1beta/openai',
+            model: 'gemini-3.5-flash',
+            reachable: true,
+            modelAvailable: true,
+            models: [],
+            responseTimeMs: 42,
+            error: null,
+          },
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<AdminAiSettingsPage />);
+
+    expect(await screen.findByText('No documents')).toBeInTheDocument();
+    expect(screen.queryByText(/indexing in progress/i)).not.toBeInTheDocument();
   });
 
   it('activates Gemini without exposing an API key field in the UI', async () => {
@@ -715,29 +878,30 @@ describe('admin and about pages', () => {
       if (url === '/api/admin/ai/models' && init?.method === 'POST') {
         const body = JSON.parse(String(init.body));
         return jsonResponse({
-          models: body.provider === 'gemini'
-            ? [
-                {
-                  name: 'gemini-3.5-flash',
-                  size: null,
-                  modifiedAt: null,
-                  capabilities: ['completion', 'vision'],
-                },
-                {
-                  name: 'gemini-2.5-flash',
-                  size: null,
-                  modifiedAt: null,
-                  capabilities: ['completion', 'vision'],
-                },
-              ]
-            : [
-                {
-                  name: 'gemma4:e4b',
-                  size: 1024,
-                  modifiedAt: '2026-04-14T19:00:00.000Z',
-                  capabilities: ['completion', 'vision'],
-                },
-              ],
+          models:
+            body.provider === 'gemini'
+              ? [
+                  {
+                    name: 'gemini-3.5-flash',
+                    size: null,
+                    modifiedAt: null,
+                    capabilities: ['completion', 'vision'],
+                  },
+                  {
+                    name: 'gemini-2.5-flash',
+                    size: null,
+                    modifiedAt: null,
+                    capabilities: ['completion', 'vision'],
+                  },
+                ]
+              : [
+                  {
+                    name: 'gemma4:e4b',
+                    size: 1024,
+                    modifiedAt: '2026-04-14T19:00:00.000Z',
+                    capabilities: ['completion', 'vision'],
+                  },
+                ],
         });
       }
 
@@ -748,12 +912,14 @@ describe('admin and about pages', () => {
             model: 'gemini-3.5-flash',
             reachable: true,
             modelAvailable: true,
-            models: [{
-              name: 'gemini-3.5-flash',
-              size: null,
-              modifiedAt: null,
-              capabilities: ['completion', 'vision'],
-            }],
+            models: [
+              {
+                name: 'gemini-3.5-flash',
+                size: null,
+                modifiedAt: null,
+                capabilities: ['completion', 'vision'],
+              },
+            ],
             responseTimeMs: 42,
             error: null,
           },
@@ -775,8 +941,8 @@ describe('admin and about pages', () => {
     await user.click(await screen.findByRole('button', { name: /use for chat/i }));
 
     await waitFor(() => {
-      const saveCall = fetchMock.mock.calls.find(([url, init]) =>
-        String(url) === '/api/admin/ai/settings' && init?.method === 'PUT',
+      const saveCall = fetchMock.mock.calls.find(
+        ([url, init]) => String(url) === '/api/admin/ai/settings' && init?.method === 'PUT',
       );
       expect(saveCall).toBeDefined();
       const payload = JSON.parse(String(saveCall?.[1]?.body));
@@ -858,7 +1024,9 @@ describe('admin and about pages', () => {
 
     expect(await screen.findByRole('heading', { name: /user access/i })).toBeInTheDocument();
     expect(screen.getByText(/alex@example.com/i)).toBeInTheDocument();
-    expect(screen.getByText(/vault permission matrices, AI feature permissions/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/vault permission matrices, AI feature permissions/i),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Invoices Vault/i)).toBeInTheDocument();
   });
 
@@ -866,11 +1034,26 @@ describe('admin and about pages', () => {
     await renderWithProviders(<AboutSettingsPage />);
 
     expect((await screen.findAllByText('0.1.0')).length).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: /website/i })).toHaveAttribute('href', 'https://arkivra.app');
-    expect(screen.getByRole('link', { name: /documentation/i })).toHaveAttribute('href', 'https://docs.arkivra.app');
-    expect(screen.getByRole('link', { name: /github/i })).toHaveAttribute('href', 'https://github.com/Jasnan/Arkivra');
-    expect(screen.getByRole('link', { name: /license/i })).toHaveAttribute('href', 'https://github.com/Jasnan/arkivra/blob/main/LICENSE');
-    expect(screen.getByRole('link', { name: /jasnan thachaparamban/i })).toHaveAttribute('href', 'https://jasnan.xyz');
+    expect(screen.getByRole('link', { name: /website/i })).toHaveAttribute(
+      'href',
+      'https://arkivra.app',
+    );
+    expect(screen.getByRole('link', { name: /documentation/i })).toHaveAttribute(
+      'href',
+      'https://docs.arkivra.app',
+    );
+    expect(screen.getByRole('link', { name: /github/i })).toHaveAttribute(
+      'href',
+      'https://github.com/Jasnan/Arkivra',
+    );
+    expect(screen.getByRole('link', { name: /license/i })).toHaveAttribute(
+      'href',
+      'https://github.com/Jasnan/arkivra/blob/main/LICENSE',
+    );
+    expect(screen.getByRole('link', { name: /jasnan thachaparamban/i })).toHaveAttribute(
+      'href',
+      'https://jasnan.xyz',
+    );
     expect(screen.getByLabelText(/arkivra is crafted with ❤️ by/i)).toBeInTheDocument();
     expect(screen.queryByText(/project direction/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/system information/i)).not.toBeInTheDocument();

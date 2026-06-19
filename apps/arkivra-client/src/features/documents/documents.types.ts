@@ -28,6 +28,22 @@ export interface DocumentSummary {
   deletedAt: string | null;
 }
 
+export type DocumentSemanticIndexStatus =
+  | 'pending'
+  | 'indexing'
+  | 'ready'
+  | 'failed'
+  | 'stale'
+  | 'skipped';
+
+export interface DocumentSemanticIndexSummary {
+  documentStatus: DocumentSemanticIndexStatus | null;
+  expectedChunkCount: number;
+  embeddedChunkCount: number;
+  indexedAt: string | null;
+  updatedAt: string | null;
+}
+
 export interface DeletedDocumentSummary extends DocumentSummary {
   vaultId: string;
   vaultName: string;
@@ -39,6 +55,7 @@ export interface DocumentDetail extends DocumentSummary {
   displayContent?: string;
   createdBy: string | null;
   language: DocumentLanguageMetadata | null;
+  semanticIndex: DocumentSemanticIndexSummary | null;
 }
 
 export interface DocumentVersionSummary {

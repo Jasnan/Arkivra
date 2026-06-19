@@ -16,7 +16,7 @@ export type { AppearanceFont };
 export type AppearanceRadius = 'none' | 'sm' | 'md' | 'lg' | 'xl';
 export type AppearanceDensity = 'compact' | 'comfortable' | 'relaxed';
 export type AppearanceFontSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl';
-export type ThemeMode = 'system' | 'light' | 'dark';
+export type ThemeMode = 'light' | 'dark';
 export type PreferenceLanguage = 'en' | 'de' | 'fr';
 export type PreferenceDateFormat =
   | 'DD.MM.YYYY'

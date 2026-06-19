@@ -1202,6 +1202,24 @@ describe.sequential('migrations smoke', () => {
     expect(byName.date_format?.column_default).toBeNull();
   });
 
+  test('0038 removes persisted theme mode from user UI preferences', async () => {
+    if (pool === null) {
+      throw new Error('Migration smoke pool not initialised');
+    }
+
+    const { rows } = await pool.query<{ column_name: string }>(
+      `
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'user_ui_preferences'
+          AND column_name = 'theme_mode'
+      `,
+    );
+
+    expect(rows).toEqual([]);
+  });
+
   test('0015 replaces legacy authorization tables with admin, capability, vault role, and AI access schema', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');

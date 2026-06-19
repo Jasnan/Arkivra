@@ -121,7 +121,7 @@ describe('auth pages', () => {
     await waitFor(() => {
       expect(localStorage.getItem('arkivra.themeMode')).toBe('dark');
     });
-    expect(JSON.parse(localStorage.getItem('arkivra.uiPreferences') ?? '{}').themeMode).toBe('dark');
+    expect(JSON.parse(localStorage.getItem('arkivra.uiPreferences') ?? '{}')).not.toHaveProperty('themeMode');
   });
 
   it('submits the login form and supports OAuth buttons', async () => {

@@ -1,4 +1,3 @@
-export type UiThemeMode = 'system' | 'light' | 'dark';
 export type UiAccentColor = 'gray' | 'red' | 'orange' | 'yellow' | 'green' | 'teal' | 'blue' | 'cyan' | 'purple' | 'pink';
 export type UiDensity = 'compact' | 'comfortable' | 'relaxed';
 export type UiFontFamily = 'inter' | 'sora' | 'space-grotesk';
@@ -10,7 +9,6 @@ export type UiFileBrowserView = 'list' | 'grid';
 export type UiChatAnswerMode = 'text' | 'multimodal';
 
 export interface UserUiPreferences {
-  themeMode: UiThemeMode;
   accentColor: UiAccentColor;
   density: UiDensity;
   fontFamily: UiFontFamily;
@@ -38,6 +36,5 @@ export type UserUiPreferencesUpdate = Partial<
     | 'defaultChatAnswerMode'
     | 'radius'
     | 'showExtractedTextTab'
-    | 'themeMode'
   >
 >;

@@ -8,11 +8,9 @@ import type {
   PreferenceDateFormat,
   PreferenceChatAnswerMode,
   PreferenceLanguage,
-  ThemeMode,
 } from '@/components/providers/accent-color-context';
 
 export interface UserUiPreferences {
-  themeMode: ThemeMode;
   accentColor: AccentColor;
   density: AppearanceDensity;
   fontFamily: AppearanceFont;
@@ -40,6 +38,5 @@ export type UserUiPreferencesUpdate = Partial<
     | 'dateFormat'
     | 'radius'
     | 'showExtractedTextTab'
-    | 'themeMode'
   >
 >;

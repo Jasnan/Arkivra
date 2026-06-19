@@ -10,7 +10,6 @@ const fontFamilySchema = z
 
 const userUiPreferencesUpdateSchema = z
   .object({
-    themeMode: z.enum(['system', 'light', 'dark']).optional(),
     accentColor: z.enum(['gray', 'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'cyan', 'purple', 'pink']).optional(),
     density: z.enum(['compact', 'comfortable', 'relaxed']).optional(),
     fontFamily: fontFamilySchema.optional(),

@@ -267,6 +267,13 @@
       "when": 1781740800000,
       "tag": "0037_translation_provider_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1781827200000,
+      "tag": "0038_drop_user_ui_theme_mode",
+      "breakpoints": true
     }
   ]
 }

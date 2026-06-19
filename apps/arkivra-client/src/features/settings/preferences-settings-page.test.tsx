@@ -97,6 +97,31 @@ function PreferenceSnapshot() {
   );
 }
 
+function ThemePreferenceSnapshot() {
+  const { themeMode } = useAccentColor();
+
+  return <output aria-label="theme preference snapshot">{themeMode}</output>;
+}
+
+function ThemePreferenceControls() {
+  const {
+    setThemeMode,
+    themeMode,
+  } = useAccentColor();
+
+  return (
+    <>
+      <button type="button" onClick={() => setThemeMode('dark')}>
+        Use dark
+      </button>
+      <button type="button" onClick={() => setThemeMode('light')}>
+        Use light
+      </button>
+      <output aria-label="theme preference snapshot">{themeMode}</output>
+    </>
+  );
+}
+
 function FontPreferenceControls() {
   const {
     fontFamily,
@@ -146,6 +171,8 @@ describe('preferences settings page', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     sessionStorage.clear();
+    document.documentElement.className = '';
+    document.documentElement.style.colorScheme = '';
     installLocalStorageMock();
     authClientMock.useSession.mockReturnValue({
       data: {
@@ -180,6 +207,140 @@ describe('preferences settings page', () => {
     });
     authClientMock.revokeSession.mockResolvedValue({ error: null });
     authClientMock.revokeOtherSessions.mockResolvedValue({ error: null });
+  });
+
+  it('offers only light and dark theme preferences', async () => {
+    const preferences = {
+      themeMode: 'system',
+      accentColor: 'teal',
+      density: 'comfortable',
+      fontFamily: 'inter',
+      fontSize: 'md',
+      radius: 'md',
+      language: 'en',
+      dateFormat: null,
+      showExtractedTextTab: false,
+      defaultFileBrowserView: 'list',
+      defaultChatAnswerMode: 'text',
+      createdAt: '2026-05-15T00:00:00.000Z',
+      updatedAt: '2026-05-15T00:00:00.000Z',
+    };
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ preferences })));
+
+    await renderWithProviders(<PreferencesSettingsPage />);
+
+    expect(await screen.findByRole('button', { name: /^light$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^dark$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^system$/i })).not.toBeInTheDocument();
+  });
+
+  it('normalizes legacy system theme preferences to light', async () => {
+    window.localStorage.setItem('arkivra.uiPreferences', JSON.stringify({
+      themeMode: 'system',
+      accentColor: 'teal',
+      density: 'comfortable',
+      fontFamily: 'inter',
+      fontSize: 'md',
+      radius: 'md',
+      language: 'en',
+    }));
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
+      preferences: {
+        themeMode: 'system',
+        accentColor: 'purple',
+        density: 'comfortable',
+        fontFamily: 'sora',
+        fontSize: 'md',
+        radius: 'md',
+        language: 'en',
+        createdAt: '2026-05-15T00:00:00.000Z',
+        updatedAt: '2026-05-15T00:00:00.000Z',
+      },
+    })));
+
+    await renderWithProviders(<ThemePreferenceSnapshot />);
+
+    expect(screen.getByLabelText(/theme preference snapshot/i)).toHaveTextContent('light');
+    expect(JSON.parse(window.localStorage.getItem('arkivra.uiPreferences') ?? '{}')).not.toHaveProperty('themeMode');
+    expect(window.localStorage.getItem('arkivra.themeMode')).toBe('light');
+  });
+
+  it('applies selected light and dark themes locally without syncing them to the server', async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem('arkivra.uiPreferences', JSON.stringify({
+      themeMode: 'light',
+      accentColor: 'teal',
+      density: 'comfortable',
+      fontFamily: 'inter',
+      fontSize: 'md',
+      radius: 'md',
+      language: 'en',
+    }));
+    const fetchMock = vi.fn(async () => jsonResponse({ preferences: null }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<ThemePreferenceControls />);
+
+    await waitFor(() => {
+      expect(document.documentElement).toHaveClass('light');
+      expect(document.documentElement).not.toHaveClass('dark');
+      expect(document.documentElement.style.colorScheme).toBe('light');
+    });
+
+    await user.click(screen.getByRole('button', { name: /use dark/i }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/theme preference snapshot/i)).toHaveTextContent('dark');
+      expect(document.documentElement).toHaveClass('dark');
+      expect(document.documentElement).not.toHaveClass('light');
+      expect(document.documentElement.style.colorScheme).toBe('dark');
+      expect(window.localStorage.getItem('arkivra.themeMode')).toBe('dark');
+    });
+
+    await user.click(screen.getByRole('button', { name: /use light/i }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/theme preference snapshot/i)).toHaveTextContent('light');
+      expect(document.documentElement).toHaveClass('light');
+      expect(document.documentElement).not.toHaveClass('dark');
+      expect(document.documentElement.style.colorScheme).toBe('light');
+      expect(window.localStorage.getItem('arkivra.themeMode')).toBe('light');
+    });
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({
+      method: 'PATCH',
+    }));
+  });
+
+  it('keeps theme mode from local storage when hydrating server preferences', async () => {
+    window.localStorage.setItem('arkivra.themeMode', 'dark');
+    const fetchMock = vi.fn(async () => jsonResponse({
+      preferences: {
+        accentColor: 'pink',
+        density: 'comfortable',
+        fontFamily: 'sora',
+        fontSize: 'md',
+        radius: 'md',
+        language: 'en',
+        dateFormat: null,
+        showExtractedTextTab: false,
+        defaultFileBrowserView: 'list',
+        defaultChatAnswerMode: 'text',
+        createdAt: '2026-05-15T00:00:00.000Z',
+        updatedAt: '2026-05-15T00:00:00.000Z',
+      },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<ThemePreferenceSnapshot />);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({
+        credentials: 'include',
+      }));
+    });
+    expect(screen.getByLabelText(/theme preference snapshot/i)).toHaveTextContent('dark');
+    expect(document.documentElement).toHaveClass('dark');
+    expect(window.localStorage.getItem('arkivra.themeMode')).toBe('dark');
   });
 
   it('applies and persists the selected accent color from the preferences page', async () => {

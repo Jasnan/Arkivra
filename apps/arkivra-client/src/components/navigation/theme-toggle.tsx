@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Box, Flex, Grid, SimpleGrid, Slider, Stack, Text, chakra } from '@chakra-ui/react';
-import { Check, Monitor, Moon, SunMedium } from 'lucide-react';
+import { Check, Moon, SunMedium } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { TypographyPicker } from '@/components/ui/typography-picker';
@@ -21,7 +21,6 @@ const accentOptions: Array<{ color: string; label: string; value: AccentColor }>
 ];
 
 const themeOptions = [
-  { value: 'system', label: 'System', icon: Monitor },
   { value: 'light', label: 'Light', icon: SunMedium },
   { value: 'dark', label: 'Dark', icon: Moon },
 ] as const;
@@ -109,7 +108,7 @@ export function AppearancePreferencesControls() {
   return (
     <Stack gap={{ base: '4', lg: '3.5' }} w="full">
       <AppearancePreferenceRow label="Theme">
-        <SimpleGrid columns={{ base: 1, sm: 3 }} gap="2">
+        <SimpleGrid columns={{ base: 1, sm: 2 }} gap="2">
           {themeOptions.map((option) => {
             const Icon = option.icon;
             const selected = themeMode === option.value;
@@ -273,7 +272,7 @@ export function AppearancePreferencesControls() {
 export function ThemeToggle({ expanded = false }: { expanded?: boolean }) {
   const { themeMode, setThemeMode } = useAccentColor();
   const displayedThemeMode = themeMode === 'dark' ? 'dark' : 'light';
-  const currentOption = themeOptions.find(option => option.value === displayedThemeMode) ?? themeOptions[1];
+  const currentOption = themeOptions.find(option => option.value === displayedThemeMode) ?? themeOptions[0];
   const nextThemeMode = displayedThemeMode === 'dark' ? 'light' : 'dark';
   const nextOption = themeOptions.find(option => option.value === nextThemeMode) ?? themeOptions[0];
   const Icon = currentOption.icon;

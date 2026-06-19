@@ -161,6 +161,7 @@ export function getDocumentSectionMenuItems({
   aiFeaturesEnabled,
   canShowExtractedTextTab,
   documentId,
+  documentName,
   isTrashDocumentRoute,
   vault,
   vaultId,
@@ -168,6 +169,7 @@ export function getDocumentSectionMenuItems({
   aiFeaturesEnabled: boolean;
   canShowExtractedTextTab: boolean;
   documentId: string;
+  documentName: string;
   isTrashDocumentRoute: boolean;
   vault: VaultDetail | undefined;
   vaultId: string;
@@ -211,7 +213,7 @@ export function getDocumentSectionMenuItems({
             key: 'chat',
             label: 'Chat',
             icon: MessageSquare,
-            route: ROUTES.vaultDocumentChat(vaultId, documentId),
+            route: ROUTES.chatWithDocument(vaultId, documentId, documentName),
           },
         ]
       : []),

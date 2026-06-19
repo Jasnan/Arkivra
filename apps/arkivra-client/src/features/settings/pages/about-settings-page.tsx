@@ -1,4 +1,13 @@
-import { Box, Flex, HStack, Heading, Link as ChakraLink, SimpleGrid, Stack, Text } from '@chakra-ui/react';
+import {
+  Box,
+  Flex,
+  HStack,
+  Heading,
+  Link as ChakraLink,
+  SimpleGrid,
+  Stack,
+  Text,
+} from '@chakra-ui/react';
 import { BookOpen, ExternalLink, Github, Globe, Scale } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import packageJson from '../../../../package.json';
@@ -38,17 +47,24 @@ const appLinks = [
 export function AboutSettingsPage() {
   return (
     <SettingsPageFrame density="compact">
-      <Stack gap="7" maxW="5xl">
+      <Stack gap="7">
         <Stack gap="5" borderBottomWidth="1px" borderColor="border.muted" pb="6">
           <Stack gap="4">
-            <Heading as="h1" fontSize={{ base: '2xl', md: '3xl' }} fontWeight="bold" lineHeight="short">
+            <Heading
+              as="h1"
+              fontSize={{ base: '2xl', md: '3xl' }}
+              fontWeight="bold"
+              lineHeight="short"
+            >
               About Arkivra
             </Heading>
             <Text maxW="3xl" fontSize="md" lineHeight="1.8" color="fg.muted">
-              Arkivra is an open-source, self-hosted document management system with semantic search and AI-powered chat.
+              Arkivra is an open-source, self-hosted document management system with semantic search
+              and AI-powered chat.
               <br />
               <br />
-              Organize documents into vaults, search across your files, and chat with your documents using local or connected AI models.
+              Organize documents into vaults, search across your files, and chat with your documents
+              using local or connected AI models.
             </Text>
           </Stack>
 
@@ -98,7 +114,15 @@ export function AboutSettingsPage() {
                 >
                   <HStack justify="space-between" gap="4">
                     <HStack gap="3" minW="0">
-                      <Flex boxSize="10" align="center" justify="center" rounded="md" bg="teal.subtle" color="teal.fg" flexShrink={0}>
+                      <Flex
+                        boxSize="10"
+                        align="center"
+                        justify="center"
+                        rounded="md"
+                        bg="teal.subtle"
+                        color="teal.fg"
+                        flexShrink={0}
+                      >
                         <Icon size={20} strokeWidth={1.8} />
                       </Flex>
                       <Stack gap="1" minW="0">
@@ -128,7 +152,13 @@ export function AboutSettingsPage() {
           color="fg.muted"
         >
           <Text>Arkivra is crafted with ❤️ by</Text>
-          <ChakraLink href={authorUrl} target="_blank" rel="noreferrer" color="teal.fg" fontWeight="semibold">
+          <ChakraLink
+            href={authorUrl}
+            target="_blank"
+            rel="noreferrer"
+            color="teal.fg"
+            fontWeight="semibold"
+          >
             Jasnan Thachaparamban
           </ChakraLink>
         </HStack>

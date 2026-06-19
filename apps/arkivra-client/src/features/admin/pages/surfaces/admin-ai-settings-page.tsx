@@ -39,10 +39,7 @@ import {
 import type { EmbeddingModelOption } from './admin-ai-settings-page-model-catalog';
 import { emptyAiSettings } from './admin-ai-settings-page-state';
 import type { AiSettingsDraftOverride } from './admin-ai-settings-page-state';
-import {
-  formatIndexStatus,
-  getIndexProgress,
-} from './admin-ai-settings-page-status-helpers';
+import { formatIndexStatus, getIndexProgress } from './admin-ai-settings-page-status-helpers';
 import type { ChunkProgressVisualStatus } from './admin-ai-settings-page-sections';
 
 export interface ChatModelOption {
@@ -309,7 +306,8 @@ export function AdminAiSettingsPage() {
     savedAllowedChatModels.length === 0
       ? chatModelValues
       : chatModelValues.filter(
-          (model) => savedAllowedChatModelValues.includes(model) || model === effectiveDefaultChatModel,
+          (model) =>
+            savedAllowedChatModelValues.includes(model) || model === effectiveDefaultChatModel,
         );
   const geminiAvailabilityQuery = useAdminAiAvailabilityQuery({
     host: geminiBaseUrl,
@@ -350,14 +348,18 @@ export function AdminAiSettingsPage() {
         ? 'inactive'
         : 'warning';
   const isTranslationConfigValid =
-    (effectiveTranslationOption?.baseUrl ?? (aiDraft.translation.baseUrl || aiDraft.chat.baseUrl)).trim().length > 0 &&
-    effectiveTranslationModel.length > 0;
+    (
+      effectiveTranslationOption?.baseUrl ??
+      (aiDraft.translation.baseUrl || aiDraft.chat.baseUrl)
+    ).trim().length > 0 && effectiveTranslationModel.length > 0;
   const isTranslationModelMultimodal =
     effectiveTranslationModel.length > 0 &&
     (effectiveTranslationOption?.capabilities.includes('vision') ?? false);
   const selectedEmbeddingProviderModel =
     aiDraft.embedding.provider === 'ollama'
-      ? availableOllamaModels.find((model) => isSameOllamaModel(model.name, aiDraft.embedding.model))
+      ? availableOllamaModels.find((model) =>
+          isSameOllamaModel(model.name, aiDraft.embedding.model),
+        )
       : undefined;
   const isEmbeddingModelEmbeddingCapable =
     aiDraft.embedding.provider !== 'ollama' ||
@@ -415,29 +417,32 @@ export function AdminAiSettingsPage() {
           Math.round((chunkCoverage.indexedChunkCount / chunkCoverage.totalChunkCount) * 100),
         )
       : 0;
+  const hasIndexableChunks = chunkCoverage.totalChunkCount > 0;
   const isSemanticIndexIncomplete =
     aiDraft.aiFeaturesEnabled &&
+    hasIndexableChunks &&
     indexProgress < 100 &&
     (currentIndex !== null || chunkCoverage.totalChunkCount > 0);
   const semanticStatus = !aiDraft.aiFeaturesEnabled
     ? 'Paused'
-    : isSemanticIndexIncomplete
-      ? 'Building'
-      : currentIndex
-        ? formatIndexStatus(currentIndex.status)
-        : isEmbeddingConfigValid
-          ? 'Ready to index'
-          : 'Needs configuration';
-  const semanticStatusMessage = aiDraft.aiFeaturesEnabled
-    ? 'Indexing continues in the background. Search switches to a new index only after it is ready.'
-    : 'Indexing is paused, but your progress is saved. When you enable AI again, indexing will automatically continue from where it left off.';
+    : !isEmbeddingConfigValid
+      ? 'Needs configuration'
+      : !hasIndexableChunks
+        ? 'No documents'
+        : isSemanticIndexIncomplete
+          ? 'Building'
+          : currentIndex
+            ? formatIndexStatus(currentIndex.status)
+            : 'Ready to index';
   const semanticProgressStatus: ChunkProgressVisualStatus = !aiDraft.aiFeaturesEnabled
     ? 'paused'
-    : currentIndex?.status === 'failed'
-      ? 'failed'
-      : isSemanticIndexIncomplete
-        ? 'building'
-        : (currentIndex?.status ?? 'idle');
+    : !hasIndexableChunks || !isEmbeddingConfigValid
+      ? 'idle'
+      : currentIndex?.status === 'failed'
+        ? 'failed'
+        : isSemanticIndexIncomplete
+          ? 'building'
+          : (currentIndex?.status ?? 'idle');
   const indexedChunks = chunkCoverage.indexedChunkCount;
   const configuredEmbeddingModel = savedAiSettings.embedding.model || aiDraft.embedding.model;
   const configuredEmbeddingProvider =
@@ -523,8 +528,7 @@ export function AdminAiSettingsPage() {
         ? settings.chat.baseUrl
         : settings.ollamaHost || savedAiSettings.ollamaHost || settings.embedding.baseUrl
     ).trim();
-    const chatBaseUrl =
-      chatSelection.provider === 'gemini' ? geminiBaseUrl : ollamaBaseUrl;
+    const chatBaseUrl = chatSelection.provider === 'gemini' ? geminiBaseUrl : ollamaBaseUrl;
     const translationBaseUrl = (settings.translation.baseUrl || ollamaBaseUrl).trim();
     const configuredTranslation = settings.translation.model.trim();
     const configuredTranslationKey = configuredTranslation
@@ -821,7 +825,9 @@ export function AdminAiSettingsPage() {
           configuredEmbeddingDimensions={configuredEmbeddingDimensions}
           configuredEmbeddingModel={configuredEmbeddingModel}
           configuredEmbeddingProvider={configuredEmbeddingProvider}
-          effectiveDefaultChatModel={effectiveDefaultChatOption?.label ?? effectiveDefaultChatSelection.model}
+          effectiveDefaultChatModel={
+            effectiveDefaultChatOption?.label ?? effectiveDefaultChatSelection.model
+          }
           effectiveTranslationModel={effectiveTranslationModel}
           embeddingModelOptions={embeddingModelOptions}
           isSaving={aiSettingsMutation.isPending}
@@ -862,7 +868,8 @@ export function AdminAiSettingsPage() {
                     ? [
                         formatChatModelValue({
                           provider: 'ollama',
-                          model: savedAiSettings.model || aiDraft.model || availableOllamaModelNames[0],
+                          model:
+                            savedAiSettings.model || aiDraft.model || availableOllamaModelNames[0],
                         }),
                       ]
                     : [],
@@ -880,9 +887,6 @@ export function AdminAiSettingsPage() {
           liveIndexModel={aiDraft.embedding.model || 'Not selected'}
           semanticProgressStatus={semanticProgressStatus}
           semanticStatus={semanticStatus}
-          onViewDetails={() => {
-            toast.info(semanticStatusMessage);
-          }}
         />
       </Stack>
 
@@ -945,7 +949,8 @@ export function AdminAiSettingsPage() {
               baseUrl: selectedTranslationModel.baseUrl,
               apiKeySecretRef:
                 selectedTranslationModel.provider === 'gemini'
-                  ? (aiDraft.providers?.gemini?.apiKeySecretRef ?? aiDraft.translation.apiKeySecretRef)
+                  ? (aiDraft.providers?.gemini?.apiKeySecretRef ??
+                    aiDraft.translation.apiKeySecretRef)
                   : null,
               model: selectedTranslationModel.model,
             },

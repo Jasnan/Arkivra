@@ -20,10 +20,7 @@ import { meQueryKeys, useMeQuery } from '@/features/me/me.queries';
 import type { MeResponse } from '@/features/me/me.types';
 import { authClient } from '@/lib/auth-client';
 import { formatShortDateTime } from '@/lib/localization';
-import {
-  SettingsPageFrame,
-  SettingsStatusBadge,
-} from '../components/settings-ui';
+import { SettingsPageFrame, SettingsStatusBadge } from '../components/settings-ui';
 
 interface SessionUserMetadata {
   createdAt?: string | Date | null;
@@ -87,7 +84,12 @@ function AccountDetailRow({
       <Text textStyle="sm" color="fg.muted">
         {label}
       </Text>
-      <Stack gap="1.5" align={{ base: 'flex-start', md: 'flex-end' }} minW="0" textAlign={{ base: 'left', md: 'right' }}>
+      <Stack
+        gap="1.5"
+        align={{ base: 'flex-start', md: 'flex-end' }}
+        minW="0"
+        textAlign={{ base: 'left', md: 'right' }}
+      >
         <Box minW="0" fontSize="sm" fontWeight="medium" color="fg">
           {value}
         </Box>
@@ -149,7 +151,7 @@ export function SettingsPage() {
       description="View and manage your profile and account details."
       density="compact"
     >
-      <Stack gap="4" maxW="4xl" pt="3">
+      <Stack gap="4" pt="3">
         <Text as="h2" fontSize="md" fontWeight="semibold" color="fg">
           Account details
         </Text>
@@ -157,7 +159,7 @@ export function SettingsPage() {
         <AccountDetailRows>
           <AccountDetailRow
             label="Name"
-            value={(
+            value={
               <HStack gap="2" justify={{ base: 'flex-start', md: 'flex-end' }} minW="0">
                 <Text as="span" truncate>
                   {profileName || 'Not set'}
@@ -180,38 +182,47 @@ export function SettingsPage() {
                   <Pencil size={15} />
                 </Button>
               </HStack>
-            )}
+            }
           />
           <AccountDetailRow
             label="Email"
             value={profileEmail || 'Unknown'}
-            note={(
+            note={
               <HStack gap="1.5" justify={{ base: 'flex-start', md: 'flex-end' }}>
                 <LockKeyhole size={13} />
                 <Text as="span">Email changes are managed from Security.</Text>
               </HStack>
-            )}
+            }
           />
           <AccountDetailRow label="Signed in as" value={profileEmail || 'Unknown'} />
-          <AccountDetailRow label="Account type" value={getAccountTypeLabel(meQuery.data?.authMethods)} />
+          <AccountDetailRow
+            label="Account type"
+            value={getAccountTypeLabel(meQuery.data?.authMethods)}
+          />
           <AccountDetailRow
             label="System role"
-            value={(
+            value={
               <SettingsStatusBadge tone={isAdmin ? 'enabled' : 'inactive'}>
                 {isAdmin ? 'Admin' : 'Member'}
               </SettingsStatusBadge>
-            )}
+            }
           />
-          <AccountDetailRow label="Vault creation" value={meQuery.data?.canCreateVault ? 'Allowed' : 'Requires admin approval'} />
+          <AccountDetailRow
+            label="Vault creation"
+            value={meQuery.data?.canCreateVault ? 'Allowed' : 'Requires admin approval'}
+          />
           <AccountDetailRow
             label="Email verification"
-            value={(
+            value={
               <SettingsStatusBadge tone={isEmailVerified ? 'verified' : 'warning'}>
                 {isEmailVerified ? 'Verified' : 'Unverified'}
               </SettingsStatusBadge>
-            )}
+            }
           />
-          <AccountDetailRow label="Account created" value={formatShortDateTime(accountCreatedAt, { fallback: 'Not available' })} />
+          <AccountDetailRow
+            label="Account created"
+            value={formatShortDateTime(accountCreatedAt, { fallback: 'Not available' })}
+          />
         </AccountDetailRows>
       </Stack>
 

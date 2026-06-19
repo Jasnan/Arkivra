@@ -33,16 +33,20 @@ export function SettingsPageFrame({
       as="section"
       gap={isCompact ? { base: '4', lg: '3' } : '5'}
       maxW="6xl"
+      w="full"
+      me="auto"
       pb={isCompact ? '6' : '8'}
       pt={isCompact ? { base: '4', lg: '3' } : '5'}
-      css={isCompact
-        ? {
-            '--arkivra-controlHeight': '2.25rem',
-            '--arkivra-controlPaddingX': '0.625rem',
-            '--arkivra-rowPaddingY': '0.625rem',
-            '--arkivra-sectionPadding': '1rem',
-          }
-        : undefined}
+      css={
+        isCompact
+          ? {
+              '--arkivra-controlHeight': '2.25rem',
+              '--arkivra-controlPaddingX': '0.625rem',
+              '--arkivra-rowPaddingY': '0.625rem',
+              '--arkivra-sectionPadding': '1rem',
+            }
+          : undefined
+      }
     >
       {title ? (
         <Flex
@@ -53,7 +57,12 @@ export function SettingsPageFrame({
           gap={isCompact ? '2' : '3'}
         >
           <Stack gap={isCompact ? '1' : '1.5'}>
-            <Heading as="h1" textStyle={isCompact ? 'xl' : '2xl'} fontWeight="semibold" lineHeight="short">
+            <Heading
+              as="h1"
+              textStyle={isCompact ? 'xl' : '2xl'}
+              fontWeight="semibold"
+              lineHeight="short"
+            >
               {title}
             </Heading>
             {description ? (
@@ -87,7 +96,14 @@ export function SettingsSection({
   const isCompact = density === 'compact';
 
   return (
-    <Box rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" p="var(--arkivra-sectionPadding, 1.25rem)" shadow="xs">
+    <Box
+      rounded="lg"
+      borderWidth="1px"
+      borderColor="border.surface"
+      bg="bg.surface"
+      p="var(--arkivra-sectionPadding, 1.25rem)"
+      shadow="xs"
+    >
       <Stack gap={isCompact ? '3' : '4'}>
         <Flex
           direction={{ base: 'column', md: 'row' }}
@@ -121,7 +137,11 @@ export function SettingsRows({
   density?: 'default' | 'compact';
 }) {
   return (
-    <Stack gap="0" divideY="1px" divideColor={density === 'compact' ? 'border.muted' : 'border.surface'}>
+    <Stack
+      gap="0"
+      divideY="1px"
+      divideColor={density === 'compact' ? 'border.muted' : 'border.surface'}
+    >
       {children}
     </Stack>
   );
@@ -164,9 +184,7 @@ export function SettingsFlatRow({
   children?: ReactNode;
   variant?: 'divided' | 'card';
 }) {
-  const hasChildren = Array.isArray(children)
-    ? children.some(Boolean)
-    : Boolean(children);
+  const hasChildren = Array.isArray(children) ? children.some(Boolean) : Boolean(children);
   const isCard = variant === 'card';
 
   return (
@@ -249,7 +267,12 @@ export function SettingsRow({
     <Grid
       gap={{ base: '3', lg: isCompact ? '3' : '5' }}
       py={isCompact ? '2' : 'var(--arkivra-rowPaddingY, 0.875rem)'}
-      templateColumns={{ base: '1fr', lg: control ? `minmax(0, 1fr) minmax(${isCompact ? '11rem' : '13rem'}, ${isCompact ? '15rem' : '17rem'})` : '1fr' }}
+      templateColumns={{
+        base: '1fr',
+        lg: control
+          ? `minmax(0, 1fr) minmax(${isCompact ? '11rem' : '13rem'}, ${isCompact ? '15rem' : '17rem'})`
+          : '1fr',
+      }}
       alignItems="center"
     >
       <Stack gap={isCompact ? '0.5' : '1'} minW="0">

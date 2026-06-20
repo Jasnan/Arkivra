@@ -33,11 +33,8 @@ const { class: className = '' } = Astro.props;
   class={`z-100 border-0 border-b md:max-w-1200px px-4 py-3.5 mx-auto flex items-center justify-between md:(py-2.5 border-1px mt-4) fixed top-0 left-0 right-0 bg-background/90 backdrop-blur-sm ${className}`}
 >
   <a href={buildLocalizedPath({ locale: Astro.currentLocale, path: '/' })} class="text-lg font-semibold flex items-center group">
-    <span
-      class="size-7 bg-primary"
-      style="-webkit-mask: url('/arkivra-sidebar-logo.svg') center / contain no-repeat; mask: url('/arkivra-sidebar-logo.svg') center / contain no-repeat;"
-      aria-hidden="true"
-    >
+    <span class="flex size-8 items-center justify-center rounded-md border border-[hsl(45_10%_88%)] bg-[hsl(60_14%_97.2%)] p-1 shadow-sm" aria-hidden="true">
+      <img src="/arkivra-sidebar-logo.svg" alt="" class="size-full object-contain" loading="eager" decoding="async" />
     </span>
     <span class="ml-2">Arkivra</span>
   </a>

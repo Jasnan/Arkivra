@@ -1,12 +1,120 @@
+@import url('https://fonts.bunny.net/css?family=inter:400,500,600,700|sora:500,600,700&display=swap');
+
 :root {
   --sl-font: Inter, ui-sans-serif, system-ui, sans-serif;
-  --sl-color-accent-low: #dbeafe;
-  --sl-color-accent: #2563eb;
-  --sl-color-accent-high: #1e3a8a;
+  --arkivra-font-display: Sora, Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
+:root,
 :root[data-theme='dark'] {
-  --sl-color-accent-low: #172554;
-  --sl-color-accent: #60a5fa;
-  --sl-color-accent-high: #dbeafe;
+  color-scheme: dark;
+
+  --sl-color-white: hsl(0 0% 98%);
+  --sl-color-gray-1: hsl(0 0% 92%);
+  --sl-color-gray-2: hsl(0 0% 83%);
+  --sl-color-gray-3: hsl(0 0% 63.9%);
+  --sl-color-gray-4: hsl(240 5% 34%);
+  --sl-color-gray-5: hsl(240 5% 18%);
+  --sl-color-gray-6: hsl(240 4% 15%);
+  --sl-color-gray-7: hsl(240 5% 11%);
+  --sl-color-black: hsl(240 5% 8%);
+
+  --sl-color-accent-low: hsl(168 72% 14%);
+  --sl-color-accent: hsl(168 72% 52%);
+  --sl-color-accent-high: hsl(168 72% 62%);
+
+  --sl-color-text: hsl(0 0% 83%);
+  --sl-color-text-accent: hsl(168 72% 52%);
+  --sl-color-text-invert: hsl(240 5% 8%);
+  --sl-color-bg: hsl(240 5% 8%);
+  --sl-color-bg-nav: hsl(240 5% 8%);
+  --sl-color-bg-sidebar: hsl(240 5% 8%);
+  --sl-color-bg-inline-code: hsl(240 4% 15%);
+  --sl-color-bg-accent: hsl(168 72% 52%);
+  --sl-color-hairline-light: hsl(240 5% 18%);
+  --sl-color-hairline: hsl(240 5% 18%);
+  --sl-color-hairline-shade: hsl(240 5% 8%);
+
+  --sl-rapide-ui-bg-color: hsl(240 5% 11%);
+  --sl-rapide-ui-header-bg-color: hsl(240 5% 8% / 0.9);
+  --sl-rapide-ui-border-color: hsl(240 5% 18%);
+  --sl-rapide-ec-marker-bg-color: hsl(240 4% 15%);
+  --sl-rapide-ec-marker-border-color: hsl(240 5% 34%);
+
+  --arkivra-logo-bg: hsl(60 20% 98.8%);
+  --arkivra-logo-pattern: hsl(45 10% 88%);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --sl-color-white: hsl(0 0% 3.9%);
+  --sl-color-gray-1: hsl(0 0% 9%);
+  --sl-color-gray-2: hsl(0 0% 22%);
+  --sl-color-gray-3: hsl(0 0% 45.1%);
+  --sl-color-gray-4: hsl(45 10% 72%);
+  --sl-color-gray-5: hsl(45 10% 88%);
+  --sl-color-gray-6: hsl(60 10% 95.7%);
+  --sl-color-gray-7: hsl(60 14% 97.2%);
+  --sl-color-black: hsl(60 20% 98.8%);
+
+  --sl-color-accent-low: hsl(170 70% 92%);
+  --sl-color-accent: hsl(170 70% 32%);
+  --sl-color-accent-high: hsl(170 70% 24%);
+
+  --sl-color-text: hsl(0 0% 22%);
+  --sl-color-text-accent: hsl(170 70% 32%);
+  --sl-color-text-invert: hsl(60 20% 98.8%);
+  --sl-color-bg: hsl(60 20% 98.8%);
+  --sl-color-bg-nav: hsl(60 20% 98.8%);
+  --sl-color-bg-sidebar: hsl(60 20% 98.8%);
+  --sl-color-bg-inline-code: hsl(60 10% 95.7%);
+  --sl-color-bg-accent: hsl(170 70% 32%);
+  --sl-color-hairline-light: hsl(45 10% 88%);
+  --sl-color-hairline: hsl(45 10% 88%);
+  --sl-color-hairline-shade: hsl(45 10% 88%);
+
+  --sl-rapide-ui-bg-color: hsl(60 14% 97.2%);
+  --sl-rapide-ui-header-bg-color: hsl(60 20% 98.8% / 0.9);
+  --sl-rapide-ui-border-color: hsl(45 10% 88%);
+  --sl-rapide-ec-marker-bg-color: hsl(60 10% 95.7%);
+  --sl-rapide-ec-marker-border-color: hsl(45 10% 72%);
+
+  --arkivra-logo-bg: hsl(60 14% 97.2%);
+  --arkivra-logo-pattern: hsl(45 10% 88%);
+}
+
+.site-title,
+.content-panel h1,
+.sl-markdown-content :is(h1, h2, h3, h4, h5, h6),
+.right-sidebar-panel h2 {
+  font-family: var(--arkivra-font-display);
+}
+
+.site-title {
+  gap: 0.625rem;
+}
+
+.site-title img {
+  box-sizing: border-box;
+  width: 2rem;
+  height: 2rem;
+  max-width: 2rem;
+  padding: 0.25rem;
+  border: 1px solid var(--sl-rapide-ui-border-color);
+  border-radius: 0.375rem;
+  background: var(--arkivra-logo-bg);
+  box-shadow: 0 1px 2px hsl(0 0% 0% / 0.08);
+  object-fit: contain;
+  object-position: center;
+}
+
+.sl-markdown-content a:not(:where(.not-content *)) {
+  color: var(--sl-color-text-accent);
+  text-underline-offset: 0.25em;
+}
+
+.sl-markdown-content a:not(:where(.not-content *)):is(:hover, :focus-visible),
+.sl-markdown-content .sl-anchor-link:is(:hover, :focus-visible) {
+  color: var(--sl-color-white);
 }

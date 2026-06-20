@@ -71,11 +71,8 @@ const sections: {
     <div class="flex justify-between flex-col md:flex-row gap-10">
       <div class="">
         <a href={buildLocalizedPath({ locale: Astro.currentLocale, path: '/' })} class="text-xl font-bold flex items-center group mb-2">
-          <span
-            class="size-8 bg-primary"
-            style="-webkit-mask: url('/arkivra-sidebar-logo.svg') center / contain no-repeat; mask: url('/arkivra-sidebar-logo.svg') center / contain no-repeat;"
-            aria-hidden="true"
-          >
+          <span class="flex size-9 items-center justify-center rounded-md border border-[hsl(45_10%_88%)] bg-[hsl(60_14%_97.2%)] p-1 shadow-sm" aria-hidden="true">
+            <img src="/arkivra-sidebar-logo.svg" alt="" class="size-full object-contain" loading="lazy" decoding="async" />
           </span>
           <span class="ml-2 text-foreground group-hover:text-foreground/80 transition">Arkivra</span>
         </a>

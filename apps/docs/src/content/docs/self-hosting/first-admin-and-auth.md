@@ -3,8 +3,6 @@ title: First Admin And Authentication
 description: Bootstrap the first admin and configure authentication basics.
 ---
 
-# First Admin And Authentication
-
 ## Bootstrap Admin
 
 When no active admin exists, Arkivra promotes the oldest registered user to `admin` the next time that user reaches an authenticated API route. For a fresh deployment, the practical flow is:
@@ -46,7 +44,7 @@ ARKIVRA_SMTP_PASSWORD=<password>
 
 ## OAuth
 
-Google and GitHub OAuth are optional. See [OAuth Setup](../guides/oauth-setup.md) for callback URLs and environment variables.
+Google and GitHub OAuth are optional. See [OAuth Setup](/guides/oauth-setup/) for callback URLs and environment variables.
 
 ## Two-Factor Authentication
 

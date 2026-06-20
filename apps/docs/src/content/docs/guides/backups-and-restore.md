@@ -3,8 +3,6 @@ title: Backups And Restore
 description: Create, store, and restore Arkivra backups.
 ---
 
-# Backups And Restore
-
 Admins can create, list, download, import, and restore backups from the dashboard when the worker process is running.
 
 Backup archives are encrypted multipart backup sets stored in `ARKIVRA_BACKUPS_PATH` or the Compose `backups` volume. Each backup set contains:

@@ -499,14 +499,15 @@ export function UnifiedSidebar({
               align="center"
               justify="center"
               rounded="lg"
-              bg="bg.sidebar"
+              bg={{ base: 'gray.50', _dark: 'gray.50' }}
               borderWidth="1px"
-              borderColor="bg.inverted"
+              borderColor={{ base: 'gray.200', _dark: 'gray.200' }}
               p="1"
               overflow="hidden"
+              boxShadow="xs"
               transition="transform 180ms ease"
             >
-              <ArkivraLogo boxSize="full" color="bg.inverted" />
+              <ArkivraLogo boxSize="full" objectFit="contain" />
             </Flex>
             <Box
               minW="0"

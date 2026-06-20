@@ -3,8 +3,6 @@ title: Configuration
 description: Environment variables for configuring Arkivra.
 ---
 
-# Configuration
-
 Arkivra reads configuration from environment variables. The root `.env.example` contains a minimal local configuration.
 
 ## Core
@@ -103,4 +101,4 @@ For key rotation, keep old versions available and add a higher version for new f
 | `ARKIVRA_OLLAMA_LOG_REQUESTS`         | Log Ollama requests and responses for debugging | `false`                                 |
 | `GEMINI_API_KEY`                      | Default environment variable for Gemini chat    | unset                                   |
 
-Leave AI variables unset for PostgreSQL + Docling-only ingestion and full-text search. Configure AI features from the admin AI settings when enabling chat, translation, or semantic indexing. See [AI Providers](../guides/ai-providers.md) for provider-specific behavior and data exposure notes.
+Leave AI variables unset for PostgreSQL + Docling-only ingestion and full-text search. Configure AI features from the admin AI settings when enabling chat, translation, or semantic indexing. See [AI Providers](/guides/ai-providers/) for provider-specific behavior and data exposure notes.

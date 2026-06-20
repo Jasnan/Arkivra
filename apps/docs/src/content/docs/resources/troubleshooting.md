@@ -3,8 +3,6 @@ title: Troubleshooting
 description: Common operational checks for Arkivra deployments.
 ---
 
-# Troubleshooting
-
 ## API Health Check Fails
 
 Run:

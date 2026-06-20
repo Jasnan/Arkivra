@@ -15,6 +15,7 @@ import { RequestPasswordResetPage } from '@/features/auth/pages/request-password
 import { ResetPasswordPage } from '@/features/auth/pages/reset-password-page';
 import { TwoFactorSetupPage } from '@/features/auth/pages/two-factor-setup-page';
 import { TwoFactorVerifyPage } from '@/features/auth/pages/two-factor-verify-page';
+import { BootstrapRestorePage } from '@/features/restore/pages/bootstrap-restore-page';
 import { ChatPage } from '@/features/chat/pages/chat-page';
 import { DocumentDetailPage } from '@/features/documents/pages/document-detail-page';
 import { DocumentsPage } from '@/features/documents/pages/documents-page';
@@ -92,6 +93,16 @@ const publicLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'public',
   component: PublicAuthLayout,
+});
+
+const restoreRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/restore',
+  component: () => (
+    <AuthLayout>
+      <BootstrapRestorePage />
+    </AuthLayout>
+  ),
 });
 
 const loginRoute = createRoute({
@@ -371,6 +382,7 @@ const catchAllRoute = createRoute({
 });
 
 const routeTree = rootRoute.addChildren([
+  restoreRoute,
   publicLayoutRoute.addChildren([
     loginRoute,
     registerRoute,

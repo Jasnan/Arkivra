@@ -78,13 +78,16 @@ Backups require the worker process and backup queue. Check:
 docker compose logs worker
 ```
 
-Also verify that `ARKIVRA_BACKUPS_PATH` or the Compose `backups` volume is writable.
+Also verify that `ARKIVRA_BACKUPS_PATH` or the Compose `backups` volume is writable and `ARKIVRA_BACKUP_ENCRYPTION_KEY` is configured.
+
+Backup creation temporarily puts Arkivra into maintenance mode. During that window, uploads, document mutations, backup imports, and restore requests return maintenance-mode errors until the worker finishes or fails the backup job.
 
 ## Restore Fails
 
 Check that:
 
-- the backup filename starts with `arkivra-backup-` and ends with `.tar.gz`
+- the backup set includes one `.manifest.json` file and every `.partNNN` file listed in that manifest
+- `ARKIVRA_BACKUP_ENCRYPTION_KEY` matches the key used to create the backup set
 - the archive format is compatible
 - PostgreSQL is reachable
 - document storage is writable

@@ -27,7 +27,7 @@ The Compose file defines these persistent volumes:
 - `document-storage`: uploaded original files and stored extracted assets
 - `backups`: backup archives and restore maintenance marker files
 
-Do not treat the `backups` volume as a complete disaster recovery plan by itself. Backups do not preserve `.env` secrets or `ARKIVRA_ENCRYPTION_KEYS`; store those separately.
+Do not treat the `backups` volume as a complete disaster recovery plan by itself. Backups do not preserve `.env` secrets, `ARKIVRA_BACKUP_ENCRYPTION_KEY`, or `ARKIVRA_ENCRYPTION_KEYS`; store those separately.
 
 ## Important Environment Values
 
@@ -36,6 +36,8 @@ Set these before production use:
 ```bash
 ARKIVRA_AUTH_SECRET=<strong-random-secret>
 ARKIVRA_ENCRYPTION_KEYS=1:<64-hex-character-key>
+ARKIVRA_BACKUP_ENCRYPTION_KEY=<64-hex-character-key>
+ARKIVRA_RESTORE_BOOTSTRAP_TOKEN=<strong-random-token>
 ARKIVRA_SERVER_BASE_URL=https://api.example.com
 ARKIVRA_WEB_BASE_URL=https://app.example.com
 ARKIVRA_CORS_ORIGINS=https://app.example.com

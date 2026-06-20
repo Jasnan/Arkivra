@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
@@ -6,11 +6,23 @@ import { promisify } from 'node:util';
 import type { Database } from '../database/database.js';
 import type { Pool } from 'pg';
 import { BACKUP_QUEUE, CREATE_BACKUP_JOB, RESTORE_BACKUP_JOB } from './backup.queue.js';
+import { EMBEDDING_INDEX_QUEUE } from '../ai/indexing/embedding-index.queue.js';
+import { MAINTENANCE_QUEUE } from './maintenance.queue.js';
+import { PROCESS_DOCUMENT_QUEUE } from './queue.js';
 import type { AsyncJob } from './postgres-jobs.js';
 import { createPostgresWorker, getScopedQueueName } from './postgres-jobs.js';
+import {
+  createEncryptedBackupArchive,
+  extractEncryptedBackupArchive,
+  normalizeBackupEncryptionKey,
+  normalizeBackupPartSizeBytes,
+  readBackupManifest,
+} from './backup.archive.js';
 
 const execFileAsync = promisify(execFile);
 const BACKUP_FORMAT_VERSION = 1;
+const BACKUP_DRAIN_POLL_INTERVAL_MS = 500;
+const BACKUP_DRAIN_TIMEOUT_MS = 30 * 60 * 1000;
 const PUBLIC_TABLES_IN_RESTORE_ORDER = [
   'users',
   'instance_settings',
@@ -32,6 +44,7 @@ const PUBLIC_TABLES_IN_RESTORE_ORDER = [
   'upload_sessions',
   'document_chunks',
   'document_chunk_assets',
+  'document_element_provenance',
   'document_chunk_embeddings',
   'document_embedding_index_status',
   'tags',
@@ -58,6 +71,8 @@ type BackupWorkerDeps = {
   pool: Pool;
   storageBasePath: string;
   version: string;
+  backupEncryptionKeyRaw?: string;
+  backupPartSizeBytes: number;
   appInstance?: string;
   startPolling?: boolean;
 };
@@ -104,16 +119,6 @@ function sqlLiteral(value: unknown): string {
   return `'${JSON.stringify(value).replaceAll("'", "''")}'`;
 }
 
-async function createTarGzArchive({
-  cwd,
-  destinationPath,
-}: {
-  cwd: string;
-  destinationPath: string;
-}) {
-  await execFileAsync('tar', ['-czf', destinationPath, '-C', cwd, '.']);
-}
-
 async function extractTarGzArchive({
   archivePath,
   destinationPath,
@@ -122,6 +127,86 @@ async function extractTarGzArchive({
   destinationPath: string;
 }) {
   await execFileAsync('tar', ['-xzf', archivePath, '-C', destinationPath]);
+}
+
+function backupManifestFileName(backupId: string) {
+  return backupId.endsWith('.manifest.json') ? backupId : `${backupId}.manifest.json`;
+}
+
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function getBackupMutationQueueNames(appInstance?: string) {
+  return [
+    getScopedQueueName(PROCESS_DOCUMENT_QUEUE, appInstance),
+    getScopedQueueName(MAINTENANCE_QUEUE, appInstance),
+    getScopedQueueName(EMBEDDING_INDEX_QUEUE, appInstance),
+  ];
+}
+
+async function countRunningJobs({
+  pool,
+  queueNames,
+}: {
+  pool: Pool;
+  queueNames: string[];
+}) {
+  const result = await pool.query<{ count: number }>(
+    `
+      SELECT COUNT(*)::int AS count
+      FROM background_jobs
+      WHERE queue_name = ANY($1::text[])
+        AND status = 'running'
+    `,
+    [queueNames],
+  );
+
+  return result.rows[0]?.count ?? 0;
+}
+
+async function waitForBackupMutationJobsToDrain({
+  appInstance,
+  pool,
+}: {
+  appInstance?: string;
+  pool: Pool;
+}) {
+  const queueNames = getBackupMutationQueueNames(appInstance);
+  const startedAt = Date.now();
+
+  while (true) {
+    const runningCount = await countRunningJobs({ pool, queueNames });
+
+    if (runningCount === 0) {
+      return;
+    }
+
+    if (Date.now() - startedAt > BACKUP_DRAIN_TIMEOUT_MS) {
+      throw new Error('Timed out waiting for background jobs to pause before backup.');
+    }
+
+    await sleep(BACKUP_DRAIN_POLL_INTERVAL_MS);
+  }
+}
+
+async function writeMaintenanceFlag({
+  backupId,
+  maintenanceFlagPath,
+  mode,
+}: {
+  backupId: string;
+  maintenanceFlagPath: string;
+  mode: 'backup' | 'restore';
+}) {
+  await writeFile(
+    maintenanceFlagPath,
+    JSON.stringify({ mode, startedAt: new Date().toISOString(), backupId }),
+    {
+      encoding: 'utf8',
+      flag: 'wx',
+    },
+  );
 }
 
 async function dumpDatabaseSql({ pool }: { pool: Pool }) {
@@ -188,7 +273,7 @@ async function dumpDatabaseSql({ pool }: { pool: Pool }) {
   return sqlText;
 }
 
-async function verifyRestoredFiles({
+async function verifyReferencedStorageFiles({
   pool,
   storageBasePath,
 }: {
@@ -213,31 +298,49 @@ async function verifyRestoredFiles({
 
 export async function createBackupArchive({
   backupDirectory,
+  backupEncryptionKeyRaw,
+  backupPartSizeBytes,
+  maintenanceFlagPath,
   pool,
   storageBasePath,
   version,
   appInstance,
 }: {
   backupDirectory: string;
+  backupEncryptionKeyRaw?: string;
+  backupPartSizeBytes: number;
+  maintenanceFlagPath: string;
   pool: Pool;
   storageBasePath: string;
   version: string;
   appInstance?: string;
 }): Promise<CreateBackupResult> {
   const createdAt = new Date();
-  const backupId = `arkivra-backup-${createdAt.toISOString().replaceAll(':', '-')}.tar.gz`;
+  const backupId = `arkivra-backup-${createdAt.toISOString().replaceAll(':', '-')}`;
   const tempDirectory = await mkdtemp(
     join(
       tmpdir(),
       appInstance === undefined ? 'arkivra-backup-' : `arkivra-${appInstance}-backup-`,
     ),
   );
-  const archivePath = join(resolve(backupDirectory), backupId);
-  const databaseSql = await dumpDatabaseSql({ pool });
+  const archivePath = join(resolve(backupDirectory), backupManifestFileName(backupId));
+  const backupEncryptionKey = normalizeBackupEncryptionKey(backupEncryptionKeyRaw);
+  const partSizeBytes = normalizeBackupPartSizeBytes(backupPartSizeBytes);
+  let maintenanceFlagOwned = false;
+
+  if (backupEncryptionKey === null) {
+    throw new Error('Backup archive encryption key is not configured.');
+  }
 
   await mkdir(resolve(backupDirectory), { recursive: true });
 
   try {
+    await writeMaintenanceFlag({ backupId, maintenanceFlagPath, mode: 'backup' });
+    maintenanceFlagOwned = true;
+    await waitForBackupMutationJobsToDrain({ appInstance, pool });
+    const databaseSql = await dumpDatabaseSql({ pool });
+    await verifyReferencedStorageFiles({ pool, storageBasePath });
+
     await writeFile(join(tempDirectory, 'database.sql'), databaseSql, 'utf8');
     await writeFile(
       join(tempDirectory, 'metadata.json'),
@@ -254,27 +357,33 @@ export async function createBackupArchive({
       'utf8',
     );
 
-    await cp(storageBasePath, join(tempDirectory, 'documents'), {
-      recursive: true,
-      force: true,
+    await mkdir(resolve(storageBasePath), { recursive: true });
+    await symlink(resolve(storageBasePath), join(tempDirectory, 'documents'), 'dir');
+    const result = await createEncryptedBackupArchive({
+      backupDirectory: resolve(backupDirectory),
+      backupId,
+      createdAt,
+      encryptionKey: backupEncryptionKey,
+      partSizeBytes,
+      sourceDirectory: tempDirectory,
+      version,
     });
 
-    await createTarGzArchive({
-      cwd: tempDirectory,
-      destinationPath: archivePath,
-    });
+    return {
+      backupId: result.manifestFileName,
+      filePath: archivePath,
+    };
   } finally {
     await rm(tempDirectory, { recursive: true, force: true });
+    if (maintenanceFlagOwned) {
+      await rm(maintenanceFlagPath, { force: true });
+    }
   }
-
-  return {
-    backupId,
-    filePath: archivePath,
-  };
 }
 
 export async function restoreBackupArchive({
   backupDirectory,
+  backupEncryptionKeyRaw,
   backupId,
   maintenanceFlagPath,
   pool,
@@ -282,6 +391,7 @@ export async function restoreBackupArchive({
   appInstance,
 }: {
   backupDirectory: string;
+  backupEncryptionKeyRaw?: string;
   backupId: string;
   maintenanceFlagPath: string;
   pool: Pool;
@@ -289,25 +399,46 @@ export async function restoreBackupArchive({
   appInstance?: string;
 }): Promise<RestoreBackupResult> {
   const archivePath = join(resolve(backupDirectory), backupId);
+  const manifestBackup = backupId.endsWith('.manifest.json');
+  let storageStagingPath: string | null = null;
+  let previousStoragePath: string | null = null;
   const tempDirectory = await mkdtemp(
     join(
       tmpdir(),
       appInstance === undefined ? 'arkivra-restore-' : `arkivra-${appInstance}-restore-`,
     ),
   );
+  let maintenanceFlagOwned = false;
 
   await mkdir(resolve(backupDirectory), { recursive: true });
-  await writeFile(
-    maintenanceFlagPath,
-    JSON.stringify({ startedAt: new Date().toISOString(), backupId }),
-    'utf8',
-  );
 
   try {
-    await extractTarGzArchive({
-      archivePath,
-      destinationPath: tempDirectory,
-    });
+    await writeMaintenanceFlag({ backupId, maintenanceFlagPath, mode: 'restore' });
+    maintenanceFlagOwned = true;
+    if (manifestBackup) {
+      const backupEncryptionKey = normalizeBackupEncryptionKey(backupEncryptionKeyRaw);
+
+      if (backupEncryptionKey === null) {
+        throw new Error('Backup archive encryption key is not configured.');
+      }
+
+      const manifest = await readBackupManifest({
+        backupDirectory: resolve(backupDirectory),
+        manifestFileName: backupId,
+      });
+
+      await extractEncryptedBackupArchive({
+        backupDirectory: resolve(backupDirectory),
+        destinationPath: tempDirectory,
+        encryptionKey: backupEncryptionKey,
+        manifest,
+      });
+    } else {
+      await extractTarGzArchive({
+        archivePath,
+        destinationPath: tempDirectory,
+      });
+    }
 
     const metadata = JSON.parse(await readFile(join(tempDirectory, 'metadata.json'), 'utf8')) as {
       formatVersion: number;
@@ -318,17 +449,36 @@ export async function restoreBackupArchive({
     }
 
     const databaseSql = await readFile(join(tempDirectory, 'database.sql'), 'utf8');
+    storageStagingPath = `${resolve(storageBasePath)}.restore-staging-${Date.now()}`;
+    previousStoragePath = `${resolve(storageBasePath)}.restore-previous-${Date.now()}`;
 
-    await rm(storageBasePath, { recursive: true, force: true });
-    await mkdir(storageBasePath, { recursive: true });
-
-    await pool.query(databaseSql);
-    await cp(join(tempDirectory, 'documents'), storageBasePath, {
+    await rm(storageStagingPath, { recursive: true, force: true });
+    await cp(join(tempDirectory, 'documents'), storageStagingPath, {
       recursive: true,
       force: true,
     });
 
-    await verifyRestoredFiles({ pool, storageBasePath });
+    await pool.query(databaseSql);
+
+    await verifyReferencedStorageFiles({ pool, storageBasePath: storageStagingPath });
+
+    await rm(previousStoragePath, { recursive: true, force: true });
+    await rename(resolve(storageBasePath), previousStoragePath).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== 'ENOENT') {
+        throw error;
+      }
+    });
+    try {
+      await rename(storageStagingPath, resolve(storageBasePath));
+      storageStagingPath = null;
+    }
+    catch (error) {
+      await rename(previousStoragePath, resolve(storageBasePath)).catch(() => undefined);
+      previousStoragePath = null;
+      throw error;
+    }
+    await rm(previousStoragePath, { recursive: true, force: true });
+    previousStoragePath = null;
 
     return {
       backupId,
@@ -336,7 +486,15 @@ export async function restoreBackupArchive({
     };
   } finally {
     await rm(tempDirectory, { recursive: true, force: true });
-    await rm(maintenanceFlagPath, { force: true });
+    if (storageStagingPath !== null) {
+      await rm(storageStagingPath, { recursive: true, force: true }).catch(() => undefined);
+    }
+    if (previousStoragePath !== null) {
+      await rm(previousStoragePath, { recursive: true, force: true }).catch(() => undefined);
+    }
+    if (maintenanceFlagOwned) {
+      await rm(maintenanceFlagPath, { force: true });
+    }
   }
 }
 
@@ -347,6 +505,8 @@ export function createBackupWorker({
   pool,
   storageBasePath,
   version,
+  backupEncryptionKeyRaw,
+  backupPartSizeBytes,
   appInstance,
   startPolling = true,
 }: BackupWorkerDeps) {
@@ -354,6 +514,9 @@ export function createBackupWorker({
     if (job.name === CREATE_BACKUP_JOB) {
       const result = await createBackupArchive({
         backupDirectory,
+        backupEncryptionKeyRaw,
+        backupPartSizeBytes,
+        maintenanceFlagPath,
         pool,
         storageBasePath,
         version,
@@ -368,6 +531,7 @@ export function createBackupWorker({
       const { backupId } = job.data as RestoreBackupJobData;
       const result = await restoreBackupArchive({
         backupDirectory,
+        backupEncryptionKeyRaw,
         backupId,
         maintenanceFlagPath,
         pool,

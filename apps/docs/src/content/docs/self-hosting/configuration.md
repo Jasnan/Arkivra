@@ -45,7 +45,10 @@ Set `ARKIVRA_DOCLING_VLM_PIPELINE=enabled` only when the configured Docling Serv
 | `ARKIVRA_UPLOAD_MAX_FILE_SIZE_BYTES`    | Maximum upload session file size                        | `524288000`          |
 | `ARKIVRA_UPLOAD_SESSION_TTL_HOURS`      | Resumable upload session TTL                            | `24`                 |
 | `ARKIVRA_BACKUPS_PATH`                  | Backup archive directory                                | `./backups`          |
-| `ARKIVRA_BACKUPS_MAINTENANCE_FLAG_FILE` | Restore maintenance marker filename                     | `.maintenance-mode`  |
+| `ARKIVRA_BACKUP_ENCRYPTION_KEY`         | 32-byte key for encrypted backup archives               | unset                |
+| `ARKIVRA_BACKUP_PART_SIZE_BYTES`        | Maximum encrypted backup part size                      | `17179869184`        |
+| `ARKIVRA_RESTORE_BOOTSTRAP_TOKEN`       | Token that enables `/restore` before an admin exists    | unset                |
+| `ARKIVRA_BACKUPS_MAINTENANCE_FLAG_FILE` | Backup and restore maintenance marker filename          | `.maintenance-mode`  |
 
 If `APP_INSTANCE` is set and the storage/upload/backup paths are not explicitly set, Arkivra uses `./var/<APP_INSTANCE>/document-storage`, `./var/<APP_INSTANCE>/upload-staging`, and `./var/<APP_INSTANCE>/backups` relative to the API process.
 

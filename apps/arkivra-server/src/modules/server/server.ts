@@ -301,13 +301,14 @@ export function createServer({
       maintenanceModeEnabled &&
       path !== '/api/health' &&
       !path.startsWith('/api/auth/') &&
-      !path.startsWith('/api/admin/backups')
+      !path.startsWith('/api/admin/backups') &&
+      !path.startsWith('/api/restore/bootstrap')
     ) {
       return context.json(
         {
           error: {
             code: 'system.maintenance_mode',
-            message: 'Restore in progress. Arkivra is temporarily in maintenance mode.',
+            message: 'Backup or restore in progress. Arkivra is temporarily in maintenance mode.',
           },
         },
         503,
@@ -353,7 +354,7 @@ export function createServer({
     services: translationServices,
   });
   registerTagRoutes({ app, db });
-  registerBackupRoutes({ app, config, backupQueue, backupServices });
+  registerBackupRoutes({ app, db, config, backupQueue, backupServices });
   registerAuthorizationRoutes({
     app,
     authorizationServices: authzServices,

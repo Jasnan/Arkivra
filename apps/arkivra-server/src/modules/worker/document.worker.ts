@@ -29,6 +29,7 @@ export type DocumentWorkerDeps = {
   parsePipeline: ParsePipeline;
   appInstance?: string;
   startPolling?: boolean;
+  pauseWhen?: () => Promise<boolean>;
   concurrency?: number;
   activityServices?: ReturnType<typeof createActivityServices>;
   adminAiServices?: {
@@ -45,6 +46,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
     parsePipeline,
     appInstance,
     startPolling = true,
+    pauseWhen,
     concurrency = 1,
     activityServices,
     adminAiServices,
@@ -361,6 +363,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
     queueName: getScopedQueueName(PROCESS_DOCUMENT_QUEUE, appInstance),
     concurrency,
     autorun: startPolling,
+    pauseWhen,
     handler: async (job) => {
       await processDocument(job);
     },

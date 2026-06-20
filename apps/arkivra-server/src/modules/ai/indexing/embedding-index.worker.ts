@@ -47,6 +47,7 @@ export type EmbeddingIndexWorkerDeps = {
   appInstance?: string;
   concurrency?: number;
   startPolling?: boolean;
+  pauseWhen?: () => Promise<boolean>;
 };
 
 async function loadDocumentChunks({
@@ -348,6 +349,7 @@ export function createEmbeddingIndexWorker({
   appInstance,
   concurrency = 1,
   startPolling = true,
+  pauseWhen,
 }: EmbeddingIndexWorkerDeps) {
   const embeddingIndexQueue = createEmbeddingIndexQueue({ db, appInstance });
 
@@ -507,6 +509,7 @@ export function createEmbeddingIndexWorker({
     queueName: getScopedQueueName(EMBEDDING_INDEX_QUEUE, appInstance),
     concurrency,
     autorun: startPolling,
+    pauseWhen,
     handler: async job => processEmbeddingIndexJob(job),
   });
 

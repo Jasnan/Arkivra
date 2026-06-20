@@ -27,6 +27,7 @@ export type MaintenanceWorkerDeps = {
   storage: StorageDriver;
   appInstance?: string;
   startPolling?: boolean;
+  pauseWhen?: () => Promise<boolean>;
 };
 
 export async function hardDeleteExpiredDocuments({
@@ -94,6 +95,7 @@ export function createMaintenanceWorker({
   storage,
   appInstance,
   startPolling = true,
+  pauseWhen,
 }: MaintenanceWorkerDeps) {
   async function processMaintenanceJob(job: AsyncJob<HardDeleteExpiredDocumentsJobData>) {
     if (job.name !== HARD_DELETE_EXPIRED_DOCUMENTS_JOB) {
@@ -119,6 +121,7 @@ export function createMaintenanceWorker({
     queueName: getScopedQueueName(MAINTENANCE_QUEUE, appInstance),
     concurrency: 1,
     autorun: startPolling,
+    pauseWhen,
     handler: async (job) => processMaintenanceJob(job),
   });
 

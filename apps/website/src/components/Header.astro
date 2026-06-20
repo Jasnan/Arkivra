@@ -1,7 +1,9 @@
 ---
 import { buildLocalizedPath, useI18n } from '../i18n/i18n';
+import { GITHUB_REPO_URL } from '../socials';
 
 const { t } = useI18n({ locale: Astro.currentLocale });
+const DOCS_URL = 'https://docs.arkivra.app';
 
 type NavigationItem
   = | { name: string; url: string; isAvailable?: true }
@@ -10,15 +12,11 @@ type NavigationItem
 const navigation: NavigationItem[] = [
   {
     name: t('nav.docs'),
-    isAvailable: false,
-  },
-  {
-    name: t('nav.blog'),
-    url: '/blog',
+    url: DOCS_URL,
   },
   {
     name: t('nav.demo'),
-    isAvailable: false,
+    url: GITHUB_REPO_URL,
   },
 ];
 
@@ -30,44 +28,46 @@ const { class: className = '' } = Astro.props;
 ---
 
 <nav
-  class={`z-100 border-0 border-b md:max-w-1200px px-4 py-3.5 mx-auto flex items-center justify-between md:(py-2.5 border-1px mt-4) fixed top-0 left-0 right-0 bg-background/90 backdrop-blur-sm ${className}`}
+  class={`fixed left-0 right-0 top-0 z-100 border-0 border-b bg-background/90 backdrop-blur-sm ${className}`}
 >
-  <a href={buildLocalizedPath({ locale: Astro.currentLocale, path: '/' })} class="text-lg font-semibold flex items-center group">
-    <span class="flex size-8 items-center justify-center rounded-md border border-[hsl(45_10%_88%)] bg-[hsl(60_14%_97.2%)] p-1 shadow-sm" aria-hidden="true">
-      <img src="/arkivra-sidebar-logo.svg" alt="" class="size-full object-contain" loading="eager" decoding="async" />
-    </span>
-    <span class="ml-2">Arkivra</span>
-  </a>
+  <div class="mx-auto flex max-w-1200px items-center justify-between px-4 py-3.5 md:py-2.5">
+    <a href={buildLocalizedPath({ locale: Astro.currentLocale, path: '/' })} class="text-lg font-semibold flex items-center group">
+      <span class="flex size-8 items-center justify-center rounded-md border border-[hsl(45_10%_88%)] bg-[hsl(60_14%_97.2%)] p-1 shadow-sm" aria-hidden="true">
+        <img src="/arkivra-sidebar-logo.svg" alt="" class="size-full object-contain" loading="eager" decoding="async" />
+      </span>
+      <span class="ml-2">Arkivra</span>
+    </a>
 
-  <div class="items-center gap-6 hidden md:flex">
-    {
-      navigation.map(nav => (
-        nav.isAvailable === false
-          ? (
-            <span class="cursor-default text-sm font-medium text-muted-foreground/75" aria-disabled="true">
-              {nav.name}
-            </span>
-            )
-          : (
-            <a href={nav.url} class="text-sm font-medium text-muted-foreground transition hover:text-foreground" {...(nav.url.startsWith('http') ? { target: '_blank', rel: 'noopener' } : {})}>
-              {nav.name}
-            </a>
-            )
-      ))
-    }
-  </div>
+    <div class="items-center gap-6 hidden md:flex">
+      {
+        navigation.map(nav => (
+          nav.isAvailable === false
+            ? (
+              <span class="cursor-default text-sm font-medium text-muted-foreground/75" aria-disabled="true">
+                {nav.name}
+              </span>
+              )
+            : (
+              <a href={nav.url} class="text-sm font-medium text-muted-foreground transition hover:text-foreground" {...(nav.url.startsWith('http') ? { target: '_blank', rel: 'noopener' } : {})}>
+                {nav.name}
+              </a>
+              )
+        ))
+      }
+    </div>
 
-  <div class="flex items-center gap-4">
-    <button
-      type="button"
-      class="inline-flex size-9 items-center justify-center border border-border bg-background/70 text-foreground transition hover:border-foreground/30"
-      aria-label="Toggle theme"
-      title="Toggle theme"
-      data-theme-toggle
-    >
-      <span class="i-tabler-sun size-5 dark:hidden" aria-hidden="true"></span>
-      <span class="i-tabler-moon hidden size-5 dark:block" aria-hidden="true"></span>
-    </button>
+    <div class="flex items-center gap-4">
+      <button
+        type="button"
+        class="inline-flex size-9 items-center justify-center border border-border bg-background/70 text-foreground transition hover:border-foreground/30"
+        aria-label="Toggle theme"
+        title="Toggle theme"
+        data-theme-toggle
+      >
+        <span class="i-tabler-sun size-5 dark:hidden" aria-hidden="true"></span>
+        <span class="i-tabler-moon hidden size-5 dark:block" aria-hidden="true"></span>
+      </button>
+    </div>
   </div>
 </nav>
 

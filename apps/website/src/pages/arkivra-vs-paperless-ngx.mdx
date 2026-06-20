@@ -13,7 +13,7 @@ Paperless-NGX is a mature, widely used document management project with a strong
 - **Vault-first organization**: Separate collections by workspace, team, project, or sensitivity.
 - **Semantic retrieval**: Combine full-text search with pgvector-backed semantic search.
 - **Document chat**: Ask questions against a document, a vault, or the full library.
-- **Local-first AI workflows**: Use Ollama-backed local models when you want AI features under your own control.
+- **Optional AI workflows**: Use local or cloud providers when AI features fit your workflow.
 - **Modern TypeScript stack**: React, Hono, Drizzle, PostgreSQL, Docling, and background workers.
 
 Arkivra is newer and still under active development. Paperless-NGX remains the better choice if you need a very mature production system today.
@@ -45,7 +45,7 @@ Arkivra is newer and still under active development. Paperless-NGX remains the b
     {
       feature: 'AI deployment style',
       paperless: 'Depends on external integrations',
-      arkivra: 'Ollama-backed local AI supported',
+      arkivra: 'Provider-configured AI, including local provider paths',
     },
     {
       feature: 'Parsing',
@@ -66,8 +66,7 @@ Arkivra is newer and still under active development. Paperless-NGX remains the b
     {
       feature: 'Deployment',
       paperless: 'Self-hosted',
-      arkivra:
-        'Self-hosting is first-class with Docker Compose; managed hosting may be considered later',
+      arkivra: 'Open source and self-hostable, with Docker Compose as the current first-class path',
     },
     {
       feature: 'License',
@@ -81,9 +80,9 @@ Arkivra is newer and still under active development. Paperless-NGX remains the b
 
 Choose Paperless-NGX if you want a proven, battle-tested document management system with years of community knowledge, integrations, and operational examples.
 
-Choose Arkivra if you want to experiment with vault-based collaboration, semantic search, local-first AI chat, and a modern TypeScript architecture that is still evolving.
+Choose Arkivra if you want to experiment with vault-based collaboration, semantic search, optional AI-assisted workflows, and a modern TypeScript architecture that is still evolving.
 
 Both projects are open source, and the document management space is better because people can choose the workflow that fits them best.
 
 - **Paperless-NGX**: [paperless-ngx.com](https://paperless-ngx.com/)
-- **Arkivra**: public repository unavailable during release prep
+- **Arkivra**: [github.com/Jasnan/Arkivra](https://github.com/Jasnan/Arkivra)

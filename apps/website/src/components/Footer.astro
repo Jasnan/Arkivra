@@ -1,8 +1,10 @@
 ---
 import { buildLocalizedPath, useI18n } from '../i18n/i18n';
+import { GITHUB_REPO_URL } from '../socials';
 import { cn } from '../utils/cn';
 
 const { t } = useI18n({ locale: Astro.currentLocale });
+const DOCS_URL = 'https://docs.arkivra.app';
 
 const sections: {
   title: string;
@@ -21,11 +23,9 @@ const sections: {
       },
       {
         label: t('footer.link.documentation'),
-        isAvailable: false,
-      },
-      {
-        label: t('footer.link.roadmap'),
-        isAvailable: false,
+        url: DOCS_URL,
+        target: '_blank',
+        rel: 'noopener',
       },
     ],
   },
@@ -34,15 +34,15 @@ const sections: {
     links: [
       {
         label: t('footer.link.repository'),
-        isAvailable: false,
-      },
-      {
-        label: t('footer.link.contributing'),
-        isAvailable: false,
+        url: GITHUB_REPO_URL,
+        target: '_blank',
+        rel: 'noopener',
       },
       {
         label: t('footer.link.license'),
-        isAvailable: false,
+        url: `${GITHUB_REPO_URL}/blob/main/LICENSE`,
+        target: '_blank',
+        rel: 'noopener',
       },
     ],
   },
@@ -50,16 +50,16 @@ const sections: {
     title: t('footer.section.legal'),
     links: [
       {
-        label: t('footer.link.about'),
-        url: '/',
-      },
-      {
         label: t('footer.link.contact'),
         url: buildLocalizedPath({ locale: Astro.currentLocale, path: '/contact' }),
       },
       {
         label: t('footer.link.privacy-policy'),
         url: '/privacy',
+      },
+      {
+        label: t('footer.link.terms-of-service'),
+        url: '/terms-of-service',
       },
     ],
   },

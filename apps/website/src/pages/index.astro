@@ -8,114 +8,116 @@ import { useI18n } from '../i18n/i18n';
 import Layout from '../layouts/Layout.astro';
 
 const { t } = useI18n();
+const SELF_HOSTING_GUIDE_URL = 'https://docs.arkivra.app/self-hosting/using-docker-compose/';
 
 const workflows = [
   {
     label: '01',
     title: 'Create vaults',
-    description: 'Organize documents into vaults that match your projects, workflows, or personal structure.',
-    icon: 'i-tabler-folders',
+    description: 'Group related documents together in vaults such as Family, Finance, Work, Travel, or anything else that fits your life.',
   },
   {
     label: '02',
     title: 'Upload documents',
-    description: 'Upload files into your vaults and Arkivra automatically extracts searchable text and structure, even from scanned documents.',
-    icon: 'i-tabler-file-upload',
+    description: 'Upload PDFs, scans, images, and other files. Arkivra extracts searchable text so information stays easy to find later.',
   },
   {
     label: '03',
-    title: 'Search meaningfully',
-    description: 'Use full-text search for exact matches and semantic search for related concepts across your library.',
-    icon: 'i-tabler-search',
+    title: 'Search everything',
+    description: 'Search across your documents by keywords, phrases, or content. Optional semantic search can help find related information even when the exact words don’t match.',
   },
   {
     label: '04',
     title: 'Ask with sources',
-    description: 'Chat with a document, a vault, or your library with responses linked to source files.',
-    icon: 'i-tabler-message-search',
+    description: 'When AI is enabled, ask questions about selected documents and get answers linked back to the original files.',
   },
 ];
 
 const coreCapabilities = [
   {
     marker: '01',
-    title: 'Self-hosted',
-    description: 'Run Arkivra on your own infrastructure with full control over storage and access.',
+    title: 'Organize your way',
+    description: 'Use vaults, folders, tags, and metadata to create a structure that works for you.',
   },
   {
     marker: '02',
-    title: 'Search & retrieval',
-    description: 'Full-text and semantic search across filenames, content, and meaning.',
+    title: 'Preview, version, restore',
+    description: 'Preview files, track changes over time, restore previous versions, and recover documents from trash when needed.',
   },
   {
     marker: '03',
-    title: 'Optional local AI',
-    description: 'Use Ollama-backed models for chat, translation, and semantic search when enabled.',
+    title: 'Full-text search',
+    description: 'Search across filenames and extracted document content without connecting any AI services.',
   },
   {
     marker: '04',
-    title: 'Security & access',
-    description: 'Authentication, two-factor security, permissions, and administrative controls.',
+    title: 'Vault access',
+    description: 'Give people access to specific vaults and control who can view, upload, manage, or use AI features within them.',
   },
 ];
 
 const stack = [
-  ['Web', 'React, TypeScript, Vite, Chakra UI'],
-  ['API', 'Hono, Node.js, TypeScript'],
-  ['Database', 'PostgreSQL, Drizzle ORM, pgvector'],
-  ['Parsing', 'Structured document parsing with Docling'],
-  ['AI', 'Optional Ollama-backed models for retrieval, translation, and AI-assisted workflows.'],
-  ['Workers', 'Background processing with PostgreSQL-backed workers'],
+  ['Application', 'React dashboard, Hono API, and PostgreSQL-backed workers.'],
+  ['Data', 'PostgreSQL with Drizzle ORM, full-text indexes, and pgvector when semantic search is enabled.'],
+  ['Parsing', 'Docling-backed document parsing and OCR pipelines for extracted text and assets.'],
+  ['Integrations', 'Authentication, storage, backups, and optional AI adapters.'],
 ];
 
 const securityNotes = [
   {
     title: 'Document storage',
-    description: 'Uploaded files remain stored on your infrastructure with encryption at rest support.',
-    icon: 'i-tabler-file-text-shield',
+    description: 'Uploaded files and stored extracted assets are encrypted at rest with configured keys.',
   },
   {
     title: 'Vault access',
     description: 'Permissions are managed at the vault level, keeping access control simple and predictable.',
-    icon: 'i-tabler-lock-access',
   },
   {
     title: 'Authentication',
     description: 'Password sign-in, connected providers, and optional two-factor authentication.',
-    icon: 'i-tabler-key',
   },
   {
     title: 'Audit trail',
     description: 'Security and activity events provide visibility into user and system actions.',
-    icon: 'i-tabler-clipboard-check',
+  },
+  {
+    title: 'Backups & restore',
+    description: 'Create encrypted backups of document storage and the database, then restore them when the required keys and secrets are available.',
   },
   {
     title: 'Optional AI integration',
-    description: 'Arkivra does not provide AI services. The current first-class provider path is Ollama, configured by the deployment operator.',
-    secondaryDescription: 'When AI features are used, the prompt and retrieved context needed for the request are sent to the configured provider.',
-    icon: 'i-tabler-robot',
+    description: 'AI features remain disabled until configured. When external AI providers are used, only the document context needed for the request is sent to that provider.',
   },
 ];
 
 const faqItems = [
   {
-    question: 'Is Arkivra really open source?',
-    answer: 'Yes, the Arkivra project is completely open source and licensed under the AGPL-3.0 license. You are free to view the code, self-host it, and contribute to its development.',
+    question: 'Do I need AI to use Arkivra?',
+    answer: 'No. Arkivra works without AI. Upload documents, organize vaults, search content, manage versions, restore files, and create backups without connecting any AI provider.',
   },
   {
-    question: 'Do my documents leave my machine?',
+    question: 'What does “optional AI” mean?',
     answer: [
-      'Not by default. Core document management and full-text search run entirely inside your Arkivra deployment.',
-      'AI-assisted chat, translation, semantic search, and retrieval use the Ollama-compatible endpoint configured by the deployment operator. With a local Ollama server, document context can remain inside your own environment. If that endpoint is remote or hosted, selected or retrieved document context required for the request is sent to that endpoint.',
+      'AI features are disabled by default. You can use Arkivra without configuring any AI providers.',
+      'If you want AI-assisted features such as semantic search, chat, or translation, you can connect either local models or supported cloud providers. Local models can run through Ollama, while cloud providers are configured using your own API keys.',
+      'Arkivra never requires a specific provider, and you remain in control of which AI services are enabled.',
     ],
   },
   {
-    question: 'Which AI models are supported?',
-    answer: 'Arkivra currently supports Ollama as the first-class provider path for chat, translation, model discovery, and embeddings. Broader cloud provider support is reserved for future provider work.',
+    question: 'What happens when I use a remote AI provider?',
+    answer: 'Arkivra only sends the content required for the AI feature being used. Depending on your configuration, this may include document text for indexing or document context for chat and other AI-assisted workflows. Local providers can keep this processing entirely within your own environment.',
+  },
+  {
+    question: 'What is semantic search?',
+    answer: 'Regular search looks for matching words. Semantic search looks for matching meaning. For example, a search for “car insurance” might also find documents that mention “vehicle coverage” even if the exact words differ.',
   },
   {
     question: 'Can Arkivra search scanned PDFs and documents?',
-    answer: 'Yes. Arkivra extracts searchable text and document structure from scanned documents during ingestion. Once processed, scanned documents can be searched just like other documents in your archive.',
+    answer: 'Yes. Arkivra can extract searchable text from many scanned PDFs and images, making them searchable like digital documents. Results depend on scan quality and the configured document processing pipeline.',
+  },
+  {
+    question: 'What license is Arkivra released under?',
+    answer: 'Arkivra is open source under the AGPL-3.0 license. The source code, issue tracker, and project roadmap are publicly available on GitHub.',
   },
 ];
 ---
@@ -148,36 +150,39 @@ const faqItems = [
           <div class="mb-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             <span>Open Source</span>
             <span aria-hidden="true">·</span>
-            <span>Privacy Minded</span>
+            <span>Self-hostable</span>
             <span aria-hidden="true">·</span>
             <span>Optional AI</span>
           </div>
 
           <h1 class="max-w-660px font-display text-4xl font-semibold leading-tight text-balance md:text-6xl">
-            Own your documents.<br />
-            Find anything.
+            Organize your documents.<br />
+            Find what you need.
           </h1>
 
           <p class="mt-6 max-w-700px text-base leading-7 text-muted-foreground md:text-lg md:leading-8">
-            Arkivra is an open-source document management system for organizing, searching, and understanding your documents. Use full-text search out of the box, then add semantic search and AI-assisted retrieval when you need them.
+            An open-source home for your documents. Store them in organized vaults, search across everything, and add AI only if you want it.
           </p>
 
           <div class="mt-8 flex flex-col gap-3 sm:flex-row">
             <a
-              href="/self-host"
+              href={SELF_HOSTING_GUIDE_URL}
+              target="_blank"
+              rel="noopener"
               class="inline-flex items-center justify-center gap-2 border border-primary bg-primary/92 px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/85"
             >
               Self-host Arkivra
               <span class="i-tabler-arrow-right size-5"></span>
             </a>
-            <button
-              type="button"
-              class="inline-flex cursor-not-allowed items-center justify-center gap-2 border border-border bg-background/60 px-4 py-2.5 text-sm font-semibold text-muted-foreground"
-              disabled
+            <a
+              href="https://github.com/Jasnan/Arkivra"
+              target="_blank"
+              rel="noopener"
+              class="inline-flex items-center justify-center gap-2 border border-border bg-background/60 px-4 py-2.5 text-sm font-semibold text-foreground transition hover:border-foreground/30 hover:bg-muted"
             >
               <span class="i-tabler-brand-github size-5"></span>
               View on GitHub
-            </button>
+            </a>
           </div>
         </div>
       </div>
@@ -188,22 +193,22 @@ const faqItems = [
         <div class="grid gap-8 md:grid-cols-[0.75fr_1.25fr]">
           <div>
             <div class="text-sm font-semibold uppercase tracking-wide text-primary">Workflow</div>
-            <h2 class="mt-4 font-display text-3xl font-semibold leading-tight md:text-5xl">Upload, organize, search, and retrieve.</h2>
+            <h2 class="mt-4 font-display text-3xl font-semibold leading-tight md:text-5xl">Store once. Find later.</h2>
           </div>
           <p class="max-w-620px text-base leading-7 text-muted-foreground md:pt-10 md:text-lg">
-            Documents are organized into vaults, then processed into searchable text and structure. AI chat is optional and currently uses the configured Ollama-compatible endpoint.
+            Whether it's passports, receipts, contracts, manuals, or project files, Arkivra helps you keep everything organized and searchable so you can find it when you need it.
           </p>
         </div>
 
         <div class="mt-14 grid grid-cols-1 md:grid-cols-4">
           {
             workflows.map((item, index) => (
-              <article class={`group relative border border-border bg-background p-6 transition-[border-color,box-shadow,transform] duration-200 ease-out hover:z-10 hover:border-primary/55 hover:shadow-sm motion-safe:hover:-translate-y-0.5 dark:hover:bg-foreground/[0.025] ${index > 0 ? '-mt-px md:-ml-px md:mt-0' : ''}`}>
+              <article class={`group relative overflow-hidden border border-border bg-background p-6 transition-[border-color,box-shadow,transform] duration-200 ease-out hover:z-10 hover:border-primary/55 hover:shadow-sm motion-safe:hover:-translate-y-0.5 dark:hover:bg-foreground/[0.025] ${index > 0 ? '-mt-px md:-ml-px md:mt-0' : ''}`}>
+                <div class="absolute inset-x-0 top-0 h-1 bg-primary/0 transition-colors duration-200 group-hover:bg-primary/70"></div>
                 <div class="flex items-center justify-between gap-4">
-                  <span class="text-xs font-semibold text-muted-foreground transition-colors duration-200 group-hover:text-primary">{item.label}</span>
-                  <span class={`${item.icon} size-6 text-primary`} aria-hidden="true"></span>
+                  <span class="inline-flex size-9 items-center justify-center border border-border bg-card text-xs font-semibold text-muted-foreground transition-colors duration-200 group-hover:border-primary/35 group-hover:text-primary">{item.label}</span>
                 </div>
-                <h3 class="mt-8 text-xl font-semibold">{item.title}</h3>
+                <h3 class="mt-7 text-xl font-semibold">{item.title}</h3>
                 <p class="mt-4 text-base leading-7 text-muted-foreground">{item.description}</p>
               </article>
             ))
@@ -215,10 +220,10 @@ const faqItems = [
     <section id="features" class="border-b border-border bg-background py-18 md:py-24">
       <div class="mx-auto grid max-w-1200px gap-10 px-5 md:grid-cols-[0.78fr_1.22fr] md:px-8">
         <div>
-          <div class="text-sm font-semibold uppercase tracking-wide text-primary">Core Capabilities</div>
-          <h2 class="mt-4 max-w-540px font-display text-3xl font-semibold leading-tight md:text-5xl">Built for private, self-hosted document management.</h2>
+          <div class="text-sm font-semibold uppercase tracking-wide text-primary">Document Workflows</div>
+          <h2 class="mt-4 max-w-540px font-display text-3xl font-semibold leading-tight md:text-5xl">Useful before AI.</h2>
           <p class="mt-6 max-w-520px text-base leading-7 text-muted-foreground md:text-lg">
-            Arkivra combines searchable archives, semantic retrieval, and optional AI chat in a self-hosted application.
+            Good document management should not depend on AI. Arkivra helps you organize, search, recover, and control access to documents whether AI is enabled or not.
           </p>
         </div>
 
@@ -242,27 +247,14 @@ const faqItems = [
       </div>
     </section>
 
-    <section id="architecture" class="relative overflow-hidden border-b border-border bg-card py-18 md:py-24">
-      <div class="pointer-events-none absolute inset-0 text-muted-foreground" aria-hidden="true">
-        <span class="i-simple-icons-react absolute left-[7%] top-[18%] hidden size-14 rotate-[-12deg] opacity-[0.055] md:block"></span>
-        <span class="i-simple-icons-vite absolute left-[24%] top-[68%] hidden size-10 rotate-[18deg] opacity-[0.045] md:block"></span>
-        <span class="i-simple-icons-typescript absolute left-[42%] top-[12%] hidden size-11 rotate-[8deg] opacity-[0.05] md:block"></span>
-        <span class="i-simple-icons-chakraui absolute left-[58%] top-[76%] hidden size-12 rotate-[-18deg] opacity-[0.04] md:block"></span>
-        <span class="i-simple-icons-hono absolute left-[73%] top-[16%] hidden size-11 rotate-[15deg] opacity-[0.05] md:block"></span>
-        <span class="i-simple-icons-nodedotjs absolute left-[86%] top-[58%] hidden size-14 rotate-[-10deg] opacity-[0.045] md:block"></span>
-        <span class="i-simple-icons-postgresql absolute left-[12%] top-[82%] hidden size-13 rotate-[10deg] opacity-[0.05] md:block"></span>
-        <span class="i-simple-icons-drizzle absolute left-[34%] top-[36%] hidden size-9 rotate-[-24deg] opacity-[0.04] md:block"></span>
-        <span class="i-simple-icons-docker absolute left-[66%] top-[43%] hidden size-10 rotate-[22deg] opacity-[0.045] md:block"></span>
-        <span class="i-simple-icons-ollama absolute left-[91%] top-[24%] hidden size-9 rotate-[-16deg] opacity-[0.04] md:block"></span>
-      </div>
-
-      <div class="relative z-10 mx-auto max-w-1200px px-5 md:px-8">
+    <section id="architecture" class="border-b border-border bg-card py-18 md:py-24">
+      <div class="mx-auto max-w-1200px px-5 md:px-8">
         <div class="grid gap-8 md:grid-cols-[0.8fr_1.2fr]">
           <div>
             <div class="text-sm font-semibold uppercase tracking-wide text-primary">Architecture</div>
-            <h2 class="mt-4 font-display text-3xl font-semibold leading-tight md:text-5xl">Built from inspectable, replaceable components.</h2>
+            <h2 class="mt-4 font-display text-3xl font-semibold leading-tight md:text-5xl">A practical stack for self-hosting.</h2>
             <p class="mt-6 max-w-560px text-base leading-7 text-muted-foreground">
-              Arkivra is built from open, replaceable components that can run entirely on your own infrastructure.
+              Run Arkivra on infrastructure you control using familiar, self-hostable building blocks.
             </p>
           </div>
 
@@ -270,7 +262,10 @@ const faqItems = [
             {
               stack.map(([layer, value], index) => (
                 <div class={`grid grid-cols-[120px_1fr] gap-4 p-6 ${index < stack.length - 1 ? 'border-b border-border' : ''}`}>
-                  <div class="text-sm font-semibold text-muted-foreground">{layer}</div>
+                  <div class="flex items-center gap-3 text-sm font-semibold text-muted-foreground">
+                    <span class="h-6 w-1 bg-primary/45" aria-hidden="true"></span>
+                    {layer}
+                  </div>
                   <div class="text-base leading-7 text-foreground">{value}</div>
                 </div>
               ))
@@ -280,24 +275,19 @@ const faqItems = [
       </div>
     </section>
 
-    <section id="security" class="border-b border-border bg-background py-18 md:py-24">
-      <div class="mx-auto grid max-w-1200px gap-10 px-5 md:grid-cols-[0.82fr_1.18fr] md:px-8">
+    <section id="security" class="border-b border-border bg-background py-14 md:py-18">
+      <div class="mx-auto grid max-w-1200px gap-8 px-5 md:grid-cols-[0.82fr_1.18fr] md:px-8">
         <div>
           <div class="text-sm font-semibold uppercase tracking-wide text-primary">Security & Privacy</div>
           <h2 class="mt-4 max-w-580px font-display text-3xl font-semibold leading-tight md:text-5xl">Clear about what is stored, processed, and shared.</h2>
-          <p class="mt-6 max-w-560px text-base leading-7 text-muted-foreground md:text-lg md:leading-8">
-            Arkivra separates storage, access control, authentication, auditing, and AI integration so deployment choices remain visible and controllable.
+          <p class="mt-5 max-w-560px text-base leading-7 text-muted-foreground md:text-lg md:leading-8">
+            Security and privacy start with clarity. Arkivra makes it clear what stays local, what is encrypted, and what is shared when optional AI services are enabled.
           </p>
 
-          <div class="mt-12 max-w-300px border border-border bg-background p-6 shadow-sm transition-[border-color,box-shadow,transform] duration-200 ease-out hover:border-primary/45 hover:shadow-md motion-safe:hover:-translate-y-0.5 dark:hover:bg-foreground/[0.025]">
-            <div class="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <span class="i-tabler-shield-check size-8" aria-hidden="true"></span>
-            </div>
-            <h3 class="mt-6 text-xl font-semibold leading-tight text-primary">You're in control</h3>
+          <div class="mt-8 max-w-360px border border-border bg-background p-5 shadow-sm transition-[border-color,box-shadow,transform] duration-200 ease-out hover:border-primary/45 hover:shadow-md motion-safe:hover:-translate-y-0.5 dark:hover:bg-foreground/[0.025]">
+            <h3 class="text-lg font-semibold leading-tight text-primary">Important to know</h3>
             <p class="mt-3 text-base leading-7 text-foreground">
-              Self-hosted by you.<br />
-              Configured by you.<br />
-              Your data, your decisions.
+              Uploaded files and extracted assets are encrypted at rest. Search indexes, metadata, permissions, and other database content remain protected by your PostgreSQL deployment and infrastructure.
             </p>
           </div>
         </div>
@@ -305,17 +295,16 @@ const faqItems = [
         <div class="bg-background">
           {
             securityNotes.map((item, index) => (
-              <article class={`group relative grid gap-5 border border-border bg-background p-6 transition-[border-color,box-shadow,transform] duration-200 ease-out hover:z-10 hover:border-primary/55 hover:shadow-sm motion-safe:hover:-translate-y-0.5 dark:hover:bg-foreground/[0.025] sm:grid-cols-[72px_1fr] md:p-7 ${index > 0 ? '-mt-px' : ''}`}>
-                <div class="flex size-14 items-center justify-center text-primary sm:size-16">
-                  <span class={`${item.icon} size-8 sm:size-9`} aria-hidden="true"></span>
-                </div>
-
-                <div class="border-border transition-colors duration-200 group-hover:border-primary/35 sm:border-l sm:pl-7">
-                  <h3 class="text-xl font-semibold leading-tight">{item.title}</h3>
-                  <p class="mt-3 max-w-560px text-base leading-7 text-muted-foreground md:text-lg md:leading-8">{item.description}</p>
-                  {item.secondaryDescription && (
-                    <p class="mt-3 max-w-560px text-base leading-7 text-muted-foreground md:text-lg md:leading-8">{item.secondaryDescription}</p>
-                  )}
+              <article class={`group relative border border-border bg-background p-5 transition-[border-color,box-shadow,transform] duration-200 ease-out hover:z-10 hover:border-primary/55 hover:shadow-sm motion-safe:hover:-translate-y-0.5 dark:hover:bg-foreground/[0.025] md:p-6 ${index > 0 ? '-mt-px' : ''}`}>
+                <div class="grid gap-4 sm:grid-cols-[44px_1fr]">
+                  <div class="text-sm font-semibold text-primary/80">{String(index + 1).padStart(2, '0')}</div>
+                  <div>
+                    <h3 class="text-xl font-semibold leading-tight">{item.title}</h3>
+                    <p class="mt-2 max-w-620px text-base leading-7 text-muted-foreground">{item.description}</p>
+                    {item.secondaryDescription && (
+                      <p class="mt-3 max-w-620px text-base leading-7 text-muted-foreground">{item.secondaryDescription}</p>
+                    )}
+                  </div>
                 </div>
               </article>
             ))
@@ -330,7 +319,7 @@ const faqItems = [
           <div class="text-sm font-semibold uppercase tracking-wide text-primary">FAQ</div>
           <h2 class="mt-4 max-w-540px font-display text-3xl font-semibold leading-tight md:text-5xl">Frequently asked questions.</h2>
           <p class="mt-6 max-w-520px text-base leading-7 text-muted-foreground md:text-lg">
-            Short answers about deployment, storage, search, and model configuration.
+            Answers to the questions people usually ask before running Arkivra.
           </p>
         </div>
 

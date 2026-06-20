@@ -2,7 +2,7 @@
   "name": "@arkivra/website",
   "type": "module",
   "version": "0.0.1",
-  "description": "Website for Arkivra, an open-source document system for vaults, search, and AI-assisted document workflows",
+  "description": "Website for Arkivra, an open-source document management system for vaults, search, and optional AI-assisted workflows",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",

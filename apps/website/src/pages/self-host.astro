@@ -3,121 +3,127 @@ import Footer from '../components/Footer.astro';
 import Header from '../components/Header.astro';
 import Layout from '../layouts/Layout.astro';
 
-const requirements = [
-  'Docker Compose for the current first-class deployment path',
-  'PostgreSQL with pgvector for metadata, search, embeddings, and chat state',
-  'Docling for document parsing and ingestion',
-  'Optional Ollama support for local AI search, translation, and chat workflows',
-  'A protected ARKIVRA_ENCRYPTION_KEYS backup outside the server',
+const docsLinks = [
+  {
+    title: 'Self-hosting guide',
+    description: 'Use the documentation for the current Docker Compose path, service layout, and production notes.',
+    href: 'https://docs.arkivra.app/self-hosting/using-docker-compose/',
+  },
+  {
+    title: 'Configuration',
+    description: 'Review environment variables for auth, storage, parsing, backups, AI providers, and deployment origins.',
+    href: 'https://docs.arkivra.app/self-hosting/configuration/',
+  },
+  {
+    title: 'Document encryption',
+    description: 'Understand which stored files Arkivra encrypts and which PostgreSQL data your deployment must protect.',
+    href: 'https://docs.arkivra.app/guides/document-encryption/',
+  },
+  {
+    title: 'Backups and restore',
+    description: 'Plan backup archives, restore keys, maintenance mode, and the secrets that must be preserved separately.',
+    href: 'https://docs.arkivra.app/guides/backups-and-restore/',
+  },
 ];
 
-const commands = `# Public repository unavailable during release prep
-# Clone Arkivra after the repository opens
-cd Arkivra
-
-cp .env.example .env
-openssl rand -hex 32
-
-docker compose up -d
-curl http://localhost:1221/api/health`;
-
-const responsibilities = [
+const boundaries = [
   {
-    title: 'Keep the database private',
-    description: 'Extracted retrieval data is stored separately from original files in PostgreSQL so ingestion, search, and chat can work.',
+    title: 'Documents first',
+    description: 'Uploads, parsing, previews, versions, full-text search, trash, and restore workflows do not require an AI provider.',
   },
   {
-    title: 'Protect encryption keys',
-    description: 'Configure ARKIVRA_ENCRYPTION_KEYS for encrypted stored files and keep those keys backed up separately.',
+    title: 'Operator controlled',
+    description: 'You choose where Arkivra runs, how PostgreSQL and storage are protected, and which optional integrations are enabled.',
   },
   {
-    title: 'Choose your AI boundary',
-    description: 'With a local Ollama server, document context stays inside your infrastructure. If you point Arkivra at a remote model endpoint, retrieved context needed for the request is sent to that endpoint.',
+    title: 'AI is optional',
+    description: 'When AI features are enabled, document context is sent to the provider configured by the deployment operator.',
   },
 ];
 ---
 
-<Layout title="Self-host Arkivra" description="Run Arkivra on your own infrastructure with Docker Compose, PostgreSQL, Docling, and optional Ollama-backed AI workflows.">
+<Layout title="Self-host Arkivra" description="Self-host Arkivra and use the documentation for setup, configuration, encryption, backups, and provider boundaries.">
   <div class="min-h-screen bg-background">
     <Header />
 
     <section class="border-b border-border bg-card pt-34 pb-16">
       <div class="mx-auto max-w-1100px px-5 md:px-8">
-        <div class="max-w-760px">
+        <div class="max-w-780px">
           <div class="text-sm font-semibold uppercase tracking-wide text-primary">Self-hosting</div>
-          <h1 class="mt-4 font-display text-4xl font-semibold leading-tight md:text-6xl">Run the document stack where your documents already belong.</h1>
+          <h1 class="mt-4 font-display text-4xl font-semibold leading-tight md:text-6xl">Run Arkivra where your documents belong.</h1>
           <p class="mt-5 text-base leading-7 text-muted-foreground md:text-xl md:leading-8">
-            Arkivra is designed to run well in your own infrastructure. The current Compose path is intentionally direct: PostgreSQL, Docling, the API, and background workers, with the dashboard run separately during local evaluation.
+            Arkivra is open source and self-hostable. The website keeps the product overview short; setup commands, environment variables, backups, encryption details, and provider behavior live in the documentation.
           </p>
-          <p class="mt-4 text-base leading-7 text-muted-foreground">
-            A managed hosting option may be considered later if demand appears. Self-hosting will remain a supported deployment path.
-          </p>
+
+          <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+            <a
+              href="https://docs.arkivra.app/self-hosting/using-docker-compose/"
+              class="inline-flex items-center justify-center gap-2 border border-primary bg-primary/92 px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/85"
+            >
+              Read self-hosting docs
+              <span class="i-tabler-arrow-right size-5"></span>
+            </a>
+            <a
+              href="https://github.com/Jasnan/Arkivra"
+              target="_blank"
+              rel="noopener"
+              class="inline-flex items-center justify-center gap-2 border border-border bg-background/60 px-4 py-2.5 text-sm font-semibold text-foreground transition hover:border-foreground/30 hover:bg-muted"
+            >
+              <span class="i-tabler-brand-github size-5"></span>
+              View source
+            </a>
+          </div>
         </div>
       </div>
     </section>
 
     <section class="border-b border-border py-16 md:py-24">
-      <div class="mx-auto grid max-w-1100px gap-8 px-5 md:grid-cols-[0.85fr_1.15fr] md:px-8">
+      <div class="mx-auto grid max-w-1100px gap-8 px-5 md:grid-cols-[0.82fr_1.18fr] md:px-8">
         <div>
-          <h2 class="font-display text-2xl font-semibold leading-tight md:text-4xl">Quick start</h2>
+          <h2 class="font-display text-2xl font-semibold leading-tight md:text-4xl">Use the docs for deployment details.</h2>
           <p class="mt-5 leading-7 text-muted-foreground">
-            This is the local starting point. Production deployments should review secrets, backups, TLS, database access, and worker operations before handling important archives.
+            Self-hosting decisions affect security, backups, provider data exposure, and recovery. Keep those instructions in the documentation so they stay complete and versioned with the rest of the operational guidance.
           </p>
         </div>
-        <pre class="overflow-auto border border-border bg-card p-5 text-sm leading-7 text-foreground"><code>{commands}</code></pre>
-      </div>
-    </section>
 
-    <section class="border-b border-border bg-card py-16 md:py-24">
-      <div class="mx-auto grid max-w-1100px gap-8 px-5 md:grid-cols-[1fr_1fr] md:px-8">
-        <div>
-          <h2 class="font-display text-2xl font-semibold leading-tight md:text-4xl">What you run</h2>
-          <p class="mt-5 leading-7 text-muted-foreground">
-            Arkivra keeps the moving pieces explicit so operators can understand what the platform needs and why.
-          </p>
-        </div>
-        <ul class="border border-border bg-background">
+        <div class="grid gap-4 sm:grid-cols-2">
           {
-            requirements.map((item, index) => (
-              <li class={`flex gap-3 p-5 leading-7 text-muted-foreground ${index < requirements.length - 1 ? 'border-b border-border' : ''}`}>
-                <span class="i-tabler-check mt-0.5 size-5 flex-shrink-0 text-primary" aria-hidden="true"></span>
-                {item}
-              </li>
+            docsLinks.map(link => (
+              <a
+                href={link.href}
+                class="group border border-border bg-card p-6 transition-[border-color,box-shadow,transform] duration-200 ease-out hover:border-primary/45 hover:shadow-sm motion-safe:hover:-translate-y-0.5 dark:hover:bg-foreground/[0.025]"
+              >
+                <div class="flex items-start justify-between gap-4">
+                  <h3 class="text-lg font-semibold leading-tight">{link.title}</h3>
+                  <span class="i-tabler-external-link mt-0.5 size-5 flex-shrink-0 text-muted-foreground transition group-hover:text-primary" aria-hidden="true"></span>
+                </div>
+                <p class="mt-4 leading-7 text-muted-foreground">{link.description}</p>
+              </a>
             ))
           }
-        </ul>
+        </div>
       </div>
     </section>
 
-    <section class="py-16 md:py-24">
+    <section class="bg-card py-16 md:py-24">
       <div class="mx-auto max-w-1100px px-5 md:px-8">
         <div class="max-w-680px">
-          <div class="text-sm font-semibold uppercase tracking-wide text-primary">Operator notes</div>
-          <h2 class="mt-4 font-display text-2xl font-semibold leading-tight md:text-4xl">Security is part of the deployment.</h2>
+          <div class="text-sm font-semibold uppercase tracking-wide text-primary">Boundaries</div>
+          <h2 class="mt-4 font-display text-2xl font-semibold leading-tight md:text-4xl">Clear responsibilities for operators.</h2>
           <p class="mt-5 max-w-680px leading-7 text-muted-foreground">
-            Arkivra does not include telemetry and does not collect user information. If you run it in your own infrastructure with a local Ollama server, document context stays in that environment.
+            Arkivra gives you a practical document system to run yourself. The deployment operator remains responsible for infrastructure security, database protection, secrets, backups, and optional provider choices.
           </p>
         </div>
 
         <div class="mt-10 grid gap-4 md:grid-cols-3">
           {
-            responsibilities.map(item => (
-              <article class="border border-border bg-card p-6 transition-[border-color,box-shadow,transform] duration-200 ease-out hover:border-primary/45 hover:shadow-sm motion-safe:hover:-translate-y-0.5 dark:hover:bg-foreground/[0.025]">
+            boundaries.map(item => (
+              <article class="border border-border bg-background p-6 transition-[border-color,box-shadow,transform] duration-200 ease-out hover:border-primary/45 hover:shadow-sm motion-safe:hover:-translate-y-0.5 dark:hover:bg-foreground/[0.025]">
                 <h3 class="text-lg font-semibold">{item.title}</h3>
                 <p class="mt-4 leading-7 text-muted-foreground">{item.description}</p>
               </article>
             ))
           }
-        </div>
-
-        <div class="mt-10 flex flex-col gap-3 sm:flex-row">
-          <button type="button" class="inline-flex cursor-not-allowed items-center justify-center gap-2 bg-primary/70 px-4 py-2.5 text-sm font-semibold text-primary-foreground" disabled>
-            Read self-hosting docs
-          </button>
-          <button type="button" class="inline-flex cursor-not-allowed items-center justify-center gap-2 border border-border px-4 py-2.5 text-sm font-semibold text-muted-foreground" disabled>
-            <span class="i-tabler-brand-github size-5"></span>
-            View source
-          </button>
         </div>
       </div>
     </section>

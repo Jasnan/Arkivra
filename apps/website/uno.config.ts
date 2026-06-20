@@ -1,7 +1,6 @@
 import {
   defineConfig,
   presetIcons,
-  presetTypography,
   presetWebFonts,
   presetWind3,
   transformerDirectives,
@@ -32,7 +31,6 @@ export default defineConfig({
           ),
       },
     }),
-    presetTypography(),
     presetWebFonts({
       provider: 'bunny',
       extendTheme: false,

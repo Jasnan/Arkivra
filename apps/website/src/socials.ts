@@ -17,7 +17,7 @@ export function getSocials({
       url: GITHUB_REPO_URL,
       icon: 'i-tabler-brand-github',
       inHeader: false,
-      isAvailable: false,
+      isAvailable: true,
     },
   ];
 }

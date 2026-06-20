@@ -78,108 +78,180 @@
     @apply bg-background text-foreground;
   }
 
-  /* inspired by Astro blog https://github.com/withastro/astro.build/blob/cc7df140766a6c60ec54284593ea8ea940604dd5/src/styles/prose.css */
-  @layer components {
-    .prose {
-      @apply mx-auto w-full text-foreground;
-      line-height: 1.75;
-    }
+  /* Markdown pages use local prose styles so legal/blog copy follows Arkivra theme tokens. */
+  .arkivra-prose {
+    width: 100%;
+    color: hsl(var(--foreground));
+    font-size: 1rem;
+    line-height: 1.75;
+  }
 
-    .prose :where(h1, h2, h3, h4, h5, h6) {
-      @apply font-display font-semibold leading-tight text-foreground;
-    }
+  .arkivra-prose :where(*) {
+    border-color: hsl(var(--border));
+  }
 
-    .prose :where(h2) {
-      @apply mt-10 mb-4 text-2xl;
-    }
+  .arkivra-prose :where(p, li, dd, td, figcaption) {
+    color: hsl(var(--foreground));
+  }
 
-    .prose :where(h3) {
-      @apply mt-8 mb-3 text-xl;
-    }
-  
-    .prose > p,
-    .prose > blockquote > p {
-      @apply my-4 text-foreground;
-    }
-    .prose > blockquote {
-      @apply text-muted-foreground;
-      padding-left: 2rem;
-      border-left: 1px solid;
-    }
-  
-    .prose > hr {
-      @apply my-8;
-    }
-  
-    .prose > img {
-      @apply my-4;
-    }
-  
-    .prose strong {
-      @apply font-medium text-foreground;
-    }
-  
-    .prose ul {
-      @apply my-4 pl-8;
-    }
-  
-    .prose ol {
-      @apply my-4 list-inside list-decimal pl-4;
-    }
-    .prose ol ::marker {
-      @apply font-mono inline-block font-bold text-muted-foreground;
-    }
-  
-    /* Workaround for when li first node is wrapped in a p */
-    .prose li > p:first-child {
-      @apply inline-block;
-    }
-  
-    .prose li {
-      @apply my-0.5;
-    }
-  
-    .prose :where(a) {
-      @apply text-primary! underline underline-offset-3 hover:text-foreground! transition-colors;
-    }
-  
-    .prose :where(code):not(:where(pre, h1, h2, h3, h4, h5, h6) code) {
-      @apply mx-0.5! inline-block rounded-md! bg-muted! px-2 align-baseline text-sm! leading-6!;
-    }
+  .arkivra-prose :where(h1, h2, h3, h4, h5, h6, strong, dt, th) {
+    color: hsl(var(--foreground));
+    font-family: Sora, Inter, ui-sans-serif, system-ui, sans-serif;
+  }
 
-    .prose :where(:not(pre) > code):not(:where(.not-prose,.not-prose *))::before, 
-    .prose :where(:not(pre) > code):not(:where(.not-prose,.not-prose *))::after  {
-      @apply content-['']!;
-    }
-  
-    .prose > p a > code {
-      @apply text-inherit;
-      text-decoration: inherit;
-    }
-  
-    .prose .expressive-code {
-      @apply my-6;
-    }
-  
-    .prose table {
-      @apply overflow-auto border-spacing-0 text-sm sm:text-base w-full;
-    }
-    .prose tr {
-      @apply w-full;
-    }
-    .prose :is(th, td) {
-      @apply border-b py-2 px-4 align-baseline;
-    }
-    .prose :is(th, td):first-child {
-      @apply pl-0;
-    }
-    .prose :is(th, td):last-child {
-      @apply pr-0;
-    }
-    .prose th {
-      @apply text-foreground font-medium;
-    }
-    .prose th:not([align]) {
-      @apply text-start;
-    }
+  .arkivra-prose :where(h1, h2, h3, h4, h5, h6) {
+    font-weight: 650;
+    line-height: 1.18;
+  }
+
+  .arkivra-prose :where(h1) {
+    font-size: 2.25rem;
+    margin-bottom: 2rem;
+    margin-top: 0;
+  }
+
+  .arkivra-prose :where(h2) {
+    font-size: 2rem;
+    margin-bottom: 1.25rem;
+    margin-top: 3.5rem;
+  }
+
+  .arkivra-prose :where(h3) {
+    font-size: 1.35rem;
+    margin-bottom: 0.75rem;
+    margin-top: 2.25rem;
+  }
+
+  .arkivra-prose :where(h4) {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+    margin-top: 1.75rem;
+  }
+
+  .arkivra-prose :where(p) {
+    margin-bottom: 1.25rem;
+    margin-top: 1.25rem;
+  }
+
+  .arkivra-prose :where(h2 + *, h3 + *, h4 + *) {
+    margin-top: 0;
+  }
+
+  .arkivra-prose :where(ul, ol) {
+    margin-bottom: 1.25rem;
+    margin-top: 1.25rem;
+    padding-inline-start: 1.75rem;
+  }
+
+  .arkivra-prose :where(ul) {
+    list-style-type: disc;
+  }
+
+  .arkivra-prose :where(ol) {
+    list-style-type: decimal;
+  }
+
+  .arkivra-prose :where(li) {
+    margin-bottom: 0.5rem;
+    margin-top: 0.5rem;
+    padding-inline-start: 0.25rem;
+  }
+
+  .arkivra-prose :where(blockquote, figcaption) {
+    color: hsl(var(--muted-foreground));
+  }
+
+  .arkivra-prose :where(blockquote) {
+    border-inline-start-width: 0.25rem;
+    margin-bottom: 2rem;
+    margin-top: 2rem;
+    padding-inline-start: 1.25rem;
+  }
+
+  .arkivra-prose :where(ol > li)::marker,
+  .arkivra-prose :where(ul > li)::marker {
+    color: hsl(var(--muted-foreground));
+  }
+
+  .arkivra-prose :where(hr) {
+    border-top-width: 1px;
+    margin-bottom: 3rem;
+    margin-top: 3rem;
+  }
+
+  .arkivra-prose :where(a) {
+    color: hsl(var(--primary)) !important;
+    font-weight: 600;
+    text-decoration-line: underline;
+    text-underline-offset: 3px;
+    transition-duration: 150ms;
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .arkivra-prose :where(a):hover {
+    color: hsl(var(--foreground)) !important;
+  }
+
+  .arkivra-prose :where(code):not(:where(pre, h1, h2, h3, h4, h5, h6) code) {
+    border-radius: calc(var(--radius) - 2px) !important;
+    background-color: hsl(var(--muted)) !important;
+    color: hsl(var(--foreground)) !important;
+    font-size: 0.875em;
+    padding: 0.125rem 0.375rem;
+  }
+
+  .arkivra-prose :where(:not(pre) > code)::before,
+  .arkivra-prose :where(:not(pre) > code)::after  {
+    content: "" !important;
+  }
+
+  .arkivra-prose .expressive-code {
+    margin-bottom: 1.5rem;
+    margin-top: 1.5rem;
+  }
+
+  .arkivra-prose :where(pre) {
+    background-color: hsl(var(--muted));
+    border-radius: calc(var(--radius) + 2px);
+    color: hsl(var(--foreground));
+    margin-bottom: 1.5rem;
+    margin-top: 1.5rem;
+    overflow-x: auto;
+    padding: 1rem;
+  }
+
+  .arkivra-prose :where(pre code) {
+    background: transparent !important;
+    color: inherit !important;
+    padding: 0;
+  }
+
+  .arkivra-prose :where(table) {
+    margin-bottom: 2rem;
+    margin-top: 2rem;
+    width: 100%;
+  }
+
+  .arkivra-prose :where(th, td) {
+    border-bottom-width: 1px;
+    padding: 0.65rem 1rem;
+    text-align: start;
+    vertical-align: baseline;
+  }
+
+  .arkivra-prose :where(th:first-child, td:first-child) {
+    padding-left: 0;
+  }
+
+  .arkivra-prose :where(th:last-child, td:last-child) {
+    padding-right: 0;
+  }
+
+  .arkivra-prose > :first-child {
+    margin-top: 0;
+  }
+
+  .arkivra-prose > :last-child {
+    margin-bottom: 0;
   }

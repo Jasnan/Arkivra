@@ -575,6 +575,7 @@ export function createPostgresWorker<TData extends Record<string, unknown>>({
   staleAfterMs = 5 * 60 * 1000,
   handler,
   autorun = true,
+  pauseWhen,
 }: {
   db: Database;
   queueName: string;
@@ -584,6 +585,7 @@ export function createPostgresWorker<TData extends Record<string, unknown>>({
   staleAfterMs?: number;
   handler: (job: AsyncJob<TData>) => Promise<Record<string, unknown> | void>;
   autorun?: boolean;
+  pauseWhen?: () => Promise<boolean>;
 }) {
   const emitter = new EventEmitter();
   const workerId = generateId({ prefix: `${queueName}-worker` });
@@ -597,6 +599,11 @@ export function createPostgresWorker<TData extends Record<string, unknown>>({
     while (true) {
       if (closed) {
         break;
+      }
+
+      if (pauseWhen !== undefined && await pauseWhen()) {
+        await sleep(pollIntervalMs);
+        continue;
       }
 
       if (Date.now() - lastRecoveryAt >= staleAfterMs) {

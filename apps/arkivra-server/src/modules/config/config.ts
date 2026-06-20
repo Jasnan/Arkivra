@@ -1,6 +1,16 @@
 import { defineConfig } from 'figue';
 import { z } from 'zod';
 
+function isValidBackupArchiveEncryptionKey(value: string) {
+  const trimmed = value.trim();
+  if (/^[\da-f]{64}$/i.test(trimmed)) {
+    return true;
+  }
+
+  const decoded = Buffer.from(trimmed, 'base64');
+  return decoded.length === 32;
+}
+
 export const configDefinition = {
   app: {
     instance: {
@@ -109,11 +119,42 @@ export const configDefinition = {
       default: './backups',
       env: 'ARKIVRA_BACKUPS_PATH',
     },
+    archiveEncryptionKey: {
+      doc: '32-byte key used to encrypt backup archives at rest and during transfer. Accepts 64 hex characters or base64.',
+      schema: z
+        .string()
+        .trim()
+        .min(1)
+        .refine(isValidBackupArchiveEncryptionKey, {
+          message: 'ARKIVRA_BACKUP_ENCRYPTION_KEY must be a 32-byte key encoded as 64 hex characters or base64.',
+        })
+        .optional(),
+      default: undefined,
+      env: 'ARKIVRA_BACKUP_ENCRYPTION_KEY',
+    },
+    partSizeBytes: {
+      doc: 'Maximum size for each encrypted backup archive part.',
+      schema: z.coerce
+        .number()
+        .int()
+        .min(512 * 1024 * 1024)
+        .max(64 * 1024 * 1024 * 1024),
+      default: 16 * 1024 * 1024 * 1024,
+      env: 'ARKIVRA_BACKUP_PART_SIZE_BYTES',
+    },
     maintenanceFlagFile: {
       doc: 'Filename used to indicate maintenance mode during restore operations.',
       schema: z.string(),
       default: '.maintenance-mode',
       env: 'ARKIVRA_BACKUPS_MAINTENANCE_FLAG_FILE',
+    },
+  },
+  restore: {
+    bootstrapToken: {
+      doc: 'One-time bootstrap token that enables unauthenticated first-run instance restore when no active admin exists.',
+      schema: z.string().optional(),
+      default: undefined,
+      env: 'ARKIVRA_RESTORE_BOOTSTRAP_TOKEN',
     },
   },
   docling: {

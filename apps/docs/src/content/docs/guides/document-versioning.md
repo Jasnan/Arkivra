@@ -53,4 +53,4 @@ Chat conversations freeze their document-version context when the first user mes
 
 Backups include the PostgreSQL database and filesystem document storage. Version rows, chunks, embeddings, chat manifest rows, citation metadata, and version-owned source files are part of those stores.
 
-Backups do not include `.env`, `ARKIVRA_ENCRYPTION_KEYS`, provider credentials, SMTP/OAuth secrets, reverse proxy configuration, or TLS material. A backup that contains encrypted version source files is only usable if the operator also preserves every encryption key version needed by those files.
+Backups do not include `.env`, `ARKIVRA_ENCRYPTION_KEYS`, `ARKIVRA_BACKUP_ENCRYPTION_KEY`, provider credentials, SMTP/OAuth secrets, reverse proxy configuration, or TLS material. A backup that contains encrypted version source files is only usable if the operator also preserves every encryption key version needed by those files.

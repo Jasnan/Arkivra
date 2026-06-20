@@ -1,10 +1,11 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { createBackupArchive, restoreBackupArchive } from './backup.worker.js';
 
 describe('backup worker helpers', () => {
+  const backupEncryptionKeyRaw = 'a'.repeat(64);
   let backupDirectory = '';
   let storageBasePath = '';
   let extractedStorageKey = '';
@@ -64,12 +65,16 @@ describe('backup worker helpers', () => {
 
     const result = await createBackupArchive({
       backupDirectory,
+      backupEncryptionKeyRaw,
+      backupPartSizeBytes: 512 * 1024 * 1024,
+      maintenanceFlagPath: join(backupDirectory, '.maintenance-mode.test'),
       pool,
       storageBasePath,
       version: 'test',
     });
 
     expect(result.backupId).toContain('arkivra-backup-');
+    expect(result.backupId).toContain('.manifest.json');
     const archiveBytes = await readFile(result.filePath);
     expect(archiveBytes.length).toBeGreaterThan(0);
   });
@@ -89,6 +94,9 @@ describe('backup worker helpers', () => {
 
     const backup = await createBackupArchive({
       backupDirectory,
+      backupEncryptionKeyRaw,
+      backupPartSizeBytes: 512 * 1024 * 1024,
+      maintenanceFlagPath,
       pool: createPool,
       storageBasePath,
       version: 'test',
@@ -99,6 +107,7 @@ describe('backup worker helpers', () => {
 
     const result = await restoreBackupArchive({
       backupDirectory,
+      backupEncryptionKeyRaw,
       backupId: backup.backupId,
       maintenanceFlagPath,
       pool,
@@ -112,5 +121,44 @@ describe('backup worker helpers', () => {
 
     const restoredFile = await readFile(join(storageBasePath, extractedStorageKey), 'utf8');
     expect(restoredFile).toBe('encrypted-file');
+  });
+
+  test('fails backup before publishing when referenced storage is missing', async () => {
+    const isolatedBackupDirectory = await mkdtemp(join(tmpdir(), 'arkivra-backup-missing-file-'));
+    const isolatedStoragePath = await mkdtemp(join(tmpdir(), 'arkivra-backup-missing-storage-'));
+    const maintenanceFlagPath = join(isolatedBackupDirectory, '.maintenance-mode.test');
+    const pool = {
+      query: vi.fn(async (queryText: string) => {
+        if (queryText.includes('COUNT(*)::int AS count')) {
+          return { rows: [{ count: 0 }] };
+        }
+
+        if (queryText.includes('original_storage_key AS storage_key')) {
+          return { rows: [{ storage_key: 'missing/source.bin' }] };
+        }
+
+        return { rows: [] };
+      }),
+    } as never;
+
+    try {
+      await expect(createBackupArchive({
+        backupDirectory: isolatedBackupDirectory,
+        backupEncryptionKeyRaw,
+        backupPartSizeBytes: 512 * 1024 * 1024,
+        maintenanceFlagPath,
+        pool,
+        storageBasePath: isolatedStoragePath,
+        version: 'test',
+      })).rejects.toThrow();
+
+      const entries = await readdir(isolatedBackupDirectory);
+      expect(entries.some(entry => entry.endsWith('.manifest.json'))).toBe(false);
+      expect(entries).not.toContain('.maintenance-mode.test');
+    }
+    finally {
+      await rm(isolatedBackupDirectory, { recursive: true, force: true });
+      await rm(isolatedStoragePath, { recursive: true, force: true });
+    }
   });
 });

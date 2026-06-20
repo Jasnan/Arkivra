@@ -152,6 +152,10 @@ describe('admin and about pages', () => {
               fileName: 'arkivra-backup-1.tar.gz',
               size: 1024,
               createdAt: '2026-04-14T18:00:00.000Z',
+              format: 'legacy_tar_gz',
+              partCount: 1,
+              restorable: true,
+              corruptReason: null,
             },
           ],
         });
@@ -411,6 +415,9 @@ describe('admin and about pages', () => {
     });
 
     await user.click(screen.getByRole('button', { name: /restore/i }));
+    expect(await screen.findByRole('dialog', { name: /restore backup/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: /destructive and replaces/i }));
+    await user.click(screen.getByRole('button', { name: /queue restore/i }));
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/admin/backups/restore',

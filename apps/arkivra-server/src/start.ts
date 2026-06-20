@@ -134,6 +134,7 @@ export async function startApp() {
       parsePipeline,
       concurrency: config.backgroundJobs.documentProcessingConcurrency,
       appInstance: config.app.instance,
+      pauseWhen: backupServices.isMaintenanceModeEnabled,
       activityServices,
       adminAiServices,
       embeddingIndexQueue,
@@ -143,9 +144,12 @@ export async function startApp() {
       defaultRetentionDays: config.backgroundJobs.documentRetentionDays,
       storage,
       appInstance: config.app.instance,
+      pauseWhen: backupServices.isMaintenanceModeEnabled,
     });
     const backupWorker = createBackupWorker({
       backupDirectory: backupServices.backupDirectory,
+      backupEncryptionKeyRaw: config.backups.archiveEncryptionKey,
+      backupPartSizeBytes: config.backups.partSizeBytes,
       db,
       maintenanceFlagPath: backupServices.maintenanceFlagPath,
       pool,
@@ -157,6 +161,7 @@ export async function startApp() {
       db,
       appInstance: config.app.instance,
       adminAiServices,
+      pauseWhen: backupServices.isMaintenanceModeEnabled,
       embeddingProviders: {
         ollama: createOllamaEmbeddingProvider({
           batchSize: config.ollama.embeddingBatchSize,

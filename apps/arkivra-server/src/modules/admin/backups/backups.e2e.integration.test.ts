@@ -91,6 +91,7 @@ describe.sequential('backups e2e', () => {
         ARKIVRA_SERVER_BASE_URL: 'http://localhost:1221',
         ARKIVRA_CORS_ORIGINS: 'http://localhost:1221',
         ARKIVRA_AUTH_TRUSTED_ORIGINS: 'http://localhost:1221',
+        ARKIVRA_BACKUP_ENCRYPTION_KEY: 'b'.repeat(64),
       },
     });
 
@@ -106,6 +107,8 @@ describe.sequential('backups e2e', () => {
     backupQueue = createBackupQueue({ db });
     backupWorker = createBackupWorker({
       backupDirectory: backupServices.backupDirectory,
+      backupEncryptionKeyRaw: config.backups.archiveEncryptionKey,
+      backupPartSizeBytes: config.backups.partSizeBytes,
       db,
       maintenanceFlagPath: backupServices.maintenanceFlagPath,
       pool,

@@ -3,6 +3,10 @@ export interface BackupListItem {
   fileName: string;
   size: number;
   createdAt: string;
+  format: 'legacy_tar_gz' | 'encrypted_multipart';
+  partCount: number;
+  restorable: boolean;
+  corruptReason: string | null;
 }
 
 export interface AdminUser {

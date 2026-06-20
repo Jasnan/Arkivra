@@ -140,6 +140,112 @@ export function getBackupDownloadUrl({ backupId }: { backupId: string }) {
   return `/api/admin/backups/${backupId}/download`;
 }
 
+export function getBackupPartDownloadUrl({
+  backupId,
+  partFileName,
+}: {
+  backupId: string;
+  partFileName: string;
+}) {
+  return `/api/admin/backups/${backupId}/parts/${partFileName}/download`;
+}
+
+export interface BackupArchiveManifest {
+  id: string;
+  archive: {
+    parts: Array<{ fileName: string; index: number; size: number; sha256: string }>;
+  };
+}
+
+export async function importBackupManifest({ manifest }: { manifest: BackupArchiveManifest }) {
+  return fetchJson<{ backupId: string; partCount: number }>('/api/admin/backups/imports', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ manifest }),
+  });
+}
+
+export async function uploadBackupPart({
+  backupId,
+  file,
+}: {
+  backupId: string;
+  file: File;
+}) {
+  return fetchJson<{ uploaded: true }>(
+    `/api/admin/backups/imports/${backupId}/parts/${encodeURIComponent(file.name)}`,
+    {
+      method: 'PUT',
+      headers: { 'content-type': 'application/octet-stream' },
+      body: file,
+    },
+  );
+}
+
+export async function getBootstrapRestoreStatus() {
+  return fetchJson<{
+    available: boolean;
+    reason: string | null;
+    archiveEncryptionConfigured: boolean;
+  }>('/api/restore/bootstrap/status');
+}
+
+export async function importBootstrapBackupManifest({
+  manifest,
+  token,
+}: {
+  manifest: BackupArchiveManifest;
+  token: string;
+}) {
+  return fetchJson<{ backupId: string; partCount: number }>('/api/restore/bootstrap/imports', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-arkivra-restore-token': token,
+    },
+    body: JSON.stringify({ manifest }),
+  });
+}
+
+export async function uploadBootstrapBackupPart({
+  backupId,
+  file,
+  token,
+}: {
+  backupId: string;
+  file: File;
+  token: string;
+}) {
+  return fetchJson<{ uploaded: true }>(
+    `/api/restore/bootstrap/imports/${backupId}/parts/${encodeURIComponent(file.name)}`,
+    {
+      method: 'PUT',
+      headers: {
+        'content-type': 'application/octet-stream',
+        'x-arkivra-restore-token': token,
+      },
+      body: file,
+    },
+  );
+}
+
+export async function restoreBootstrapBackup({
+  backupId,
+  token,
+}: {
+  backupId: string;
+  token: string;
+}) {
+  return fetchJson<{ jobId: string }>('/api/restore/bootstrap/restore', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-arkivra-restore-token': token,
+    },
+    body: JSON.stringify({ backupId }),
+  });
+}
+
 export async function getAdminAiSettings() {
   return fetchJson<{ settings: AdminAiSettings }>('/api/admin/ai/settings');
 }

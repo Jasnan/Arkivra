@@ -3,8 +3,6 @@ title: AI Providers
 description: Configure optional AI features and understand provider data exposure.
 ---
 
-# AI Providers
-
 AI features are optional. Upload, parsing, vaults, document versions, full-text search, preview, download, trash, restore, and backups do not require an AI provider.
 
 ## Supported Runtime Paths

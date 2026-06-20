@@ -3,8 +3,6 @@ title: Document Versioning
 description: Understand upload conflicts, version restore, version deletion, and version-aware chat behavior.
 ---
 
-# Document Versioning
-
 Arkivra stores each document as a logical record with one or more immutable content versions. The logical document keeps the vault, folder, display name, tags, trash state, and current-version pointer. Each version owns the uploaded source file, parser output, extracted text, chunks, extracted assets, page previews, embedding rows, and processing status.
 
 This means a new upload can create either a new document or a new version of an existing document, depending on the selected upload conflict strategy.

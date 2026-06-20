@@ -3,8 +3,6 @@ title: OAuth Setup
 description: Configure optional Google and GitHub OAuth sign-in.
 ---
 
-# OAuth Setup
-
 Google and GitHub OAuth are optional. Configure a provider only when you want that sign-in method enabled.
 
 ## Google

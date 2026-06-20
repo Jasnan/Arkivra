@@ -3,8 +3,6 @@ title: Roles And Administration
 description: Understand system roles, vault roles, and vault AI access.
 ---
 
-# Roles And Administration
-
 Arkivra separates system administration from vault membership. System admins can manage instance-level settings and users, while vault roles control access inside individual vaults.
 
 ## System Roles

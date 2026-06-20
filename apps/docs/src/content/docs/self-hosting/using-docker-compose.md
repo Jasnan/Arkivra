@@ -3,8 +3,6 @@ title: Using Docker Compose
 description: Self-host Arkivra with the repository Docker Compose stack.
 ---
 
-# Using Docker Compose
-
 The repository includes a Docker Compose stack for the current self-hosted path.
 
 ## Services
@@ -78,4 +76,4 @@ For a separate Docling Serve instance configured with a local VLM runtime, scan-
 - Keep API, worker, and web origins aligned through `ARKIVRA_SERVER_BASE_URL`, `ARKIVRA_WEB_BASE_URL`, `ARKIVRA_CORS_ORIGINS`, and `BETTER_AUTH_URL`.
 - Keep `ARKIVRA_ENCRYPTION_KEYS` backed up outside the host.
 
-See [Configuration](./configuration.md) for the full environment variable reference.
+See [Configuration](/self-hosting/configuration/) for the full environment variable reference.

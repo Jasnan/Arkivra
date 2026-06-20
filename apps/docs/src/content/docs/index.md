@@ -1,9 +1,7 @@
 ---
-title: Introduction
+title: Arkivra Documentation
 description: Documentation for self-hosting, configuring, and operating Arkivra.
 ---
-
-# Arkivra Documentation
 
 Arkivra is an open-source, self-hosted document management system for vault-based document ownership, upload, parsing, search, optional semantic retrieval, and optional AI-assisted chat.
 
@@ -11,16 +9,16 @@ The core document workflow does not require AI. PostgreSQL, Docling, the API, th
 
 ## Start Here
 
-- [Using Docker Compose](./self-hosting/using-docker-compose.md)
-- [Configuration](./self-hosting/configuration.md)
-- [First admin and authentication](./self-hosting/first-admin-and-auth.md)
-- [Roles and administration](./guides/roles-and-administration.md)
-- [Document versioning](./guides/document-versioning.md)
-- [Document encryption](./guides/document-encryption.md)
-- [Backups and restore](./guides/backups-and-restore.md)
-- [Search](./guides/search.md)
-- [AI providers](./guides/ai-providers.md)
-- [Troubleshooting](./resources/troubleshooting.md)
+- [Using Docker Compose](/self-hosting/using-docker-compose/)
+- [Configuration](/self-hosting/configuration/)
+- [First admin and authentication](/self-hosting/first-admin-and-auth/)
+- [Roles and administration](/guides/roles-and-administration/)
+- [Document versioning](/guides/document-versioning/)
+- [Document encryption](/guides/document-encryption/)
+- [Backups and restore](/guides/backups-and-restore/)
+- [Search](/guides/search/)
+- [AI providers](/guides/ai-providers/)
+- [Troubleshooting](/resources/troubleshooting/)
 
 ## Security And Privacy Boundaries
 

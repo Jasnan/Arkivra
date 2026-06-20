@@ -3,8 +3,6 @@ title: From Source
 description: Run Arkivra from a local source checkout.
 ---
 
-# From Source
-
 Use this path for local development or evaluation from a source checkout. Production deployments should still review secrets, TLS, network access, email delivery, backups, and database operations before storing important documents.
 
 ## Requirements
@@ -60,4 +58,4 @@ docker compose up -d
 pnpm dev:web
 ```
 
-See [Using Docker Compose](./using-docker-compose.md) for the Compose service layout and required production values.
+See [Using Docker Compose](/self-hosting/using-docker-compose/) for the Compose service layout and required production values.

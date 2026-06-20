@@ -3,8 +3,6 @@ title: Document Encryption
 description: Configure encryption at rest for uploaded files and extracted assets.
 ---
 
-# Document Encryption
-
 When `ARKIVRA_ENCRYPTION_KEYS` is configured, Arkivra uses envelope encryption for uploaded original files and stored extracted assets.
 
 Generate a key:

@@ -3,8 +3,6 @@ title: Search
 description: Understand full-text search, semantic search, and version-aware retrieval.
 ---
 
-# Search
-
 ## Full-Text Search
 
 Full-text search works without AI. After documents are uploaded and parsed, Arkivra stores extracted text and search data in PostgreSQL. Users can search by title, content, tags, dates, vaults, and other filters depending on the dashboard surface.

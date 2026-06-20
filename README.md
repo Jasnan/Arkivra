@@ -141,6 +141,8 @@ Arkivra is licensed under the [AGPL-3.0](LICENSE).
 
 ---
 
+## About the Project
+
 Arkivra is an open-source project created and maintained by [Jasnan Thachaparamban](https://jasnan.xyz).
 
 It began as a personal project and continues to grow through curiosity, experimentation, and feedback from friends who have tested early versions.

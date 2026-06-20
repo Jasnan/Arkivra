@@ -42,6 +42,7 @@ describe.sequential('background jobs e2e', () => {
       env: {
         ...process.env,
         NODE_ENV: 'test',
+        ARKIVRA_ENCRYPTION_KEYS: process.env.ARKIVRA_ENCRYPTION_KEYS ?? `1:${'a'.repeat(64)}`,
         ARKIVRA_DATABASE_URL:
           process.env.ARKIVRA_DATABASE_URL ?? 'postgres://arkivra:arkivra@127.0.0.1:5432/arkivra',
         ARKIVRA_STORAGE_FS_PATH: storagePath,

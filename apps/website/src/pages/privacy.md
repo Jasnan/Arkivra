@@ -54,7 +54,7 @@ The software does not send document content, user information, usage data, or op
 
 ### Document Storage
 
-When `ARKIVRA_ENCRYPTION_KEYS` is configured, Arkivra encrypts uploaded files and stored extracted assets at rest.
+Arkivra encrypts uploaded files and stored extracted assets at rest with `ARKIVRA_ENCRYPTION_KEYS`.
 
 To support search, retrieval, and optional AI-assisted features, Arkivra also stores processed document data separately from the original files. Depending on configuration, this may include:
 

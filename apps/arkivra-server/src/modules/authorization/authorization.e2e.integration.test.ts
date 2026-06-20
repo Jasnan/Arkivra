@@ -35,6 +35,7 @@ describe.sequential('authorization e2e', () => {
       env: {
         ...process.env,
         NODE_ENV: 'test',
+        ARKIVRA_ENCRYPTION_KEYS: process.env.ARKIVRA_ENCRYPTION_KEYS ?? `1:${'a'.repeat(64)}`,
         ARKIVRA_DATABASE_URL:
           process.env.ARKIVRA_DATABASE_URL ?? 'postgres://arkivra:arkivra@127.0.0.1:5432/arkivra',
         ARKIVRA_STORAGE_FS_PATH: storagePath,
@@ -255,7 +256,9 @@ describe.sequential('authorization e2e', () => {
     const membersBeforeRootAddedBody = (await membersBeforeRootAddedResponse.json()) as {
       members: Array<{ userId: string }>;
     };
-    expect(membersBeforeRootAddedBody.members.some(member => member.userId === firstAdmin.userId)).toBe(false);
+    expect(
+      membersBeforeRootAddedBody.members.some((member) => member.userId === firstAdmin.userId),
+    ).toBe(false);
 
     const addMemberResponse = await app.request(`/api/vaults/${vaultId}/members`, {
       method: 'POST',
@@ -343,8 +346,6 @@ describe.sequential('authorization e2e', () => {
       },
     );
     expect([200, 409]).toContain(revokeLastAdminResponse.status);
-    expect(revokeLastAdminResponse.status).toBe(
-      activeAdminsBeforeRevoke.length <= 1 ? 409 : 200,
-    );
+    expect(revokeLastAdminResponse.status).toBe(activeAdminsBeforeRevoke.length <= 1 ? 409 : 200);
   }, 30_000);
 });

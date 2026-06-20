@@ -73,9 +73,9 @@ OAuth variables are optional: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGL
 
 ## Encryption
 
-| Variable                  | Purpose                                                         |
-| ------------------------- | --------------------------------------------------------------- |
-| `ARKIVRA_ENCRYPTION_KEYS` | Comma-separated key-encryption keys in `version:hex-key` format |
+| Variable                  | Purpose                                                         | Default              |
+| ------------------------- | --------------------------------------------------------------- | -------------------- |
+| `ARKIVRA_ENCRYPTION_KEYS` | Comma-separated key-encryption keys in `version:hex-key` format | required; no default |
 
 Generate a key with:
 

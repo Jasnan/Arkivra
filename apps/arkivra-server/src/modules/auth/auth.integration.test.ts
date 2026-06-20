@@ -62,7 +62,13 @@ function createMockAuth() {
 }
 
 const mockDb = {} as Database;
-function createMockDbWithAccounts(accounts: Array<{ password: string | null; providerId: string }>) {
+const requiredEnv = {
+  ARKIVRA_ENCRYPTION_KEYS: `1:${'a'.repeat(64)}`,
+};
+
+function createMockDbWithAccounts(
+  accounts: Array<{ password: string | null; providerId: string }>,
+) {
   return {
     select: (selection?: unknown) => ({
       from: () => ({
@@ -84,31 +90,33 @@ function createMockSensitiveActionDb(
   accounts: Array<{ id: string; password: string | null; providerId: string; userId: string }>,
   options?: { existingEmailUserId?: string | null },
 ) {
-  const insertReturning = vi.fn(async () => [{
-    actorDisplayName: 'Alex',
-    actorId: 'usr_test_1',
-    actorType: 'user',
-    after: null,
-    before: null,
-    createdAt: new Date(),
-    documentId: null,
-    eventCategory: 'auth',
-    eventType: 'auth.password_set',
-    id: 'aud_test_1',
-    ipAddress: null,
-    metadata: null,
-    occurredAt: new Date(),
-    outcome: 'success',
-    requestId: null,
-    schemaVersion: 1,
-    severity: 'notice',
-    source: 'api',
-    targetDisplayName: 'Alex',
-    targetId: 'usr_test_1',
-    targetType: 'user',
-    userAgent: null,
-    vaultId: null,
-  }]);
+  const insertReturning = vi.fn(async () => [
+    {
+      actorDisplayName: 'Alex',
+      actorId: 'usr_test_1',
+      actorType: 'user',
+      after: null,
+      before: null,
+      createdAt: new Date(),
+      documentId: null,
+      eventCategory: 'auth',
+      eventType: 'auth.password_set',
+      id: 'aud_test_1',
+      ipAddress: null,
+      metadata: null,
+      occurredAt: new Date(),
+      outcome: 'success',
+      requestId: null,
+      schemaVersion: 1,
+      severity: 'notice',
+      source: 'api',
+      targetDisplayName: 'Alex',
+      targetId: 'usr_test_1',
+      targetType: 'user',
+      userAgent: null,
+      vaultId: null,
+    },
+  ]);
   const insertValues = vi.fn(() => ({ returning: insertReturning }));
   const updateWhere = vi.fn(async () => undefined);
   const updateSet = vi.fn(() => ({ where: updateWhere }));
@@ -130,9 +138,9 @@ function createMockSensitiveActionDb(
             }
 
             return {
-              limit: vi.fn(async () => (
-                options?.existingEmailUserId ? [{ id: options.existingEmailUserId }] : []
-              )),
+              limit: vi.fn(async () =>
+                options?.existingEmailUserId ? [{ id: options.existingEmailUserId }] : [],
+              ),
             };
           }),
         }),
@@ -181,7 +189,7 @@ const mockAuthorizationServices = {
 
 describe('auth integration', () => {
   test('delegates signup route to Better Auth handler', async () => {
-    const { config } = parseConfig({ env: {} });
+    const { config } = parseConfig({ env: requiredEnv });
     const { auth, handler } = createMockAuth();
 
     const { app } = createServer({
@@ -201,7 +209,7 @@ describe('auth integration', () => {
   });
 
   test('delegates login route to Better Auth handler', async () => {
-    const { config } = parseConfig({ env: {} });
+    const { config } = parseConfig({ env: requiredEnv });
     const { auth, handler } = createMockAuth();
 
     const { app } = createServer({
@@ -221,7 +229,7 @@ describe('auth integration', () => {
   });
 
   test('delegates social login route to Better Auth handler', async () => {
-    const { config } = parseConfig({ env: {} });
+    const { config } = parseConfig({ env: requiredEnv });
     const { auth, handler } = createMockAuth();
 
     const { app } = createServer({
@@ -241,7 +249,7 @@ describe('auth integration', () => {
   });
 
   test('delegates 2FA route to Better Auth handler', async () => {
-    const { config } = parseConfig({ env: {} });
+    const { config } = parseConfig({ env: requiredEnv });
     const { auth, handler } = createMockAuth();
 
     const { app } = createServer({
@@ -261,7 +269,7 @@ describe('auth integration', () => {
   });
 
   test('returns 401 on /api/me when session is missing', async () => {
-    const { config } = parseConfig({ env: {} });
+    const { config } = parseConfig({ env: requiredEnv });
     const { auth } = createMockAuth();
 
     const { app } = createServer({
@@ -285,7 +293,7 @@ describe('auth integration', () => {
   });
 
   test('returns current user data on /api/me when session is present', async () => {
-    const { config } = parseConfig({ env: {} });
+    const { config } = parseConfig({ env: requiredEnv });
     const { auth, getSession } = createMockAuth();
 
     getSession.mockResolvedValue({
@@ -335,7 +343,7 @@ describe('auth integration', () => {
   });
 
   test('sets a password for a recently verified OAuth-only account', async () => {
-    const { config } = parseConfig({ env: {} });
+    const { config } = parseConfig({ env: requiredEnv });
     const { auth, getSession, hash } = createMockAuth();
     const { db, insertValues } = createMockSensitiveActionDb([
       {
@@ -376,16 +384,18 @@ describe('auth integration', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ status: true });
     expect(hash).toHaveBeenCalledWith('strongpass123');
-    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({
-      accountId: 'usr_test_1',
-      password: 'hashed:strongpass123',
-      providerId: 'credential',
-      userId: 'usr_test_1',
-    }));
+    expect(insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: 'usr_test_1',
+        password: 'hashed:strongpass123',
+        providerId: 'credential',
+        userId: 'usr_test_1',
+      }),
+    );
   });
 
   test('rejects setting a password when OAuth verification is stale', async () => {
-    const { config } = parseConfig({ env: {} });
+    const { config } = parseConfig({ env: requiredEnv });
     const { auth, getSession, hash } = createMockAuth();
     const { db, insertValues } = createMockSensitiveActionDb([
       {
@@ -431,13 +441,15 @@ describe('auth integration', () => {
       },
     });
     expect(hash).not.toHaveBeenCalled();
-    expect(insertValues).not.toHaveBeenCalledWith(expect.objectContaining({
-      providerId: 'credential',
-    }));
+    expect(insertValues).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'credential',
+      }),
+    );
   });
 
   test('requests an email change only after password verification', async () => {
-    const { config } = parseConfig({ env: {} });
+    const { config } = parseConfig({ env: requiredEnv });
     const { auth, changeEmail, getSession, verify } = createMockAuth();
     const { db } = createMockSensitiveActionDb([
       {
@@ -485,16 +497,18 @@ describe('auth integration', () => {
       hash: 'hashed_password',
       password: 'secret123',
     });
-    expect(changeEmail).toHaveBeenCalledWith(expect.objectContaining({
-      body: {
-        callbackURL: 'http://localhost:3000/settings/security',
-        newEmail: 'new@example.com',
-      },
-    }));
+    expect(changeEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: {
+          callbackURL: 'http://localhost:3000/settings/security',
+          newEmail: 'new@example.com',
+        },
+      }),
+    );
   });
 
   test('rejects email change for OAuth-only accounts', async () => {
-    const { config } = parseConfig({ env: {} });
+    const { config } = parseConfig({ env: requiredEnv });
     const { auth, changeEmail, getSession } = createMockAuth();
     const { db } = createMockSensitiveActionDb([
       {
@@ -546,16 +560,19 @@ describe('auth integration', () => {
   });
 
   test('rejects email change when another account already uses the requested email', async () => {
-    const { config } = parseConfig({ env: {} });
+    const { config } = parseConfig({ env: requiredEnv });
     const { auth, changeEmail, getSession } = createMockAuth();
-    const { db } = createMockSensitiveActionDb([
-      {
-        id: 'acc_credential_1',
-        password: 'hashed_password',
-        providerId: 'credential',
-        userId: 'usr_test_1',
-      },
-    ], { existingEmailUserId: 'usr_other' });
+    const { db } = createMockSensitiveActionDb(
+      [
+        {
+          id: 'acc_credential_1',
+          password: 'hashed_password',
+          providerId: 'credential',
+          userId: 'usr_test_1',
+        },
+      ],
+      { existingEmailUserId: 'usr_other' },
+    );
 
     getSession.mockResolvedValue({
       user: {
@@ -599,7 +616,7 @@ describe('auth integration', () => {
   });
 
   test('starts OAuth account linking only after password verification', async () => {
-    const { config } = parseConfig({ env: {} });
+    const { config } = parseConfig({ env: requiredEnv });
     const { auth, getSession, linkSocialAccount, verify } = createMockAuth();
     const { db, insertValues } = createMockSensitiveActionDb([
       {
@@ -651,25 +668,29 @@ describe('auth integration', () => {
       hash: 'hashed_password',
       password: 'secret123',
     });
-    expect(linkSocialAccount).toHaveBeenCalledWith(expect.objectContaining({
-      asResponse: true,
-      body: {
-        callbackURL: 'http://localhost:3000/settings/security',
-        provider: 'google',
-      },
-    }));
-    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'auth.oauth_link_requested',
-      metadata: {
-        provider: 'google',
-        verification_method: 'password',
-      },
-      outcome: 'success',
-    }));
+    expect(linkSocialAccount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        asResponse: true,
+        body: {
+          callbackURL: 'http://localhost:3000/settings/security',
+          provider: 'google',
+        },
+      }),
+    );
+    expect(insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'auth.oauth_link_requested',
+        metadata: {
+          provider: 'google',
+          verification_method: 'password',
+        },
+        outcome: 'success',
+      }),
+    );
   });
 
   test('rejects OAuth account linking when current password is wrong', async () => {
-    const { config } = parseConfig({ env: {} });
+    const { config } = parseConfig({ env: requiredEnv });
     const { auth, getSession, linkSocialAccount } = createMockAuth();
     const { db } = createMockSensitiveActionDb([
       {
@@ -722,7 +743,7 @@ describe('auth integration', () => {
   });
 
   test('rejects OAuth account linking when provider is already connected', async () => {
-    const { config } = parseConfig({ env: {} });
+    const { config } = parseConfig({ env: requiredEnv });
     const { auth, getSession, linkSocialAccount } = createMockAuth();
     const { db } = createMockSensitiveActionDb([
       {
@@ -781,7 +802,7 @@ describe('auth integration', () => {
   });
 
   test('disconnects an OAuth provider when another sign-in method remains', async () => {
-    const { config } = parseConfig({ env: {} });
+    const { config } = parseConfig({ env: requiredEnv });
     const { auth, getSession } = createMockAuth();
     const { db, deleteWhere } = createMockSensitiveActionDb([
       {
@@ -831,7 +852,7 @@ describe('auth integration', () => {
   });
 
   test('rejects OAuth disconnect when it would remove the last sign-in method', async () => {
-    const { config } = parseConfig({ env: {} });
+    const { config } = parseConfig({ env: requiredEnv });
     const { auth, getSession } = createMockAuth();
     const { db, deleteWhere } = createMockSensitiveActionDb([
       {
@@ -880,7 +901,7 @@ describe('auth integration', () => {
   });
 
   test('blocks and audits direct Better Auth social-link endpoint access', async () => {
-    const { config } = parseConfig({ env: {} });
+    const { config } = parseConfig({ env: requiredEnv });
     const { auth, getSession, handler } = createMockAuth();
     const { db, insertValues } = createMockSensitiveActionDb([
       {
@@ -930,13 +951,15 @@ describe('auth integration', () => {
       },
     });
     expect(handler).not.toHaveBeenCalled();
-    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'auth.sensitive_action_denied',
-      metadata: {
-        action: 'oauth.link',
-        reason: 'direct_auth_endpoint_blocked',
-      },
-      outcome: 'denied',
-    }));
+    expect(insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'auth.sensitive_action_denied',
+        metadata: {
+          action: 'oauth.link',
+          reason: 'direct_auth_endpoint_blocked',
+        },
+        outcome: 'denied',
+      }),
+    );
   });
 });

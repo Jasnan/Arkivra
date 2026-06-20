@@ -46,7 +46,8 @@ export const documentChunkAssetsTable = pgTable(
 
     // Encryption metadata mirrors documents.{file_encryption_key_wrapped,
     // file_encryption_kek_version}. Both null when the asset was stored
-    // in the clear (encryption disabled) or as inline_payload (table HTML).
+    // as inline_payload (table HTML), or for legacy rows written before
+    // runtime encryption keys were required.
     fileEncryptionKeyWrapped: text('file_encryption_key_wrapped'),
     fileEncryptionKekVersion: text('file_encryption_kek_version'),
 

@@ -8,7 +8,7 @@ export const GET: APIRoute = async ({ site }) => {
   const llmTxt = `
 # Arkivra
 
-> Arkivra is an open-source document system for organizing files into vaults, searching across them, and optionally chatting with your documents through an operator-configured Ollama-compatible endpoint.
+> Arkivra is an open-source document management system for organizing files in vaults, searching their contents, and using optional provider-configured AI features when they fit your workflow.
 
 ## Blog Posts
 
@@ -16,8 +16,8 @@ ${posts.map(post => `- [${post.data.title}](${getBlogPostUrl(post.id)}): ${post.
 
 ## Assets
 
-- Arkivra Documentation: unavailable during release prep.
-- Arkivra GitHub: unavailable during release prep.
+- [Arkivra Documentation](https://docs.arkivra.app): Self-hosting, configuration, search, AI providers, encryption, backups, and operations.
+- [Arkivra GitHub](https://github.com/Jasnan/Arkivra): Source code and issues.
 - [Contact](https://jasnan.xyz): Contact the maintainer.
 
 ## Legal

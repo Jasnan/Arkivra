@@ -1,8 +1,8 @@
 export const translations = {
   'language-name': 'English',
 
-  'site.title': 'Arkivra - Open-source document management with AI search',
-  'site.description': 'Arkivra is an open-source document system for organizing files into vaults, searching across them, and optionally chatting with your documents through an operator-configured Ollama-compatible endpoint.',
+  'site.title': 'Arkivra - Open-source document management',
+  'site.description': 'Arkivra is an open-source document management system for organizing files in vaults, searching their contents, and using optional provider-configured AI features when they fit your workflow.',
 
   // Footer Section
   'footer.made-in-europe': 'Built by <a href="https://jasnan.xyz" class="text-primary border-b hover:border-b-primary transition">Jasnan Thachaparamban</a>.',
@@ -37,7 +37,7 @@ export const translations = {
   // Contact Page
   'contact.eyebrow': 'Get involved',
   'contact.title': 'Contact & Contribute',
-  'contact.subtitle': 'Have questions, ideas, or bug reports? Contact Arkivra directly while the public repository is being prepared.',
+  'contact.subtitle': 'Have questions, ideas, or bug reports? Contact Arkivra directly or participate on GitHub.',
   'contact.subtitle.line-1': 'Questions about Arkivra, self-hosting, or deployment?',
   'contact.subtitle.line-2': 'Reach out directly or participate on GitHub.',
   'contact.card.direct.title': 'Contact',

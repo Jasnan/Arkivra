@@ -75,11 +75,11 @@ Rather than acting as a general-purpose chatbot, it focuses on retrieving and pr
 
 ### Privacy and Control
 
-Privacy is not an optional feature.
+Privacy and control matter for document workflows.
 
 Many document collections contain personal, financial, legal, medical, or business information.
 
-Arkivra supports self-hosted deployments with or without AI features enabled. For users who choose to use AI, Ollama-backed local models can keep document processing within their own infrastructure.
+Arkivra supports self-hosted deployments with or without AI features enabled. For users who choose to use AI, local providers can keep model context within their own infrastructure, while remote providers should be treated as an explicit data boundary.
 
 ### Open Source
 
@@ -93,13 +93,13 @@ Behind the scenes, Arkivra extracts structure and text from uploaded documents, 
 
 When encryption keys are configured, uploaded files and stored extracted assets are encrypted at rest. Search and retrieval data are stored separately to enable fast queries across large document collections.
 
-If you choose to run local AI models, document context can remain entirely within your own infrastructure.
+If you choose to run local AI providers, document context can remain entirely within your own infrastructure.
 
 Arkivra does not collect telemetry and is designed to operate without sending usage data back to a central service.
 
 ## Current Status
 
-Arkivra is currently approaching its first public release.
+Arkivra is under active development and not yet at a stable 1.0 release.
 
 The core platform already supports document ingestion, vault organization, permissions, search, semantic retrieval, AI chat, and self-hosted deployment.
 
@@ -115,6 +115,6 @@ A system that is easy to self-host, straightforward to understand, respectful of
 
 If that sounds interesting, I hope you'll follow along as the project moves toward its first stable release.
 
-The repository, documentation, and installation guides will be published alongside the public launch.
+The repository and documentation are available for people who want to try Arkivra, report issues, or follow development.
 
 Thanks for reading.

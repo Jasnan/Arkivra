@@ -19,6 +19,11 @@ dist/
 *.swo
 *~
 
+# Local agent tooling
+.codex
+.codex/
+/docs/
+
 # OS
 .DS_Store
 Thumbs.db

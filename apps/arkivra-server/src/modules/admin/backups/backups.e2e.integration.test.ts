@@ -52,10 +52,9 @@ describe.sequential('backups e2e', () => {
     adminUrl.pathname = '/postgres';
 
     isolatedDatabaseName = `arkivra_backups_e2e_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    isolatedDatabaseUrl = new URL(baseDatabaseUrl).toString().replace(
-      /\/[^/?]+(\?.*)?$/,
-      `/${isolatedDatabaseName}$1`,
-    );
+    isolatedDatabaseUrl = new URL(baseDatabaseUrl)
+      .toString()
+      .replace(/\/[^/?]+(\?.*)?$/, `/${isolatedDatabaseName}$1`);
 
     adminPool = new Pool({ connectionString: adminUrl.toString() });
     await adminPool.query(`CREATE DATABASE "${isolatedDatabaseName}"`);
@@ -85,6 +84,7 @@ describe.sequential('backups e2e', () => {
         ...process.env,
         NODE_ENV: 'test',
         PROCESS_MODE: 'all',
+        ARKIVRA_ENCRYPTION_KEYS: process.env.ARKIVRA_ENCRYPTION_KEYS ?? `1:${'a'.repeat(64)}`,
         ARKIVRA_DATABASE_URL: isolatedDatabaseUrl,
         ARKIVRA_STORAGE_FS_PATH: storagePath,
         ARKIVRA_BACKUPS_PATH: backupDirectory,
@@ -128,15 +128,24 @@ describe.sequential('backups e2e', () => {
 
   afterAll(async () => {
     if (documentId !== null && db !== null) {
-      await db.delete(documentsTable).where(eq(documentsTable.id, documentId)).catch(() => undefined);
+      await db
+        .delete(documentsTable)
+        .where(eq(documentsTable.id, documentId))
+        .catch(() => undefined);
     }
 
     if (vaultId !== null && db !== null) {
-      await db.delete(vaultsTable).where(eq(vaultsTable.id, vaultId)).catch(() => undefined);
+      await db
+        .delete(vaultsTable)
+        .where(eq(vaultsTable.id, vaultId))
+        .catch(() => undefined);
     }
 
     if (userId !== null && db !== null) {
-      await db.delete(usersTable).where(eq(usersTable.id, userId)).catch(() => undefined);
+      await db
+        .delete(usersTable)
+        .where(eq(usersTable.id, userId))
+        .catch(() => undefined);
     }
 
     if (backupQueue !== null) {
@@ -190,7 +199,7 @@ describe.sequential('backups e2e', () => {
 
     expect(signUpResponse.status).toBe(200);
     const sessionCookie = signUpResponse.headers.get('set-cookie')!.split(';', 1)[0];
-    const signUpBody = await signUpResponse.json() as { user: { id: string } };
+    const signUpBody = (await signUpResponse.json()) as { user: { id: string } };
     userId = signUpBody.user.id;
     await db.update(usersTable).set({ systemRole: 'admin' }).where(eq(usersTable.id, userId));
 
@@ -203,7 +212,7 @@ describe.sequential('backups e2e', () => {
       body: JSON.stringify({ name: 'Backups Vault' }),
     });
 
-    const createVaultBody = await createVaultResponse.json() as { vault: { id: string } };
+    const createVaultBody = (await createVaultResponse.json()) as { vault: { id: string } };
     vaultId = createVaultBody.vault.id;
     documentId = `doc_backup_${uniqueSuffix}`;
     const documentVersionId = `dvr_backup_${uniqueSuffix}`;
@@ -272,7 +281,7 @@ describe.sequential('backups e2e', () => {
       const backupsListResponse = await app.request('/api/admin/backups', {
         headers: { cookie: sessionCookie },
       });
-      const backupsListBody = await backupsListResponse.json() as {
+      const backupsListBody = (await backupsListResponse.json()) as {
         backups: Array<{ id: string }>;
       };
 
@@ -282,7 +291,7 @@ describe.sequential('backups e2e', () => {
         break;
       }
 
-      await new Promise(resolve => setTimeout(resolve, 250));
+      await new Promise((resolve) => setTimeout(resolve, 250));
     }
 
     expect(backupId).not.toBeNull();
@@ -320,12 +329,7 @@ describe.sequential('backups e2e', () => {
       const [document] = await db
         .select({ id: documentsTable.id, content: documentsTable.content })
         .from(documentsTable)
-        .where(
-          and(
-            eq(documentsTable.id, documentId),
-            eq(documentsTable.vaultId, vaultId),
-          ),
-        )
+        .where(and(eq(documentsTable.id, documentId), eq(documentsTable.vaultId, vaultId)))
         .limit(1);
 
       const restoredFileExists = await access(join(storagePath, storageKey))
@@ -342,7 +346,7 @@ describe.sequential('backups e2e', () => {
         break;
       }
 
-      await new Promise(resolve => setTimeout(resolve, 250));
+      await new Promise((resolve) => setTimeout(resolve, 250));
     }
 
     const [restoredDocument] = await db

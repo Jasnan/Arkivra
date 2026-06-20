@@ -18,7 +18,7 @@ Check that:
 - PostgreSQL is healthy.
 - `ARKIVRA_DATABASE_URL` points to the right host from the API process.
 - `ARKIVRA_AUTH_SECRET` is set to a stable value.
-- `ARKIVRA_ENCRYPTION_KEYS` is set if encrypted file storage is expected.
+- `ARKIVRA_ENCRYPTION_KEYS` is set.
 
 ## Dashboard Cannot Reach The API
 

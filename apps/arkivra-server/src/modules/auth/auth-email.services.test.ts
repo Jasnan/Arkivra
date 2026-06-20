@@ -2,6 +2,10 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { parseConfig } from '../config/config.js';
 import { createAuthEmailServices } from './auth-email.services.js';
 
+const requiredEnv = {
+  ARKIVRA_ENCRYPTION_KEYS: `1:${'a'.repeat(64)}`,
+};
+
 describe('auth email services', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -10,6 +14,7 @@ describe('auth email services', () => {
   test('logs auth emails in console delivery mode', async () => {
     const { config } = parseConfig({
       env: {
+        ...requiredEnv,
         ARKIVRA_EMAIL_DELIVERY: 'console',
       },
     });
@@ -29,6 +34,7 @@ describe('auth email services', () => {
   test('rejects console delivery when verification is required in production', () => {
     const { config } = parseConfig({
       env: {
+        ...requiredEnv,
         NODE_ENV: 'production',
         ARKIVRA_AUTH_EMAIL_VERIFICATION_REQUIRED: 'true',
         ARKIVRA_EMAIL_DELIVERY: 'console',
@@ -41,6 +47,7 @@ describe('auth email services', () => {
   test('rejects incomplete SMTP configuration', () => {
     const { config } = parseConfig({
       env: {
+        ...requiredEnv,
         ARKIVRA_EMAIL_DELIVERY: 'smtp',
       },
     });

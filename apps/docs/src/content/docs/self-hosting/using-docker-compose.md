@@ -29,11 +29,16 @@ Do not treat the `backups` volume as a complete disaster recovery plan by itself
 
 ## Important Environment Values
 
+Set the encryption key before first startup:
+
+```bash
+ARKIVRA_ENCRYPTION_KEYS=1:<64-hex-character-key>
+```
+
 Set these before production use:
 
 ```bash
 ARKIVRA_AUTH_SECRET=<strong-random-secret>
-ARKIVRA_ENCRYPTION_KEYS=1:<64-hex-character-key>
 ARKIVRA_BACKUP_ENCRYPTION_KEY=<64-hex-character-key>
 ARKIVRA_RESTORE_BOOTSTRAP_TOKEN=<strong-random-token>
 ARKIVRA_SERVER_BASE_URL=https://api.example.com

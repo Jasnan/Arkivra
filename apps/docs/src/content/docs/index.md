@@ -22,7 +22,7 @@ The core document workflow does not require AI. PostgreSQL, Docling, the API, th
 
 ## Security And Privacy Boundaries
 
-- Uploaded original files and extracted assets can be encrypted at rest when `ARKIVRA_ENCRYPTION_KEYS` is configured.
+- Uploaded original files and stored extracted assets are encrypted at rest with `ARKIVRA_ENCRYPTION_KEYS`.
 - Extracted text, chunks, metadata, chat history, embeddings, and vectors may be stored in PostgreSQL and should not be treated as encrypted by Arkivra.
 - Losing the active encryption key means losing access to encrypted stored files.
 - If AI features use a remote or hosted model endpoint, selected or retrieved document context required for a request is sent to that endpoint.

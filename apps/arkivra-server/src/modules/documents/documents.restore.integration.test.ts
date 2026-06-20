@@ -32,6 +32,7 @@ describe.sequential('document restore folder hierarchy', () => {
         ...process.env,
         NODE_ENV: 'test',
         PROCESS_MODE: 'web',
+        ARKIVRA_ENCRYPTION_KEYS: process.env.ARKIVRA_ENCRYPTION_KEYS ?? `1:${'a'.repeat(64)}`,
         ARKIVRA_DATABASE_URL:
           process.env.ARKIVRA_DATABASE_URL ?? 'postgres://arkivra:arkivra@127.0.0.1:5432/arkivra',
         ARKIVRA_SERVER_BASE_URL: 'http://localhost:1221',
@@ -59,11 +60,12 @@ describe.sequential('document restore folder hierarchy', () => {
     await database?.pool.end();
   });
 
-  const { createFixture, createVersionedFixture, getDocument, getFolder } = createRestoreIntegrationFixtures({
-    getDatabase: () => database,
-    addCreatedUserId: userId => createdUserIds.push(userId),
-    uniquePrefix,
-  });
+  const { createFixture, createVersionedFixture, getDocument, getFolder } =
+    createRestoreIntegrationFixtures({
+      getDatabase: () => database,
+      addCreatedUserId: (userId) => createdUserIds.push(userId),
+      uniquePrefix,
+    });
 
   test('resolves latest and explicit document versions within the vault scope', async () => {
     const { services, ids } = await createVersionedFixture({ testName: 'version_resolution' });

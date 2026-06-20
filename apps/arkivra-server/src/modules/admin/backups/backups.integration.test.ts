@@ -8,6 +8,8 @@ import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { parseConfig } from '../../config/config.js';
 import { registerBackupRoutes } from './backups.routes.js';
 
+const requiredEncryptionKeys = `1:${'a'.repeat(64)}`;
+
 function createAuthenticatedApp({
   activeAdmin = true,
   backupQueue,
@@ -27,7 +29,7 @@ function createAuthenticatedApp({
     select: () => ({
       from: () => ({
         where: () => ({
-          limit: async () => activeAdmin ? [{ id: 'usr_admin' }] : [],
+          limit: async () => (activeAdmin ? [{ id: 'usr_admin' }] : []),
         }),
       }),
     }),
@@ -54,6 +56,7 @@ function createAuthenticatedApp({
     env: {
       ARKIVRA_BACKUPS_PATH: backupDirectory,
       ARKIVRA_BACKUP_ENCRYPTION_KEY: 'c'.repeat(64),
+      ARKIVRA_ENCRYPTION_KEYS: requiredEncryptionKeys,
       ARKIVRA_RESTORE_BOOTSTRAP_TOKEN: restoreBootstrapToken,
     },
   });
@@ -105,7 +108,10 @@ describe('backup routes integration', () => {
   beforeAll(async () => {
     backupDirectory = await mkdtemp(join(tmpdir(), 'arkivra-backup-routes-'));
     await mkdir(backupDirectory, { recursive: true });
-    await writeFile(join(backupDirectory, 'arkivra-backup-test.tar.gz'), Buffer.from('backup-data'));
+    await writeFile(
+      join(backupDirectory, 'arkivra-backup-test.tar.gz'),
+      Buffer.from('backup-data'),
+    );
   });
 
   afterAll(async () => {
@@ -117,7 +123,7 @@ describe('backup routes integration', () => {
     const response = await app.request('/api/admin/backups');
 
     expect(response.status).toBe(200);
-    const body = await response.json() as any;
+    const body = (await response.json()) as any;
     expect(body.backups).toHaveLength(1);
     expect(body.backups[0].id).toBe('arkivra-backup-test.tar.gz');
     expect(body.backups[0].format).toBe('legacy_tar_gz');
@@ -150,8 +156,7 @@ describe('backup routes integration', () => {
 
       expect(response.status).toBe(503);
       expect(backupQueue.enqueueCreateBackup).not.toHaveBeenCalled();
-    }
-    finally {
+    } finally {
       await rm(join(backupDirectory, '.maintenance-mode'), { force: true });
     }
   });
@@ -343,7 +348,7 @@ describe('backup routes integration', () => {
     });
 
     expect(importResponse.status).toBe(201);
-    const imported = await importResponse.json() as { backupId: string };
+    const imported = (await importResponse.json()) as { backupId: string };
 
     const partResponse = await app.request(
       `/api/restore/bootstrap/imports/${imported.backupId}/parts/arkivra-backup-bootstrap-test.part001`,

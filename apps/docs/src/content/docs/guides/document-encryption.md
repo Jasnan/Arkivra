@@ -3,7 +3,7 @@ title: Document Encryption
 description: Configure encryption at rest for uploaded files and extracted assets.
 ---
 
-When `ARKIVRA_ENCRYPTION_KEYS` is configured, Arkivra uses envelope encryption for uploaded original files and stored extracted assets.
+Arkivra requires `ARKIVRA_ENCRYPTION_KEYS` and uses envelope encryption for uploaded original files and stored extracted assets.
 
 Generate a key:
 
@@ -19,7 +19,7 @@ ARKIVRA_ENCRYPTION_KEYS=1:<generated-64-hex-character-key>
 
 ## What Is Encrypted
 
-Arkivra encrypts stored uploaded originals and extracted asset files when encryption keys are configured.
+Arkivra encrypts stored uploaded originals and extracted asset files.
 
 The PostgreSQL database stores application state and derived data, including users, vaults, folders, tags, document metadata, document version rows, extracted text, chunks, search vectors, chat history, version-pinned chat manifests, citation metadata, embedding indexes, audit logs, activity logs, and job state. Do not treat those database rows as encrypted by Arkivra unless your deployment provides separate database-level encryption.
 

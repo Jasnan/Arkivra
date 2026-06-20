@@ -11,6 +11,23 @@ function isValidBackupArchiveEncryptionKey(value: string) {
   return decoded.length === 32;
 }
 
+function isValidDocumentEncryptionKeys(value: string) {
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .every((entry) => {
+      const colonIndex = entry.indexOf(':');
+      if (colonIndex === -1) {
+        return false;
+      }
+
+      const version = entry.slice(0, colonIndex);
+      const hexKey = entry.slice(colonIndex + 1);
+      return version.length > 0 && /^[\da-f]{64}$/i.test(hexKey);
+    });
+}
+
 export const configDefinition = {
   app: {
     instance: {
@@ -126,7 +143,8 @@ export const configDefinition = {
         .trim()
         .min(1)
         .refine(isValidBackupArchiveEncryptionKey, {
-          message: 'ARKIVRA_BACKUP_ENCRYPTION_KEY must be a 32-byte key encoded as 64 hex characters or base64.',
+          message:
+            'ARKIVRA_BACKUP_ENCRYPTION_KEY must be a 32-byte key encoded as 64 hex characters or base64.',
         })
         .optional(),
       default: undefined,
@@ -256,7 +274,15 @@ export const configDefinition = {
   encryption: {
     keys: {
       doc: 'KEK keys for envelope encryption. Format: "version:hex-key" (comma-separated for rotation). Example: "1:abcdef0123456789..."',
-      schema: z.string().optional(),
+      schema: z
+        .string()
+        .trim()
+        .min(1)
+        .refine(isValidDocumentEncryptionKeys, {
+          message:
+            'ARKIVRA_ENCRYPTION_KEYS must use version:64-hex-key entries, for example 1:<64-hex-character-key>.',
+        })
+        .optional(),
       default: undefined,
       env: 'ARKIVRA_ENCRYPTION_KEYS',
     },
@@ -449,6 +475,12 @@ function hasEnvValue(env: Record<string, string | undefined>, key: string) {
   return env[key] !== undefined && env[key]?.trim() !== '';
 }
 
+function requireEnvValue(env: Record<string, string | undefined>, key: string, message: string) {
+  if (!hasEnvValue(env, key)) {
+    throw new Error(message);
+  }
+}
+
 function localOrigin(port: number) {
   return `http://localhost:${port}`;
 }
@@ -458,6 +490,12 @@ function instancePath(instance: string, leaf: string) {
 }
 
 export function parseConfig({ env }: { env: Record<string, string | undefined> }) {
+  requireEnvValue(
+    env,
+    'ARKIVRA_ENCRYPTION_KEYS',
+    'ARKIVRA_ENCRYPTION_KEYS is required. Generate a key with `openssl rand -hex 32` and configure it as `ARKIVRA_ENCRYPTION_KEYS=1:<key>`.',
+  );
+
   const { config } = defineConfig(configDefinition, {
     envSource: env,
   });

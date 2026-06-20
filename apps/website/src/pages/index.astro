@@ -96,6 +96,14 @@ const faqItems = [
     answer: 'No. Arkivra works without AI. Upload documents, organize vaults, search content, manage versions, restore files, and create backups without connecting any AI provider.',
   },
   {
+    question: 'What does “optional AI” mean?',
+    answer: [
+      'AI features are disabled by default. You can use Arkivra without configuring any AI providers.',
+      'If you want AI-assisted features such as semantic search, chat, or translation, you can connect either local models or supported cloud providers. Local models can run through Ollama, while cloud providers are configured using your own API keys.',
+      'Arkivra never requires a specific provider, and you remain in control of which AI services are enabled.',
+    ],
+  },
+  {
     question: 'What happens when I use a remote AI provider?',
     answer: 'Arkivra only sends the content required for the AI feature being used. Depending on your configuration, this may include document text for indexing or document context for chat and other AI-assisted workflows. Local providers can keep this processing entirely within your own environment.',
   },

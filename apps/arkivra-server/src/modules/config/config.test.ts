@@ -147,4 +147,86 @@ describe('parseConfig', () => {
       }),
     ).toThrow('ARKIVRA_DOCLING_VLM_MODEL is only valid');
   });
+
+  it('accepts valid AI model catalog extensions', () => {
+    const { config } = parseConfig({
+      env: {
+        ...requiredEnv,
+        ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS: JSON.stringify([
+          {
+            provider: 'ollama',
+            model: 'custom-chat:latest',
+            label: 'Custom Chat',
+            capabilities: ['chat'],
+          },
+          {
+            provider: 'ollama',
+            model: 'custom-embedding:latest',
+            capabilities: ['embedding'],
+            embeddingDimensions: 1536,
+          },
+        ]),
+      },
+    });
+
+    expect(config.ai.modelCatalogExtensions).toEqual([
+      {
+        provider: 'ollama',
+        model: 'custom-chat:latest',
+        label: 'Custom Chat',
+        capabilities: ['chat'],
+      },
+      {
+        provider: 'ollama',
+        model: 'custom-embedding:latest',
+        capabilities: ['embedding'],
+        embeddingDimensions: 1536,
+      },
+    ]);
+  });
+
+  it('rejects invalid AI model catalog extension JSON', () => {
+    expect(() =>
+      parseConfig({
+        env: {
+          ...requiredEnv,
+          ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS: '{not-json',
+        },
+      }),
+    ).toThrow('ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS must be a valid JSON array');
+  });
+
+  it('rejects unknown AI model catalog capabilities', () => {
+    expect(() =>
+      parseConfig({
+        env: {
+          ...requiredEnv,
+          ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS: JSON.stringify([
+            {
+              provider: 'ollama',
+              model: 'custom:latest',
+              capabilities: ['chat', 'audio'],
+            },
+          ]),
+        },
+      }),
+    ).toThrow('ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS contains invalid model entries');
+  });
+
+  it('rejects embedding AI model catalog entries without dimensions', () => {
+    expect(() =>
+      parseConfig({
+        env: {
+          ...requiredEnv,
+          ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS: JSON.stringify([
+            {
+              provider: 'ollama',
+              model: 'custom-embedding:latest',
+              capabilities: ['embedding'],
+            },
+          ]),
+        },
+      }),
+    ).toThrow('embeddingDimensions is required');
+  });
 });

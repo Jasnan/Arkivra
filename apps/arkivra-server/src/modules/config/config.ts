@@ -1,5 +1,6 @@
 import { defineConfig } from 'figue';
 import { z } from 'zod';
+import { parseAiModelCatalogExtensions } from '../ai/model-catalog.js';
 
 function isValidBackupArchiveEncryptionKey(value: string) {
   const trimmed = value.trim();
@@ -276,6 +277,14 @@ export const configDefinition = {
       env: 'ARKIVRA_OLLAMA_LOG_REQUESTS',
     },
   },
+  ai: {
+    modelCatalogExtensions: {
+      doc: 'JSON array of additional AI model catalog entries. Entries with the same provider and model replace built-in entries.',
+      schema: z.string().optional(),
+      default: undefined,
+      env: 'ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS',
+    },
+  },
   encryption: {
     keys: {
       doc: 'KEK keys for envelope encryption. Format: "version:hex-key" (comma-separated for rotation). Example: "1:abcdef0123456789..."',
@@ -519,9 +528,16 @@ export function parseConfig({ env }: { env: Record<string, string | undefined> }
   const apiOrigin = localOrigin(config.server.port);
   const webOrigin = localOrigin(config.server.webPort);
   const appInstance = config.app.instance;
+  const modelCatalogExtensions = parseAiModelCatalogExtensions(
+    config.ai.modelCatalogExtensions,
+  );
 
   const scopedConfig = {
     ...config,
+    ai: {
+      ...config.ai,
+      modelCatalogExtensions,
+    },
     server: {
       ...config.server,
       baseUrl: hasEnvValue(env, 'ARKIVRA_SERVER_BASE_URL')

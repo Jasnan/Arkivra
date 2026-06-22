@@ -48,6 +48,37 @@ function jsonResponse(body: unknown, status = 200) {
     headers: { 'content-type': 'application/json' },
   });
 }
+
+const defaultAiModelCatalog = [
+  {
+    provider: 'ollama',
+    model: 'gemma4:e4b',
+    label: 'Gemma 4 E4B',
+    capabilities: ['chat', 'vision'],
+  },
+  {
+    provider: 'ollama',
+    model: 'qwen2.5:7b',
+    capabilities: ['chat'],
+  },
+  {
+    provider: 'ollama',
+    model: 'bge-m3',
+    capabilities: ['embedding'],
+    embeddingDimensions: 1024,
+  },
+  {
+    provider: 'gemini',
+    model: 'gemini-3.5-flash',
+    capabilities: ['chat', 'vision'],
+  },
+  {
+    provider: 'gemini',
+    model: 'gemini-2.5-flash',
+    capabilities: ['chat', 'vision'],
+  },
+];
+
 function installLocalStorageMock() {
   const store = new Map<string, string>();
 
@@ -325,6 +356,10 @@ describe('admin and about pages', () => {
         return jsonResponse({
           settings: JSON.parse(String(init.body)),
         });
+      }
+
+      if (url === '/api/admin/ai/model-catalog') {
+        return jsonResponse({ models: defaultAiModelCatalog });
       }
 
       if (url === '/api/admin/ai/models' && init?.method === 'POST') {
@@ -615,6 +650,10 @@ describe('admin and about pages', () => {
         });
       }
 
+      if (url === '/api/admin/ai/model-catalog') {
+        return jsonResponse({ models: defaultAiModelCatalog });
+      }
+
       if (url === '/api/admin/ai/models' && init?.method === 'POST') {
         return jsonResponse({
           models: [],
@@ -758,6 +797,10 @@ describe('admin and about pages', () => {
         });
       }
 
+      if (url === '/api/admin/ai/model-catalog') {
+        return jsonResponse({ models: defaultAiModelCatalog });
+      }
+
       if (url === '/api/admin/ai/models' && init?.method === 'POST') {
         const body = JSON.parse(String(init.body));
         return jsonResponse({
@@ -880,6 +923,10 @@ describe('admin and about pages', () => {
             },
           },
         });
+      }
+
+      if (url === '/api/admin/ai/model-catalog') {
+        return jsonResponse({ models: defaultAiModelCatalog });
       }
 
       if (url === '/api/admin/ai/models' && init?.method === 'POST') {
@@ -1038,6 +1085,10 @@ describe('admin and about pages', () => {
         });
       }
 
+      if (url === '/api/admin/ai/model-catalog') {
+        return jsonResponse({ models: defaultAiModelCatalog });
+      }
+
       if (url === '/api/admin/ai/models' && init?.method === 'POST') {
         const body = JSON.parse(String(init.body));
         return jsonResponse({
@@ -1069,16 +1120,28 @@ describe('admin and about pages', () => {
       }
 
       if (url === '/api/admin/ai/availability' && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body));
         return jsonResponse({
-          availability: {
-            host: 'https://generativelanguage.googleapis.com/v1beta/openai',
-            model: 'gemini-3.5-flash',
-            reachable: false,
-            modelAvailable: false,
-            models: [],
-            responseTimeMs: null,
-            error: 'Gemini API key environment variable is not configured on the API server.',
-          },
+          availability:
+            body.provider === 'ollama'
+              ? {
+                  host: 'http://host.docker.internal:11434',
+                  model: 'gemma4:e4b',
+                  reachable: true,
+                  modelAvailable: true,
+                  models: [],
+                  responseTimeMs: 42,
+                  error: null,
+                }
+              : {
+                  host: 'https://generativelanguage.googleapis.com/v1beta/openai',
+                  model: 'gemini-3.5-flash',
+                  reachable: false,
+                  modelAvailable: false,
+                  models: [],
+                  responseTimeMs: null,
+                  error: 'Gemini API key environment variable is not configured on the API server.',
+                },
         });
       }
 
@@ -1091,7 +1154,7 @@ describe('admin and about pages', () => {
     await user.click(await screen.findByRole('button', { name: /change chat/i }));
 
     const dialog = await screen.findByRole('dialog', { name: /configure chat models/i });
-    expect(within(dialog).getByText('gemma4:e4b')).toBeInTheDocument();
+    expect(within(dialog).getAllByText('Gemma 4 E4B').length).toBeGreaterThan(0);
     expect(within(dialog).queryByText('gemini-3.5-flash')).not.toBeInTheDocument();
   });
 

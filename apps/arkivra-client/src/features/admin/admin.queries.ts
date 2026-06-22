@@ -1,13 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   checkAiModelAvailability,
+  getAdminAiModelCatalog,
   getAdminAiSettings,
   getAdminAiStatus,
   listPermissionRequests,
   listAdminUsers,
   listAdminVaults,
   listBackups,
-  listAiChatModels,
 } from './admin.api';
 import type { AdminAiStatus, PermissionRequestStatus } from './admin.types';
 
@@ -24,8 +24,7 @@ export const adminQueryKeys = {
   ai: () => [...adminQueryKeys.all, 'ai'] as const,
   aiSettings: () => [...adminQueryKeys.ai(), 'settings'] as const,
   aiStatus: () => [...adminQueryKeys.ai(), 'status'] as const,
-  aiModels: (provider: string, host: string, includeEmbeddingModels: boolean) =>
-    [...adminQueryKeys.ai(), 'models', provider, host, includeEmbeddingModels ? 'all' : 'chat'] as const,
+  aiModelCatalog: () => [...adminQueryKeys.ai(), 'model-catalog'] as const,
   aiAvailability: (provider: string, host: string, model: string, apiKeySecretRef: string | null | undefined) =>
     [...adminQueryKeys.ai(), 'availability', provider, host, model, apiKeySecretRef ?? ''] as const,
 };
@@ -105,20 +104,10 @@ export function useAdminAiStatusQuery({ enabled = true }: { enabled?: boolean } 
   });
 }
 
-export function useAdminOllamaModelsQuery({
-  host,
-  includeEmbeddingModels = false,
-  provider = 'ollama',
-  enabled = true,
-}: {
-  host: string;
-  includeEmbeddingModels?: boolean;
-  provider?: 'ollama' | 'gemini';
-  enabled?: boolean;
-}) {
+export function useAdminAiModelCatalogQuery({ enabled = true }: { enabled?: boolean } = {}) {
   return useQuery({
-    queryKey: adminQueryKeys.aiModels(provider, host, includeEmbeddingModels),
-    queryFn: () => listAiChatModels({ host, includeEmbeddingModels, provider }),
+    queryKey: adminQueryKeys.aiModelCatalog(),
+    queryFn: getAdminAiModelCatalog,
     enabled,
   });
 }

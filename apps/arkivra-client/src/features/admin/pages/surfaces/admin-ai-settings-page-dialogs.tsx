@@ -228,8 +228,8 @@ export function ChatModelsDialog({
               <EmptyChatModelState
                 message={
                   isFetchingChatModels
-                    ? 'Loading chat models from configured providers...'
-                    : 'No chat models are available from the configured providers.'
+                    ? 'Loading catalog models and provider status...'
+                    : 'No catalog chat models are selectable from healthy providers.'
                 }
               />
             ) : !hasFilteredResults ? (
@@ -639,9 +639,9 @@ export function EmbeddingModelDialog({
                         {option.isActive && !option.isConfigured ? (
                           <Badge variant="outline">Live index</Badge>
                         ) : null}
-                        {!option.isDiscovered ? (
+                        {!option.isInCatalog ? (
                           <Badge variant="outline" colorPalette="gray">
-                            Not listed
+                            Unavailable
                           </Badge>
                         ) : null}
                       </HStack>
@@ -651,8 +651,8 @@ export function EmbeddingModelDialog({
               ) : (
                 <Text px="3" py="3" textStyle="sm" color="fg.muted">
                   {isFetchingOllamaModels
-                    ? 'Loading models from Ollama...'
-                    : 'No embedding-capable models were reported by the configured Ollama endpoint.'}
+                    ? 'Loading catalog models and provider status...'
+                    : 'No catalog embedding models are selectable from a healthy Ollama provider.'}
                 </Text>
               )}
             </Box>
@@ -692,7 +692,12 @@ export function EmbeddingModelDialog({
           <Button
             type="button"
             size="sm"
-            disabled={selectedEmbeddingModel === null || !selectedEmbeddingModelChanged || isSaving}
+            disabled={
+              selectedEmbeddingModel === null ||
+              !selectedEmbeddingModelChanged ||
+              !selectedEmbeddingModel.isInCatalog ||
+              isSaving
+            }
             onClick={onConfirm}
           >
             {isSaving ? 'Saving...' : 'Confirm and rebuild'}
@@ -823,8 +828,8 @@ export function TranslationModelDialog({
               ) : (
                 <Text px="3" py="3" textStyle="sm" color="fg.muted">
                   {isFetchingModels
-                    ? 'Loading models from configured providers...'
-                    : 'No translation models are available from the configured providers.'}
+                    ? 'Loading catalog models and provider status...'
+                    : 'No catalog translation models are selectable from healthy providers.'}
                 </Text>
               )}
             </Box>

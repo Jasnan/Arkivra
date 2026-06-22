@@ -17,7 +17,10 @@ interface AdminAiModelSectionsProps {
   effectiveDefaultChatModel: string;
   effectiveTranslationModel: string;
   embeddingModelOptions: EmbeddingModelOption[];
+  isChatModelAvailable: boolean;
+  isEmbeddingModelAvailable: boolean;
   isSaving: boolean;
+  isTranslationModelAvailable: boolean;
   savedEmbedding: AdminAiSettings['embedding'];
   translationModelCount: number;
   onChangeEmbeddingModel: (key: string) => void;
@@ -35,7 +38,10 @@ export function AdminAiModelSections({
   effectiveDefaultChatModel,
   effectiveTranslationModel,
   embeddingModelOptions,
+  isChatModelAvailable,
+  isEmbeddingModelAvailable,
   isSaving,
+  isTranslationModelAvailable,
   savedEmbedding,
   translationModelCount,
   onChangeEmbeddingModel,
@@ -146,6 +152,7 @@ export function AdminAiModelSections({
                   }
                   provider={formatProvider(configuredEmbeddingProvider)}
                   isSelected={configuredEmbeddingModel.length > 0}
+                  isAvailable={isEmbeddingModelAvailable}
                 />
                 <ModelConfigRow
                   icon={<MessageSquare size={18} />}
@@ -155,6 +162,7 @@ export function AdminAiModelSections({
                   modelDescription={effectiveDefaultChatModel ? 'LLM' : 'No chat model selected'}
                   provider={formatProvider(aiDraft.chat.provider)}
                   isSelected={effectiveDefaultChatModel.length > 0}
+                  isAvailable={isChatModelAvailable}
                 />
                 <ModelConfigRow
                   icon={<Languages size={18} />}
@@ -168,6 +176,7 @@ export function AdminAiModelSections({
                   }
                   provider={formatProvider(aiDraft.translation.provider)}
                   isSelected={effectiveTranslationModel.length > 0}
+                  isAvailable={isTranslationModelAvailable}
                 />
               </Table.Body>
             </Table.Root>
@@ -185,6 +194,7 @@ function ModelConfigRow({
   description,
   icon,
   isSelected,
+  isAvailable,
   model,
   modelDescription,
   provider,
@@ -193,6 +203,7 @@ function ModelConfigRow({
   description: string;
   icon: ReactNode;
   isSelected: boolean;
+  isAvailable: boolean;
   model: string;
   modelDescription: string;
   provider: string;
@@ -240,8 +251,11 @@ function ModelConfigRow({
         </Text>
       </Table.Cell>
       <Table.Cell>
-        <SettingsStatusBadge tone={isSelected ? 'enabled' : 'inactive'} density="compact">
-          {isSelected ? 'Selected' : 'Missing'}
+        <SettingsStatusBadge
+          tone={isSelected && isAvailable ? 'enabled' : isSelected ? 'warning' : 'inactive'}
+          density="compact"
+        >
+          {isSelected && isAvailable ? 'Selected' : isSelected ? 'Unavailable' : 'Missing'}
         </SettingsStatusBadge>
       </Table.Cell>
     </Table.Row>

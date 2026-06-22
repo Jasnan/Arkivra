@@ -140,6 +140,10 @@ export function createServer({
 
       const effectiveProvider = provider ?? settings.chat.provider;
       if (effectiveProvider === 'gemini') {
+        const defaultGeminiModel = aiServices.getModelCatalog().find(
+          model => model.provider === 'gemini' && model.capabilities.includes('chat'),
+        )?.model;
+
         return {
           provider: 'gemini',
           baseUrl: settings.providers?.gemini?.baseUrl ?? settings.chat.baseUrl,
@@ -152,7 +156,7 @@ export function createServer({
           }),
           model: settings.chat.provider === 'gemini'
             ? settings.chat.model
-            : 'gemini-3.5-flash',
+            : (defaultGeminiModel ?? settings.chat.model),
           allowedModels: settings.chat.allowedModels ?? [settings.chat.model],
           maxImagesPerRequest: ingestionSettings.summarisationMaxImagesPerChunk,
         };

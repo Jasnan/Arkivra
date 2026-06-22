@@ -3,10 +3,9 @@ import { Box, Flex, HStack, SimpleGrid, Stack, Table, Text } from '@chakra-ui/re
 import { MoreVertical, Plus, Server, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import type { AdminAiSettings } from '@/features/admin/admin.types';
+import type { AdminAiModelCatalogEntry, AdminAiSettings } from '@/features/admin/admin.types';
 import { formatDate } from '@/features/documents/documents.utils';
 import { SettingsStatusBadge } from '@/features/settings/components/settings-ui';
-import { curatedGeminiChatModels } from './admin-ai-settings-page-model-catalog';
 import { AiSettingsSection } from './admin-ai-settings-page-sections';
 
 interface AdminAiProviderSectionProps {
@@ -15,12 +14,13 @@ interface AdminAiProviderSectionProps {
   expandedProvider: 'ollama' | 'gemini' | null;
   geminiAvailability?: { modelAvailable?: boolean; error?: string | null };
   geminiDataUpdatedAt: number;
+  geminiModels: AdminAiModelCatalogEntry[];
   geminiProviderStatus: string;
   geminiProviderTone: 'enabled' | 'inactive' | 'warning';
   isSaving: boolean;
   ollamaDataUpdatedAt: number;
   ollamaIsFetching: boolean;
-  ollamaModels: Array<{ name: string }>;
+  ollamaModels: AdminAiModelCatalogEntry[];
   ollamaProviderStatus: string;
   ollamaProviderTone: 'enabled' | 'inactive' | 'warning';
   onExpandedProviderChange: (provider: 'ollama' | 'gemini' | null) => void;
@@ -36,6 +36,7 @@ export function AdminAiProviderSection({
   expandedProvider,
   geminiAvailability,
   geminiDataUpdatedAt,
+  geminiModels,
   geminiProviderStatus,
   geminiProviderTone,
   isSaving,
@@ -105,7 +106,7 @@ export function AdminAiProviderSection({
                 name="Google Gemini"
                 status={geminiProviderStatus}
                 statusTone={geminiProviderTone}
-                modelCount={curatedGeminiChatModels.length}
+                modelCount={geminiModels.length}
                 updatedAt={geminiDataUpdatedAt}
                 actionLabel={expandedProvider === 'gemini' ? 'Hide' : 'View'}
                 actionAriaLabel={
@@ -153,7 +154,7 @@ export function AdminAiProviderSection({
                         </Text>
                       }
                     />
-                    <ProviderModelsCard models={curatedGeminiChatModels} />
+                    <ProviderModelsCard models={geminiModels.map((model) => model.model)} />
                     <ProviderDetailCard
                       title="Test connection"
                       description="Refresh provider availability from the API server."
@@ -203,7 +204,11 @@ export function AdminAiProviderSection({
                             type="button"
                             size="sm"
                             variant="outline"
-                            disabled={!effectiveOllamaBaseUrl.trim() || isSaving}
+                            disabled={
+                              !effectiveOllamaBaseUrl.trim() ||
+                              ollamaProviderStatus !== 'Healthy' ||
+                              isSaving
+                            }
                             onClick={onUseOllamaForChat}
                           >
                             Use for chat
@@ -232,10 +237,10 @@ export function AdminAiProviderSection({
                         </Text>
                       }
                     />
-                    <ProviderModelsCard models={ollamaModels.map((model) => model.name)} />
+                    <ProviderModelsCard models={ollamaModels.map((model) => model.model)} />
                     <ProviderDetailCard
                       title="Test connection"
-                      description="Refresh the discovered model list from the configured endpoint."
+                      description="Refresh provider availability from the API server."
                       action={
                         <Button
                           type="button"
@@ -362,7 +367,7 @@ function ProviderModelsCard({ models }: { models: string[] }) {
           </Flex>
         ) : (
           <Text textStyle="sm" color="fg.muted">
-            No models discovered.
+            No catalog models.
           </Text>
         )}
       </Stack>

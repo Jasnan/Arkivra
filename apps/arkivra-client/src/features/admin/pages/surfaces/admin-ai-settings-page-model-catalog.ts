@@ -1,4 +1,5 @@
 import type {
+  AdminAiModelCatalogEntry,
   AdminAiSettings,
   AdminEmbeddingIndexSummary,
 } from '@/features/admin/admin.types';
@@ -12,23 +13,11 @@ export interface EmbeddingModelOption {
   dimensions: number;
   isActive: boolean;
   isConfigured: boolean;
-  isDiscovered: boolean;
-  size: number | null;
-  modifiedAt: string | null;
+  isInCatalog: boolean;
   capabilities: string[];
 }
 
 export const geminiBaseUrl = 'https://generativelanguage.googleapis.com/v1beta/openai';
-export const curatedGeminiChatModels = [
-  'gemini-3.5-flash',
-  'gemini-3.1-pro-preview',
-  'gemini-3-flash-preview',
-  'gemini-3.1-flash-lite',
-  'gemini-2.5-pro',
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-];
-
 const ollamaLatestTagPattern = /:latest$/;
 
 export function formatProvider(provider: string) {
@@ -44,6 +33,18 @@ export function hasModelCapability(
   return model.capabilities?.some(item => item.toLowerCase() === capability) ?? false;
 }
 
+export function isCatalogChatModel(model: AdminAiModelCatalogEntry) {
+  return hasModelCapability(model, 'chat');
+}
+
+export function isCatalogTranslationModel(model: AdminAiModelCatalogEntry) {
+  return hasModelCapability(model, 'chat') && hasModelCapability(model, 'vision');
+}
+
+export function isCatalogEmbeddingModel(model: AdminAiModelCatalogEntry) {
+  return hasModelCapability(model, 'embedding');
+}
+
 function stripLatestTag(model: string) {
   return model.trim().toLowerCase().replace(ollamaLatestTagPattern, '');
 }
@@ -52,36 +53,28 @@ export function isSameOllamaModel(left: string, right: string) {
   return stripLatestTag(left) === stripLatestTag(right);
 }
 
-function findDiscoveredModel(
-  discoveredModels: Array<{
-    name: string;
-    size?: number | null;
-    modifiedAt?: string | null;
-    capabilities?: string[];
-  }>,
+function findCatalogModel(
+  catalogModels: AdminAiModelCatalogEntry[],
+  provider: AdminAiSettings['embedding']['provider'],
   model: string,
 ) {
-  return discoveredModels.find((item) => isSameOllamaModel(item.name, model));
+  return catalogModels.find((item) =>
+    item.provider === provider &&
+    (provider === 'ollama' ? isSameOllamaModel(item.model, model) : item.model === model),
+  );
 }
 
 export function buildEmbeddingModelOptions({
   activeIndex,
   baseUrl,
-  dimensions,
-  discoveredModels,
+  catalogModels,
   model,
   provider,
   savedEmbedding,
 }: {
   activeIndex: AdminEmbeddingIndexSummary | null;
   baseUrl: string;
-  dimensions: number;
-  discoveredModels: Array<{
-    name: string;
-    size?: number | null;
-    modifiedAt?: string | null;
-    capabilities?: string[];
-  }>;
+  catalogModels: AdminAiModelCatalogEntry[];
   model: string;
   provider: AdminAiSettings['embedding']['provider'];
   savedEmbedding: AdminAiSettings['embedding'];
@@ -90,11 +83,11 @@ export function buildEmbeddingModelOptions({
   const activeModel = activeIndex?.model.trim() ?? '';
   const optionByKey = new Map<string, EmbeddingModelOption>();
 
-  function addModelOption(optionModel: string) {
+  function addModelOption(optionModel: string, catalogEntry?: AdminAiModelCatalogEntry) {
     if (optionModel.length === 0) return;
 
-    const discovered = findDiscoveredModel(discoveredModels, optionModel);
     const key = `${provider}:${baseUrl}:${optionModel}`;
+    const dimensions = catalogEntry?.embeddingDimensions ?? savedEmbedding.dimensions;
 
     optionByKey.set(key, {
       key,
@@ -105,38 +98,35 @@ export function buildEmbeddingModelOptions({
       dimensions,
       isActive: activeIndex?.provider === provider && activeIndex.model === optionModel,
       isConfigured: savedEmbedding.provider === provider && savedEmbedding.model === optionModel,
-      isDiscovered: discovered !== undefined,
-      size: discovered?.size ?? null,
-      modifiedAt: discovered?.modifiedAt ?? null,
-      capabilities: discovered?.capabilities ?? [],
+      isInCatalog: catalogEntry !== undefined,
+      capabilities: catalogEntry?.capabilities ?? [],
     });
   }
 
-  for (const discovered of discoveredModels) {
-    if (hasModelCapability(discovered, 'embedding')) {
-      const optionModel = configuredModel.length > 0 && isSameOllamaModel(discovered.name, configuredModel)
+  for (const catalogEntry of catalogModels) {
+    if (catalogEntry.provider === provider && hasModelCapability(catalogEntry, 'embedding')) {
+      const optionModel = configuredModel.length > 0 && isSameOllamaModel(catalogEntry.model, configuredModel)
         ? configuredModel
-        : activeModel.length > 0 && isSameOllamaModel(discovered.name, activeModel)
+        : activeModel.length > 0 && isSameOllamaModel(catalogEntry.model, activeModel)
           ? activeModel
-          : discovered.name;
+          : catalogEntry.model;
 
-      addModelOption(optionModel);
+      addModelOption(optionModel, catalogEntry);
     }
   }
 
-  if (
-    discoveredModels.some(
-      (item) => isSameOllamaModel(item.name, configuredModel) && hasModelCapability(item, 'embedding'),
-    )
-  ) {
-    addModelOption(configuredModel);
+  if (configuredModel.length > 0) {
+    addModelOption(
+      configuredModel,
+      findCatalogModel(catalogModels, provider, configuredModel),
+    );
   }
-  if (
-    discoveredModels.some(
-      (item) => isSameOllamaModel(item.name, activeModel) && hasModelCapability(item, 'embedding'),
-    )
-  ) {
-    addModelOption(activeModel);
+
+  if (activeModel.length > 0) {
+    addModelOption(
+      activeModel,
+      findCatalogModel(catalogModels, provider, activeModel),
+    );
   }
 
   return Array.from(optionByKey.values()).sort(

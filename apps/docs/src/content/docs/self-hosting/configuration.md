@@ -100,6 +100,7 @@ For key rotation, keep old versions available and add a higher version for new f
 | `ARKIVRA_OLLAMA_MODEL`                | Default Ollama-compatible chat model            | `gemma4:e4b`                            |
 | `ARKIVRA_OLLAMA_EMBEDDING_BATCH_SIZE` | Embedding batch size                            | `16` app default; Compose supplies `20` |
 | `ARKIVRA_OLLAMA_LOG_REQUESTS`         | Log Ollama requests and responses for debugging | `false`                                 |
+| `ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS` | JSON array of custom AI model catalog entries   | unset                                   |
 | `GEMINI_API_KEY`                      | Default environment variable for Gemini chat    | unset                                   |
 
 Leave AI variables unset for PostgreSQL + Docling-only ingestion and full-text search. Configure AI features from the admin AI settings when enabling chat, translation, or semantic indexing. See [AI Providers](/guides/ai-providers/) for provider-specific behavior and data exposure notes.

@@ -1,5 +1,6 @@
 import type { Config } from '../../config/config.js';
 import { normalizeOllamaHost } from '../../ai/providers/index.js';
+import { builtInAiModelCatalog } from '../../ai/model-catalog.js';
 import type { AdminAiChatProviderKind, AdminAiSettings } from './ai.types.js';
 
 const DEFAULT_GEMINI_API_KEY_SECRET_REF = 'GEMINI_API_KEY';
@@ -7,15 +8,9 @@ const RAW_GOOGLE_API_KEY_PATTERN = /^AIza[\w-]{20,}$/;
 
 export const INSTANCE_AI_SETTINGS_ID = 'instance_ai_settings';
 export const GEMINI_OPENAI_COMPATIBLE_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
-export const CURATED_GEMINI_CHAT_MODELS = [
-  'gemini-3.5-flash',
-  'gemini-3.1-pro-preview',
-  'gemini-3-flash-preview',
-  'gemini-3.1-flash-lite',
-  'gemini-2.5-pro',
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-] as const;
+export const CURATED_GEMINI_CHAT_MODELS = builtInAiModelCatalog
+  .filter(entry => entry.provider === 'gemini' && entry.capabilities.includes('chat'))
+  .map(entry => entry.model);
 
 export function normalizeHost(host: string) {
   return normalizeOllamaHost(host);
@@ -100,7 +95,7 @@ export function getDefaultChatModel(
   fallbackModel: string,
 ) {
   if (provider === 'gemini') {
-    return CURATED_GEMINI_CHAT_MODELS[0];
+    return CURATED_GEMINI_CHAT_MODELS[0] ?? fallbackModel;
   }
 
   return fallbackModel;
@@ -119,10 +114,6 @@ export function normalizeAllowedChatModels({
   const candidates = normalizeModelList([...(allowedModels ?? []), defaultSelection.value]);
   const filtered = candidates
     .map(candidate => parseChatModelSelection({ value: candidate, fallbackProvider: provider }))
-    .filter(selection =>
-      selection.provider !== 'gemini'
-      || CURATED_GEMINI_CHAT_MODELS.includes(selection.model as typeof CURATED_GEMINI_CHAT_MODELS[number]),
-    )
     .map(selection => selection.value);
 
   return filtered.length > 0 ? normalizeModelList(filtered) : [defaultSelection.value];

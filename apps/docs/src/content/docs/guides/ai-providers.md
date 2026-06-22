@@ -15,6 +15,8 @@ Arkivra currently supports these first-class runtime paths:
 
 Provider settings are configured from the admin AI settings page. The default local provider values come from the `ARKIVRA_OLLAMA_*` environment variables.
 
+Model selection is catalog-based. Arkivra ships a built-in model catalog from the API server, and the dashboard filters that catalog for chat, translation, and embedding pickers. Arkivra does not use live Ollama or Gemini model listing to decide which models appear in pickers. Provider checks may still contact the configured provider to verify that a selected catalog model can be used.
+
 ## Ollama-Compatible Providers
 
 Use an Ollama-compatible endpoint for local chat, translation, and embeddings:
@@ -25,6 +27,48 @@ ARKIVRA_OLLAMA_MODEL=gemma4:e4b
 ```
 
 Semantic search also needs an embedding model and dimensions. Arkivra builds an embedding index from parsed document chunks before semantic search is available.
+
+## Extending The Model Catalog
+
+Admins can append custom catalog entries with `ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS`. The value must be a JSON array:
+
+```ts
+{
+  provider: 'ollama' | 'gemini',
+  model: string,
+  label?: string,
+  capabilities: Array<'chat' | 'vision' | 'embedding'>,
+  embeddingDimensions?: number
+}
+```
+
+`provider`, `model`, and at least one valid capability are required. `embeddingDimensions` is required for embedding models and must be a positive integer. Entries with the same `provider` and `model` as a built-in entry replace that built-in entry.
+
+Add a custom Ollama chat model:
+
+```dotenv
+ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS='[{"provider":"ollama","model":"qwen2.5:14b","label":"Qwen 2.5 14B","capabilities":["chat"]}]'
+```
+
+Add a custom Ollama vision model for translation:
+
+```dotenv
+ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS='[{"provider":"ollama","model":"llava:13b","label":"LLaVA 13B","capabilities":["chat","vision"]}]'
+```
+
+Add a custom Ollama embedding model with dimensions:
+
+```dotenv
+ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS='[{"provider":"ollama","model":"nomic-embed-text:latest","label":"Nomic Embed Text","capabilities":["embedding"],"embeddingDimensions":768}]'
+```
+
+Add a custom Gemini model:
+
+```dotenv
+ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS='[{"provider":"gemini","model":"gemini-custom-chat","label":"Custom Gemini Chat","capabilities":["chat","vision"]}]'
+```
+
+To add multiple models, put all entries in the same JSON array.
 
 ## Google Gemini Chat
 

@@ -3,6 +3,7 @@ import type { Database } from '../../database/database.js';
 import type {
   AdminAiModel,
   AdminAiModelAvailability,
+  AdminAiModelCatalogEntry,
   AdminAiSettings,
   AdminAiStatus,
   AdminEmbeddingIndexActionResult,
@@ -12,10 +13,14 @@ import type {
 import type { EmbeddingIndexQueue } from '../../ai/indexing/index.js';
 import { eq, sql } from 'drizzle-orm';
 import { createEmbeddingIndexServices } from '../../ai/indexing/index.js';
+import {
+  createAiModelCatalog,
+  findCatalogEntry,
+  hasCatalogCapability,
+} from '../../ai/model-catalog.js';
 import { createOllamaProvider } from '../../ai/providers/index.js';
 import { instanceSettingsTable } from '../../database/schema/index.js';
 import {
-  CURATED_GEMINI_CHAT_MODELS,
   GEMINI_OPENAI_COMPATIBLE_BASE_URL,
   INSTANCE_AI_SETTINGS_ID,
   createDefaultIngestionSettings,
@@ -31,7 +36,7 @@ import {
   resolveApiKey,
 } from './ai.settings.js';
 
-export { CURATED_GEMINI_CHAT_MODELS, GEMINI_OPENAI_COMPATIBLE_BASE_URL } from './ai.settings.js';
+export { GEMINI_OPENAI_COMPATIBLE_BASE_URL } from './ai.settings.js';
 
 type EmbeddingIndexSummaryRow = {
   id: string;
@@ -91,26 +96,10 @@ function createEmptyDocumentStatuses(): AdminEmbeddingIndexSummary['documentStat
   };
 }
 
-function hasModelCapability(model: AdminAiModel, capability: string) {
-  return model.capabilities.some(item => item.toLowerCase() === capability);
-}
-
 function shouldCompareIndexWithCorpus(status: AdminEmbeddingIndexSummary['status']) {
   return status === 'building'
     || status === 'ready'
     || status === 'active';
-}
-
-async function resolveOllamaEmbeddingDimensions({
-  ollama,
-  host,
-  model,
-}: {
-  ollama: ReturnType<typeof createOllamaProvider>;
-  host: string;
-  model: string;
-}) {
-  return await ollama.resolveEmbeddingDimensions({ host, model });
 }
 
 export function createAdminAiServices({
@@ -126,6 +115,9 @@ export function createAdminAiServices({
 }) {
   const ollama = createOllamaProvider({ fetchImpl });
   const configuredOllamaHost = normalizeHost(config.ollama.host);
+  const modelCatalog = createAiModelCatalog({
+    extensions: config.ai?.modelCatalogExtensions ?? [],
+  }) as AdminAiModelCatalogEntry[];
 
   function applyConfiguredOllamaHost(settings: AdminAiSettings): AdminAiSettings {
     return {
@@ -475,18 +467,19 @@ export function createAdminAiServices({
       || previousSettings.embedding.model !== initialNormalized.embedding.model
       || previousSettings.embedding.dimensions !== initialNormalized.embedding.dimensions;
     const aiWasEnabled = previousSettings.aiFeaturesEnabled;
-    const shouldResolveEmbeddingDimensions = initialEmbeddingConfigChanged
+    const shouldApplyCatalogEmbeddingDimensions = initialEmbeddingConfigChanged
       || (!aiWasEnabled && initialNormalized.aiFeaturesEnabled);
-    const normalized = shouldResolveEmbeddingDimensions
+    const catalogEmbeddingEntry = findCatalogEntry(
+      modelCatalog,
+      initialNormalized.embedding.provider,
+      initialNormalized.embedding.model,
+    );
+    const normalized = shouldApplyCatalogEmbeddingDimensions && catalogEmbeddingEntry?.embeddingDimensions !== undefined
       ? {
           ...initialNormalized,
           embedding: {
             ...initialNormalized.embedding,
-            dimensions: await resolveOllamaEmbeddingDimensions({
-              ollama,
-              host: initialNormalized.embedding.baseUrl,
-              model: initialNormalized.embedding.model,
-            }),
+            dimensions: catalogEmbeddingEntry.embeddingDimensions,
           },
         }
       : initialNormalized;
@@ -578,6 +571,10 @@ export function createAdminAiServices({
     return await ollama.listModels({ host: effectiveHost });
   }
 
+  function getModelCatalog(): AdminAiModelCatalogEntry[] {
+    return modelCatalog.map(entry => ({ ...entry, capabilities: [...entry.capabilities] }));
+  }
+
   async function listChatModels({
     provider,
     includeEmbeddingModels = false,
@@ -586,29 +583,16 @@ export function createAdminAiServices({
     baseUrl?: string;
     includeEmbeddingModels?: boolean;
   } = {}): Promise<AdminAiModel[]> {
-    const settings = provider === 'gemini' ? null : await getSettings();
-    const effectiveProvider = provider ?? settings?.chat.provider ?? 'ollama';
-
-    if (effectiveProvider === 'gemini') {
-      return CURATED_GEMINI_CHAT_MODELS.map(model => ({
-        name: model,
+    return getModelCatalog()
+      .filter(entry => provider === undefined || entry.provider === provider)
+      .filter(entry => includeEmbeddingModels || hasCatalogCapability(entry, 'chat'))
+      .map(entry => ({
+        name: entry.model,
         size: null,
         modifiedAt: null,
-        capabilities: ['completion', 'vision'],
+        capabilities: entry.capabilities,
+        description: entry.label ?? null,
       }));
-    }
-
-    const effectiveBaseUrl = configuredOllamaHost;
-    const models = await listModels({ host: effectiveBaseUrl });
-
-    if (includeEmbeddingModels) {
-      return models;
-    }
-
-    return models.filter(model =>
-      model.name !== settings?.embedding.model
-      && !hasModelCapability(model, 'embedding')
-    );
   }
 
   async function probeModelLoad({
@@ -647,8 +631,10 @@ export function createAdminAiServices({
     const startedAt = Date.now();
 
     if (effectiveProvider === 'gemini') {
-      const models = await listChatModels({ provider: 'gemini' });
-      const modelAvailable = models.some(item => item.name === effectiveModel);
+      const models = (await listChatModels({ provider: 'gemini' }))
+        .filter(item => item.capabilities.includes('chat'));
+      const catalogEntry = findCatalogEntry(modelCatalog, 'gemini', effectiveModel);
+      const modelAvailable = catalogEntry !== null && hasCatalogCapability(catalogEntry, 'chat');
       const apiKeyAvailable = resolveApiKey(
         apiKeySecretRef
         ?? settings?.providers?.gemini?.apiKeySecretRef,
@@ -663,7 +649,7 @@ export function createAdminAiServices({
         models,
         responseTimeMs: Date.now() - startedAt,
         error: !modelAvailable
-          ? `Model "${effectiveModel}" is not in Arkivra's curated Gemini chat catalog.`
+          ? `Model "${effectiveModel}" is not in Arkivra's AI model catalog for Gemini chat.`
           : !apiKeyAvailable
               ? 'Gemini API key environment variable is not configured on the API server.'
               : null,
@@ -749,6 +735,7 @@ export function createAdminAiServices({
   return {
     getStatus,
     getSettings,
+    getModelCatalog,
     getIngestionSettings,
     updateSettings,
     listModels,

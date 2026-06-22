@@ -1,7 +1,7 @@
 import { fetchJson } from '@/lib/api';
 import type {
   AdminAiAvailability,
-  AdminAiModel,
+  AdminAiModelCatalogEntry,
   AdminAiSettings,
   AdminAiStatus,
   AdminUser,
@@ -254,27 +254,15 @@ export async function getAdminAiStatus() {
   return fetchJson<{ status: AdminAiStatus }>('/api/admin/ai/status');
 }
 
+export async function getAdminAiModelCatalog() {
+  return fetchJson<{ models: AdminAiModelCatalogEntry[] }>('/api/admin/ai/model-catalog');
+}
+
 export async function updateAdminAiSettings(settings: AdminAiSettings) {
   return fetchJson<{ settings: AdminAiSettings }>('/api/admin/ai/settings', {
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(settings),
-  });
-}
-
-export async function listAiChatModels({
-  host,
-  includeEmbeddingModels,
-  provider,
-}: {
-  host: string;
-  includeEmbeddingModels?: boolean;
-  provider?: AdminAiSettings['chat']['provider'];
-}) {
-  return fetchJson<{ models: AdminAiModel[] }>('/api/admin/ai/models', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ host, includeEmbeddingModels, provider }),
   });
 }
 

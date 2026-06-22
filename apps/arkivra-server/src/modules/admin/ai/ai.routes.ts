@@ -83,6 +83,11 @@ export function registerAdminAiRoutes({
     return context.json({ status });
   });
 
+  app.get('/api/admin/ai/model-catalog', async (context) => {
+    const models = aiServices.getModelCatalog();
+    return context.json({ models });
+  });
+
   app.put('/api/admin/ai/settings', async (context) => {
     const body = await context.req.json().catch(() => null);
     const parsed = aiSettingsSchema.safeParse(body);

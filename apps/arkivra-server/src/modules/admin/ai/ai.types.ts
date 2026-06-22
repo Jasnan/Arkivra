@@ -1,5 +1,14 @@
 export type AdminAiChatProviderKind = 'ollama' | 'gemini';
 export type AdminAiProviderKind = AdminAiChatProviderKind;
+export type AdminAiModelCapability = 'chat' | 'vision' | 'embedding';
+
+export type AdminAiModelCatalogEntry = {
+  provider: AdminAiProviderKind;
+  model: string;
+  label?: string;
+  capabilities: AdminAiModelCapability[];
+  embeddingDimensions?: number;
+};
 
 export type AdminAiProviderSettings = {
   provider: AdminAiProviderKind;

@@ -65,6 +65,21 @@ function createMockAiServices() {
         capabilities: ['completion'],
       },
     ]),
+    getModelCatalog: vi.fn(() => [
+      {
+        provider: 'ollama',
+        model: 'gemma4:e4b',
+        label: 'Gemma 4 E4B',
+        capabilities: ['chat', 'vision'],
+      },
+      {
+        provider: 'ollama',
+        model: 'bge-m3',
+        label: 'BGE-M3',
+        capabilities: ['embedding'],
+        embeddingDimensions: 1024,
+      },
+    ]),
     checkModelAvailability: vi.fn(async () => ({
       host: 'http://127.0.0.1:11434',
       model: 'gemma4:e4b',
@@ -125,17 +140,6 @@ function createTestApp({
   });
 
   return { app, aiServices };
-}
-
-function createEmbeddingProbeFetch(dimensions: number) {
-  return vi.fn(async () =>
-    new Response(JSON.stringify({
-      embeddings: [Array.from({ length: dimensions }).fill(0.1)],
-    }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    }),
-  );
 }
 
 describe('admin ai routes integration', () => {
@@ -636,7 +640,7 @@ describe('admin ai routes integration', () => {
     const transaction = vi.fn(async (callback: (tx: { execute: typeof txExecute }) => Promise<void>) =>
       callback({ execute: txExecute }),
     );
-    const fetchImpl = createEmbeddingProbeFetch(1024);
+    const fetchImpl = vi.fn();
     const aiServices = createAdminAiServices({
       db: { execute, insert, select, transaction } as any,
       config: {
@@ -681,9 +685,7 @@ describe('admin ai routes integration', () => {
     expect(enqueueOrchestrateIndex).toHaveBeenCalledWith({
       embeddingIndexId: 'eix_active',
     });
-    expect(fetchImpl).toHaveBeenCalledWith('http://127.0.0.1:11434/api/embed', expect.objectContaining({
-      method: 'POST',
-    }));
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   test('re-enabling AI creates a candidate index when embedding config changed', async () => {
@@ -713,7 +715,7 @@ describe('admin ai routes integration', () => {
     const transaction = vi.fn(async (callback: (tx: { execute: typeof txExecute }) => Promise<void>) =>
       callback({ execute: txExecute }),
     );
-    const fetchImpl = createEmbeddingProbeFetch(768);
+    const fetchImpl = vi.fn();
     const aiServices = createAdminAiServices({
       db: { execute, insert, select, transaction } as any,
       config: {
@@ -758,12 +760,13 @@ describe('admin ai routes integration', () => {
     expect(values).toHaveBeenCalledWith(expect.objectContaining({
       ollamaEmbeddingDimensions: 768,
     }));
+    expect(fetchImpl).not.toHaveBeenCalled();
     expect(enqueueOrchestrateIndex).toHaveBeenCalledWith({
       embeddingIndexId: expect.stringMatching(/^eix_/),
     });
   });
 
-  test('re-enabling AI corrects stale stored embedding dimensions before indexing', async () => {
+  test('re-enabling AI applies catalog embedding dimensions before indexing', async () => {
     const enqueueOrchestrateIndex = vi.fn();
     const onConflictDoUpdate = vi.fn(async () => undefined);
     const values = vi.fn(() => ({ onConflictDoUpdate }));
@@ -790,7 +793,7 @@ describe('admin ai routes integration', () => {
     const transaction = vi.fn(async (callback: (tx: { execute: typeof txExecute }) => Promise<void>) =>
       callback({ execute: txExecute }),
     );
-    const fetchImpl = createEmbeddingProbeFetch(768);
+    const fetchImpl = vi.fn();
     const aiServices = createAdminAiServices({
       db: { execute, insert, select, transaction } as any,
       config: {
@@ -835,13 +838,32 @@ describe('admin ai routes integration', () => {
     expect(values).toHaveBeenCalledWith(expect.objectContaining({
       ollamaEmbeddingDimensions: 768,
     }));
+    expect(fetchImpl).not.toHaveBeenCalled();
     expect(transaction).toHaveBeenCalled();
     expect(enqueueOrchestrateIndex).toHaveBeenCalledWith({
       embeddingIndexId: expect.stringMatching(/^eix_/),
     });
   });
 
-  test('lists available Ollama models', async () => {
+  test('returns the server AI model catalog', async () => {
+    const { app, aiServices } = createTestApp({});
+    const response = await app.request('/api/admin/ai/model-catalog');
+
+    expect(response.status).toBe(200);
+    const body = await response.json() as any;
+    expect(body.models).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          provider: 'ollama',
+          model: 'gemma4:e4b',
+          capabilities: ['chat', 'vision'],
+        }),
+      ]),
+    );
+    expect(aiServices.getModelCatalog).toHaveBeenCalled();
+  });
+
+  test('lists catalog-backed Ollama models', async () => {
     const { app, aiServices } = createTestApp({});
     const response = await app.request('/api/admin/ai/models', {
       method: 'POST',
@@ -856,7 +878,7 @@ describe('admin ai routes integration', () => {
     });
   });
 
-  test('returns curated Gemini chat models without reading stored settings', async () => {
+  test('returns catalog Gemini chat models without reading stored settings', async () => {
     const previousDefaultKey = process.env.GEMINI_API_KEY;
     const previousMissingKey = process.env.ARKIVRA_TEST_MISSING_GEMINI_KEY;
     delete process.env.GEMINI_API_KEY;
@@ -907,37 +929,8 @@ describe('admin ai routes integration', () => {
     }
   });
 
-  test('filters Ollama chat models by provider-reported embedding capability', async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        models: [
-          { name: 'plain-text-model:latest', size: 1000, modified_at: '2026-04-23T12:00:00.000Z' },
-          { name: 'vector-only-local:latest', size: 1000, modified_at: '2026-04-23T12:00:00.000Z' },
-          { name: 'vision-model:latest', size: 1000, modified_at: '2026-04-23T12:00:00.000Z' },
-        ],
-      }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        capabilities: ['completion'],
-      }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        capabilities: ['embedding'],
-      }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        capabilities: ['completion', 'vision'],
-      }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }));
+  test('filters Ollama chat models by catalog capabilities without provider discovery', async () => {
+    const fetchImpl = vi.fn();
     const aiServices = createAdminAiServices({
       db: {
         select: () => ({
@@ -954,20 +947,109 @@ describe('admin ai routes integration', () => {
           model: 'plain-text-model:latest',
           logRequests: false,
         },
+        ai: {
+          modelCatalogExtensions: [
+            {
+              provider: 'ollama',
+              model: 'plain-text-model:latest',
+              capabilities: ['chat'],
+            },
+            {
+              provider: 'ollama',
+              model: 'vector-only-local:latest',
+              capabilities: ['embedding'],
+              embeddingDimensions: 768,
+            },
+            {
+              provider: 'ollama',
+              model: 'vision-model:latest',
+              capabilities: ['chat', 'vision'],
+            },
+          ],
+        },
       } as any,
       fetchImpl: fetchImpl as any,
     });
 
     const models = await aiServices.listChatModels({ provider: 'ollama' });
 
-    expect(models.map(model => model.name)).toEqual([
-      'plain-text-model:latest',
-      'vision-model:latest',
-    ]);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(models.map(model => model.name)).toContain('plain-text-model:latest');
+    expect(models.map(model => model.name)).toContain('vision-model:latest');
+    expect(models.map(model => model.name)).not.toContain('vector-only-local:latest');
     expect(models.find(model => model.name === 'vision-model:latest')?.capabilities).toEqual([
-      'completion',
+      'chat',
       'vision',
     ]);
+  });
+
+  test('appends environment AI model catalog entries', async () => {
+    const aiServices = createAdminAiServices({
+      db: { select: vi.fn() } as any,
+      config: {
+        ollama: {
+          host: 'http://127.0.0.1:11434',
+          model: 'gemma4:e4b',
+          logRequests: false,
+        },
+        ai: {
+          modelCatalogExtensions: [
+            {
+              provider: 'ollama',
+              model: 'custom-chat:latest',
+              label: 'Custom Chat',
+              capabilities: ['chat'],
+            },
+          ],
+        },
+      } as any,
+    });
+
+    expect(aiServices.getModelCatalog()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          provider: 'ollama',
+          model: 'custom-chat:latest',
+          label: 'Custom Chat',
+          capabilities: ['chat'],
+        }),
+        expect.objectContaining({
+          provider: 'gemini',
+          model: 'gemini-3.5-flash',
+        }),
+      ]),
+    );
+  });
+
+  test('environment AI model catalog entries override matching built-ins', async () => {
+    const aiServices = createAdminAiServices({
+      db: { select: vi.fn() } as any,
+      config: {
+        ollama: {
+          host: 'http://127.0.0.1:11434',
+          model: 'gemma4:e4b',
+          logRequests: false,
+        },
+        ai: {
+          modelCatalogExtensions: [
+            {
+              provider: 'ollama',
+              model: 'bge-m3',
+              label: 'BGE-M3 Custom Dimensions',
+              capabilities: ['embedding'],
+              embeddingDimensions: 2048,
+            },
+          ],
+        },
+      } as any,
+    });
+
+    expect(aiServices.getModelCatalog().find(
+      entry => entry.provider === 'ollama' && entry.model === 'bge-m3',
+    )).toMatchObject({
+      label: 'BGE-M3 Custom Dimensions',
+      embeddingDimensions: 2048,
+    });
   });
 
   test('checks Gemini availability with the stored provider secret ref', async () => {

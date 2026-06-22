@@ -27,6 +27,7 @@ const execFileAsync = promisify(execFile);
 const BACKUP_FORMAT_VERSION = 1;
 const BACKUP_DRAIN_POLL_INTERVAL_MS = 500;
 const BACKUP_DRAIN_TIMEOUT_MS = 30 * 60 * 1000;
+const BACKUP_JOB_STALE_AFTER_MS = 60 * 60 * 1000;
 const PUBLIC_TABLES_IN_RESTORE_ORDER = [
   'users',
   'instance_settings',
@@ -562,6 +563,7 @@ export function createBackupWorker({
     db,
     queueName: getScopedQueueName(BACKUP_QUEUE, appInstance),
     concurrency: 1,
+    staleAfterMs: BACKUP_JOB_STALE_AFTER_MS,
     autorun: startPolling,
     handler: async (job) => processBackupJob(job),
   });

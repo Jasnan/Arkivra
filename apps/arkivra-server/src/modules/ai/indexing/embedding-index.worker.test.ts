@@ -4,6 +4,7 @@ import {
   finalizeEmbeddingIndex,
   indexDocumentForEmbedding,
 } from './embedding-index.worker.js';
+import { hashEmbeddingContent } from './embedding-index.services.js';
 
 function flattenSqlChunks(chunks: unknown[]): string {
   return chunks
@@ -96,6 +97,10 @@ describe('embedding index worker', () => {
         return { rows: [{ embedded_chunk_count: 3 }] };
       }
 
+      if (text.includes('RETURNING document_version_id')) {
+        return { rows: [{ document_version_id: 'dvr_1' }] };
+      }
+
       return { rows: [] };
     });
 
@@ -126,6 +131,87 @@ describe('embedding index worker', () => {
     expect(combinedSql).toContain('INSERT INTO document_chunk_embeddings');
     expect(combinedSql).toContain('document_version_id');
     expect(combinedSql).not.toContain('docling');
+  });
+
+  it('skips provider calls when document embeddings are already current', async () => {
+    const embed = vi.fn(async (_texts: string[]) => [[0.1, 0.2, 0.3]]);
+    const execute = vi.fn(async (query: unknown) => {
+      const text = queryText(query);
+
+      if (text.includes('FROM embedding_indexes AS ei')) {
+        return {
+          rows: [{
+            id: 'eix_active',
+            provider_config_id: 'aip_embedding',
+            provider: 'ollama',
+            model: 'bge-m3',
+            dimensions: 3,
+            distance_metric: 'cosine',
+            status: 'active',
+            name: 'Local embeddings',
+            base_url: 'http://ollama.local',
+            api_key_secret_ref: null,
+            config: {},
+            is_enabled: true,
+          }],
+        };
+      }
+
+      if (text.includes('FROM document_versions AS dv') && text.includes('LEFT JOIN document_chunks AS dc')) {
+        return {
+          rows: [{
+            document_id: 'doc_1',
+            document_version_id: 'dvr_1',
+            vault_id: 'vlt_1',
+            chunk_id: 'chk_1',
+            content: 'Persisted chunk',
+            chunk_index: 0,
+          }],
+        };
+      }
+
+      if (text.includes('FROM document_embedding_index_status')) {
+        return {
+          rows: [{
+            status: 'ready',
+            expected_chunk_count: 1,
+            embedded_chunk_count: 1,
+          }],
+        };
+      }
+
+      if (text.includes('FROM document_chunk_embeddings')) {
+        return {
+          rows: [{
+            chunk_id: 'chk_1',
+            content_sha256: hashEmbeddingContent('Persisted chunk'),
+          }],
+        };
+      }
+
+      return { rows: [] };
+    });
+
+    const result = await indexDocumentForEmbedding({
+      db: { execute } as any,
+      embeddingProviders: {
+        ollama: {
+          kind: 'ollama',
+          embed: async ({ texts }) => embed(texts),
+        },
+      },
+      embeddingIndexId: 'eix_active',
+      documentVersionId: 'dvr_1',
+    });
+
+    expect(result).toEqual({
+      status: 'ready',
+      skippedProvider: true,
+      embeddedChunkCount: 1,
+    });
+    expect(embed).not.toHaveBeenCalled();
+    const combinedSql = execute.mock.calls.map(call => queryText(call[0])).join('\n');
+    expect(combinedSql).not.toContain('RETURNING document_version_id');
   });
 
   it('keeps two versions of one logical document isolated while indexing', async () => {
@@ -176,6 +262,10 @@ describe('embedding index worker', () => {
 
       if (text.includes('count(*)::int AS embedded_chunk_count')) {
         return { rows: [{ embedded_chunk_count: 1 }] };
+      }
+
+      if (text.includes('RETURNING document_version_id')) {
+        return { rows: [{ document_version_id: 'dvr_1' }] };
       }
 
       return { rows: [] };
@@ -447,6 +537,10 @@ describe('embedding index worker', () => {
 
       if (text.includes('count(*)::int AS embedded_chunk_count')) {
         return { rows: [{ embedded_chunk_count: 0 }] };
+      }
+
+      if (text.includes('RETURNING document_version_id')) {
+        return { rows: [{ document_version_id: 'dvr_1' }] };
       }
 
       return { rows: [] };

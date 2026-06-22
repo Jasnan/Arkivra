@@ -239,57 +239,93 @@ export function createPostgresQueue<TData extends Record<string, unknown>>({
     const maxAttempts = defaultJobOptions.attempts ?? 1;
     const backoffType = defaultJobOptions.backoff?.type ?? null;
     const backoffDelayMs = defaultJobOptions.backoff?.delay ?? null;
-    const existing = await loadJobRow(id);
 
-    if (existing !== null && (existing.status === 'pending' || existing.status === 'running')) {
-      return new AsyncJob<TData>({ db, queueName, id: existing.id, name: existing.name, data: existing.data });
-    }
-
-    if (existing !== null) {
-      await db
-        .update(backgroundJobsTable)
-        .set({
-          name,
-          payload,
-          status: 'pending',
-          progress: 0,
-          attempts: 0,
-          maxAttempts,
-          backoffType,
-          backoffDelayMs,
-          repeatPattern,
-          runAt,
-          lockedBy: null,
-          lockedAt: null,
-          lastError: null,
-          result: null,
-          completedAt: null,
-          updatedAt: new Date(),
-        })
-        .where(and(
-          eq(backgroundJobsTable.id, id),
-          eq(backgroundJobsTable.queueName, queueName),
-        ));
+    if (options.jobId === undefined) {
+      await db.insert(backgroundJobsTable).values({
+        id,
+        queueName,
+        name,
+        payload,
+        status: 'pending',
+        progress: 0,
+        attempts: 0,
+        maxAttempts,
+        backoffType,
+        backoffDelayMs,
+        repeatPattern,
+        runAt,
+      });
 
       return new AsyncJob<TData>({ db, queueName, id, name, data: payload });
     }
 
-    await db.insert(backgroundJobsTable).values({
-      id,
-      queueName,
-      name,
-      payload,
-      status: 'pending',
-      progress: 0,
-      attempts: 0,
-      maxAttempts,
-      backoffType,
-      backoffDelayMs,
-      repeatPattern,
-      runAt,
-    });
+    const upserted = await db.execute<JobRow<TData>>(sql`
+      INSERT INTO background_jobs (
+        id,
+        queue_name,
+        name,
+        payload,
+        status,
+        progress,
+        attempts,
+        max_attempts,
+        backoff_type,
+        backoff_delay_ms,
+        repeat_pattern,
+        run_at
+      )
+      VALUES (
+        ${id},
+        ${queueName},
+        ${name},
+        ${JSON.stringify(payload)}::jsonb,
+        'pending',
+        0,
+        0,
+        ${maxAttempts},
+        ${backoffType},
+        ${backoffDelayMs},
+        ${repeatPattern},
+        ${runAt}
+      )
+      ON CONFLICT (id)
+      DO UPDATE SET
+        name = EXCLUDED.name,
+        payload = EXCLUDED.payload,
+        status = 'pending',
+        progress = 0,
+        attempts = 0,
+        max_attempts = EXCLUDED.max_attempts,
+        backoff_type = EXCLUDED.backoff_type,
+        backoff_delay_ms = EXCLUDED.backoff_delay_ms,
+        repeat_pattern = EXCLUDED.repeat_pattern,
+        run_at = EXCLUDED.run_at,
+        locked_by = NULL,
+        locked_at = NULL,
+        last_error = NULL,
+        result = NULL,
+        completed_at = NULL,
+        updated_at = now()
+      WHERE background_jobs.queue_name = EXCLUDED.queue_name
+        AND background_jobs.status NOT IN ('pending', 'running')
+      RETURNING background_jobs.*
+    `);
 
-    return new AsyncJob<TData>({ db, queueName, id, name, data: payload });
+    const row = upserted.rows[0] ? mapRow(upserted.rows[0]) : await loadJobRow(id);
+
+    if (row === null) {
+      throw new Error(`Job id ${id} already exists in another queue.`);
+    }
+
+    return new AsyncJob<TData>({
+      db,
+      queueName,
+      id: row.id,
+      name: row.name,
+      data: row.data,
+      attempts: row.attempts,
+      maxAttempts: row.maxAttempts,
+    });
   }
 
   async function getJob(id: string) {
@@ -452,67 +488,75 @@ async function renewLock({
   `);
 }
 
-async function completeJob({
+export async function completeJob({
   db,
   queueName,
   job,
   result,
+  workerId,
 }: {
   db: Database;
   queueName: string;
   job: ReturnType<typeof mapRow<Record<string, unknown>>>;
   result?: Record<string, unknown>;
+  workerId: string;
 }) {
   if (job.repeatPattern !== null) {
-    await db
-      .update(backgroundJobsTable)
-      .set({
-        status: 'pending',
-        progress: 0,
-        attempts: 0,
-        runAt: getNextCronRun(job.repeatPattern, new Date()),
-        lockedBy: null,
-        lockedAt: null,
-        lastError: null,
-        result: result ?? null,
-        completedAt: null,
-        updatedAt: new Date(),
-      })
-      .where(and(
-        eq(backgroundJobsTable.id, job.id),
-        eq(backgroundJobsTable.queueName, queueName),
-      ));
+    const rows = await db.execute<{ id: string }>(sql`
+      UPDATE background_jobs
+      SET
+        status = 'pending',
+        progress = 0,
+        attempts = 0,
+        run_at = ${getNextCronRun(job.repeatPattern, new Date())},
+        locked_by = NULL,
+        locked_at = NULL,
+        last_error = NULL,
+        result = ${result === undefined ? null : JSON.stringify(result)}::jsonb,
+        completed_at = NULL,
+        updated_at = now()
+      WHERE id = ${job.id}
+        AND queue_name = ${queueName}
+        AND status = 'running'
+        AND locked_by = ${workerId}
+      RETURNING id
+    `);
 
-    return;
+    return rows.rows.length > 0;
   }
 
-  await db
-    .update(backgroundJobsTable)
-    .set({
-      status: 'completed',
-      progress: 100,
-      lockedBy: null,
-      lockedAt: null,
-      result: result ?? null,
-      completedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(and(
-      eq(backgroundJobsTable.id, job.id),
-      eq(backgroundJobsTable.queueName, queueName),
-    ));
+  const rows = await db.execute<{ id: string }>(sql`
+    UPDATE background_jobs
+    SET
+      status = 'completed',
+      progress = 100,
+      locked_by = NULL,
+      locked_at = NULL,
+      result = ${result === undefined ? null : JSON.stringify(result)}::jsonb,
+      completed_at = now(),
+      updated_at = now()
+    WHERE id = ${job.id}
+      AND queue_name = ${queueName}
+      AND status = 'running'
+      AND locked_by = ${workerId}
+    RETURNING id
+  `);
+
+  return rows.rows.length > 0;
 }
 
-async function failJob({
+export async function failJob({
   db,
   queueName,
   job,
   errorMessage,
+  workerId,
 }: {
   db: Database;
   queueName: string;
   job: ReturnType<typeof mapRow<Record<string, unknown>>>;
   errorMessage: string;
+  workerId: string;
 }) {
   const retryDelayMs = getRetryDelayMs({
     attempts: job.attempts,
@@ -522,60 +566,65 @@ async function failJob({
   const shouldRetry = job.attempts < job.maxAttempts;
 
   if (shouldRetry) {
-    await db
-      .update(backgroundJobsTable)
-      .set({
-        status: 'pending',
-        progress: 0,
-        lockedBy: null,
-        lockedAt: null,
-        lastError: errorMessage,
-        runAt: new Date(Date.now() + retryDelayMs),
-        updatedAt: new Date(),
-      })
-      .where(and(
-        eq(backgroundJobsTable.id, job.id),
-        eq(backgroundJobsTable.queueName, queueName),
-      ));
+    const rows = await db.execute<{ id: string }>(sql`
+      UPDATE background_jobs
+      SET
+        status = 'pending',
+        progress = 0,
+        locked_by = NULL,
+        locked_at = NULL,
+        last_error = ${errorMessage},
+        run_at = ${new Date(Date.now() + retryDelayMs)},
+        updated_at = now()
+      WHERE id = ${job.id}
+        AND queue_name = ${queueName}
+        AND status = 'running'
+        AND locked_by = ${workerId}
+      RETURNING id
+    `);
 
-    return;
+    return rows.rows.length > 0;
   }
 
   if (job.repeatPattern !== null) {
-    await db
-      .update(backgroundJobsTable)
-      .set({
-        status: 'pending',
-        progress: 0,
-        attempts: 0,
-        lockedBy: null,
-        lockedAt: null,
-        lastError: errorMessage,
-        runAt: getNextCronRun(job.repeatPattern, new Date()),
-        updatedAt: new Date(),
-      })
-      .where(and(
-        eq(backgroundJobsTable.id, job.id),
-        eq(backgroundJobsTable.queueName, queueName),
-      ));
+    const rows = await db.execute<{ id: string }>(sql`
+      UPDATE background_jobs
+      SET
+        status = 'pending',
+        progress = 0,
+        attempts = 0,
+        locked_by = NULL,
+        locked_at = NULL,
+        last_error = ${errorMessage},
+        run_at = ${getNextCronRun(job.repeatPattern, new Date())},
+        updated_at = now()
+      WHERE id = ${job.id}
+        AND queue_name = ${queueName}
+        AND status = 'running'
+        AND locked_by = ${workerId}
+      RETURNING id
+    `);
 
-    return;
+    return rows.rows.length > 0;
   }
 
-  await db
-    .update(backgroundJobsTable)
-    .set({
-      status: 'failed',
-      lockedBy: null,
-      lockedAt: null,
-      lastError: errorMessage,
-      completedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(and(
-      eq(backgroundJobsTable.id, job.id),
-      eq(backgroundJobsTable.queueName, queueName),
-    ));
+  const rows = await db.execute<{ id: string }>(sql`
+    UPDATE background_jobs
+    SET
+      status = 'failed',
+      locked_by = NULL,
+      locked_at = NULL,
+      last_error = ${errorMessage},
+      completed_at = now(),
+      updated_at = now()
+    WHERE id = ${job.id}
+      AND queue_name = ${queueName}
+      AND status = 'running'
+      AND locked_by = ${workerId}
+    RETURNING id
+  `);
+
+  return rows.rows.length > 0;
 }
 
 export function createPostgresWorker<TData extends Record<string, unknown>>({
@@ -615,6 +664,7 @@ export function createPostgresWorker<TData extends Record<string, unknown>>({
 
     return new Promise<void>((resolve) => {
       let settled = false;
+      let timeout: NodeJS.Timeout;
       const done = () => {
         if (settled) {
           return;
@@ -625,7 +675,7 @@ export function createPostgresWorker<TData extends Record<string, unknown>>({
         pollWakeups.delete(done);
         resolve();
       };
-      const timeout = setTimeout(done, ms);
+      timeout = setTimeout(done, ms);
       pollWakeups.add(done);
     });
   }
@@ -693,23 +743,37 @@ export function createPostgresWorker<TData extends Record<string, unknown>>({
       try {
         const result = await handler(job);
         clearInterval(heartbeat);
-        await completeJob({
+        const finalized = await completeJob({
           db,
           queueName,
           job: claimed,
           result: result && typeof result === 'object' ? result : undefined,
+          workerId,
         });
-        emitter.emit('completed', job);
+        if (finalized) {
+          emitter.emit('completed', job);
+        } else {
+          console.warn(
+            `[postgres-jobs] skipped completion for job ${claimed.id} on ${queueName}; worker no longer owns the lock`,
+          );
+        }
       } catch (error) {
         clearInterval(heartbeat);
         const message = error instanceof Error ? error.message : 'Unknown job failure';
-        await failJob({
+        const finalized = await failJob({
           db,
           queueName,
           job: claimed,
           errorMessage: message,
+          workerId,
         });
-        emitter.emit('failed', job, error instanceof Error ? error : new Error(message));
+        if (finalized) {
+          emitter.emit('failed', job, error instanceof Error ? error : new Error(message));
+        } else {
+          console.warn(
+            `[postgres-jobs] skipped failure for job ${claimed.id} on ${queueName}; worker no longer owns the lock`,
+          );
+        }
       }
     }
   }

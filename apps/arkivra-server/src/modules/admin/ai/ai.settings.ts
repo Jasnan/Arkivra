@@ -8,6 +8,7 @@ const RAW_GOOGLE_API_KEY_PATTERN = /^AIza[\w-]{20,}$/;
 
 export const INSTANCE_AI_SETTINGS_ID = 'instance_ai_settings';
 export const GEMINI_OPENAI_COMPATIBLE_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
+export const DEFAULT_OLLAMA_CHAT_MODEL = 'gemma4:e4b';
 export const CURATED_GEMINI_CHAT_MODELS = builtInAiModelCatalog
   .filter(entry => entry.provider === 'gemini' && entry.capabilities.includes('chat'))
   .map(entry => entry.model);
@@ -140,7 +141,7 @@ export function resolveApiKey(...secretRefs: Array<string | null | undefined>) {
 
 export function createDefaultSettings(config: Config): AdminAiSettings {
   const ollamaHost = config.ollama.host;
-  const model = config.ollama.model;
+  const model = DEFAULT_OLLAMA_CHAT_MODEL;
 
   return {
     aiFeaturesEnabled: false,

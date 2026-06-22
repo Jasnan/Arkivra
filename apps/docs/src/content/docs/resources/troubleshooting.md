@@ -25,9 +25,7 @@ Check that:
 
 Check:
 
-- `ARKIVRA_SERVER_BASE_URL`
-- `ARKIVRA_WEB_BASE_URL`
-- `ARKIVRA_CORS_ORIGINS`
+- `ARKIVRA_PUBLIC_URL`
 - `BETTER_AUTH_URL`
 
 For local defaults, the dashboard origin is `http://localhost:5173` and the API origin is `http://localhost:1221`.
@@ -37,16 +35,16 @@ For local defaults, the dashboard origin is `http://localhost:5173` and the API 
 Check:
 
 ```bash
-docker compose logs arkivra-worker
+docker compose logs arkivra-server
 curl http://localhost:5001/health
 ```
 
 Common causes:
 
 - The external Docling service is not running or is still starting.
-- The worker process is not running.
+- The server process is not running or its worker role failed to start.
 - `ARKIVRA_DOCLING_URL` points to the wrong host for the process.
-- `ARKIVRA_DOCUMENT_PROCESSING_CONCURRENCY` is too high for the available Docling capacity.
+- `ARKIVRA_DOCUMENT_WORKER_CONCURRENCY` is too high for the available Docling capacity.
 
 ## Full-Text Search Has No Results
 
@@ -73,10 +71,10 @@ Without an active embedding index, Arkivra falls back to full-text search.
 Backups require the worker process and backup queue. Check:
 
 ```bash
-docker compose logs arkivra-worker
+docker compose logs arkivra-server
 ```
 
-Also verify that `ARKIVRA_BACKUPS_PATH` or the Compose `backups` volume is writable and `ARKIVRA_BACKUP_ENCRYPTION_KEY` is configured.
+Also verify that `ARKIVRA_DATA_PATH` or the Compose `arkivra-data` volume is writable and `ARKIVRA_ENCRYPTION_KEYS` is configured.
 
 Backup creation temporarily puts Arkivra into maintenance mode. During that window, uploads, document mutations, backup imports, and restore requests return maintenance-mode errors until the worker finishes or fails the backup job.
 
@@ -85,11 +83,13 @@ Backup creation temporarily puts Arkivra into maintenance mode. During that wind
 Check that:
 
 - the backup set includes one `.manifest.json` file and every `.partNNN` file listed in that manifest
-- `ARKIVRA_BACKUP_ENCRYPTION_KEY` matches the key used to create the backup set
+- `ARKIVRA_ENCRYPTION_KEYS` includes the key version needed by the backup archive
 - the archive format is compatible
 - PostgreSQL is reachable
 - document storage is writable
 - `ARKIVRA_ENCRYPTION_KEYS` includes keys needed by encrypted files
+
+Older backup sets created before backup archives used `ARKIVRA_ENCRYPTION_KEYS` also require the deprecated `ARKIVRA_BACKUP_ENCRYPTION_KEY`.
 
 This backup restore path is separate from document-version restore. If restoring a historical document version fails, check that the selected version is not current, is not deleted, has completed processing, and the user has permission to mutate documents in the vault.
 

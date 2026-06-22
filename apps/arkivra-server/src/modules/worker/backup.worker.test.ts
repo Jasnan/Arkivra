@@ -6,6 +6,7 @@ import { createBackupArchive, restoreBackupArchive } from './backup.worker.js';
 
 describe('backup worker helpers', () => {
   const backupEncryptionKeyRaw = 'a'.repeat(64);
+  const documentEncryptionKeysRaw = `1:${backupEncryptionKeyRaw}`;
   let backupDirectory = '';
   let storageBasePath = '';
   let extractedStorageKey = '';
@@ -65,7 +66,7 @@ describe('backup worker helpers', () => {
 
     const result = await createBackupArchive({
       backupDirectory,
-      backupEncryptionKeyRaw,
+      documentEncryptionKeysRaw,
       backupPartSizeBytes: 512 * 1024 * 1024,
       maintenanceFlagPath: join(backupDirectory, '.maintenance-mode.test'),
       pool,
@@ -94,13 +95,65 @@ describe('backup worker helpers', () => {
 
     const backup = await createBackupArchive({
       backupDirectory,
-      backupEncryptionKeyRaw,
+      documentEncryptionKeysRaw,
       backupPartSizeBytes: 512 * 1024 * 1024,
       maintenanceFlagPath,
       pool: createPool,
       storageBasePath,
       version: 'test',
     });
+
+    await rm(storageBasePath, { recursive: true, force: true });
+    await mkdir(storageBasePath, { recursive: true });
+
+    const result = await restoreBackupArchive({
+      backupDirectory,
+      documentEncryptionKeysRaw,
+      backupEncryptionKeyRaw,
+      backupId: backup.backupId,
+      maintenanceFlagPath,
+      pool,
+      storageBasePath,
+    });
+
+    expect(result).toEqual({
+      backupId: backup.backupId,
+      restored: true,
+    });
+
+    const restoredFile = await readFile(join(storageBasePath, extractedStorageKey), 'utf8');
+    expect(restoredFile).toBe('encrypted-file');
+  });
+
+  test('restores legacy backup archives with the deprecated backup key', async () => {
+    const maintenanceFlagPath = join(backupDirectory, '.maintenance-mode.test');
+    const pool = {
+      query: vi
+        .fn()
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ storage_key: extractedStorageKey }] }),
+    } as never;
+
+    const createPool = {
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+    } as never;
+
+    const backup = await createBackupArchive({
+      backupDirectory,
+      documentEncryptionKeysRaw,
+      backupPartSizeBytes: 512 * 1024 * 1024,
+      maintenanceFlagPath,
+      pool: createPool,
+      storageBasePath,
+      version: 'test',
+    });
+    const manifestPath = join(backupDirectory, backup.backupId);
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
+      archive: { keySource?: string; kekVersion?: string };
+    };
+    delete manifest.archive.keySource;
+    delete manifest.archive.kekVersion;
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
 
     await rm(storageBasePath, { recursive: true, force: true });
     await mkdir(storageBasePath, { recursive: true });
@@ -118,9 +171,6 @@ describe('backup worker helpers', () => {
       backupId: backup.backupId,
       restored: true,
     });
-
-    const restoredFile = await readFile(join(storageBasePath, extractedStorageKey), 'utf8');
-    expect(restoredFile).toBe('encrypted-file');
   });
 
   test('fails backup before publishing when referenced storage is missing', async () => {
@@ -144,7 +194,7 @@ describe('backup worker helpers', () => {
     try {
       await expect(createBackupArchive({
         backupDirectory: isolatedBackupDirectory,
-        backupEncryptionKeyRaw,
+        documentEncryptionKeysRaw,
         backupPartSizeBytes: 512 * 1024 * 1024,
         maintenanceFlagPath,
         pool,

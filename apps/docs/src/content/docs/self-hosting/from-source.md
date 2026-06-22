@@ -27,6 +27,13 @@ Set the generated value in `.env`:
 ARKIVRA_ENCRYPTION_KEYS=1:<generated-64-hex-character-key>
 ```
 
+For the default local dashboard/API split, keep:
+
+```bash
+ARKIVRA_PUBLIC_URL=http://localhost:5173
+ARKIVRA_DATA_PATH=./var/default
+```
+
 Start Docling separately, then set its URL in `.env`:
 
 ```bash

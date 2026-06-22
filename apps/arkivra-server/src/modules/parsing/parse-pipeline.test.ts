@@ -4,7 +4,7 @@ import type { ChunkSummariser } from './ollama-chunk-summariser.js';
 import type { TextCleaner } from './text-cleaner.js';
 import { describe, expect, test, vi } from 'vitest';
 import { createParserRegistry } from './parser.registry.js';
-import { createDeterministicTextCleaner, createNoopTextCleaner } from './text-cleaner.js';
+import { createNoopTextCleaner } from './text-cleaner.js';
 import { createParsePipeline } from './parse-pipeline.js';
 
 function makeChunk(overrides: Partial<ParsedChunk> = {}): ParsedChunk {
@@ -70,15 +70,12 @@ const input: ParseInput = {
 };
 
 describe('parse pipeline', () => {
-  test('preserves raw parser output alongside cleaned text', async () => {
-    const { pipeline } = makePipeline(
-      {
-        text: 'Dirty  \ntext',
-        markdown: '',
-        rawStructuredOutput: { schema_name: 'DoclingDocument', texts: [] },
-      },
-      createDeterministicTextCleaner(),
-    );
+  test('preserves raw parser output as canonical text when no markdown is available', async () => {
+    const { pipeline } = makePipeline({
+      text: 'Dirty  \ntext',
+      markdown: '',
+      rawStructuredOutput: { schema_name: 'DoclingDocument', texts: [] },
+    });
 
     const parsed = await pipeline.run(input);
 
@@ -87,8 +84,7 @@ describe('parse pipeline', () => {
       schema_name: 'DoclingDocument',
       texts: [],
     });
-    expect(parsed.text).not.toBe(parsed.rawText);
-    expect(parsed.text.includes('  ')).toBe(false);
+    expect(parsed.text).toBe(parsed.rawText);
   });
 
   test('keeps Docling OCR text canonical for scan-heavy output', async () => {
@@ -103,13 +99,11 @@ describe('parse pipeline', () => {
             canonical_text_source: 'docling',
           },
         },
-      },
-      createDeterministicTextCleaner(),
-    );
+      });
 
     const parsed = await pipeline.run(input);
 
-    expect(parsed.text).toBe('OCR canonical text');
+    expect(parsed.text).toBe('OCR  canonical  text');
     expect(parsed.rawMarkdown).toBe('# Docling markdown text');
     expect(parsed.markdown).toBe('# Docling markdown text');
   });
@@ -400,7 +394,7 @@ describe('parse pipeline', () => {
     await expect(pipeline.run(input)).rejects.toThrow(/invalid ParsedDocument/);
   });
 
-  test('detects source language from cleaned document text', async () => {
+  test('detects source language from canonical document text', async () => {
     const { pipeline } = makePipeline({
       text: 'Dies ist eine Rechnung und die Zahlung ist innerhalb von vierzehn Tagen fällig. Der Betrag ist mit der angegebenen Referenz zu überweisen.',
       markdown: '',

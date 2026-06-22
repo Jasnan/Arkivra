@@ -34,6 +34,11 @@ const optionalPortSchema = z.preprocess(
   z.coerce.number().int().min(1).max(65535).optional(),
 );
 
+const optionalUrlSchema = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+  z.string().url().optional(),
+);
+
 export const configDefinition = {
   app: {
     instance: {
@@ -60,13 +65,19 @@ export const configDefinition = {
     default: 'dev',
     env: 'ARKIVRA_VERSION',
   },
-  processMode: {
-    doc: 'The process mode: "all" runs both web and worker, "web" runs only the API server, "worker" runs only background tasks.',
+  processRole: {
+    doc: 'The process role: "all" runs both web and worker, "web" runs only the API server, "worker" runs only background tasks.',
     schema: z.enum(['all', 'web', 'worker']),
     default: 'all' as const,
-    env: 'PROCESS_MODE',
+    env: 'ARKIVRA_PROCESS_ROLE',
   },
   server: {
+    publicUrl: {
+      doc: 'Single public origin for Arkivra. When set, API URL, web URL, CORS origins, and auth trusted origins are derived from it unless advanced split-origin variables override them.',
+      schema: optionalUrlSchema,
+      default: undefined,
+      env: 'ARKIVRA_PUBLIC_URL',
+    },
     port: {
       doc: 'The port the API server listens on.',
       schema: z.coerce.number().min(1024).max(65535),
@@ -87,7 +98,7 @@ export const configDefinition = {
     },
     baseUrl: {
       doc: 'The base URL of the server.',
-      schema: z.string().url().optional(),
+      schema: optionalUrlSchema,
       default: undefined,
       env: 'ARKIVRA_SERVER_BASE_URL',
     },
@@ -102,7 +113,7 @@ export const configDefinition = {
     },
     webBaseUrl: {
       doc: 'Public base URL of the Arkivra web app. Security-sensitive auth redirects, such as OAuth 2FA verification, use this origin.',
-      schema: z.string().url().optional(),
+      schema: optionalUrlSchema,
       default: undefined,
       env: 'ARKIVRA_WEB_BASE_URL',
     },
@@ -128,11 +139,11 @@ export const configDefinition = {
       default: 30,
       env: 'ARKIVRA_DOCUMENT_RETENTION_DAYS',
     },
-    documentProcessingConcurrency: {
+    documentWorkerConcurrency: {
       doc: 'How many documents the worker may process in parallel. Keep this low for the default single-worker Docling service, especially with large PDFs.',
       schema: z.coerce.number().int().min(1).max(32),
       default: 1,
-      env: 'ARKIVRA_DOCUMENT_PROCESSING_CONCURRENCY',
+      env: 'ARKIVRA_DOCUMENT_WORKER_CONCURRENCY',
     },
   },
   backups: {
@@ -212,12 +223,6 @@ export const configDefinition = {
     },
   },
   parsers: {
-    textCleanup: {
-      doc: 'Post-parse text cleanup strategy. `deterministic` applies safe formatting-only rules (unicode NFKC, ligature replacement, hyphen-linebreak join, whitespace normalization). `none` disables cleanup.',
-      schema: z.enum(['deterministic', 'none']),
-      default: 'deterministic' as const,
-      env: 'ARKIVRA_PARSER_TEXT_CLEANUP',
-    },
     pdfScanDetection: {
       maxSampledPages: {
         doc: 'Maximum number of PDF pages sampled for digital/scanned classification.',
@@ -258,12 +263,6 @@ export const configDefinition = {
       default: 'http://127.0.0.1:11434',
       env: 'ARKIVRA_OLLAMA_HOST',
     },
-    model: {
-      doc: 'Default Ollama model used for chat and AI-assisted document features.',
-      schema: z.string().min(1),
-      default: 'gemma4:e4b',
-      env: 'ARKIVRA_OLLAMA_MODEL',
-    },
     embeddingBatchSize: {
       doc: 'How many chunk texts Arkivra sends per Ollama embedding request when /api/embed batching is available.',
       schema: z.coerce.number().int().min(1).max(512),
@@ -302,6 +301,12 @@ export const configDefinition = {
     },
   },
   storage: {
+    dataPath: {
+      doc: 'Root directory for Arkivra runtime data. Document storage, upload staging, and backups are derived from this path unless their advanced path variables are set.',
+      schema: z.string(),
+      default: './var/default',
+      env: 'ARKIVRA_DATA_PATH',
+    },
     driver: {
       doc: 'Storage driver: "filesystem" or "s3".',
       schema: z.enum(['filesystem', 's3']),
@@ -384,7 +389,7 @@ export const configDefinition = {
     },
     baseUrl: {
       doc: 'Public base URL for Better Auth routes. Better Auth uses this to construct OAuth callback URLs.',
-      schema: z.string().url().optional(),
+      schema: optionalUrlSchema,
       default: undefined,
       env: 'BETTER_AUTH_URL',
     },
@@ -402,7 +407,7 @@ export const configDefinition = {
     },
     googleRedirectUri: {
       doc: 'Google OAuth redirect URI. Must exactly match an Authorized redirect URI in Google Cloud Console.',
-      schema: z.string().url().optional(),
+      schema: optionalUrlSchema,
       default: undefined,
       env: 'GOOGLE_REDIRECT_URI',
     },
@@ -420,12 +425,18 @@ export const configDefinition = {
     },
     githubRedirectUri: {
       doc: 'GitHub OAuth callback URL. Must exactly match the Authorization callback URL in the GitHub OAuth app.',
-      schema: z.string().url().optional(),
+      schema: optionalUrlSchema,
       default: undefined,
       env: 'GITHUB_REDIRECT_URI',
     },
   },
   email: {
+    smtpUrl: {
+      doc: 'SMTP connection URL. Use smtp:// for STARTTLS-capable submission or smtps:// for implicit TLS.',
+      schema: optionalUrlSchema,
+      default: undefined,
+      env: 'ARKIVRA_SMTP_URL',
+    },
     delivery: {
       doc: 'Email delivery backend. Use "console" for local development and "smtp" for production.',
       schema: z.enum(['console', 'smtp']),
@@ -499,8 +510,33 @@ function localOrigin(port: number) {
   return `http://localhost:${port}`;
 }
 
-function instancePath(instance: string, leaf: string) {
-  return `./var/${instance}/${leaf}`;
+function dataPath(basePath: string, leaf: string) {
+  return `${basePath.replace(/\/+$/, '')}/${leaf}`;
+}
+
+function normalizeBaseUrl(value: string) {
+  return value.trim().replace(/\/+$/, '');
+}
+
+function parseSmtpUrl(raw: string | undefined) {
+  if (!raw?.trim()) return null;
+
+  const url = new URL(raw);
+  if (url.protocol !== 'smtp:' && url.protocol !== 'smtps:') {
+    throw new Error('ARKIVRA_SMTP_URL must use smtp:// or smtps://.');
+  }
+
+  const secure = url.protocol === 'smtps:';
+  const startTlsParam = url.searchParams.get('starttls');
+
+  return {
+    host: url.hostname,
+    password: url.password ? decodeURIComponent(url.password) : undefined,
+    port: url.port ? Number.parseInt(url.port, 10) : (secure ? 465 : 587),
+    secure,
+    startTls: startTlsParam === null ? !secure : startTlsParam === 'true' || startTlsParam === '1',
+    user: url.username ? decodeURIComponent(url.username) : undefined,
+  };
 }
 
 export function parseConfig({ env }: { env: Record<string, string | undefined> }) {
@@ -525,9 +561,30 @@ export function parseConfig({ env }: { env: Record<string, string | undefined> }
     );
   }
 
+  if (
+    config.env === 'production' &&
+    (!hasEnvValue(env, 'ARKIVRA_AUTH_SECRET') ||
+      config.auth.secret === 'arkivra-dev-secret-change-in-production')
+  ) {
+    throw new Error('ARKIVRA_AUTH_SECRET must be set to a strong, stable value in production.');
+  }
+
   const apiOrigin = localOrigin(config.server.port);
   const webOrigin = localOrigin(config.server.webPort);
+  const publicOrigin = hasEnvValue(env, 'ARKIVRA_PUBLIC_URL')
+    ? normalizeBaseUrl(config.server.publicUrl!)
+    : undefined;
+  const serverBaseUrl = hasEnvValue(env, 'ARKIVRA_SERVER_BASE_URL')
+    ? normalizeBaseUrl(config.server.baseUrl ?? apiOrigin)
+    : (publicOrigin ?? apiOrigin);
+  const webBaseUrl = hasEnvValue(env, 'ARKIVRA_WEB_BASE_URL')
+    ? normalizeBaseUrl(config.server.webBaseUrl ?? webOrigin)
+    : (publicOrigin ?? webOrigin);
   const appInstance = config.app.instance;
+  const rootDataPath = appInstance && !hasEnvValue(env, 'ARKIVRA_DATA_PATH')
+    ? `./var/${appInstance}`
+    : config.storage.dataPath;
+  const smtpUrl = parseSmtpUrl(config.email.smtpUrl);
   const modelCatalogExtensions = parseAiModelCatalogExtensions(
     config.ai.modelCatalogExtensions,
   );
@@ -540,45 +597,50 @@ export function parseConfig({ env }: { env: Record<string, string | undefined> }
     },
     server: {
       ...config.server,
-      baseUrl: hasEnvValue(env, 'ARKIVRA_SERVER_BASE_URL')
-        ? (config.server.baseUrl ?? apiOrigin)
-        : apiOrigin,
+      publicUrl: publicOrigin,
+      baseUrl: serverBaseUrl,
       corsOrigins: hasEnvValue(env, 'ARKIVRA_CORS_ORIGINS')
-        ? (config.server.corsOrigins ?? [webOrigin])
-        : [webOrigin],
-      webBaseUrl: hasEnvValue(env, 'ARKIVRA_WEB_BASE_URL')
-        ? (config.server.webBaseUrl ?? webOrigin)
-        : webOrigin,
+        ? (config.server.corsOrigins ?? [webBaseUrl])
+        : [webBaseUrl],
+      webBaseUrl,
     },
     auth: {
       ...config.auth,
       trustedOrigins: hasEnvValue(env, 'ARKIVRA_AUTH_TRUSTED_ORIGINS')
-        ? (config.auth.trustedOrigins ?? [webOrigin, apiOrigin])
-        : [webOrigin, apiOrigin],
+        ? (config.auth.trustedOrigins ?? [webBaseUrl, serverBaseUrl])
+        : Array.from(new Set([webBaseUrl, serverBaseUrl])),
     },
     backups: {
       ...config.backups,
-      directory:
-        appInstance && !hasEnvValue(env, 'ARKIVRA_BACKUPS_PATH')
-          ? instancePath(appInstance, 'backups')
-          : config.backups.directory,
+      directory: hasEnvValue(env, 'ARKIVRA_BACKUPS_PATH')
+        ? config.backups.directory
+        : dataPath(rootDataPath, 'backups'),
+    },
+    email: {
+      ...config.email,
+      delivery: smtpUrl === null ? config.email.delivery : 'smtp',
+      smtpHost: smtpUrl?.host ?? config.email.smtpHost,
+      smtpPassword: smtpUrl?.password ?? config.email.smtpPassword,
+      smtpPort: smtpUrl?.port ?? config.email.smtpPort,
+      smtpSecure: smtpUrl?.secure ?? config.email.smtpSecure,
+      smtpStartTls: smtpUrl?.startTls ?? config.email.smtpStartTls,
+      smtpUser: smtpUrl?.user ?? config.email.smtpUser,
     },
     storage: {
       ...config.storage,
+      dataPath: rootDataPath,
       filesystem: {
         ...config.storage.filesystem,
-        basePath:
-          appInstance && !hasEnvValue(env, 'ARKIVRA_STORAGE_FS_PATH')
-            ? instancePath(appInstance, 'document-storage')
-            : config.storage.filesystem.basePath,
+        basePath: hasEnvValue(env, 'ARKIVRA_STORAGE_FS_PATH')
+          ? config.storage.filesystem.basePath
+          : dataPath(rootDataPath, 'documents'),
       },
     },
     uploads: {
       ...config.uploads,
-      stagingPath:
-        appInstance && !hasEnvValue(env, 'ARKIVRA_UPLOAD_STAGING_PATH')
-          ? instancePath(appInstance, 'upload-staging')
-          : config.uploads.stagingPath,
+      stagingPath: hasEnvValue(env, 'ARKIVRA_UPLOAD_STAGING_PATH')
+        ? config.uploads.stagingPath
+        : dataPath(rootDataPath, 'upload-staging'),
     },
   };
 

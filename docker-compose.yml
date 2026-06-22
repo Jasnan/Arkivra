@@ -27,42 +27,23 @@ services:
       - '${ARKIVRA_PORT:-1221}:${ARKIVRA_PORT:-1221}'
     environment:
       NODE_ENV: production
-      PROCESS_MODE: web
+      ARKIVRA_PROCESS_ROLE: all
       ARKIVRA_PORT: ${ARKIVRA_PORT:-1221}
       ARKIVRA_HOSTNAME: '0.0.0.0'
+      ARKIVRA_PUBLIC_URL: ${ARKIVRA_PUBLIC_URL:-http://localhost:${ARKIVRA_WEB_PORT:-5173}}
       ARKIVRA_DATABASE_URL: postgres://arkivra:arkivra@postgres:5432/arkivra
-      ARKIVRA_BACKUPS_PATH: /app/backups
-      ARKIVRA_UPLOAD_STAGING_PATH: /app/upload-staging
+      ARKIVRA_DATA_PATH: /app/data
       ARKIVRA_DOCLING_URL: ${ARKIVRA_DOCLING_URL:?Set ARKIVRA_DOCLING_URL to a reachable Docling Serve endpoint}
-      ARKIVRA_DOCUMENT_PROCESSING_CONCURRENCY: ${ARKIVRA_DOCUMENT_PROCESSING_CONCURRENCY:-1}
-      ARKIVRA_OLLAMA_HOST: ${ARKIVRA_OLLAMA_HOST:-http://host.docker.internal:11434}
-      ARKIVRA_OLLAMA_MODEL: ${ARKIVRA_OLLAMA_MODEL:-gemma4:e4b}
-      ARKIVRA_OLLAMA_EMBEDDING_BATCH_SIZE: ${ARKIVRA_OLLAMA_EMBEDDING_BATCH_SIZE:-20}
-      ARKIVRA_OLLAMA_LOG_REQUESTS: ${ARKIVRA_OLLAMA_LOG_REQUESTS:-false}
-      ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS: ${ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS:-}
-      ARKIVRA_AUTH_SECRET: ${ARKIVRA_AUTH_SECRET:-arkivra-dev-secret-change-in-production}
+      ARKIVRA_AUTH_SECRET: ${ARKIVRA_AUTH_SECRET:?Set ARKIVRA_AUTH_SECRET to a strong stable secret}
       ARKIVRA_AUTH_REGISTRATION_ENABLED: ${ARKIVRA_AUTH_REGISTRATION_ENABLED:-true}
       ARKIVRA_AUTH_EMAIL_VERIFICATION_REQUIRED: ${ARKIVRA_AUTH_EMAIL_VERIFICATION_REQUIRED:-false}
-      ARKIVRA_ENCRYPTION_KEYS: ${ARKIVRA_ENCRYPTION_KEYS:-}
-      ARKIVRA_STORAGE_FS_PATH: /app/document-storage
-      ARKIVRA_SERVER_BASE_URL: ${ARKIVRA_SERVER_BASE_URL:-http://localhost:${ARKIVRA_WEB_PORT:-5173}}
-      ARKIVRA_WEB_BASE_URL: ${ARKIVRA_WEB_BASE_URL:-http://localhost:${ARKIVRA_WEB_PORT:-5173}}
-      ARKIVRA_CORS_ORIGINS: ${ARKIVRA_CORS_ORIGINS:-http://localhost:${ARKIVRA_WEB_PORT:-5173}}
-      ARKIVRA_AUTH_TRUSTED_ORIGINS: ${ARKIVRA_AUTH_TRUSTED_ORIGINS:-http://localhost:${ARKIVRA_WEB_PORT:-5173},http://localhost:${ARKIVRA_PORT:-1221}}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:${ARKIVRA_WEB_PORT:-5173}}
-      ARKIVRA_EMAIL_DELIVERY: ${ARKIVRA_EMAIL_DELIVERY:-console}
+      ARKIVRA_RESTORE_BOOTSTRAP_TOKEN: ${ARKIVRA_RESTORE_BOOTSTRAP_TOKEN:-}
+      ARKIVRA_ENCRYPTION_KEYS: ${ARKIVRA_ENCRYPTION_KEYS:?Set ARKIVRA_ENCRYPTION_KEYS to a generated key list}
+      ARKIVRA_SMTP_URL: ${ARKIVRA_SMTP_URL:-}
       ARKIVRA_EMAIL_FROM: ${ARKIVRA_EMAIL_FROM:-noreply@localhost}
       ARKIVRA_EMAIL_FROM_NAME: ${ARKIVRA_EMAIL_FROM_NAME:-Arkivra}
-      ARKIVRA_SMTP_HOST: ${ARKIVRA_SMTP_HOST:-}
-      ARKIVRA_SMTP_PORT: ${ARKIVRA_SMTP_PORT:-}
-      ARKIVRA_SMTP_SECURE: ${ARKIVRA_SMTP_SECURE:-false}
-      ARKIVRA_SMTP_STARTTLS: ${ARKIVRA_SMTP_STARTTLS:-true}
-      ARKIVRA_SMTP_USER: ${ARKIVRA_SMTP_USER:-}
-      ARKIVRA_SMTP_PASSWORD: ${ARKIVRA_SMTP_PASSWORD:-}
     volumes:
-      - document-storage:/app/document-storage
-      - upload-staging:/app/upload-staging
-      - backups:/app/backups
+      - arkivra-data:/app/data
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     depends_on:
@@ -73,49 +54,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  arkivra-worker:
-    image: arkivra-server
-    build:
-      context: .
-      dockerfile: ./apps/arkivra-server/Dockerfile
-    restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      PROCESS_MODE: worker
-      ARKIVRA_DATABASE_URL: postgres://arkivra:arkivra@postgres:5432/arkivra
-      ARKIVRA_BACKUPS_PATH: /app/backups
-      ARKIVRA_UPLOAD_STAGING_PATH: /app/upload-staging
-      ARKIVRA_DOCLING_URL: ${ARKIVRA_DOCLING_URL:?Set ARKIVRA_DOCLING_URL to a reachable Docling Serve endpoint}
-      ARKIVRA_DOCUMENT_PROCESSING_CONCURRENCY: ${ARKIVRA_DOCUMENT_PROCESSING_CONCURRENCY:-1}
-      ARKIVRA_OLLAMA_HOST: ${ARKIVRA_OLLAMA_HOST:-http://host.docker.internal:11434}
-      ARKIVRA_OLLAMA_MODEL: ${ARKIVRA_OLLAMA_MODEL:-gemma4:e4b}
-      ARKIVRA_OLLAMA_EMBEDDING_BATCH_SIZE: ${ARKIVRA_OLLAMA_EMBEDDING_BATCH_SIZE:-20}
-      ARKIVRA_OLLAMA_LOG_REQUESTS: ${ARKIVRA_OLLAMA_LOG_REQUESTS:-false}
-      ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS: ${ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS:-}
-      ARKIVRA_AUTH_SECRET: ${ARKIVRA_AUTH_SECRET:-arkivra-dev-secret-change-in-production}
-      ARKIVRA_AUTH_REGISTRATION_ENABLED: ${ARKIVRA_AUTH_REGISTRATION_ENABLED:-true}
-      ARKIVRA_AUTH_EMAIL_VERIFICATION_REQUIRED: ${ARKIVRA_AUTH_EMAIL_VERIFICATION_REQUIRED:-false}
-      ARKIVRA_ENCRYPTION_KEYS: ${ARKIVRA_ENCRYPTION_KEYS:-}
-      ARKIVRA_STORAGE_FS_PATH: /app/document-storage
-      ARKIVRA_EMAIL_DELIVERY: ${ARKIVRA_EMAIL_DELIVERY:-console}
-      ARKIVRA_EMAIL_FROM: ${ARKIVRA_EMAIL_FROM:-noreply@localhost}
-      ARKIVRA_EMAIL_FROM_NAME: ${ARKIVRA_EMAIL_FROM_NAME:-Arkivra}
-      ARKIVRA_SMTP_HOST: ${ARKIVRA_SMTP_HOST:-}
-      ARKIVRA_SMTP_PORT: ${ARKIVRA_SMTP_PORT:-}
-      ARKIVRA_SMTP_SECURE: ${ARKIVRA_SMTP_SECURE:-false}
-      ARKIVRA_SMTP_STARTTLS: ${ARKIVRA_SMTP_STARTTLS:-true}
-      ARKIVRA_SMTP_USER: ${ARKIVRA_SMTP_USER:-}
-      ARKIVRA_SMTP_PASSWORD: ${ARKIVRA_SMTP_PASSWORD:-}
-    volumes:
-      - document-storage:/app/document-storage
-      - upload-staging:/app/upload-staging
-      - backups:/app/backups
-    extra_hosts:
-      - 'host.docker.internal:host-gateway'
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   arkivra-client:
     build:
@@ -140,6 +78,4 @@ services:
 
 volumes:
   postgres-data:
-  document-storage:
-  upload-staging:
-  backups:
+  arkivra-data:

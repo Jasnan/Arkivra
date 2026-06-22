@@ -83,7 +83,7 @@ describe.sequential('backups e2e', () => {
       env: {
         ...process.env,
         NODE_ENV: 'test',
-        PROCESS_MODE: 'all',
+        ARKIVRA_PROCESS_ROLE: 'all',
         ARKIVRA_ENCRYPTION_KEYS: process.env.ARKIVRA_ENCRYPTION_KEYS ?? `1:${'a'.repeat(64)}`,
         ARKIVRA_DOCLING_URL: process.env.ARKIVRA_DOCLING_URL ?? 'http://127.0.0.1:5001',
         ARKIVRA_DATABASE_URL: isolatedDatabaseUrl,
@@ -108,6 +108,7 @@ describe.sequential('backups e2e', () => {
     backupQueue = createBackupQueue({ db });
     backupWorker = createBackupWorker({
       backupDirectory: backupServices.backupDirectory,
+      documentEncryptionKeysRaw: config.encryption.keys,
       backupEncryptionKeyRaw: config.backups.archiveEncryptionKey,
       backupPartSizeBytes: config.backups.partSizeBytes,
       db,

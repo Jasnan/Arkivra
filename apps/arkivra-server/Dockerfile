@@ -36,4 +36,4 @@ WORKDIR /app/apps/arkivra-server
 
 EXPOSE 1221
 
-CMD ["sh", "-c", "if [ \"$PROCESS_MODE\" = \"worker\" ]; then pnpm start; else pnpm db:migrate && pnpm start; fi"]
+CMD ["sh", "-c", "role=\"${ARKIVRA_PROCESS_ROLE:-all}\"; if [ \"$role\" = \"worker\" ]; then pnpm start; else pnpm db:migrate && pnpm start; fi"]

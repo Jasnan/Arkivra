@@ -134,7 +134,7 @@ export type ParsedChunk = z.infer<typeof parsedChunkSchema>;
 
 /**
  * Raw output of a {@link DocumentParser}. Engine-agnostic but NOT yet
- * cleaned or chunked. Downstream pipeline stages consume this.
+ * chunked. Downstream pipeline stages consume this.
  */
 export const parserOutputSchema = z.object({
   engine: z.string().min(1),
@@ -167,9 +167,9 @@ export const parsedDocumentSchema = z.object({
   documentId: z.string().min(1),
   engine: z.string().min(1),
   engineVersion: z.string().min(1),
-  /** Cleaned text (post text-cleaner). Used for search + chunk context. */
+  /** Canonical parser text used for search and chunk context. */
   text: z.string(),
-  /** Cleaned markdown (post text-cleaner). */
+  /** Canonical parser markdown. */
   markdown: z.string(),
   /** Raw text exactly as the engine returned it — preserved for audit. */
   rawText: z.string(),

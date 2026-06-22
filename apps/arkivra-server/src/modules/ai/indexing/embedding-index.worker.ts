@@ -38,6 +38,17 @@ type EmbeddedCountRow = {
   embedded_chunk_count: number;
 };
 
+type DocumentEmbeddingStatusRow = {
+  status: string;
+  expected_chunk_count: number;
+  embedded_chunk_count: number;
+};
+
+type ChunkEmbeddingHashRow = {
+  chunk_id: string;
+  content_sha256: string;
+};
+
 export type EmbeddingIndexWorkerDeps = {
   db: Database;
   embeddingProviders: EmbeddingProviderRegistry;
@@ -96,6 +107,53 @@ function toIndexableChunks(rows: ChunkRow[]) {
       contentSha256: hashEmbeddingContent(row.content),
     }];
   });
+}
+
+async function documentEmbeddingIsCurrent({
+  db,
+  embeddingIndexId,
+  documentVersionId,
+  chunks,
+}: {
+  db: Database;
+  embeddingIndexId: string;
+  documentVersionId: string;
+  chunks: ReturnType<typeof toIndexableChunks>;
+}) {
+  const statusRows = await db.execute<DocumentEmbeddingStatusRow>(sql`
+    SELECT status, expected_chunk_count, embedded_chunk_count
+    FROM document_embedding_index_status
+    WHERE embedding_index_id = ${embeddingIndexId}
+      AND document_version_id = ${documentVersionId}
+    LIMIT 1
+  `);
+  const status = statusRows.rows[0];
+
+  if (
+    status === undefined
+    || status.status !== 'ready'
+    || status.expected_chunk_count !== chunks.length
+    || status.embedded_chunk_count !== chunks.length
+  ) {
+    return false;
+  }
+
+  const embeddingRows = await db.execute<ChunkEmbeddingHashRow>(sql`
+    SELECT chunk_id, content_sha256
+    FROM document_chunk_embeddings
+    WHERE embedding_index_id = ${embeddingIndexId}
+      AND document_version_id = ${documentVersionId}
+  `);
+
+  if (embeddingRows.rows.length !== chunks.length) {
+    return false;
+  }
+
+  const hashByChunkId = new Map(
+    embeddingRows.rows.map(row => [row.chunk_id, row.content_sha256]),
+  );
+
+  return chunks.every(chunk => hashByChunkId.get(chunk.chunkId) === chunk.contentSha256);
 }
 
 function assertEmbeddingsMatchConfig({
@@ -180,81 +238,123 @@ export async function indexDocumentForEmbedding({
     return { status: 'skipped' as const, reason: 'no_chunks' };
   }
 
-  await services.setDocumentIndexStatus({
+  if (await documentEmbeddingIsCurrent({
+    db,
+    embeddingIndexId,
+    documentVersionId,
+    chunks,
+  })) {
+    return {
+      status: 'ready' as const,
+      skippedProvider: true,
+      embeddedChunkCount: chunks.length,
+    };
+  }
+
+  const claimed = await services.tryClaimDocumentIndexing({
     embeddingIndexId,
     documentId: firstRow.document_id,
     documentVersionId,
     vaultId: firstRow.vault_id,
-    status: 'indexing',
     expectedChunkCount: chunks.length,
-    embeddedChunkCount: 0,
-    incrementAttempts: true,
   });
 
-  const embeddings = await provider.embed({
-    texts: chunks.map(chunk => chunk.content),
-    config,
-  });
+  if (!claimed) {
+    if (await documentEmbeddingIsCurrent({
+      db,
+      embeddingIndexId,
+      documentVersionId,
+      chunks,
+    })) {
+      return {
+        status: 'ready' as const,
+        skippedProvider: true,
+        embeddedChunkCount: chunks.length,
+      };
+    }
 
-  assertEmbeddingsMatchConfig({
-    embeddings,
-    expectedCount: chunks.length,
-    dimensions: config.dimensions,
-  });
+    return { status: 'skipped' as const, reason: 'document_already_indexing' };
+  }
 
-  const latestChunks = toIndexableChunks(await loadDocumentChunks({ db, documentVersionId }));
-  const latestHashes = new Map(latestChunks.map(chunk => [chunk.chunkId, chunk.contentSha256]));
-  const chunksChanged = chunks.some(chunk => latestHashes.get(chunk.chunkId) !== chunk.contentSha256)
-    || latestChunks.length !== chunks.length;
+  try {
+    const embeddings = await provider.embed({
+      texts: chunks.map(chunk => chunk.content),
+      config,
+    });
 
-  if (chunksChanged) {
+    assertEmbeddingsMatchConfig({
+      embeddings,
+      expectedCount: chunks.length,
+      dimensions: config.dimensions,
+    });
+
+    const latestChunks = toIndexableChunks(await loadDocumentChunks({ db, documentVersionId }));
+    const latestHashes = new Map(latestChunks.map(chunk => [chunk.chunkId, chunk.contentSha256]));
+    const chunksChanged = chunks.some(chunk => latestHashes.get(chunk.chunkId) !== chunk.contentSha256)
+      || latestChunks.length !== chunks.length;
+
+    if (chunksChanged) {
+      await services.setDocumentIndexStatus({
+        embeddingIndexId,
+        documentId: firstRow.document_id,
+        documentVersionId,
+        vaultId: firstRow.vault_id,
+        status: 'stale',
+        expectedChunkCount: latestChunks.length,
+        embeddedChunkCount: 0,
+        failureMessage: 'Document chunks changed while embedding.',
+      });
+      await services.refreshEmbeddingIndexCounts({ embeddingIndexId });
+      return { status: 'stale' as const };
+    }
+
+    const latestIndexConfig = await services.getEmbeddingIndexConfig({ embeddingIndexId });
+    if (latestIndexConfig === null || !['active', 'building'].includes(latestIndexConfig.status)) {
+      return { status: 'skipped' as const, reason: 'index_no_longer_writable' };
+    }
+
+    await services.writeChunkEmbeddings({
+      embeddingIndexId,
+      chunks: chunks.map((chunk, index) => ({
+        chunkId: chunk.chunkId,
+        documentId: chunk.documentId,
+        documentVersionId: chunk.documentVersionId,
+        vaultId: chunk.vaultId,
+        content: chunk.content,
+        embedding: embeddings[index]!,
+      })),
+    });
+
     await services.setDocumentIndexStatus({
       embeddingIndexId,
       documentId: firstRow.document_id,
       documentVersionId,
       vaultId: firstRow.vault_id,
-      status: 'stale',
-      expectedChunkCount: latestChunks.length,
-      embeddedChunkCount: 0,
-      failureMessage: 'Document chunks changed while embedding.',
+      status: 'ready',
+      expectedChunkCount: chunks.length,
+      embeddedChunkCount: chunks.length,
+      indexedAt: 'now',
     });
     await services.refreshEmbeddingIndexCounts({ embeddingIndexId });
-    return { status: 'stale' as const };
+
+    return {
+      status: 'ready' as const,
+      embeddedChunkCount: chunks.length,
+    };
+  } catch (error) {
+    await services.setDocumentIndexStatus({
+      embeddingIndexId,
+      documentId: firstRow.document_id,
+      documentVersionId,
+      vaultId: firstRow.vault_id,
+      status: 'pending',
+      expectedChunkCount: chunks.length,
+      embeddedChunkCount: 0,
+      failureMessage: error instanceof Error ? error.message : 'Embedding indexing failed.',
+    });
+    await services.refreshEmbeddingIndexCounts({ embeddingIndexId });
+    throw error;
   }
-
-  const latestIndexConfig = await services.getEmbeddingIndexConfig({ embeddingIndexId });
-  if (latestIndexConfig === null || !['active', 'building'].includes(latestIndexConfig.status)) {
-    return { status: 'skipped' as const, reason: 'index_no_longer_writable' };
-  }
-
-  await services.writeChunkEmbeddings({
-    embeddingIndexId,
-    chunks: chunks.map((chunk, index) => ({
-      chunkId: chunk.chunkId,
-      documentId: chunk.documentId,
-      documentVersionId: chunk.documentVersionId,
-      vaultId: chunk.vaultId,
-      content: chunk.content,
-      embedding: embeddings[index]!,
-    })),
-  });
-
-  await services.setDocumentIndexStatus({
-    embeddingIndexId,
-    documentId: firstRow.document_id,
-    documentVersionId,
-    vaultId: firstRow.vault_id,
-    status: 'ready',
-    expectedChunkCount: chunks.length,
-    embeddedChunkCount: chunks.length,
-    indexedAt: 'now',
-  });
-  await services.refreshEmbeddingIndexCounts({ embeddingIndexId });
-
-  return {
-    status: 'ready' as const,
-    embeddedChunkCount: chunks.length,
-  };
 }
 
 async function getFinalizeCounts({

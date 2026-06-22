@@ -461,6 +461,66 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
     `);
   }
 
+  async function tryClaimDocumentIndexing({
+    embeddingIndexId,
+    documentId,
+    documentVersionId,
+    vaultId,
+    expectedChunkCount,
+  }: {
+    embeddingIndexId: string;
+    documentId: string;
+    documentVersionId: string;
+    vaultId: string;
+    expectedChunkCount: number;
+  }) {
+    const result = await db.execute<{ document_version_id: string }>(sql`
+      INSERT INTO document_embedding_index_status (
+        embedding_index_id,
+        document_id,
+        document_version_id,
+        vault_id,
+        status,
+        expected_chunk_count,
+        embedded_chunk_count,
+        failure_message,
+        attempts,
+        indexed_at,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${embeddingIndexId},
+        ${documentId},
+        ${documentVersionId},
+        ${vaultId},
+        'indexing',
+        ${expectedChunkCount},
+        0,
+        NULL,
+        1,
+        NULL,
+        now(),
+        now()
+      )
+      ON CONFLICT (embedding_index_id, document_version_id)
+      DO UPDATE SET
+        document_id = EXCLUDED.document_id,
+        vault_id = EXCLUDED.vault_id,
+        status = 'indexing',
+        expected_chunk_count = EXCLUDED.expected_chunk_count,
+        embedded_chunk_count = 0,
+        failure_message = NULL,
+        attempts = document_embedding_index_status.attempts + 1,
+        indexed_at = NULL,
+        updated_at = now()
+      WHERE document_embedding_index_status.status <> 'indexing'
+      RETURNING document_version_id
+    `);
+
+    return result.rows.length > 0;
+  }
+
   async function markDocumentIndexFailed({
     embeddingIndexId,
     documentVersionId,
@@ -889,6 +949,7 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
     markEmbeddingIndexReady,
     refreshEmbeddingIndexCounts,
     setDocumentIndexStatus,
+    tryClaimDocumentIndexing,
     writeChunkEmbeddings,
   };
 }

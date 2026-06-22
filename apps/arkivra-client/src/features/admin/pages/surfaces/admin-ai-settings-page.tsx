@@ -168,6 +168,14 @@ export function AdminAiSettingsPage() {
     provider: 'gemini',
     enabled: canListGeminiChatModels,
   });
+  const geminiAvailabilityQuery = useAdminAiAvailabilityQuery({
+    host: geminiBaseUrl,
+    model: curatedGeminiChatModels[0],
+    provider: 'gemini',
+    enabled: isEnabled,
+  });
+  const geminiAvailability = geminiAvailabilityQuery.data?.availability;
+  const isGeminiProviderHealthy = geminiAvailability?.modelAvailable === true;
   const canListOllamaModels = isEnabled && effectiveOllamaBaseUrl.trim().length > 0;
   const ollamaModelsQuery = useAdminOllamaModelsQuery({
     host: effectiveOllamaBaseUrl,
@@ -176,8 +184,8 @@ export function AdminAiSettingsPage() {
     enabled: canListOllamaModels,
   });
   const availableGeminiChatModels = useMemo(
-    () => geminiChatModelsQuery.data?.models ?? [],
-    [geminiChatModelsQuery.data?.models],
+    () => (isGeminiProviderHealthy ? (geminiChatModelsQuery.data?.models ?? []) : []),
+    [geminiChatModelsQuery.data?.models, isGeminiProviderHealthy],
   );
   const availableOllamaModels = useMemo(
     () => ollamaModelsQuery.data?.models ?? [],
@@ -309,16 +317,9 @@ export function AdminAiSettingsPage() {
           (model) =>
             savedAllowedChatModelValues.includes(model) || model === effectiveDefaultChatModel,
         );
-  const geminiAvailabilityQuery = useAdminAiAvailabilityQuery({
-    host: geminiBaseUrl,
-    model: curatedGeminiChatModels[0],
-    provider: 'gemini',
-    enabled: isEnabled,
-  });
-  const geminiAvailability = geminiAvailabilityQuery.data?.availability;
   const isChatConfigValid =
     effectiveDefaultChatModel.length > 0 &&
-    (effectiveDefaultChatSelection.provider === 'gemini' ||
+    ((effectiveDefaultChatSelection.provider === 'gemini' && isGeminiProviderHealthy) ||
       (effectiveDefaultChatOption?.baseUrl ?? '').trim().length > 0);
   const ollamaProviderStatus =
     effectiveOllamaBaseUrl.trim().length === 0
@@ -351,7 +352,9 @@ export function AdminAiSettingsPage() {
     (
       effectiveTranslationOption?.baseUrl ??
       (aiDraft.translation.baseUrl || aiDraft.chat.baseUrl)
-    ).trim().length > 0 && effectiveTranslationModel.length > 0;
+    ).trim().length > 0 &&
+    effectiveTranslationModel.length > 0 &&
+    (effectiveTranslationOption?.provider !== 'gemini' || isGeminiProviderHealthy);
   const isTranslationModelMultimodal =
     effectiveTranslationModel.length > 0 &&
     (effectiveTranslationOption?.capabilities.includes('vision') ?? false);

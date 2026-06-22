@@ -4,6 +4,7 @@ import { createAuthEmailServices } from './auth-email.services.js';
 
 const requiredEnv = {
   ARKIVRA_ENCRYPTION_KEYS: `1:${'a'.repeat(64)}`,
+  ARKIVRA_DOCLING_URL: 'http://127.0.0.1:5001',
 };
 
 describe('auth email services', () => {

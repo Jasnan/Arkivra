@@ -6,6 +6,7 @@ import {
   createRoute,
   createRouter,
   useParams,
+  useRouterState,
 } from '@tanstack/react-router';
 import { AuthLayout, AuthLoadingState } from '@/features/auth/auth-layout';
 import { EmailVerificationPage } from '@/features/auth/pages/email-verification-page';
@@ -53,11 +54,18 @@ import {
 } from '@/app/search-params';
 import { authClient } from '@/lib/auth-client';
 
+export function shouldRedirectAuthenticatedPublicUser(pathname: string) {
+  return pathname !== ROUTES.emailVerification;
+}
+
 function PublicAuthLayout() {
   const { data: session, isPending } = authClient.useSession();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
 
   if (isPending) return <AuthLoadingState />;
-  if (session) return <Navigate to={ROUTES.root} />;
+  if (session && shouldRedirectAuthenticatedPublicUser(pathname)) {
+    return <Navigate to={ROUTES.root} />;
+  }
 
   return (
     <AuthLayout>

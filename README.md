@@ -79,21 +79,19 @@ cp .env.example .env
 # Generate the required file encryption key
 printf 'ARKIVRA_ENCRYPTION_KEYS=1:%s\n' "$(openssl rand -hex 32)" >> .env
 
+# Start Docling separately. For Docker Desktop or Linux Docker Engine:
+docker run --name arkivra-docling -d -p 5001:5001 -e DOCLING_SERVE_ENABLE_UI=1 quay.io/docling-project/docling-serve-cpu
+
+# Point Arkivra's containers at that external Docling endpoint:
+sed -i.bak 's#^ARKIVRA_DOCLING_URL=.*#ARKIVRA_DOCLING_URL=http://host.docker.internal:5001#' .env
+
 docker compose up -d
-curl http://localhost:1221/api/health
+curl http://localhost:5173/api/health
 ```
 
-The current Compose stack runs the backend services. For local evaluation, start the dashboard separately:
+Open the dashboard at http://localhost:5173. The API is also published at http://localhost:1221 for direct health checks.
 
-```bash
-pnpm install
-pnpm dev:web
-```
-
-Local URLs:
-
-- Web: http://localhost:5173
-- API: http://localhost:1221
+Document parsing needs a reachable Docling Serve endpoint. Arkivra does not include Docling in its default Docker Compose stack; set `ARKIVRA_DOCLING_URL` to a local, network, or hosted Docling service before starting the API and worker.
 
 You can upload, organize, preview, restore, and search documents without configuring any AI provider.
 

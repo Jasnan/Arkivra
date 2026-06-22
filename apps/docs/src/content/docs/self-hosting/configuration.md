@@ -7,16 +7,16 @@ Arkivra reads configuration from environment variables. The root `.env.example` 
 
 ## Core
 
-| Variable                  | Purpose                                    | Default                         |
-| ------------------------- | ------------------------------------------ | ------------------------------- |
-| `NODE_ENV`                | `development`, `production`, or `test`     | `development`                   |
-| `PROCESS_MODE`            | `web`, `worker`, or `all`                  | `all`                           |
-| `APP_INSTANCE`            | Optional namespace for local runtime paths | unset                           |
-| `ARKIVRA_PORT`            | API port                                   | `1221`                          |
-| `ARKIVRA_WEB_PORT`        | Vite dashboard port for local development  | `5173`                          |
-| `ARKIVRA_SERVER_BASE_URL` | Public API base URL                        | derived from `ARKIVRA_PORT`     |
-| `ARKIVRA_WEB_BASE_URL`    | Public dashboard base URL                  | derived from `ARKIVRA_WEB_PORT` |
-| `ARKIVRA_CORS_ORIGINS`    | Comma-separated allowed web origins        | local dashboard origin          |
+| Variable                  | Purpose                                        | Default                         |
+| ------------------------- | ---------------------------------------------- | ------------------------------- |
+| `NODE_ENV`                | `development`, `production`, or `test`         | `development`                   |
+| `PROCESS_MODE`            | `web`, `worker`, or `all`                      | `all`                           |
+| `APP_INSTANCE`            | Optional namespace for local runtime paths     | unset                           |
+| `ARKIVRA_PORT`            | API port                                       | `1221`                          |
+| `ARKIVRA_WEB_PORT`        | Dashboard host port; also used by Vite locally | `5173`                          |
+| `ARKIVRA_SERVER_BASE_URL` | Public API base URL                            | derived from `ARKIVRA_PORT`     |
+| `ARKIVRA_WEB_BASE_URL`    | Public dashboard base URL                      | derived from `ARKIVRA_WEB_PORT` |
+| `ARKIVRA_CORS_ORIGINS`    | Comma-separated allowed web origins            | local dashboard origin          |
 
 ## Database And Parsing
 
@@ -24,11 +24,12 @@ Arkivra reads configuration from environment variables. The root `.env.example` 
 | ------------------------------ | ----------------------------------------------------------------- | --------------------------------------------------- |
 | `ARKIVRA_DATABASE_URL`         | PostgreSQL connection URL                                         | `postgres://arkivra:arkivra@localhost:5432/arkivra` |
 | `ARKIVRA_POSTGRES_PORT`        | Host port used by Compose PostgreSQL                              | `5432`                                              |
-| `ARKIVRA_DOCLING_URL`          | Docling HTTP API URL                                              | `http://localhost:5001`                             |
-| `ARKIVRA_DOCLING_PORT`         | Host port used by Compose Docling                                 | `5001`                                              |
+| `ARKIVRA_DOCLING_URL`          | Required external Docling HTTP API URL                            | required; no default                                |
 | `ARKIVRA_DOCLING_VLM_PIPELINE` | `enabled` routes scan-heavy PDFs and image files through VLM      | `disabled`                                          |
 | `ARKIVRA_DOCLING_VLM_MODEL`    | Docling VLM model/preset. Only valid when VLM pipeline is enabled | Docling `default` when VLM pipeline is enabled      |
 | `ARKIVRA_PARSER_TEXT_CLEANUP`  | `deterministic` or `none`                                         | `deterministic`                                     |
+
+Docling is an external prerequisite. Set `ARKIVRA_DOCLING_URL` to a Docling Serve endpoint that the API and worker can reach. For Docker Compose on the same host as a separately published Docling container, use `http://host.docker.internal:5001`. For source development on the same host, use `http://127.0.0.1:5001`. See [Docling Prerequisite](/self-hosting/docling-prerequisite/) for setup options.
 
 Set `ARKIVRA_DOCLING_VLM_PIPELINE=enabled` only when the configured Docling Serve instance has an approved VLM runtime available. When enabled, Arkivra uses VLM only for scan-heavy PDFs and image files; digital PDFs and ordinary documents stay on the default pipeline.
 
@@ -102,3 +103,5 @@ For key rotation, keep old versions available and add a higher version for new f
 | `GEMINI_API_KEY`                      | Default environment variable for Gemini chat    | unset                                   |
 
 Leave AI variables unset for PostgreSQL + Docling-only ingestion and full-text search. Configure AI features from the admin AI settings when enabling chat, translation, or semantic indexing. See [AI Providers](/guides/ai-providers/) for provider-specific behavior and data exposure notes.
+
+When Arkivra runs in Docker Compose and Ollama runs on the same host, set `ARKIVRA_OLLAMA_HOST=http://host.docker.internal:11434`. Use `http://127.0.0.1:11434` only when the API and worker run directly on the host.

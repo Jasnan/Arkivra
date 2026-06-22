@@ -9,7 +9,6 @@ This deletes local development data, including:
 - Postgres database data
 - Uploaded document storage
 - Local backups volume
-- Docling cache volume
 
 Stop local API and worker processes before running this script. The web
 frontend can keep running, but it will fail requests until the API is restarted.
@@ -20,7 +19,7 @@ Usage:
 Options:
   --yes   Skip the typed confirmation prompt.
   --full  Start every Docker Compose service after reset.
-          By default, only postgres and docling are started for local dev.
+          By default, only postgres is started for local dev.
 USAGE
 }
 
@@ -69,14 +68,14 @@ docker compose down --volumes --remove-orphans
 
 compose_project="${COMPOSE_PROJECT_NAME:-$(basename "$PWD" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '-')}"
 echo "Removing known local cache/backup volumes for Compose project ${compose_project} if they still exist..."
-docker volume rm "${compose_project}_backups" "${compose_project}_docling-data" >/dev/null 2>&1 || true
+docker volume rm "${compose_project}_backups" >/dev/null 2>&1 || true
 
 if [[ "$start_full_stack" == true ]]; then
   echo "Starting the full Docker Compose stack..."
   docker compose up -d
 else
   echo "Starting local development dependencies..."
-  docker compose up postgres docling -d
+  docker compose up postgres -d
 
   echo "Waiting for Postgres to accept connections..."
   for attempt in {1..30}; do

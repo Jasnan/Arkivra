@@ -46,6 +46,33 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       target: 'es2022',
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('/node_modules/')) {
+              return undefined;
+            }
+
+            if (
+              id.includes('/pdfjs-dist/') ||
+              id.includes('/react-pdf/') ||
+              id.includes('/pdf-lib/')
+            ) {
+              return 'pdf';
+            }
+
+            if (
+              id.includes('/@assistant-ui/') ||
+              id.includes('/@ai-sdk/') ||
+              id.includes('/ai/')
+            ) {
+              return 'ai';
+            }
+
+            return 'vendor';
+          },
+        },
+      },
     },
     optimizeDeps: {
       esbuildOptions: {

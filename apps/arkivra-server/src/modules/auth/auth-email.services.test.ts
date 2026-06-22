@@ -37,6 +37,7 @@ describe('auth email services', () => {
       env: {
         ...requiredEnv,
         NODE_ENV: 'production',
+        ARKIVRA_AUTH_SECRET: 'production-auth-secret',
         ARKIVRA_AUTH_EMAIL_VERIFICATION_REQUIRED: 'true',
         ARKIVRA_EMAIL_DELIVERY: 'console',
       },

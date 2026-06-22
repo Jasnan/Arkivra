@@ -19,7 +19,7 @@ import { createEncryptionServices } from '../encryption/encryption.services.js';
 import { createDoclingParser } from '../parsing/adapters/docling.parser.js';
 import { createParserRegistry } from '../parsing/parser.registry.js';
 import { createParsePipeline } from '../parsing/parse-pipeline.js';
-import { createDeterministicTextCleaner } from '../parsing/text-cleaner.js';
+import { createNoopTextCleaner } from '../parsing/text-cleaner.js';
 import { createDoclingClient } from '../docling/docling.client.js';
 import { createServer } from '../server/server.js';
 import { createStorageDriver } from '../storage/storage.services.js';
@@ -157,7 +157,7 @@ describe.sequential('document upload processing e2e', () => {
       env: {
         ...process.env,
         NODE_ENV: 'test',
-        PROCESS_MODE: 'all',
+        ARKIVRA_PROCESS_ROLE: 'all',
         ARKIVRA_ENCRYPTION_KEYS: process.env.ARKIVRA_ENCRYPTION_KEYS ?? `1:${'a'.repeat(64)}`,
         ARKIVRA_DATABASE_URL:
           process.env.ARKIVRA_DATABASE_URL ?? 'postgres://arkivra:arkivra@127.0.0.1:5432/arkivra',
@@ -194,7 +194,7 @@ describe.sequential('document upload processing e2e', () => {
     });
     const parsePipeline = createParsePipeline({
       parserRegistry,
-      cleaner: createDeterministicTextCleaner(),
+      cleaner: createNoopTextCleaner(),
     });
     documentWorker = createDocumentWorker({
       db,

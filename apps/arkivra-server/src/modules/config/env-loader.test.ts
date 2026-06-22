@@ -7,7 +7,7 @@ import { loadApiEnvFiles } from './env-loader.js';
 describe('loadApiEnvFiles', () => {
   it('loads root and API env files without overriding existing environment values', () => {
     const root = mkdtempSync(join(tmpdir(), 'arkivra-env-'));
-    const apiDir = join(root, 'apps', 'api');
+    const apiDir = join(root, 'apps', 'arkivra-server');
     mkdirSync(apiDir, { recursive: true });
     writeFileSync(join(root, 'package.json'), '{"name":"@arkivra/root"}');
     writeFileSync(join(apiDir, 'package.json'), '{"name":"@arkivra/api"}');

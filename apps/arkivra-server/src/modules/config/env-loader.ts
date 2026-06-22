@@ -26,7 +26,7 @@ function findRepoRoot(startDirectory: string) {
   while (true) {
     if (
       existsSync(join(current, 'package.json'))
-      && existsSync(join(current, 'apps', 'api', 'package.json'))
+      && existsSync(join(current, 'apps', 'arkivra-server', 'package.json'))
     ) {
       return current;
     }
@@ -58,5 +58,5 @@ export function loadApiEnvFiles({
   if (repoRoot === null) return;
 
   loadEnvFile(join(repoRoot, '.env'), env);
-  loadEnvFile(join(repoRoot, 'apps', 'api', '.env'), env);
+  loadEnvFile(join(repoRoot, 'apps', 'arkivra-server', '.env'), env);
 }

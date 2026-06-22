@@ -5,7 +5,7 @@ description: Create, store, and restore Arkivra backups.
 
 Admins can create, list, download, import, and restore backups from the dashboard when the worker process is running.
 
-Backup archives are encrypted multipart backup sets stored in `ARKIVRA_BACKUPS_PATH` or the Compose `backups` volume. Each backup set contains:
+Backup archives are encrypted multipart backup sets stored below `ARKIVRA_DATA_PATH` or the Compose `arkivra-data` volume. Each backup set contains:
 
 - a `.manifest.json` file with backup metadata, encryption metadata, part checksums, and part ordering
 - one or more encrypted `.partNNN` files
@@ -21,7 +21,6 @@ Backups do not include:
 
 - `.env`
 - `ARKIVRA_ENCRYPTION_KEYS`
-- `ARKIVRA_BACKUP_ENCRYPTION_KEY`
 - SMTP, OAuth, or provider secrets
 - reverse proxy or TLS configuration
 - external Docling runtime, cache, or model data
@@ -35,19 +34,19 @@ Backup restore is different from document-version restore. Backup restore replac
 Before restoring in production:
 
 1. Confirm the backup archive is from a compatible Arkivra version.
-2. Confirm `ARKIVRA_BACKUP_ENCRYPTION_KEY` matches the key used to create the backup set.
-3. Confirm `ARKIVRA_ENCRYPTION_KEYS` includes every key version needed by encrypted files in the backup.
+2. Confirm `ARKIVRA_ENCRYPTION_KEYS` includes the backup archive key version and every key version needed by encrypted files in the backup.
+3. For older backup sets created before backup archives used `ARKIVRA_ENCRYPTION_KEYS`, confirm the deprecated `ARKIVRA_BACKUP_ENCRYPTION_KEY` is available.
 4. Upload or place the `.manifest.json` file and every `.partNNN` file from the backup set in Arkivra.
 5. Take an out-of-band copy of the current database and storage if possible.
 6. Stop user traffic or put the deployment behind maintenance controls.
 
-For a fresh-machine restore, configure the new instance with the same required secrets before importing the backup set. Runtime paths, ports, and database URLs may differ, but file-encryption keys, the backup archive key, auth secrets, and provider/OAuth/SMTP secrets must be available when the restored deployment needs them.
+For a fresh-machine restore, configure the new instance with the same required secrets before importing the backup set. Runtime paths, ports, and database URLs may differ, but encryption keys, auth secrets, and provider/OAuth/SMTP secrets must be available when the restored deployment needs them.
 
 ## Fresh Instance Restore
 
 For a new installation that does not yet have an active admin account, use `/restore` instead of creating a temporary admin account.
 
-1. Configure the new instance with `ARKIVRA_RESTORE_BOOTSTRAP_TOKEN`, `ARKIVRA_BACKUP_ENCRYPTION_KEY`, `ARKIVRA_ENCRYPTION_KEYS`, `ARKIVRA_AUTH_SECRET`, and any provider/OAuth/SMTP secrets needed by the restored deployment.
+1. Configure the new instance with `ARKIVRA_RESTORE_BOOTSTRAP_TOKEN`, `ARKIVRA_ENCRYPTION_KEYS`, `ARKIVRA_AUTH_SECRET`, and any provider/OAuth/SMTP secrets needed by the restored deployment.
 2. Open `/restore`.
 3. Enter the restore bootstrap token.
 4. Select the `.manifest.json` file and every `.partNNN` file from the backup set.
@@ -66,7 +65,8 @@ Keep separate copies of:
 
 - database and document-storage backups
 - `ARKIVRA_ENCRYPTION_KEYS`
-- `ARKIVRA_BACKUP_ENCRYPTION_KEY`
 - `ARKIVRA_AUTH_SECRET`
 - SMTP, OAuth, and provider credentials
 - deployment configuration and reverse proxy settings
+
+Keep deprecated `ARKIVRA_BACKUP_ENCRYPTION_KEY` only if you need to restore older backup sets created before backup archives used `ARKIVRA_ENCRYPTION_KEYS`.

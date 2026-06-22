@@ -110,7 +110,7 @@ export function registerBackupRoutes({
   }
 
   function backupArchiveKeyIsConfigured() {
-    return Boolean(config.backups.archiveEncryptionKey?.trim());
+    return Boolean(config.encryption.keys?.trim());
   }
 
   async function rejectMutationDuringMaintenance(context: Context<ServerContext>) {
@@ -148,7 +148,7 @@ export function registerBackupRoutes({
         {
           error: {
             code: 'backup.archive_encryption_key_missing',
-            message: 'Backup archive encryption key is not configured.',
+            message: 'Document encryption keys are not configured.',
           },
         },
         503,
@@ -303,7 +303,7 @@ export function registerBackupRoutes({
         {
           error: {
             code: 'backup.archive_encryption_key_missing',
-            message: 'Backup archive encryption key is not configured.',
+            message: 'Document encryption keys are not configured.',
           },
         },
         503,
@@ -425,7 +425,7 @@ export function registerBackupRoutes({
         {
           error: {
             code: 'backup.archive_encryption_key_missing',
-            message: 'Backup archive encryption key is not configured.',
+            message: 'Document encryption keys are not configured.',
           },
         },
         503,

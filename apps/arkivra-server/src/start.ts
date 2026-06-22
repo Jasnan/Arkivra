@@ -13,10 +13,7 @@ import { createDoclingParser } from './modules/parsing/adapters/docling.parser.j
 import { createRuntimeConfiguredOllamaImageCaptioner } from './modules/parsing/image-captioner.js';
 import { createParserRegistry } from './modules/parsing/parser.registry.js';
 import { createParsePipeline } from './modules/parsing/parse-pipeline.js';
-import {
-  createDeterministicTextCleaner,
-  createNoopTextCleaner,
-} from './modules/parsing/text-cleaner.js';
+import { createNoopTextCleaner } from './modules/parsing/text-cleaner.js';
 import { createDocumentWorker } from './modules/worker/document.worker.js';
 import { createMaintenanceQueue } from './modules/worker/maintenance.queue.js';
 import { createMaintenanceWorker } from './modules/worker/maintenance.worker.js';
@@ -36,11 +33,11 @@ export async function startApp() {
   loadApiEnvFiles();
   const { config } = parseConfig({ env: process.env });
 
-  const processMode = config.processMode;
-  const isWebMode = processMode === 'all' || processMode === 'web';
-  const isWorkerMode = processMode === 'all' || processMode === 'worker';
+  const processRole = config.processRole;
+  const isWebMode = processRole === 'all' || processRole === 'web';
+  const isWorkerMode = processRole === 'all' || processRole === 'worker';
 
-  console.info(`Starting Arkivra in "${processMode}" mode...`);
+  console.info(`Starting Arkivra with "${processRole}" process role...`);
   if (config.app.instance !== undefined) {
     console.info(`Arkivra app instance: ${config.app.instance}`);
   }
@@ -119,10 +116,7 @@ export async function startApp() {
       parsers: [doclingParser],
       defaultEngine: 'docling',
     });
-    const textCleaner =
-      config.parsers.textCleanup === 'deterministic'
-        ? createDeterministicTextCleaner()
-        : createNoopTextCleaner();
+    const textCleaner = createNoopTextCleaner();
     const parsePipeline = createParsePipeline({
       parserRegistry,
       cleaner: textCleaner,
@@ -132,7 +126,7 @@ export async function startApp() {
       storage,
       encryption,
       parsePipeline,
-      concurrency: config.backgroundJobs.documentProcessingConcurrency,
+      concurrency: config.backgroundJobs.documentWorkerConcurrency,
       appInstance: config.app.instance,
       pauseWhen: backupServices.isMaintenanceModeEnabled,
       activityServices,
@@ -148,6 +142,7 @@ export async function startApp() {
     });
     const backupWorker = createBackupWorker({
       backupDirectory: backupServices.backupDirectory,
+      documentEncryptionKeysRaw: config.encryption.keys,
       backupEncryptionKeyRaw: config.backups.archiveEncryptionKey,
       backupPartSizeBytes: config.backups.partSizeBytes,
       db,

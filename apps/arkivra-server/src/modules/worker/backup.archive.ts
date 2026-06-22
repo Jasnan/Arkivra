@@ -30,6 +30,8 @@ export type BackupArchiveManifest = {
     encrypted: true;
     algorithm: typeof BACKUP_ARCHIVE_ALGORITHM;
     keyDerivation: typeof BACKUP_ARCHIVE_KEY_DERIVATION;
+    keySource?: 'document-kek';
+    kekVersion?: string;
     salt: string;
     iv: string;
     authTag: string;
@@ -207,6 +209,7 @@ export async function createEncryptedBackupArchive({
   backupId,
   createdAt,
   encryptionKey,
+  kekVersion,
   partSizeBytes,
   sourceDirectory,
   version,
@@ -215,6 +218,7 @@ export async function createEncryptedBackupArchive({
   backupId: string;
   createdAt: Date;
   encryptionKey: Buffer;
+  kekVersion: string;
   partSizeBytes: number;
   sourceDirectory: string;
   version: string;
@@ -244,6 +248,8 @@ export async function createEncryptedBackupArchive({
       encrypted: true,
       algorithm: BACKUP_ARCHIVE_ALGORITHM,
       keyDerivation: BACKUP_ARCHIVE_KEY_DERIVATION,
+      keySource: 'document-kek',
+      kekVersion,
       salt: salt.toString('base64'),
       iv: iv.toString('base64'),
       authTag: cipher.getAuthTag().toString('base64'),

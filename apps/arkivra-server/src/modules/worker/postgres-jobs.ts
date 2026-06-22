@@ -80,10 +80,6 @@ function mapRow<TData>(row: JobRow<TData>) {
   };
 }
 
-function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 function getRetryDelayMs({
   attempts,
   backoffType,
@@ -102,6 +98,22 @@ function getRetryDelayMs({
   }
 
   return backoffDelayMs;
+}
+
+export function getNextIdlePollIntervalMs({
+  currentIntervalMs,
+  activePollIntervalMs,
+  maxIdlePollIntervalMs,
+}: {
+  currentIntervalMs: number;
+  activePollIntervalMs: number;
+  maxIdlePollIntervalMs: number;
+}) {
+  if (currentIntervalMs >= activePollIntervalMs * 4) {
+    return maxIdlePollIntervalMs;
+  }
+
+  return Math.min(maxIdlePollIntervalMs, Math.max(activePollIntervalMs, currentIntervalMs * 2));
 }
 
 export function getScopedQueueName(queueName: string, appInstance?: string) {
@@ -571,6 +583,7 @@ export function createPostgresWorker<TData extends Record<string, unknown>>({
   queueName,
   concurrency,
   pollIntervalMs = 500,
+  maxIdlePollIntervalMs = 5_000,
   heartbeatMs = 30_000,
   staleAfterMs = 5 * 60 * 1000,
   handler,
@@ -581,6 +594,7 @@ export function createPostgresWorker<TData extends Record<string, unknown>>({
   queueName: string;
   concurrency: number;
   pollIntervalMs?: number;
+  maxIdlePollIntervalMs?: number;
   heartbeatMs?: number;
   staleAfterMs?: number;
   handler: (job: AsyncJob<TData>) => Promise<Record<string, unknown> | void>;
@@ -592,9 +606,33 @@ export function createPostgresWorker<TData extends Record<string, unknown>>({
   let closed = false;
   let started = false;
   const runners: Promise<void>[] = [];
+  const pollWakeups = new Set<() => void>();
+
+  function waitForNextPoll(ms: number) {
+    if (closed) {
+      return Promise.resolve();
+    }
+
+    return new Promise<void>((resolve) => {
+      let settled = false;
+      const done = () => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        clearTimeout(timeout);
+        pollWakeups.delete(done);
+        resolve();
+      };
+      const timeout = setTimeout(done, ms);
+      pollWakeups.add(done);
+    });
+  }
 
   async function runLoop() {
     let lastRecoveryAt = 0;
+    let idlePollIntervalMs = pollIntervalMs;
 
     while (true) {
       if (closed) {
@@ -602,7 +640,7 @@ export function createPostgresWorker<TData extends Record<string, unknown>>({
       }
 
       if (pauseWhen !== undefined && await pauseWhen()) {
-        await sleep(pollIntervalMs);
+        await waitForNextPoll(pollIntervalMs);
         continue;
       }
 
@@ -622,9 +660,16 @@ export function createPostgresWorker<TData extends Record<string, unknown>>({
       });
 
       if (claimed === null) {
-        await sleep(pollIntervalMs);
+        await waitForNextPoll(idlePollIntervalMs);
+        idlePollIntervalMs = getNextIdlePollIntervalMs({
+          currentIntervalMs: idlePollIntervalMs,
+          activePollIntervalMs: pollIntervalMs,
+          maxIdlePollIntervalMs,
+        });
         continue;
       }
+
+      idlePollIntervalMs = pollIntervalMs;
 
       const job = new AsyncJob<TData>({
         db,
@@ -689,6 +734,9 @@ export function createPostgresWorker<TData extends Record<string, unknown>>({
     start,
     async close() {
       closed = true;
+      for (const wakePoll of pollWakeups) {
+        wakePoll();
+      }
       await Promise.all(runners);
     },
   };

@@ -423,7 +423,7 @@ function buildDocumentFallbackChunk({
 }
 
 /**
- * Composes parser → text cleaner → chunker into a single pipeline that
+ * Composes parser → canonical text selection → chunker into a single pipeline that
  * yields a validated {@link ParsedDocument}. This is the sole code path
  * the worker (or any future ingestion entrypoint) should use.
  */
@@ -444,12 +444,12 @@ export function createParsePipeline({
     },
     hooks?: ParsePipelineRunHooks,
   ): Promise<ParsedDocument> {
-    const cleaned = await cleaner.clean({ text: raw.text, markdown: raw.markdown });
-    const cleanedText = prefersParserTextAsCanonical(raw.rawStructuredOutput)
-      ? cleaned.text
-      : cleaned.markdown.length > 0
-        ? markdownToPlainText(cleaned.markdown)
-        : cleaned.text;
+    const canonical = await cleaner.clean({ text: raw.text, markdown: raw.markdown });
+    const canonicalText = prefersParserTextAsCanonical(raw.rawStructuredOutput)
+      ? canonical.text
+      : canonical.markdown.length > 0
+        ? markdownToPlainText(canonical.markdown)
+        : canonical.text;
 
     await hooks?.onStageChange?.('chunking');
 
@@ -476,7 +476,7 @@ export function createParsePipeline({
     if (chunks.length === 0) {
       const fallbackChunk = buildDocumentFallbackChunk({
         documentId,
-        text: cleanedText,
+        text: canonicalText,
       });
 
       if (fallbackChunk !== null) {
@@ -505,7 +505,7 @@ export function createParsePipeline({
     let language: ParsedDocument['language'] = null;
     try {
       language = resolveDocumentLanguage({
-        text: cleanedText,
+        text: canonicalText,
         rawStructuredOutput: persistedRaw?.structuredOutput ?? raw.rawStructuredOutput,
       });
     } catch (error) {
@@ -520,8 +520,8 @@ export function createParsePipeline({
       documentId,
       engine: raw.engine,
       engineVersion: raw.engineVersion,
-      text: cleanedText,
-      markdown: cleaned.markdown,
+      text: canonicalText,
+      markdown: canonical.markdown,
       rawText: persistedRaw?.text ?? raw.text,
       rawMarkdown: persistedRaw?.markdown ?? raw.markdown,
       rawStructuredOutput: persistedRaw?.structuredOutput ?? raw.rawStructuredOutput,

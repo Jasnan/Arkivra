@@ -23,23 +23,13 @@ Admins can create account invitations from the dashboard admin area. Vault owner
 
 ## Email Delivery
 
-Local development defaults to console email delivery:
+When SMTP is not configured, Arkivra prints auth emails to the API logs for local development.
+
+Production deployments that need email delivery should use SMTP:
 
 ```bash
-ARKIVRA_EMAIL_DELIVERY=console
-```
-
-Production should use SMTP:
-
-```bash
-ARKIVRA_EMAIL_DELIVERY=smtp
+ARKIVRA_SMTP_URL=smtp://user:password@smtp.example.com:587?starttls=true
 ARKIVRA_EMAIL_FROM=noreply@example.com
-ARKIVRA_SMTP_HOST=smtp.example.com
-ARKIVRA_SMTP_PORT=587
-ARKIVRA_SMTP_SECURE=false
-ARKIVRA_SMTP_STARTTLS=true
-ARKIVRA_SMTP_USER=<username>
-ARKIVRA_SMTP_PASSWORD=<password>
 ```
 
 ## OAuth

@@ -18,6 +18,10 @@ import {
   normalizeBackupPartSizeBytes,
   readBackupManifest,
 } from './backup.archive.js';
+import {
+  findKekByVersionFromRaw,
+  getActiveKekFromRaw,
+} from '../encryption/encryption.services.js';
 
 const execFileAsync = promisify(execFile);
 const BACKUP_FORMAT_VERSION = 1;
@@ -71,6 +75,7 @@ type BackupWorkerDeps = {
   pool: Pool;
   storageBasePath: string;
   version: string;
+  documentEncryptionKeysRaw?: string;
   backupEncryptionKeyRaw?: string;
   backupPartSizeBytes: number;
   appInstance?: string;
@@ -298,7 +303,7 @@ async function verifyReferencedStorageFiles({
 
 export async function createBackupArchive({
   backupDirectory,
-  backupEncryptionKeyRaw,
+  documentEncryptionKeysRaw,
   backupPartSizeBytes,
   maintenanceFlagPath,
   pool,
@@ -307,7 +312,7 @@ export async function createBackupArchive({
   appInstance,
 }: {
   backupDirectory: string;
-  backupEncryptionKeyRaw?: string;
+  documentEncryptionKeysRaw?: string;
   backupPartSizeBytes: number;
   maintenanceFlagPath: string;
   pool: Pool;
@@ -324,13 +329,9 @@ export async function createBackupArchive({
     ),
   );
   const archivePath = join(resolve(backupDirectory), backupManifestFileName(backupId));
-  const backupEncryptionKey = normalizeBackupEncryptionKey(backupEncryptionKeyRaw);
+  const activeKek = getActiveKekFromRaw(documentEncryptionKeysRaw);
   const partSizeBytes = normalizeBackupPartSizeBytes(backupPartSizeBytes);
   let maintenanceFlagOwned = false;
-
-  if (backupEncryptionKey === null) {
-    throw new Error('Backup archive encryption key is not configured.');
-  }
 
   await mkdir(resolve(backupDirectory), { recursive: true });
 
@@ -363,7 +364,8 @@ export async function createBackupArchive({
       backupDirectory: resolve(backupDirectory),
       backupId,
       createdAt,
-      encryptionKey: backupEncryptionKey,
+      encryptionKey: activeKek.key,
+      kekVersion: activeKek.version,
       partSizeBytes,
       sourceDirectory: tempDirectory,
       version,
@@ -383,6 +385,7 @@ export async function createBackupArchive({
 
 export async function restoreBackupArchive({
   backupDirectory,
+  documentEncryptionKeysRaw,
   backupEncryptionKeyRaw,
   backupId,
   maintenanceFlagPath,
@@ -391,6 +394,7 @@ export async function restoreBackupArchive({
   appInstance,
 }: {
   backupDirectory: string;
+  documentEncryptionKeysRaw?: string;
   backupEncryptionKeyRaw?: string;
   backupId: string;
   maintenanceFlagPath: string;
@@ -416,16 +420,22 @@ export async function restoreBackupArchive({
     await writeMaintenanceFlag({ backupId, maintenanceFlagPath, mode: 'restore' });
     maintenanceFlagOwned = true;
     if (manifestBackup) {
-      const backupEncryptionKey = normalizeBackupEncryptionKey(backupEncryptionKeyRaw);
-
-      if (backupEncryptionKey === null) {
-        throw new Error('Backup archive encryption key is not configured.');
-      }
-
       const manifest = await readBackupManifest({
         backupDirectory: resolve(backupDirectory),
         manifestFileName: backupId,
       });
+      const backupEncryptionKey = manifest.archive.kekVersion
+        ? findKekByVersionFromRaw({
+            kekKeysRaw: documentEncryptionKeysRaw,
+            version: manifest.archive.kekVersion,
+          }).key
+        : normalizeBackupEncryptionKey(backupEncryptionKeyRaw);
+
+      if (backupEncryptionKey === null) {
+        throw new Error(
+          'Legacy backup archive encryption key is not configured. Set ARKIVRA_BACKUP_ENCRYPTION_KEY to restore this older backup set.',
+        );
+      }
 
       await extractEncryptedBackupArchive({
         backupDirectory: resolve(backupDirectory),
@@ -505,6 +515,7 @@ export function createBackupWorker({
   pool,
   storageBasePath,
   version,
+  documentEncryptionKeysRaw,
   backupEncryptionKeyRaw,
   backupPartSizeBytes,
   appInstance,
@@ -514,7 +525,7 @@ export function createBackupWorker({
     if (job.name === CREATE_BACKUP_JOB) {
       const result = await createBackupArchive({
         backupDirectory,
-        backupEncryptionKeyRaw,
+        documentEncryptionKeysRaw,
         backupPartSizeBytes,
         maintenanceFlagPath,
         pool,
@@ -531,6 +542,7 @@ export function createBackupWorker({
       const { backupId } = job.data as RestoreBackupJobData;
       const result = await restoreBackupArchive({
         backupDirectory,
+        documentEncryptionKeysRaw,
         backupEncryptionKeyRaw,
         backupId,
         maintenanceFlagPath,

@@ -98,7 +98,7 @@ export function BootstrapRestorePage() {
   const status = statusQuery.data;
   const unavailable = status !== undefined && (!status.available || !status.archiveEncryptionConfigured);
   const unavailableReason = !status?.archiveEncryptionConfigured
-    ? 'Bootstrap restore requires ARKIVRA_BACKUP_ENCRYPTION_KEY before encrypted backup sets can be restored.'
+    ? 'Bootstrap restore requires ARKIVRA_ENCRYPTION_KEYS before encrypted backup sets can be restored.'
     : status?.reason === 'restore.bootstrap_token_missing'
       ? 'Bootstrap restore requires ARKIVRA_RESTORE_BOOTSTRAP_TOKEN.'
       : status?.reason === 'restore.instance_initialized'

@@ -12,13 +12,12 @@ Set:
 ```dotenv
 GOOGLE_CLIENT_ID=<client-id>
 GOOGLE_CLIENT_SECRET=<client-secret>
-GOOGLE_REDIRECT_URI=https://api.example.com/api/auth/callback/google
 ```
 
 For local development, the default callback is:
 
 ```text
-http://localhost:1221/api/auth/callback/google
+http://localhost:5173/api/auth/callback/google
 ```
 
 ## GitHub
@@ -28,13 +27,12 @@ Set:
 ```dotenv
 GITHUB_CLIENT_ID=<client-id>
 GITHUB_CLIENT_SECRET=<client-secret>
-GITHUB_REDIRECT_URI=https://api.example.com/api/auth/callback/github
 ```
 
 For local development, the default callback is:
 
 ```text
-http://localhost:1221/api/auth/callback/github
+http://localhost:5173/api/auth/callback/github
 ```
 
-For production, the callback origin must match `BETTER_AUTH_URL`.
+For production, the callback origin is derived from `ARKIVRA_PUBLIC_URL`, for example `https://app.example.com/api/auth/callback/google`. Use `GOOGLE_REDIRECT_URI`, `GITHUB_REDIRECT_URI`, or `BETTER_AUTH_URL` only for split-origin deployments that cannot use the public URL default.

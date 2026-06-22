@@ -22,6 +22,7 @@ import { createOllamaProvider } from '../../ai/providers/index.js';
 import { instanceSettingsTable } from '../../database/schema/index.js';
 import {
   GEMINI_OPENAI_COMPATIBLE_BASE_URL,
+  DEFAULT_OLLAMA_CHAT_MODEL,
   INSTANCE_AI_SETTINGS_ID,
   createDefaultIngestionSettings,
   createDefaultSettings,
@@ -626,7 +627,7 @@ export function createAdminAiServices({
     const effectiveModel = (
       model
       ?? settings?.chat.model
-      ?? getDefaultChatModel(effectiveProvider, config.ollama.model)
+      ?? getDefaultChatModel(effectiveProvider, DEFAULT_OLLAMA_CHAT_MODEL)
     ).trim();
     const startedAt = Date.now();
 

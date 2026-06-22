@@ -267,8 +267,9 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         `${logPrefix} source file ready for parsing ${documentId} bytes=${fileData.length}`,
       );
 
-      // 4. Parse → clean → chunk via the engine-agnostic pipeline. Fresh
-      //    ingestion and reprocessing both rerun the same source-file path.
+      // 4. Parse → select canonical text → chunk via the engine-agnostic
+      //    pipeline. Fresh ingestion and reprocessing both rerun the same
+      //    source-file path.
       console.info(`${logPrefix} parsing started for ${documentId}`);
       const parsed = await parsePipeline.run(
         {
@@ -284,7 +285,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         `${logPrefix} parsing finished for ${documentId} engine=${parsed.engine}@${parsed.engineVersion} chunks=${parsed.chunks.length} textChars=${parsed.text.length}`,
       );
 
-      // 5. Persist raw + cleaned text + chunks via the parsing-module writer.
+      // 5. Persist raw parser text, canonical text, and chunks via the parsing-module writer.
       //    `storage` and `encryption` are forwarded so the writer can persist
       //    chunk-level image / table assets through the same KEK family as
       //    the source document.

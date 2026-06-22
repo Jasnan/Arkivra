@@ -10,8 +10,7 @@ The repository includes a Docker Compose stack for the current self-hosted path.
 `docker-compose.yml` starts:
 
 - `postgres`: PostgreSQL 16 with pgvector
-- `arkivra-server`: Arkivra API process from `apps/arkivra-server`
-- `arkivra-worker`: background jobs from `apps/arkivra-server`
+- `arkivra-server`: Arkivra API and background worker process from `apps/arkivra-server`
 - `arkivra-client`: dashboard container from `apps/arkivra-client`
 
 Docling is external and must be running before document ingestion can complete. Arkivra's Compose file does not define a Docling service. Point `ARKIVRA_DOCLING_URL` at a Docling Serve instance running locally, in a separate container, on another machine, or as a hosted service.
@@ -21,11 +20,9 @@ Docling is external and must be running before document ingestion can complete. 
 The Compose file defines these persistent volumes:
 
 - `postgres-data`: database rows, including users, vaults, extracted text, chunks, metadata, chat history, embeddings, and vectors
-- `document-storage`: uploaded original files and stored extracted assets
-- `upload-staging`: temporary multipart upload staging files
-- `backups`: backup archives and restore maintenance marker files
+- `arkivra-data`: uploaded original files, stored extracted assets, temporary upload staging files, backup archives, and restore maintenance marker files
 
-Do not treat the `backups` volume as a complete disaster recovery plan by itself. Backups do not preserve `.env` secrets, `ARKIVRA_BACKUP_ENCRYPTION_KEY`, or `ARKIVRA_ENCRYPTION_KEYS`; store those separately.
+Do not treat the `arkivra-data` volume as a complete disaster recovery plan by itself. Backups do not preserve `.env` secrets or `ARKIVRA_ENCRYPTION_KEYS`; store those separately.
 
 ## Important Environment Values
 
@@ -33,6 +30,12 @@ Set the encryption key before first startup:
 
 ```bash
 ARKIVRA_ENCRYPTION_KEYS=1:<64-hex-character-key>
+```
+
+Set a stable auth secret before first startup:
+
+```bash
+ARKIVRA_AUTH_SECRET=<strong-random-secret>
 ```
 
 Set the Docling URL before first startup:
@@ -45,15 +48,11 @@ ARKIVRA_DOCLING_URL=http://host.docker.internal:5001
 Set these before production use:
 
 ```bash
-ARKIVRA_AUTH_SECRET=<strong-random-secret>
-ARKIVRA_BACKUP_ENCRYPTION_KEY=<64-hex-character-key>
 ARKIVRA_RESTORE_BOOTSTRAP_TOKEN=<strong-random-token>
-ARKIVRA_SERVER_BASE_URL=https://app.example.com
-ARKIVRA_WEB_BASE_URL=https://app.example.com
-ARKIVRA_CORS_ORIGINS=https://app.example.com
-BETTER_AUTH_URL=https://app.example.com
+ARKIVRA_PUBLIC_URL=https://app.example.com
 ARKIVRA_DOCLING_URL=http://docling.example.internal:5001
-ARKIVRA_EMAIL_DELIVERY=smtp
+ARKIVRA_SMTP_URL=smtp://user:password@smtp.example.com:587?starttls=true
+ARKIVRA_EMAIL_FROM=noreply@example.com
 ```
 
 `ARKIVRA_DATABASE_URL` is set inside Compose to the internal PostgreSQL service. The root `.env.example` value points to localhost for local development.
@@ -76,7 +75,6 @@ If the API health check fails, inspect:
 
 ```bash
 docker compose logs arkivra-server
-docker compose logs arkivra-worker
 docker compose logs arkivra-client
 docker compose logs postgres
 ```
@@ -92,7 +90,7 @@ For a separate Docling Serve instance configured with a local VLM runtime, scan-
 - Put Arkivra behind TLS.
 - Keep PostgreSQL private to the deployment network.
 - Use strong secrets and do not commit `.env`.
-- Keep API, worker, and web origins aligned through `ARKIVRA_SERVER_BASE_URL`, `ARKIVRA_WEB_BASE_URL`, `ARKIVRA_CORS_ORIGINS`, and `BETTER_AUTH_URL`.
+- Set `ARKIVRA_PUBLIC_URL` to the browser-facing HTTPS origin.
 - Keep `ARKIVRA_ENCRYPTION_KEYS` backed up outside the host.
 
 See [Configuration](/self-hosting/configuration/) for the full environment variable reference.

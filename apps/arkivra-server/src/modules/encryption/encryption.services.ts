@@ -55,7 +55,7 @@ export function parseKekKeys(raw: string | undefined): KekEntry[] {
     });
 }
 
-function getActiveKek(keks: KekEntry[]): KekEntry {
+export function getActiveKek(keks: KekEntry[]): KekEntry {
   if (keks.length === 0) {
     throw new Error('No KEK keys configured. Set ARKIVRA_ENCRYPTION_KEYS env var.');
   }
@@ -68,7 +68,7 @@ function getActiveKek(keks: KekEntry[]): KekEntry {
   });
 }
 
-function findKekByVersion(keks: KekEntry[], version: string): KekEntry {
+export function findKekByVersion(keks: KekEntry[], version: string): KekEntry {
   const kek = keks.find((k) => k.version === version);
 
   if (kek === undefined) {
@@ -78,6 +78,20 @@ function findKekByVersion(keks: KekEntry[], version: string): KekEntry {
   }
 
   return kek;
+}
+
+export function getActiveKekFromRaw(kekKeysRaw: string | undefined): KekEntry {
+  return getActiveKek(parseKekKeys(kekKeysRaw));
+}
+
+export function findKekByVersionFromRaw({
+  kekKeysRaw,
+  version,
+}: {
+  kekKeysRaw: string | undefined;
+  version: string;
+}): KekEntry {
+  return findKekByVersion(parseKekKeys(kekKeysRaw), version);
 }
 
 function generateDek(): Buffer {

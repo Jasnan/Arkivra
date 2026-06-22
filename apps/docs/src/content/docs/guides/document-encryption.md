@@ -3,7 +3,7 @@ title: Document Encryption
 description: Configure encryption at rest for uploaded files and extracted assets.
 ---
 
-Arkivra requires `ARKIVRA_ENCRYPTION_KEYS` and uses envelope encryption for uploaded original files and stored extracted assets.
+Arkivra requires `ARKIVRA_ENCRYPTION_KEYS` and uses envelope encryption for uploaded original files and stored extracted assets. New backup archives also use the active key version from `ARKIVRA_ENCRYPTION_KEYS` with backup-specific key derivation.
 
 Generate a key:
 
@@ -33,4 +33,4 @@ ARKIVRA_ENCRYPTION_KEYS=1:<old-key>,2:<new-key>
 
 Removing a key version that was used for stored files prevents those files from being decrypted.
 
-Back up `ARKIVRA_ENCRYPTION_KEYS` separately from backup archives. A backup containing encrypted files is only usable when the matching key versions are also preserved.
+Back up `ARKIVRA_ENCRYPTION_KEYS` separately from backup archives. A backup is only usable when the key versions required by the archive and stored files are also preserved.

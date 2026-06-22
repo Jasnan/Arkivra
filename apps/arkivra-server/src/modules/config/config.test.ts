@@ -46,6 +46,39 @@ describe('parseConfig', () => {
     ).toThrow('ARKIVRA_DOCLING_URL is required');
   });
 
+  it('requires an explicit auth secret in production', () => {
+    expect(() =>
+      parseConfig({
+        env: {
+          ...requiredEnv,
+          NODE_ENV: 'production',
+        },
+      }),
+    ).toThrow('ARKIVRA_AUTH_SECRET must be set');
+  });
+
+  it('reads the Arkivra process role', () => {
+    const { config } = parseConfig({
+      env: {
+        ...requiredEnv,
+        ARKIVRA_PROCESS_ROLE: 'worker',
+      },
+    });
+
+    expect(config.processRole).toBe('worker');
+  });
+
+  it('reads the document worker concurrency', () => {
+    const { config } = parseConfig({
+      env: {
+        ...requiredEnv,
+        ARKIVRA_DOCUMENT_WORKER_CONCURRENCY: '2',
+      },
+    });
+
+    expect(config.backgroundJobs.documentWorkerConcurrency).toBe(2);
+  });
+
   it('derives local URLs from configured API and web ports', () => {
     const { config } = parseConfig({
       env: {
@@ -61,6 +94,21 @@ describe('parseConfig', () => {
     expect(config.server.webBaseUrl).toBe('http://localhost:6173');
     expect(config.server.corsOrigins).toEqual(['http://localhost:6173']);
     expect(config.auth.trustedOrigins).toEqual(['http://localhost:6173', 'http://localhost:1321']);
+  });
+
+  it('derives public URLs, CORS, and trusted origins from one public URL', () => {
+    const { config } = parseConfig({
+      env: {
+        ...requiredEnv,
+        ARKIVRA_PUBLIC_URL: 'https://arkivra.example.com/',
+      },
+    });
+
+    expect(config.server.publicUrl).toBe('https://arkivra.example.com');
+    expect(config.server.baseUrl).toBe('https://arkivra.example.com');
+    expect(config.server.webBaseUrl).toBe('https://arkivra.example.com');
+    expect(config.server.corsOrigins).toEqual(['https://arkivra.example.com']);
+    expect(config.auth.trustedOrigins).toEqual(['https://arkivra.example.com']);
   });
 
   it('preserves explicit URL configuration', () => {
@@ -94,6 +142,23 @@ describe('parseConfig', () => {
     expect(config.email.smtpPort).toBeUndefined();
   });
 
+  it('derives SMTP settings from ARKIVRA_SMTP_URL', () => {
+    const { config } = parseConfig({
+      env: {
+        ...requiredEnv,
+        ARKIVRA_SMTP_URL: 'smtp://mailer:secret@smtp.example.com:587?starttls=true',
+      },
+    });
+
+    expect(config.email.delivery).toBe('smtp');
+    expect(config.email.smtpHost).toBe('smtp.example.com');
+    expect(config.email.smtpPort).toBe(587);
+    expect(config.email.smtpSecure).toBe(false);
+    expect(config.email.smtpStartTls).toBe(true);
+    expect(config.email.smtpUser).toBe('mailer');
+    expect(config.email.smtpPassword).toBe('secret');
+  });
+
   it('scopes local runtime paths when APP_INSTANCE is set', () => {
     const { config } = parseConfig({
       env: {
@@ -103,9 +168,24 @@ describe('parseConfig', () => {
     });
 
     expect(config.app.instance).toBe('ui-chat');
-    expect(config.storage.filesystem.basePath).toBe('./var/ui-chat/document-storage');
+    expect(config.storage.dataPath).toBe('./var/ui-chat');
+    expect(config.storage.filesystem.basePath).toBe('./var/ui-chat/documents');
     expect(config.uploads.stagingPath).toBe('./var/ui-chat/upload-staging');
     expect(config.backups.directory).toBe('./var/ui-chat/backups');
+  });
+
+  it('derives runtime paths from ARKIVRA_DATA_PATH', () => {
+    const { config } = parseConfig({
+      env: {
+        ...requiredEnv,
+        ARKIVRA_DATA_PATH: '/srv/arkivra',
+      },
+    });
+
+    expect(config.storage.dataPath).toBe('/srv/arkivra');
+    expect(config.storage.filesystem.basePath).toBe('/srv/arkivra/documents');
+    expect(config.uploads.stagingPath).toBe('/srv/arkivra/upload-staging');
+    expect(config.backups.directory).toBe('/srv/arkivra/backups');
   });
 
   it('preserves explicit local runtime paths when APP_INSTANCE is set', () => {

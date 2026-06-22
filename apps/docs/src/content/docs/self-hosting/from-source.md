@@ -27,6 +27,12 @@ Set the generated value in `.env`:
 ARKIVRA_ENCRYPTION_KEYS=1:<generated-64-hex-character-key>
 ```
 
+Start Docling separately, then set its URL in `.env`:
+
+```bash
+ARKIVRA_DOCLING_URL=http://127.0.0.1:5001
+```
+
 Run migrations:
 
 ```bash
@@ -51,11 +57,13 @@ The API scripts load `.env` from the repository root and `apps/arkivra-server/.e
 
 ## Docker-Backed Services
 
-For local evaluation, you can let Docker Compose provide PostgreSQL, Docling, the API, and the worker, then run only the dashboard from source:
+For local source development, you can let Docker Compose provide PostgreSQL, then run Docling separately and run the API, worker, and dashboard from source:
 
 ```bash
-docker compose up -d
+docker compose up -d postgres
+pnpm dev:api
+pnpm dev:worker
 pnpm dev:web
 ```
 
-See [Using Docker Compose](/self-hosting/using-docker-compose/) for the Compose service layout and required production values.
+See [Docling Prerequisite](/self-hosting/docling-prerequisite/) for Docling setup options and [Using Docker Compose](/self-hosting/using-docker-compose/) for the Compose service layout.

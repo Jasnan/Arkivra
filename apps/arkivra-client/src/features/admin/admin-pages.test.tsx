@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -960,6 +960,139 @@ describe('admin and about pages', () => {
         apiKeySecretRef: null,
       });
     });
+  });
+
+  it('excludes Gemini from selectable chat models when Gemini is not configured', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_admin',
+          sessionId: 'ses_admin',
+          systemRole: 'admin',
+          systemCapabilities: ['system.create_vaults'],
+          isAdmin: true,
+          canCreateVault: true,
+        });
+      }
+
+      if (url === '/api/admin/ai/settings' && (!init || init.method === undefined)) {
+        return jsonResponse({
+          settings: {
+            aiFeaturesEnabled: true,
+            chat: {
+              provider: 'gemini',
+              baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+              apiKeySecretRef: null,
+              model: 'gemini-3.5-flash',
+              allowedModels: ['gemini:gemini-3.5-flash'],
+            },
+            translation: {
+              provider: 'ollama',
+              baseUrl: 'http://host.docker.internal:11434',
+              apiKeySecretRef: null,
+              model: 'gemma4:e4b',
+            },
+            embedding: {
+              provider: 'ollama',
+              baseUrl: 'http://host.docker.internal:11434',
+              apiKeySecretRef: null,
+              model: 'bge-m3',
+              dimensions: 1024,
+            },
+            providers: {
+              gemini: {
+                baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+                apiKeySecretRef: null,
+              },
+            },
+            ollamaHost: 'http://host.docker.internal:11434',
+            model: 'gemma4:e4b',
+          },
+        });
+      }
+
+      if (url === '/api/admin/ai/status') {
+        return jsonResponse({
+          status: {
+            aiFeaturesEnabled: true,
+            chat: {
+              provider: 'gemini',
+              baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+              model: 'gemini-3.5-flash',
+              allowedModels: ['gemini:gemini-3.5-flash'],
+            },
+            embedding: {
+              semanticSearchAvailable: true,
+              activeIndex: null,
+              candidateIndexes: [],
+              recentIndexes: [],
+              chunkCoverage: {
+                indexedChunkCount: 0,
+                totalChunkCount: 0,
+              },
+            },
+          },
+        });
+      }
+
+      if (url === '/api/admin/ai/models' && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body));
+        return jsonResponse({
+          models:
+            body.provider === 'gemini'
+              ? [
+                  {
+                    name: 'gemini-3.5-flash',
+                    size: null,
+                    modifiedAt: null,
+                    capabilities: ['completion', 'vision'],
+                  },
+                ]
+              : [
+                  {
+                    name: 'gemma4:e4b',
+                    size: 1024,
+                    modifiedAt: '2026-04-14T19:00:00.000Z',
+                    capabilities: ['completion', 'vision'],
+                  },
+                  {
+                    name: 'bge-m3',
+                    size: 512,
+                    modifiedAt: '2026-04-14T19:45:00.000Z',
+                    capabilities: ['embedding'],
+                  },
+                ],
+        });
+      }
+
+      if (url === '/api/admin/ai/availability' && init?.method === 'POST') {
+        return jsonResponse({
+          availability: {
+            host: 'https://generativelanguage.googleapis.com/v1beta/openai',
+            model: 'gemini-3.5-flash',
+            reachable: false,
+            modelAvailable: false,
+            models: [],
+            responseTimeMs: null,
+            error: 'Gemini API key environment variable is not configured on the API server.',
+          },
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<AdminAiSettingsPage />);
+
+    await user.click(await screen.findByRole('button', { name: /change chat/i }));
+
+    const dialog = await screen.findByRole('dialog', { name: /configure chat models/i });
+    expect(within(dialog).getByText('gemma4:e4b')).toBeInTheDocument();
+    expect(within(dialog).queryByText('gemini-3.5-flash')).not.toBeInTheDocument();
   });
 
   it('renders detailed user access management outside the invite modal', async () => {

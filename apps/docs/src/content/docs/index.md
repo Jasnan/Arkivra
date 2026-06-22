@@ -5,11 +5,12 @@ description: Documentation for self-hosting, configuring, and operating Arkivra.
 
 Arkivra is an open-source, self-hosted document management system for vault-based document ownership, upload, parsing, search, optional semantic retrieval, and optional AI-assisted chat.
 
-The core document workflow does not require AI. PostgreSQL, Docling, the API, the dashboard, and a worker are enough for uploads, parsing, vaults, document versions, full-text search, preview, download, trash, and restore workflows.
+The core document workflow does not require AI. PostgreSQL, an external Docling Serve endpoint, the API, the dashboard, and a worker are enough for uploads, parsing, vaults, document versions, full-text search, preview, download, trash, and restore workflows.
 
 ## Start Here
 
 - [Using Docker Compose](/self-hosting/using-docker-compose/)
+- [Docling prerequisite](/self-hosting/docling-prerequisite/)
 - [Configuration](/self-hosting/configuration/)
 - [First admin and authentication](/self-hosting/first-admin-and-auth/)
 - [Roles and administration](/guides/roles-and-administration/)

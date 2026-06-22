@@ -28,6 +28,11 @@ function isValidDocumentEncryptionKeys(value: string) {
     });
 }
 
+const optionalPortSchema = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+  z.coerce.number().int().min(1).max(65535).optional(),
+);
+
 export const configDefinition = {
   app: {
     instance: {
@@ -177,9 +182,9 @@ export const configDefinition = {
   },
   docling: {
     url: {
-      doc: 'Docling HTTP API base URL.',
+      doc: 'Required Docling HTTP API base URL. Arkivra connects to this external Docling Serve endpoint for document ingestion and parsing.',
       schema: z.string().url(),
-      default: 'http://localhost:5001',
+      default: undefined,
       env: 'ARKIVRA_DOCLING_URL',
     },
     engineVersion: {
@@ -438,7 +443,7 @@ export const configDefinition = {
     },
     smtpPort: {
       doc: 'SMTP server port for production email delivery.',
-      schema: z.coerce.number().int().min(1).max(65535).optional(),
+      schema: optionalPortSchema,
       default: undefined,
       env: 'ARKIVRA_SMTP_PORT',
     },
@@ -494,6 +499,11 @@ export function parseConfig({ env }: { env: Record<string, string | undefined> }
     env,
     'ARKIVRA_ENCRYPTION_KEYS',
     'ARKIVRA_ENCRYPTION_KEYS is required. Generate a key with `openssl rand -hex 32` and configure it as `ARKIVRA_ENCRYPTION_KEYS=1:<key>`.',
+  );
+  requireEnvValue(
+    env,
+    'ARKIVRA_DOCLING_URL',
+    'ARKIVRA_DOCLING_URL is required. Configure it with the reachable HTTP URL of your Docling Serve endpoint.',
   );
 
   const { config } = defineConfig(configDefinition, {

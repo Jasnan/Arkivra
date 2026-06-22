@@ -45,6 +45,7 @@ export default defineConfig({
           items: [
             { label: 'Using Docker Compose', slug: 'self-hosting/using-docker-compose' },
             { label: 'From Source', slug: 'self-hosting/from-source' },
+            { label: 'Docling Prerequisite', slug: 'self-hosting/docling-prerequisite' },
             { label: 'Configuration', slug: 'self-hosting/configuration' },
             { label: 'First Admin And Auth', slug: 'self-hosting/first-admin-and-auth' },
           ],

@@ -57,6 +57,7 @@ function createAuthenticatedApp({
       ARKIVRA_BACKUPS_PATH: backupDirectory,
       ARKIVRA_BACKUP_ENCRYPTION_KEY: 'c'.repeat(64),
       ARKIVRA_ENCRYPTION_KEYS: requiredEncryptionKeys,
+      ARKIVRA_DOCLING_URL: 'http://127.0.0.1:5001',
       ARKIVRA_RESTORE_BOOTSTRAP_TOKEN: restoreBootstrapToken,
     },
   });

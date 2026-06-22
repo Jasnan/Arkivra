@@ -24,7 +24,7 @@ Backups do not include:
 - `ARKIVRA_BACKUP_ENCRYPTION_KEY`
 - SMTP, OAuth, or provider secrets
 - reverse proxy or TLS configuration
-- Docling cache volume data
+- external Docling runtime, cache, or model data
 
 ## Restore Behavior
 

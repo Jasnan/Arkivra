@@ -1,5 +1,10 @@
 node_modules
+**/node_modules
+.pnpm-store
+**/.pnpm-store
 dist
+**/dist
+apps/*/dist
 .git
 .env
 .env.local
@@ -8,6 +13,9 @@ postgres-data
 redis-data
 docling-data
 document-storage
+upload-staging
 backups
+var
 coverage
+*.tsbuildinfo
 .DS_Store

@@ -9,7 +9,8 @@ Run:
 
 ```bash
 docker compose ps
-docker compose logs api
+docker compose logs arkivra-server
+docker compose logs arkivra-client
 docker compose logs postgres
 ```
 
@@ -36,14 +37,13 @@ For local defaults, the dashboard origin is `http://localhost:5173` and the API 
 Check:
 
 ```bash
-docker compose logs worker
-docker compose logs docling
+docker compose logs arkivra-worker
 curl http://localhost:5001/health
 ```
 
 Common causes:
 
-- Docling is still starting.
+- The external Docling service is not running or is still starting.
 - The worker process is not running.
 - `ARKIVRA_DOCLING_URL` points to the wrong host for the process.
 - `ARKIVRA_DOCUMENT_PROCESSING_CONCURRENCY` is too high for the available Docling capacity.
@@ -52,7 +52,7 @@ Common causes:
 
 Confirm the document processing status is complete. Full-text search depends on extracted text and chunks created during processing.
 
-If parsed text is empty for a scanned document, inspect Docling logs and the document processing state.
+If parsed text is empty for a scanned document, inspect the external Docling service logs and the document processing state.
 
 Normal search uses the current completed version of each active document. If you expect historical content to appear, use a version-specific view or an explicit historical search surface when available.
 
@@ -73,7 +73,7 @@ Without an active embedding index, Arkivra falls back to full-text search.
 Backups require the worker process and backup queue. Check:
 
 ```bash
-docker compose logs worker
+docker compose logs arkivra-worker
 ```
 
 Also verify that `ARKIVRA_BACKUPS_PATH` or the Compose `backups` volume is writable and `ARKIVRA_BACKUP_ENCRYPTION_KEY` is configured.

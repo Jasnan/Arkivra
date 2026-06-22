@@ -3,6 +3,7 @@ import { parseConfig } from './config.js';
 
 const requiredEnv = {
   ARKIVRA_ENCRYPTION_KEYS: `1:${'a'.repeat(64)}`,
+  ARKIVRA_DOCLING_URL: 'http://127.0.0.1:5001',
 };
 
 describe('parseConfig', () => {
@@ -29,9 +30,20 @@ describe('parseConfig', () => {
       parseConfig({
         env: {
           ARKIVRA_ENCRYPTION_KEYS: 'not-a-versioned-key',
+          ARKIVRA_DOCLING_URL: requiredEnv.ARKIVRA_DOCLING_URL,
         },
       }),
     ).toThrow('ARKIVRA_ENCRYPTION_KEYS must use version:64-hex-key entries');
+  });
+
+  it('requires a Docling URL', () => {
+    expect(() =>
+      parseConfig({
+        env: {
+          ARKIVRA_ENCRYPTION_KEYS: requiredEnv.ARKIVRA_ENCRYPTION_KEYS,
+        },
+      }),
+    ).toThrow('ARKIVRA_DOCLING_URL is required');
   });
 
   it('derives local URLs from configured API and web ports', () => {
@@ -68,6 +80,18 @@ describe('parseConfig', () => {
     expect(config.server.webBaseUrl).toBe('http://web.test:9001');
     expect(config.server.corsOrigins).toEqual(['http://one.test', 'http://two.test']);
     expect(config.auth.trustedOrigins).toEqual(['http://trusted.test']);
+  });
+
+  it('treats blank optional SMTP port as unset', () => {
+    const { config } = parseConfig({
+      env: {
+        ...requiredEnv,
+        ARKIVRA_EMAIL_DELIVERY: 'console',
+        ARKIVRA_SMTP_PORT: '',
+      },
+    });
+
+    expect(config.email.smtpPort).toBeUndefined();
   });
 
   it('scopes local runtime paths when APP_INSTANCE is set', () => {

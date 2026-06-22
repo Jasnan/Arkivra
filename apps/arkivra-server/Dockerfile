@@ -12,7 +12,8 @@ RUN pnpm install --frozen-lockfile
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/arkivra-server/node_modules ./apps/arkivra-server/node_modules
-COPY . .
+COPY package.json pnpm-workspace.yaml tsconfig.json ./
+COPY apps/arkivra-server ./apps/arkivra-server
 RUN pnpm --filter @arkivra/api build
 
 # Production
@@ -29,10 +30,10 @@ COPY --from=build /app/apps/arkivra-server/src/scripts ./apps/arkivra-server/src
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 
-RUN mkdir -p /app/document-storage /app/backups
+RUN mkdir -p /app/document-storage /app/upload-staging /app/backups
 
 WORKDIR /app/apps/arkivra-server
 
 EXPOSE 1221
 
-CMD ["sh", "-c", "pnpm db:migrate && pnpm start"]
+CMD ["sh", "-c", "if [ \"$PROCESS_MODE\" = \"worker\" ]; then pnpm start; else pnpm db:migrate && pnpm start; fi"]

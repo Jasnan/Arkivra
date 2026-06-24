@@ -16,7 +16,6 @@ describe('auth email services', () => {
     const { config } = parseConfig({
       env: {
         ...requiredEnv,
-        ARKIVRA_EMAIL_DELIVERY: 'console',
       },
     });
     const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
@@ -39,21 +38,21 @@ describe('auth email services', () => {
         NODE_ENV: 'production',
         ARKIVRA_AUTH_SECRET: 'production-auth-secret',
         ARKIVRA_AUTH_EMAIL_VERIFICATION_REQUIRED: 'true',
-        ARKIVRA_EMAIL_DELIVERY: 'console',
       },
     });
 
-    expect(() => createAuthEmailServices({ config })).toThrow(/Configure SMTP/);
+    expect(() => createAuthEmailServices({ config })).toThrow(/ARKIVRA_SMTP_URL/);
   });
 
-  test('rejects incomplete SMTP configuration', () => {
+  test('rejects missing sender for SMTP configuration', () => {
     const { config } = parseConfig({
       env: {
         ...requiredEnv,
-        ARKIVRA_EMAIL_DELIVERY: 'smtp',
+        ARKIVRA_SMTP_URL: 'smtp://smtp.example.com',
+        ARKIVRA_EMAIL_FROM: '',
       },
     });
 
-    expect(() => createAuthEmailServices({ config })).toThrow(/ARKIVRA_SMTP_HOST/);
+    expect(() => createAuthEmailServices({ config })).toThrow(/ARKIVRA_EMAIL_FROM/);
   });
 });

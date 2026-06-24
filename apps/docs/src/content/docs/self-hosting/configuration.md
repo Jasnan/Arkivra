@@ -161,20 +161,6 @@ New backup archives are encrypted with the active key version from `ARKIVRA_ENCR
 | `ARKIVRA_DOCUMENT_RETENTION_DAYS`         | Days soft-deleted documents are retained before hard deletion | `30` |
 | `ARKIVRA_HARD_DELETE_EXPIRED_DOCUMENTS_CRON` | Cron pattern for expired document hard deletion | `0 3 * * *` |
 
-### Legacy SMTP Overrides
-
-Prefer `ARKIVRA_SMTP_URL`. These remain available for deployments that already use separate SMTP fields.
-
-| Variable               | Purpose                         | Default |
-| ---------------------- | ------------------------------- | ------- |
-| `ARKIVRA_EMAIL_DELIVERY` | `console` or `smtp`           | `console` |
-| `ARKIVRA_SMTP_HOST`    | SMTP host                       | unset   |
-| `ARKIVRA_SMTP_PORT`    | SMTP port                       | unset   |
-| `ARKIVRA_SMTP_SECURE`  | Use implicit TLS                | `false` |
-| `ARKIVRA_SMTP_STARTTLS` | Use STARTTLS                   | `true`  |
-| `ARKIVRA_SMTP_USER`    | SMTP username                   | unset   |
-| `ARKIVRA_SMTP_PASSWORD` | SMTP password                  | unset   |
-
 ### AI Defaults And Debugging
 
 | Variable                              | Purpose                                         | Default                  |

@@ -1,6 +1,6 @@
 {
-  "id": "b4c9c699-f31f-4235-bfb7-3da89b2f3f93",
-  "prevId": "3f249a56-ffae-444e-8958-19efcf1bd4fe",
+  "id": "e08052f0-7bf5-40bb-9caf-debaf46bd904",
+  "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -5281,7 +5281,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'teal'"
+          "default": "'blue'"
         },
         "density": {
           "name": "density",

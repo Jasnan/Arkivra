@@ -11,12 +11,10 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 // inside apps/arkivra-server.
 const drizzleFolder = resolve(dirname(fileURLToPath(import.meta.url)), '../../../drizzle');
 
-// Smoke test for the multimodal RAG ingestion schema (Phase 0).
-// Spins up an isolated Postgres database, runs every migration in
-// apps/arkivra-server/drizzle, and asserts that the columns/tables/indexes
-// introduced by 0009/0010/0011 exist with the expected types and
-// defaults. Existing columns and indexes are also re-checked so that a
-// future re-numbering or accidental column drop fails loudly here.
+// Spins up an isolated Postgres database, runs the generated baseline in
+// apps/arkivra-server/drizzle, and asserts that important columns, tables,
+// constraints, and indexes exist with the expected types and defaults.
+// Existing columns and indexes are re-checked so accidental drops fail loudly.
 
 describe.sequential('migrations smoke', () => {
   let adminPool: Pool | null = null;
@@ -70,7 +68,7 @@ describe.sequential('migrations smoke', () => {
     }
   });
 
-  test('0009 adds citation-grade provenance columns to document_chunks', async () => {
+  test('baseline includes citation-grade provenance columns on document_chunks', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -121,7 +119,7 @@ describe.sequential('migrations smoke', () => {
     expect(byName.citation_precision?.column_default).toContain("'document'");
   });
 
-  test('0009 creates the document_chunks_page_idx index', async () => {
+  test('baseline includes the document_chunks_page_idx index', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -139,7 +137,7 @@ describe.sequential('migrations smoke', () => {
     expect(rows).toHaveLength(1);
   });
 
-  test('0010 creates the document_chunk_assets table with the expected shape', async () => {
+  test('baseline includes the document_chunk_assets table with the expected shape', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -195,7 +193,7 @@ describe.sequential('migrations smoke', () => {
     );
   });
 
-  test('0010 wires document_chunk_assets foreign keys with ON DELETE CASCADE', async () => {
+  test('baseline wires document_chunk_assets foreign keys with ON DELETE CASCADE', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -318,7 +316,7 @@ describe.sequential('migrations smoke', () => {
     expect(byName.ollama_embedding_dimensions?.column_default).toContain('1024');
   });
 
-  test('0030 moves parser artifacts from documents to document_versions', async () => {
+  test('baseline keeps parser artifacts on documents and document_versions', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -397,7 +395,7 @@ describe.sequential('migrations smoke', () => {
     );
   });
 
-  test('0005 adds chunk section lineage and durable asset source element ids', async () => {
+  test('baseline includes chunk section lineage and durable asset source element ids', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -439,7 +437,7 @@ describe.sequential('migrations smoke', () => {
     expect(assetByName.source_element_id?.is_nullable).toBe('YES');
   });
 
-  test('0012 adds encryption metadata columns to document_chunk_assets', async () => {
+  test('baseline includes encryption metadata columns on document_chunk_assets', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -470,7 +468,7 @@ describe.sequential('migrations smoke', () => {
     expect(byName.file_encryption_kek_version?.is_nullable).toBe('YES');
   });
 
-  test('0015 creates chat conversation and message tables', async () => {
+  test('baseline creates chat conversation and message tables', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -518,7 +516,7 @@ describe.sequential('migrations smoke', () => {
     expect(indexNames).toContain('chat_messages_vault_created_idx');
   });
 
-  test('0016 adds chat scopes for global and document conversations', async () => {
+  test('baseline includes chat scopes for global and document conversations', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -549,7 +547,7 @@ describe.sequential('migrations smoke', () => {
     expect(byKey['chat_messages.document_id']?.is_nullable).toBe('YES');
   });
 
-  test('0018 adds immutable context snapshots to chat conversations', async () => {
+  test('baseline includes immutable context snapshots on chat conversations', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -571,7 +569,7 @@ describe.sequential('migrations smoke', () => {
     expect(rows[0]?.is_nullable).toBe('NO');
   });
 
-  test('0023 moves vectors out of document_chunks and adds embedding index tables', async () => {
+  test('baseline stores vectors outside document_chunks and includes embedding index tables', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -652,7 +650,7 @@ describe.sequential('migrations smoke', () => {
     );
   });
 
-  test('0030 adds document_versions and current version ownership columns', async () => {
+  test('baseline includes document_versions and current version ownership columns', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -716,7 +714,7 @@ describe.sequential('migrations smoke', () => {
     );
   });
 
-  test('0030 wires version-owned chunks, assets, embeddings, and upload sessions', async () => {
+  test('baseline wires version-owned chunks, assets, embeddings, and upload sessions', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -807,7 +805,7 @@ describe.sequential('migrations smoke', () => {
     ]);
   });
 
-  test('0030 adds frozen chat manifests and purge-tolerant citation references', async () => {
+  test('baseline includes frozen chat manifests and purge-tolerant citation references', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -956,7 +954,7 @@ describe.sequential('migrations smoke', () => {
     ).toBe(true);
   });
 
-  test('0034 adds version-owned document element provenance', async () => {
+  test('baseline includes version-owned document element provenance', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -1025,7 +1023,7 @@ describe.sequential('migrations smoke', () => {
     );
   });
 
-  test('0014 creates the background_jobs table used by async workers', async () => {
+  test('baseline creates the background_jobs table used by async workers', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -1074,7 +1072,7 @@ describe.sequential('migrations smoke', () => {
     );
   });
 
-  test('0006 creates vault folders and folder references', async () => {
+  test('baseline creates vault folders and folder references', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -1129,7 +1127,7 @@ describe.sequential('migrations smoke', () => {
     );
   });
 
-  test('0030 and 0031 keep active logical filename uniqueness and move hash indexing to versions', async () => {
+  test('baseline keeps active logical filename uniqueness and version hash indexing', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -1170,7 +1168,7 @@ describe.sequential('migrations smoke', () => {
     );
   });
 
-  test('0013 and 0026 keep date format optional and remove manual timezone', async () => {
+  test('baseline keeps date format optional and excludes manual timezone', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -1202,7 +1200,7 @@ describe.sequential('migrations smoke', () => {
     expect(byName.date_format?.column_default).toBeNull();
   });
 
-  test('0038 removes persisted theme mode from user UI preferences', async () => {
+  test('baseline excludes persisted theme mode from user UI preferences', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -1220,7 +1218,7 @@ describe.sequential('migrations smoke', () => {
     expect(rows).toEqual([]);
   });
 
-  test('0015 replaces legacy authorization tables with admin, capability, vault role, and AI access schema', async () => {
+  test('baseline includes admin, capability, vault role, and AI access schema', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }

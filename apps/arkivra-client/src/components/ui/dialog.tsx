@@ -235,7 +235,7 @@ export function DialogTitle({ className, ref, ...props }: DialogTitleProps) {
       className={cn('font-display', className)}
       fontSize="xl"
       fontWeight="semibold"
-      color="fg"
+      color="fg.heading"
       {...props}
     />
   );

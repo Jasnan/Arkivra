@@ -14,7 +14,7 @@ export function WorkspacePageTitle({
       fontSize="lg"
       fontWeight="semibold"
       lineHeight="1.2"
-      color="fg"
+      color="fg.heading"
       {...props}
     >
       {children}

@@ -19,6 +19,7 @@ type BackupQueue = {
   enqueueCreateBackup: () => Promise<CreateBackupJobResult>;
   enqueueRestoreBackup: (args: { backupId: string }) => Promise<RestoreBackupJobResult>;
 };
+const DEFAULT_CHAT_MAX_IMAGES_PER_REQUEST = 4;
 import type { ServerContext } from './server.types.js';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -130,10 +131,7 @@ export function createServer({
     searchServices,
     documentsServices,
     resolveAiSettings: async ({ provider }: { provider?: ChatProvider } = {}) => {
-      const [settings, ingestionSettings] = await Promise.all([
-        aiServices.getSettings(),
-        aiServices.getIngestionSettings(),
-      ]);
+      const settings = await aiServices.getSettings();
       if (!settings.aiFeaturesEnabled) {
         throw new Error('AI features are disabled for this Arkivra instance.');
       }
@@ -158,7 +156,7 @@ export function createServer({
             ? settings.chat.model
             : (defaultGeminiModel ?? settings.chat.model),
           allowedModels: settings.chat.allowedModels ?? [settings.chat.model],
-          maxImagesPerRequest: ingestionSettings.summarisationMaxImagesPerChunk,
+          maxImagesPerRequest: DEFAULT_CHAT_MAX_IMAGES_PER_REQUEST,
         };
       }
 
@@ -177,7 +175,7 @@ export function createServer({
           ? settings.chat.model
           : settings.model,
         allowedModels: settings.chat.allowedModels ?? [settings.chat.model],
-        maxImagesPerRequest: ingestionSettings.summarisationMaxImagesPerChunk,
+        maxImagesPerRequest: DEFAULT_CHAT_MAX_IMAGES_PER_REQUEST,
       };
     },
     listAvailableModels: async () => {

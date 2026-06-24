@@ -158,6 +158,8 @@ describe('admin ai routes integration', () => {
         ollama: {
           host: 'http://127.0.0.1:11434',
           model: 'gemma4:e4b',
+          imageCaptioningEnabled: false,
+          imageCaptioningModel: '',
           logRequests: false,
         },
       } as any,
@@ -165,9 +167,9 @@ describe('admin ai routes integration', () => {
 
     const settings = await aiServices.getIngestionSettings();
 
-    expect(settings.summarisationEnabled).toBe(false);
     expect(settings.embeddingEnabled).toBe(false);
     expect(settings.captioningEnabled).toBe(false);
+    expect(settings.captioningModel).toBe('');
     expect(settings.embeddingModel).toBe('bge-m3');
     expect(settings.embeddingDimensions).toBe(1024);
   });
@@ -188,8 +190,6 @@ describe('admin ai routes integration', () => {
                 geminiApiKeySecretRef: null,
                 ollamaHost: 'http://stored-ollama.invalid:11434',
                 ollamaModel: 'llama3.2:1b',
-                ollamaSummarisationModel: 'llama3.2:1b',
-                ollamaSummarisationMaxImagesPerChunk: 4,
                 ollamaTranslationModel: 'llama3.2:1b',
                 translationProvider: 'ollama',
                 translationBaseUrl: 'http://stored-ollama.invalid:11434',
@@ -207,6 +207,8 @@ describe('admin ai routes integration', () => {
         ollama: {
           host: 'http://env-ollama.local:11434',
           model: 'gemma4:e4b',
+          imageCaptioningEnabled: true,
+          imageCaptioningModel: 'granite4.1:3b',
           logRequests: false,
         },
       } as any,
@@ -219,9 +221,10 @@ describe('admin ai routes integration', () => {
     expect(settings.chat.baseUrl).toBe('http://env-ollama.local:11434');
     expect(settings.translation.baseUrl).toBe('http://env-ollama.local:11434');
     expect(settings.embedding.baseUrl).toBe('http://env-ollama.local:11434');
-    expect(ingestionSettings.summarisationHost).toBe('http://env-ollama.local:11434');
     expect(ingestionSettings.embeddingHost).toBe('http://env-ollama.local:11434');
     expect(ingestionSettings.captioningHost).toBe('http://env-ollama.local:11434');
+    expect(ingestionSettings.captioningEnabled).toBe(true);
+    expect(ingestionSettings.captioningModel).toBe('granite4.1:3b');
   });
 
   test('returns current AI settings for an admin', async () => {
@@ -1259,6 +1262,64 @@ describe('admin ai routes integration', () => {
     expect(select).not.toHaveBeenCalled();
     expect(availability.reachable).toBe(true);
     expect(availability.modelAvailable).toBe(true);
+  });
+
+  test('keeps Ollama reachable and returns installed alternatives when the configured model is missing', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        models: [
+          { name: 'granite4.1:3b', size: 1000, modified_at: '2026-04-23T12:00:00.000Z' },
+        ],
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        capabilities: ['completion', 'vision'],
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }));
+    const select = vi.fn(() => {
+      throw new Error('stored settings should not be read');
+    });
+    const aiServices = createAdminAiServices({
+      db: { select } as any,
+      config: {
+        ollama: {
+          host: 'http://127.0.0.1:11434',
+          model: 'gemma4:e4b',
+          logRequests: false,
+        },
+      } as any,
+      fetchImpl: fetchImpl as any,
+    });
+
+    const availability = await aiServices.checkModelAvailability({
+      host: 'http://127.0.0.1:11434',
+      model: 'gemma4:e4b',
+    });
+
+    expect(select).not.toHaveBeenCalled();
+    expect(availability.reachable).toBe(true);
+    expect(availability.modelAvailable).toBe(false);
+    expect(availability.error).toContain('Installed chat-capable models: granite4.1:3b');
+    expect(availability.models).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'gemma4:e4b',
+          available: false,
+          source: 'catalog',
+        }),
+        expect.objectContaining({
+          name: 'granite4.1:3b',
+          available: true,
+          source: 'live',
+          capabilities: ['chat', 'vision'],
+        }),
+      ]),
+    );
   });
 
   test('marks a listed model unavailable when Ollama cannot load it', async () => {

@@ -280,9 +280,6 @@ describe.sequential('migrations smoke', () => {
         WHERE table_schema = 'public'
           AND table_name = 'instance_settings'
           AND column_name IN (
-            'ai_summarisation_enabled',
-            'ollama_summarisation_model',
-            'ollama_summarisation_max_images_per_chunk',
             'ollama_translation_model',
             'ollama_embedding_enabled',
             'ollama_embedding_model',
@@ -292,16 +289,6 @@ describe.sequential('migrations smoke', () => {
     );
 
     const byName = Object.fromEntries(rows.map((row) => [row.column_name, row]));
-
-    expect(byName.ai_summarisation_enabled?.data_type).toBe('boolean');
-    expect(byName.ai_summarisation_enabled?.is_nullable).toBe('NO');
-    expect(byName.ai_summarisation_enabled?.column_default).toContain('false');
-
-    expect(byName.ollama_summarisation_model?.data_type).toBe('text');
-    expect(byName.ollama_summarisation_model?.column_default).toContain("'gemma4:e4b'");
-
-    expect(byName.ollama_summarisation_max_images_per_chunk?.data_type).toBe('integer');
-    expect(byName.ollama_summarisation_max_images_per_chunk?.column_default).toContain('4');
 
     expect(byName.ollama_translation_model?.data_type).toBe('text');
     expect(byName.ollama_translation_model?.column_default).toContain("'gemma4:e4b'");

@@ -39,6 +39,8 @@ import {
 
 export { GEMINI_OPENAI_COMPATIBLE_BASE_URL } from './ai.settings.js';
 
+const ollamaLatestTagPattern = /:latest$/;
+
 type EmbeddingIndexSummaryRow = {
   id: string;
   provider_config_id: string;
@@ -58,6 +60,101 @@ type EmbeddingIndexSummaryRow = {
   created_at: Date | string;
   updated_at: Date | string;
 };
+
+function stripOllamaLatestTag(model: string) {
+  return model.trim().toLowerCase().replace(ollamaLatestTagPattern, '');
+}
+
+function isSameOllamaModel(left: string, right: string) {
+  return stripOllamaLatestTag(left) === stripOllamaLatestTag(right);
+}
+
+function mapOllamaLiveCapabilities(capabilities: readonly string[]): AdminAiModel['capabilities'] {
+  const mapped = new Set<string>();
+
+  for (const capability of capabilities) {
+    const normalized = capability.trim().toLowerCase();
+    if (normalized === 'completion') {
+      mapped.add('chat');
+      continue;
+    }
+
+    if (normalized === 'vision' || normalized === 'embedding') {
+      mapped.add(normalized);
+    }
+  }
+
+  return Array.from(mapped);
+}
+
+function mergeCapabilities(...capabilityLists: Array<readonly string[] | undefined>) {
+  const capabilities = new Set<string>();
+
+  for (const capabilityList of capabilityLists) {
+    for (const capability of capabilityList ?? []) {
+      const normalized = capability.trim().toLowerCase();
+      if (normalized.length > 0) capabilities.add(normalized);
+    }
+  }
+
+  return Array.from(capabilities);
+}
+
+function formatInstalledChatModels(models: readonly AdminAiModel[]) {
+  return models
+    .filter(model => model.available === true && model.capabilities.includes('chat'))
+    .map(model => model.name)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function createMergedOllamaAvailabilityModels({
+  catalog,
+  liveModels,
+}: {
+  catalog: readonly AdminAiModelCatalogEntry[];
+  liveModels: readonly AdminAiModel[];
+}) {
+  const merged = new Map<string, AdminAiModel>();
+
+  function setModel(model: AdminAiModel) {
+    const existingKey = Array.from(merged.keys()).find(key => isSameOllamaModel(key, model.name));
+    merged.set(existingKey ?? model.name, model);
+  }
+
+  for (const entry of catalog.filter(entry => entry.provider === 'ollama')) {
+    setModel({
+      name: entry.model,
+      size: null,
+      modifiedAt: null,
+      capabilities: [...entry.capabilities],
+      description: entry.label ?? null,
+      source: 'catalog',
+      available: false,
+      availabilityReason: 'Model is configured in Arkivra but is not installed in Ollama.',
+      embeddingDimensions: entry.embeddingDimensions,
+    });
+  }
+
+  for (const liveModel of liveModels) {
+    const existingKey = Array.from(merged.keys()).find(key => isSameOllamaModel(key, liveModel.name));
+    const existing = existingKey === undefined ? undefined : merged.get(existingKey);
+    const capabilities = mapOllamaLiveCapabilities(liveModel.capabilities);
+
+    merged.set(existingKey ?? liveModel.name, {
+      name: liveModel.name,
+      size: liveModel.size,
+      modifiedAt: liveModel.modifiedAt,
+      capabilities: mergeCapabilities(existing?.capabilities, capabilities),
+      description: existing?.description ?? liveModel.description ?? null,
+      source: existing === undefined ? 'live' : 'catalog-and-live',
+      available: true,
+      availabilityReason: null,
+      embeddingDimensions: existing?.embeddingDimensions ?? liveModel.embeddingDimensions,
+    });
+  }
+
+  return Array.from(merged.values()).sort((left, right) => left.name.localeCompare(right.name));
+}
 
 type DocumentStatusCountRow = {
   embedding_index_id: string;
@@ -375,15 +472,11 @@ export function createAdminAiServices({
     }
 
     return {
-      summarisationEnabled: stored.aiFeaturesEnabled && stored.aiSummarisationEnabled,
-      summarisationHost: configuredOllamaHost,
-      summarisationModel: stored.ollamaSummarisationModel,
-      summarisationMaxImagesPerChunk: stored.ollamaSummarisationMaxImagesPerChunk,
       embeddingEnabled: stored.aiFeaturesEnabled && stored.ollamaEmbeddingEnabled,
       embeddingHost: configuredOllamaHost,
       embeddingModel: stored.ollamaEmbeddingModel,
       embeddingDimensions: stored.ollamaEmbeddingDimensions,
-      captioningEnabled: defaults.captioningEnabled,
+      captioningEnabled: defaults.captioningEnabled && defaults.captioningModel.length > 0,
       captioningHost: configuredOllamaHost,
       captioningModel: defaults.captioningModel,
     };
@@ -503,7 +596,6 @@ export function createAdminAiServices({
         geminiApiKeySecretRef: normalized.providers?.gemini?.apiKeySecretRef ?? null,
         ollamaHost: normalized.ollamaHost,
         ollamaModel: normalized.model,
-        aiSummarisationEnabled: normalized.aiFeaturesEnabled,
         ollamaTranslationModel: normalized.translation.model,
         translationProvider: normalized.translation.provider,
         translationBaseUrl: normalized.translation.baseUrl,
@@ -526,7 +618,6 @@ export function createAdminAiServices({
           geminiApiKeySecretRef: normalized.providers?.gemini?.apiKeySecretRef ?? null,
           ollamaHost: normalized.ollamaHost,
           ollamaModel: normalized.model,
-          aiSummarisationEnabled: normalized.aiFeaturesEnabled,
           ollamaTranslationModel: normalized.translation.model,
           translationProvider: normalized.translation.provider,
           translationBaseUrl: normalized.translation.baseUrl,
@@ -658,10 +749,15 @@ export function createAdminAiServices({
     }
 
     try {
-      const models = await listModels({ host: effectiveHost });
-      const isListed = models.some(item => item.name === effectiveModel);
+      const liveModels = await listModels({ host: effectiveHost });
+      const models = createMergedOllamaAvailabilityModels({
+        catalog: modelCatalog,
+        liveModels,
+      });
+      const liveModel = liveModels.find(item => isSameOllamaModel(item.name, effectiveModel));
 
-      if (!isListed) {
+      if (liveModel === undefined) {
+        const installedChatModels = formatInstalledChatModels(models);
         return {
           host: effectiveHost,
           model: effectiveModel,
@@ -669,26 +765,28 @@ export function createAdminAiServices({
           modelAvailable: false,
           models,
           responseTimeMs: Date.now() - startedAt,
-          error: `Model "${effectiveModel}" is not listed by Ollama at ${effectiveHost}.`,
+          error: installedChatModels.length > 0
+            ? `Model "${effectiveModel}" is configured in Arkivra but is not installed in Ollama at ${effectiveHost}. Installed chat-capable models: ${installedChatModels.join(', ')}.`
+            : `Model "${effectiveModel}" is configured in Arkivra but is not installed in Ollama at ${effectiveHost}. No installed chat-capable Ollama models were found.`,
         };
       }
 
       try {
         await probeModelLoad({
           host: effectiveHost,
-          model: effectiveModel,
+          model: liveModel.name,
         });
       } catch (error) {
         return {
           host: effectiveHost,
           model: effectiveModel,
-            reachable: true,
-            modelAvailable: false,
-            models,
-            responseTimeMs: Date.now() - startedAt,
-            error: error instanceof Error
-              ? `Model "${effectiveModel}" is listed but could not be loaded: ${error.message}`
-              : `Model "${effectiveModel}" is listed but could not be loaded.`,
+          reachable: true,
+          modelAvailable: false,
+          models,
+          responseTimeMs: Date.now() - startedAt,
+          error: error instanceof Error
+            ? `Model "${effectiveModel}" is listed but could not be loaded: ${error.message}`
+            : `Model "${effectiveModel}" is listed but could not be loaded.`,
         };
       }
 

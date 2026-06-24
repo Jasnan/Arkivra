@@ -19,12 +19,6 @@ export const instanceSettingsTable = pgTable('instance_settings', {
   ollamaHost: text('ollama_host').notNull().default('http://127.0.0.1:11434'),
   ollamaModel: text('ollama_model').notNull().default('gemma4:e4b'),
 
-  // Multimodal RAG ingestion controls (added in 0011_summarisation_settings.sql).
-  aiSummarisationEnabled: boolean('ai_summarisation_enabled').notNull().default(false),
-  ollamaSummarisationModel: text('ollama_summarisation_model').notNull().default('gemma4:e4b'),
-  ollamaSummarisationMaxImagesPerChunk: integer('ollama_summarisation_max_images_per_chunk')
-    .notNull()
-    .default(4),
   ollamaTranslationModel: text('ollama_translation_model').notNull().default('gemma4:e4b'),
   translationProvider: text('translation_provider').notNull().default('ollama'),
   translationBaseUrl: text('translation_base_url'),

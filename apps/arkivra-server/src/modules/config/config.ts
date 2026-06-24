@@ -258,6 +258,18 @@ export const configDefinition = {
       default: 'http://127.0.0.1:11434',
       env: 'ARKIVRA_OLLAMA_HOST',
     },
+    imageCaptioningEnabled: {
+      doc: 'Whether document ingestion sends extracted images to Ollama for text captions used in search and embeddings.',
+      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
+      default: false,
+      env: 'ARKIVRA_OLLAMA_IMAGE_CAPTIONING_ENABLED',
+    },
+    imageCaptioningModel: {
+      doc: 'Ollama vision-capable model used to caption extracted document images when image captioning is enabled.',
+      schema: z.string().trim(),
+      default: '',
+      env: 'ARKIVRA_OLLAMA_IMAGE_CAPTIONING_MODEL',
+    },
     embeddingBatchSize: {
       doc: 'How many chunk texts Arkivra sends per Ollama embedding request when /api/embed batching is available.',
       schema: z.coerce.number().int().min(1).max(512),

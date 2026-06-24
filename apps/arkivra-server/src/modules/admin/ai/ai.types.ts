@@ -54,6 +54,10 @@ export type AdminAiModel = {
   modifiedAt: string | null;
   capabilities: string[];
   description?: string | null;
+  source?: 'catalog' | 'live' | 'catalog-and-live';
+  available?: boolean;
+  availabilityReason?: string | null;
+  embeddingDimensions?: number;
 };
 
 export type AdminAiModelAvailability = {

@@ -265,6 +265,26 @@ describe('parseConfig', () => {
     ]);
   });
 
+  it('reads Ollama image captioning settings', () => {
+    const defaults = parseConfig({
+      env: {
+        ...requiredEnv,
+      },
+    }).config;
+    const enabled = parseConfig({
+      env: {
+        ...requiredEnv,
+        ARKIVRA_OLLAMA_IMAGE_CAPTIONING_ENABLED: 'true',
+        ARKIVRA_OLLAMA_IMAGE_CAPTIONING_MODEL: 'granite4.1:3b',
+      },
+    }).config;
+
+    expect(defaults.ollama.imageCaptioningEnabled).toBe(false);
+    expect(defaults.ollama.imageCaptioningModel).toBe('');
+    expect(enabled.ollama.imageCaptioningEnabled).toBe(true);
+    expect(enabled.ollama.imageCaptioningModel).toBe('granite4.1:3b');
+  });
+
   it('rejects invalid AI model catalog extension JSON', () => {
     expect(() =>
       parseConfig({

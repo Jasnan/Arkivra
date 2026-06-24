@@ -1,9 +1,9 @@
-CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS vector;
 --> statement-breakpoint
 CREATE TABLE "activity_events" (
 	"id" text PRIMARY KEY NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"occurred_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"occurred_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"activity_type" text NOT NULL,
 	"entity_type" text NOT NULL,
 	"entity_id" text NOT NULL,
@@ -33,14 +33,14 @@ CREATE TABLE "ai_provider_configs" (
 	"config" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"api_key_secret_ref" text,
 	"is_enabled" boolean DEFAULT true NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "audit_events" (
 	"id" text PRIMARY KEY NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"occurred_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"occurred_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"event_type" text NOT NULL,
 	"event_category" text NOT NULL,
 	"severity" text DEFAULT 'info' NOT NULL,
@@ -70,25 +70,25 @@ CREATE TABLE "auth_accounts" (
 	"provider_id" text NOT NULL,
 	"access_token" text,
 	"refresh_token" text,
-	"access_token_expires_at" timestamp,
-	"refresh_token_expires_at" timestamp,
+	"access_token_expires_at" timestamp with time zone,
+	"refresh_token_expires_at" timestamp with time zone,
 	"scope" text,
 	"id_token" text,
 	"password" text,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "auth_sessions" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"token" text NOT NULL,
-	"expires_at" timestamp NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL,
 	"ip_address" text,
 	"user_agent" text,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "auth_sessions_token_key" UNIQUE("token")
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "auth_sessions_token_unique" UNIQUE("token")
 );
 --> statement-breakpoint
 CREATE TABLE "auth_two_factor" (
@@ -96,17 +96,17 @@ CREATE TABLE "auth_two_factor" (
 	"user_id" text NOT NULL,
 	"secret" text NOT NULL,
 	"backup_codes" text NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "auth_verifications" (
 	"id" text PRIMARY KEY NOT NULL,
 	"identifier" text NOT NULL,
 	"value" text NOT NULL,
-	"expires_at" timestamp NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
+	"expires_at" timestamp with time zone NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "background_jobs" (
@@ -121,14 +121,14 @@ CREATE TABLE "background_jobs" (
 	"backoff_type" text,
 	"backoff_delay_ms" integer,
 	"repeat_pattern" text,
-	"run_at" timestamp DEFAULT now() NOT NULL,
+	"run_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"locked_by" text,
-	"locked_at" timestamp,
+	"locked_at" timestamp with time zone,
 	"last_error" text,
 	"result" jsonb,
-	"completed_at" timestamp,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
+	"completed_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "chat_conversation_document_versions" (
@@ -137,22 +137,22 @@ CREATE TABLE "chat_conversation_document_versions" (
 	"document_id" text NOT NULL,
 	"document_version_id" text,
 	"included_by" text NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "chat_conversation_document_versions_unique" UNIQUE("conversation_id","document_version_id")
 );
 --> statement-breakpoint
 CREATE TABLE "chat_conversations" (
 	"id" text PRIMARY KEY NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"vault_id" text,
 	"user_id" text,
 	"scope" text DEFAULT 'vault' NOT NULL,
 	"document_id" text,
 	"context_snapshot" jsonb NOT NULL,
-	"context_frozen_at" timestamp,
+	"context_frozen_at" timestamp with time zone,
 	"title" text DEFAULT 'New chat' NOT NULL,
-	"deleted_at" timestamp
+	"deleted_at" timestamp with time zone
 );
 --> statement-breakpoint
 CREATE TABLE "chat_message_citations" (
@@ -169,13 +169,13 @@ CREATE TABLE "chat_message_citations" (
 	"citation_precision" text,
 	"snippet" text,
 	"locator_json" jsonb,
-	"created_at" timestamp DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "chat_messages" (
 	"id" text PRIMARY KEY NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"conversation_id" text NOT NULL,
 	"vault_id" text,
 	"user_id" text,
@@ -201,7 +201,7 @@ CREATE TABLE "document_chunk_assets" (
 	"sha256_hash" text,
 	"file_encryption_key_wrapped" text,
 	"file_encryption_kek_version" text,
-	"created_at" timestamp DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "document_chunk_embeddings" (
@@ -212,10 +212,11 @@ CREATE TABLE "document_chunk_embeddings" (
 	"document_version_id" text NOT NULL,
 	"vault_id" text NOT NULL,
 	"content_sha256" text NOT NULL,
-	"embedding" public.vector NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "document_chunk_embeddings_index_chunk_unique" UNIQUE("embedding_index_id","chunk_id")
 );
+--> statement-breakpoint
+ALTER TABLE "document_chunk_embeddings" ADD COLUMN "embedding" vector NOT NULL;
 --> statement-breakpoint
 CREATE TABLE "document_chunks" (
 	"id" text PRIMARY KEY NOT NULL,
@@ -241,10 +242,11 @@ CREATE TABLE "document_chunks" (
 	"original_text" text,
 	"tables_html" jsonb,
 	"citation_precision" text DEFAULT 'document' NOT NULL,
-	"tsv" tsvector GENERATED ALWAYS AS (to_tsvector('english'::regconfig, "content")) STORED,
-	"created_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "document_chunks_version_index_unique" UNIQUE("document_version_id","chunk_index")
 );
+--> statement-breakpoint
+ALTER TABLE "document_chunks" ADD COLUMN "tsv" tsvector GENERATED ALWAYS AS (to_tsvector('simple', coalesce("content", ''))) STORED;
 --> statement-breakpoint
 CREATE TABLE "document_element_provenance" (
 	"document_id" text NOT NULL,
@@ -259,7 +261,7 @@ CREATE TABLE "document_element_provenance" (
 	"section" text,
 	"section_path" jsonb,
 	"sort_index" integer NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "document_element_provenance_pk" PRIMARY KEY("document_version_id","element_id")
 );
 --> statement-breakpoint
@@ -273,27 +275,27 @@ CREATE TABLE "document_embedding_index_status" (
 	"embedded_chunk_count" integer DEFAULT 0 NOT NULL,
 	"failure_message" text,
 	"attempts" integer DEFAULT 0 NOT NULL,
-	"indexed_at" timestamp,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"indexed_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "document_embedding_index_status_pkey" PRIMARY KEY("embedding_index_id","document_version_id")
 );
 --> statement-breakpoint
 CREATE TABLE "document_tags" (
 	"document_id" text NOT NULL,
 	"tag_id" text NOT NULL,
-	CONSTRAINT "document_tags_pkey" PRIMARY KEY("document_id","tag_id")
+	CONSTRAINT "document_tags_document_id_tag_id_pk" PRIMARY KEY("document_id","tag_id")
 );
 --> statement-breakpoint
 CREATE TABLE "document_versions" (
 	"id" text PRIMARY KEY NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"document_id" text NOT NULL,
 	"vault_id" text NOT NULL,
 	"version_number" integer NOT NULL,
 	"uploaded_by" text,
-	"uploaded_at" timestamp DEFAULT now() NOT NULL,
+	"uploaded_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"original_name" text NOT NULL,
 	"original_size" integer DEFAULT 0 NOT NULL,
 	"original_storage_key" text NOT NULL,
@@ -312,7 +314,7 @@ CREATE TABLE "document_versions" (
 	"file_encryption_kek_version" text,
 	"file_encryption_algorithm" text,
 	"restored_from_version_id" text,
-	"deleted_at" timestamp,
+	"deleted_at" timestamp with time zone,
 	"deleted_by" text,
 	CONSTRAINT "document_versions_document_number_unique" UNIQUE("document_id","version_number"),
 	CONSTRAINT "document_versions_id_document_vault_unique" UNIQUE("id","document_id","vault_id"),
@@ -321,8 +323,8 @@ CREATE TABLE "document_versions" (
 --> statement-breakpoint
 CREATE TABLE "documents" (
 	"id" text PRIMARY KEY NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"vault_id" text NOT NULL,
 	"folder_id" text,
 	"created_by" text,
@@ -346,22 +348,22 @@ CREATE TABLE "documents" (
 	"file_encryption_algorithm" text,
 	"current_version_id" text,
 	"is_deleted" boolean DEFAULT false NOT NULL,
-	"deleted_at" timestamp,
+	"deleted_at" timestamp with time zone,
 	"deleted_by" text,
 	CONSTRAINT "documents_id_vault_unique" UNIQUE("id","vault_id")
 );
 --> statement-breakpoint
 CREATE TABLE "email_invitations" (
 	"id" text PRIMARY KEY NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"type" text NOT NULL,
 	"status" text DEFAULT 'pending' NOT NULL,
 	"email" text NOT NULL,
 	"invited_by" text,
 	"accepted_by" text,
-	"accepted_at" timestamp,
-	"expires_at" timestamp,
+	"accepted_at" timestamp with time zone,
+	"expires_at" timestamp with time zone,
 	"vault_id" text,
 	"vault_member_id" text,
 	"vault_role" text,
@@ -383,17 +385,17 @@ CREATE TABLE "embedding_indexes" (
 	"embedded_chunk_count" integer DEFAULT 0 NOT NULL,
 	"failed_chunk_count" integer DEFAULT 0 NOT NULL,
 	"failure_message" text,
-	"build_started_at" timestamp,
-	"build_completed_at" timestamp,
-	"activated_at" timestamp,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
+	"build_started_at" timestamp with time zone,
+	"build_completed_at" timestamp with time zone,
+	"activated_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "instance_settings" (
 	"id" text PRIMARY KEY NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"ai_features_enabled" boolean DEFAULT false NOT NULL,
 	"chat_provider" text DEFAULT 'ollama' NOT NULL,
 	"chat_base_url" text,
@@ -403,9 +405,6 @@ CREATE TABLE "instance_settings" (
 	"gemini_api_key_secret_ref" text,
 	"ollama_host" text DEFAULT 'http://127.0.0.1:11434' NOT NULL,
 	"ollama_model" text DEFAULT 'gemma4:e4b' NOT NULL,
-	"ai_summarisation_enabled" boolean DEFAULT false NOT NULL,
-	"ollama_summarisation_model" text DEFAULT 'gemma4:e4b' NOT NULL,
-	"ollama_summarisation_max_images_per_chunk" integer DEFAULT 4 NOT NULL,
 	"ollama_translation_model" text DEFAULT 'gemma4:e4b' NOT NULL,
 	"translation_provider" text DEFAULT 'ollama' NOT NULL,
 	"translation_base_url" text,
@@ -418,13 +417,13 @@ CREATE TABLE "instance_settings" (
 --> statement-breakpoint
 CREATE TABLE "permission_requests" (
 	"id" text PRIMARY KEY NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"type" text NOT NULL,
 	"status" text DEFAULT 'pending' NOT NULL,
 	"requested_by" text NOT NULL,
 	"reviewed_by" text,
-	"reviewed_at" timestamp,
+	"reviewed_at" timestamp with time zone,
 	"vault_id" text,
 	"target_user_id" text,
 	"payload" jsonb DEFAULT '{}'::jsonb NOT NULL,
@@ -435,14 +434,14 @@ CREATE TABLE "system_capabilities" (
 	"user_id" text NOT NULL,
 	"capability" text NOT NULL,
 	"created_by" text,
-	"created_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "system_capabilities_pk" PRIMARY KEY("user_id","capability")
 );
 --> statement-breakpoint
 CREATE TABLE "tags" (
 	"id" text PRIMARY KEY NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"name" text NOT NULL,
 	"color" text,
 	"description" text
@@ -450,8 +449,8 @@ CREATE TABLE "tags" (
 --> statement-breakpoint
 CREATE TABLE "upload_sessions" (
 	"id" text PRIMARY KEY NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"vault_id" text NOT NULL,
 	"user_id" text NOT NULL,
 	"document_id" text,
@@ -469,14 +468,14 @@ CREATE TABLE "upload_sessions" (
 	"status" text DEFAULT 'initialized' NOT NULL,
 	"error_code" text,
 	"error_message" text,
-	"expires_at" timestamp,
-	"completed_at" timestamp
+	"expires_at" timestamp with time zone,
+	"completed_at" timestamp with time zone
 );
 --> statement-breakpoint
 CREATE TABLE "user_ui_preferences" (
 	"user_id" text PRIMARY KEY NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"accent_color" text DEFAULT 'blue' NOT NULL,
 	"density" text DEFAULT 'comfortable' NOT NULL,
 	"font_family" text DEFAULT 'inter' NOT NULL,
@@ -491,35 +490,35 @@ CREATE TABLE "user_ui_preferences" (
 --> statement-breakpoint
 CREATE TABLE "users" (
 	"id" text PRIMARY KEY NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"email" text NOT NULL,
 	"email_verified" boolean DEFAULT false NOT NULL,
 	"name" text,
 	"image" text,
 	"two_factor_enabled" boolean DEFAULT false NOT NULL,
 	"system_role" text DEFAULT 'member' NOT NULL,
-	"disabled_at" timestamp,
-	CONSTRAINT "users_email_key" UNIQUE("email")
+	"disabled_at" timestamp with time zone,
+	CONSTRAINT "users_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint
 CREATE TABLE "vault_folders" (
 	"id" text PRIMARY KEY NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"vault_id" text NOT NULL,
 	"parent_id" text,
 	"created_by" text,
 	"name" text NOT NULL,
 	"is_deleted" boolean DEFAULT false NOT NULL,
-	"deleted_at" timestamp,
+	"deleted_at" timestamp with time zone,
 	"deleted_by" text
 );
 --> statement-breakpoint
 CREATE TABLE "vault_members" (
 	"id" text PRIMARY KEY NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"vault_id" text NOT NULL,
 	"user_id" text NOT NULL,
 	"role" text NOT NULL,
@@ -529,41 +528,15 @@ CREATE TABLE "vault_members" (
 --> statement-breakpoint
 CREATE TABLE "vaults" (
 	"id" text PRIMARY KEY NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"name" text NOT NULL,
 	"description" text,
 	"created_by" text,
-	"deleted_at" timestamp,
+	"deleted_at" timestamp with time zone,
 	"deleted_by" text
 );
 --> statement-breakpoint
-ALTER TABLE "ai_provider_configs" ADD CONSTRAINT "ai_provider_configs_capability_check" CHECK ("capability" IN ('chat', 'embedding'));--> statement-breakpoint
-ALTER TABLE "ai_provider_configs" ADD CONSTRAINT "ai_provider_configs_embedding_dimensions_check" CHECK ("capability" <> 'embedding' OR "dimensions" IS NOT NULL);--> statement-breakpoint
-ALTER TABLE "document_embedding_index_status" ADD CONSTRAINT "document_embedding_index_status_status_check" CHECK ("status" IN ('pending', 'indexing', 'ready', 'failed', 'stale', 'skipped'));--> statement-breakpoint
-ALTER TABLE "email_invitations" ADD CONSTRAINT "email_invitations_ai_access_level_check" CHECK ("ai_access_level" IN ('none', 'full'));--> statement-breakpoint
-ALTER TABLE "email_invitations" ADD CONSTRAINT "email_invitations_status_check" CHECK ("status" IN ('pending', 'accepted', 'revoked', 'expired'));--> statement-breakpoint
-ALTER TABLE "email_invitations" ADD CONSTRAINT "email_invitations_system_role_check" CHECK ("system_role" IS NULL OR "system_role" IN ('admin', 'member'));--> statement-breakpoint
-ALTER TABLE "email_invitations" ADD CONSTRAINT "email_invitations_type_check" CHECK ("type" IN ('admin_account', 'vault_member'));--> statement-breakpoint
-ALTER TABLE "email_invitations" ADD CONSTRAINT "email_invitations_vault_role_check" CHECK ("vault_role" IS NULL OR "vault_role" IN ('owner', 'editor', 'viewer'));--> statement-breakpoint
-ALTER TABLE "embedding_indexes" ADD CONSTRAINT "embedding_indexes_dimensions_check" CHECK ("dimensions" > 0);--> statement-breakpoint
-ALTER TABLE "embedding_indexes" ADD CONSTRAINT "embedding_indexes_distance_metric_check" CHECK ("distance_metric" = 'cosine');--> statement-breakpoint
-ALTER TABLE "embedding_indexes" ADD CONSTRAINT "embedding_indexes_status_check" CHECK ("status" IN ('building', 'ready', 'active', 'failed', 'retiring', 'retired'));--> statement-breakpoint
-ALTER TABLE "permission_requests" ADD CONSTRAINT "permission_requests_status_check" CHECK ("status" IN ('pending', 'approved', 'rejected', 'cancelled'));--> statement-breakpoint
-ALTER TABLE "permission_requests" ADD CONSTRAINT "permission_requests_type_check" CHECK ("type" IN ('vault.create', 'vault.delete', 'vault.owner_promote', 'vault.ai_access_grant', 'vault.external_invite'));--> statement-breakpoint
-ALTER TABLE "system_capabilities" ADD CONSTRAINT "system_capabilities_capability_check" CHECK ("capability" = 'system.create_vaults');--> statement-breakpoint
-ALTER TABLE "user_ui_preferences" ADD CONSTRAINT "user_ui_preferences_accent_color_check" CHECK ("accent_color" IN ('gray', 'orange', 'yellow', 'green', 'teal', 'blue', 'cyan', 'purple', 'pink'));--> statement-breakpoint
-ALTER TABLE "user_ui_preferences" ADD CONSTRAINT "user_ui_preferences_date_format_check" CHECK ("date_format" IN ('DD.MM.YYYY', 'DD/MM/YYYY', 'DD-MM-YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD', 'YYYY/MM/DD'));--> statement-breakpoint
-ALTER TABLE "user_ui_preferences" ADD CONSTRAINT "user_ui_preferences_default_chat_answer_mode_check" CHECK ("default_chat_answer_mode" IN ('text', 'multimodal'));--> statement-breakpoint
-ALTER TABLE "user_ui_preferences" ADD CONSTRAINT "user_ui_preferences_default_file_browser_view_check" CHECK ("default_file_browser_view" IN ('list', 'grid'));--> statement-breakpoint
-ALTER TABLE "user_ui_preferences" ADD CONSTRAINT "user_ui_preferences_density_check" CHECK ("density" IN ('compact', 'comfortable', 'relaxed'));--> statement-breakpoint
-ALTER TABLE "user_ui_preferences" ADD CONSTRAINT "user_ui_preferences_font_family_check" CHECK ("font_family" IN ('inter', 'sora', 'space-grotesk'));--> statement-breakpoint
-ALTER TABLE "user_ui_preferences" ADD CONSTRAINT "user_ui_preferences_font_size_check" CHECK ("font_size" IN ('sm', 'md', 'lg', 'xl', '2xl'));--> statement-breakpoint
-ALTER TABLE "user_ui_preferences" ADD CONSTRAINT "user_ui_preferences_language_check" CHECK ("language" IN ('en', 'de', 'fr'));--> statement-breakpoint
-ALTER TABLE "user_ui_preferences" ADD CONSTRAINT "user_ui_preferences_radius_check" CHECK ("radius" IN ('none', 'sm', 'md', 'lg', 'xl'));--> statement-breakpoint
-ALTER TABLE "users" ADD CONSTRAINT "users_system_role_check" CHECK ("system_role" IN ('admin', 'member'));--> statement-breakpoint
-ALTER TABLE "vault_members" ADD CONSTRAINT "vault_members_ai_access_level_check" CHECK ("ai_access_level" IN ('none', 'full'));--> statement-breakpoint
-ALTER TABLE "vault_members" ADD CONSTRAINT "vault_members_role_check" CHECK ("role" IN ('owner', 'editor', 'viewer'));--> statement-breakpoint
 ALTER TABLE "auth_accounts" ADD CONSTRAINT "auth_accounts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "auth_sessions" ADD CONSTRAINT "auth_sessions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "auth_two_factor" ADD CONSTRAINT "auth_two_factor_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -611,12 +584,10 @@ ALTER TABLE "document_versions" ADD CONSTRAINT "document_versions_vault_id_vault
 ALTER TABLE "document_versions" ADD CONSTRAINT "document_versions_uploaded_by_users_id_fk" FOREIGN KEY ("uploaded_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "document_versions" ADD CONSTRAINT "document_versions_restored_from_version_id_document_versions_id_fk" FOREIGN KEY ("restored_from_version_id") REFERENCES "public"."document_versions"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "document_versions" ADD CONSTRAINT "document_versions_deleted_by_users_id_fk" FOREIGN KEY ("deleted_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "document_versions" ADD CONSTRAINT "document_versions_document_vault_fkey" FOREIGN KEY ("document_id","vault_id") REFERENCES "public"."documents"("id","vault_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "documents" ADD CONSTRAINT "documents_vault_id_vaults_id_fk" FOREIGN KEY ("vault_id") REFERENCES "public"."vaults"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "documents" ADD CONSTRAINT "documents_folder_id_vault_folders_id_fk" FOREIGN KEY ("folder_id") REFERENCES "public"."vault_folders"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "documents" ADD CONSTRAINT "documents_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "documents" ADD CONSTRAINT "documents_deleted_by_users_id_fk" FOREIGN KEY ("deleted_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "documents" ADD CONSTRAINT "documents_current_version_ownership_fkey" FOREIGN KEY ("current_version_id","id","vault_id") REFERENCES "public"."document_versions"("id","document_id","vault_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "email_invitations" ADD CONSTRAINT "email_invitations_invited_by_users_id_fk" FOREIGN KEY ("invited_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "email_invitations" ADD CONSTRAINT "email_invitations_accepted_by_users_id_fk" FOREIGN KEY ("accepted_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "email_invitations" ADD CONSTRAINT "email_invitations_vault_id_vaults_id_fk" FOREIGN KEY ("vault_id") REFERENCES "public"."vaults"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -642,19 +613,19 @@ ALTER TABLE "vault_members" ADD CONSTRAINT "vault_members_vault_id_vaults_id_fk"
 ALTER TABLE "vault_members" ADD CONSTRAINT "vault_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "vaults" ADD CONSTRAINT "vaults_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "vaults" ADD CONSTRAINT "vaults_deleted_by_users_id_fk" FOREIGN KEY ("deleted_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "activity_events_vault_occurred_idx" ON "activity_events" USING btree ("vault_id","occurred_at" DESC);--> statement-breakpoint
-CREATE INDEX "activity_events_document_occurred_idx" ON "activity_events" USING btree ("document_id","occurred_at" DESC);--> statement-breakpoint
-CREATE INDEX "activity_events_actor_occurred_idx" ON "activity_events" USING btree ("actor_id","occurred_at" DESC);--> statement-breakpoint
-CREATE INDEX "activity_events_type_occurred_idx" ON "activity_events" USING btree ("activity_type","occurred_at" DESC);--> statement-breakpoint
-CREATE INDEX "activity_events_entity_occurred_idx" ON "activity_events" USING btree ("entity_type","entity_id","occurred_at" DESC);--> statement-breakpoint
+CREATE INDEX "activity_events_vault_occurred_idx" ON "activity_events" USING btree ("vault_id","occurred_at");--> statement-breakpoint
+CREATE INDEX "activity_events_document_occurred_idx" ON "activity_events" USING btree ("document_id","occurred_at");--> statement-breakpoint
+CREATE INDEX "activity_events_actor_occurred_idx" ON "activity_events" USING btree ("actor_id","occurred_at");--> statement-breakpoint
+CREATE INDEX "activity_events_type_occurred_idx" ON "activity_events" USING btree ("activity_type","occurred_at");--> statement-breakpoint
+CREATE INDEX "activity_events_entity_occurred_idx" ON "activity_events" USING btree ("entity_type","entity_id","occurred_at");--> statement-breakpoint
 CREATE INDEX "ai_provider_configs_capability_enabled_idx" ON "ai_provider_configs" USING btree ("capability","is_enabled");--> statement-breakpoint
-CREATE INDEX "audit_events_vault_occurred_idx" ON "audit_events" USING btree ("vault_id","occurred_at" DESC);--> statement-breakpoint
-CREATE INDEX "audit_events_document_occurred_idx" ON "audit_events" USING btree ("document_id","occurred_at" DESC);--> statement-breakpoint
-CREATE INDEX "audit_events_actor_occurred_idx" ON "audit_events" USING btree ("actor_id","occurred_at" DESC);--> statement-breakpoint
-CREATE INDEX "audit_events_type_occurred_idx" ON "audit_events" USING btree ("event_type","occurred_at" DESC);--> statement-breakpoint
-CREATE INDEX "audit_events_category_occurred_idx" ON "audit_events" USING btree ("event_category","occurred_at" DESC);--> statement-breakpoint
-CREATE INDEX "audit_events_severity_occurred_idx" ON "audit_events" USING btree ("severity","occurred_at" DESC);--> statement-breakpoint
-CREATE INDEX "audit_events_outcome_occurred_idx" ON "audit_events" USING btree ("outcome","occurred_at" DESC);--> statement-breakpoint
+CREATE INDEX "audit_events_vault_occurred_idx" ON "audit_events" USING btree ("vault_id","occurred_at");--> statement-breakpoint
+CREATE INDEX "audit_events_document_occurred_idx" ON "audit_events" USING btree ("document_id","occurred_at");--> statement-breakpoint
+CREATE INDEX "audit_events_actor_occurred_idx" ON "audit_events" USING btree ("actor_id","occurred_at");--> statement-breakpoint
+CREATE INDEX "audit_events_type_occurred_idx" ON "audit_events" USING btree ("event_type","occurred_at");--> statement-breakpoint
+CREATE INDEX "audit_events_category_occurred_idx" ON "audit_events" USING btree ("event_category","occurred_at");--> statement-breakpoint
+CREATE INDEX "audit_events_severity_occurred_idx" ON "audit_events" USING btree ("severity","occurred_at");--> statement-breakpoint
+CREATE INDEX "audit_events_outcome_occurred_idx" ON "audit_events" USING btree ("outcome","occurred_at");--> statement-breakpoint
 CREATE INDEX "background_jobs_queue_status_run_idx" ON "background_jobs" USING btree ("queue_name","status","run_at");--> statement-breakpoint
 CREATE INDEX "background_jobs_status_run_idx" ON "background_jobs" USING btree ("status","run_at");--> statement-breakpoint
 CREATE INDEX "background_jobs_locked_at_idx" ON "background_jobs" USING btree ("locked_at");--> statement-breakpoint
@@ -683,12 +654,11 @@ CREATE INDEX "document_chunks_vault_doc_idx" ON "document_chunks" USING btree ("
 CREATE INDEX "document_chunks_vault_version_idx" ON "document_chunks" USING btree ("vault_id","document_version_id");--> statement-breakpoint
 CREATE INDEX "document_chunks_page_idx" ON "document_chunks" USING btree ("document_id","page_start","page_end");--> statement-breakpoint
 CREATE INDEX "document_chunks_version_page_idx" ON "document_chunks" USING btree ("document_version_id","page_start","page_end");--> statement-breakpoint
-CREATE INDEX "document_chunks_fts_idx" ON "document_chunks" USING gin ("tsv");--> statement-breakpoint
 CREATE INDEX "document_element_provenance_version_sort_idx" ON "document_element_provenance" USING btree ("document_version_id","sort_index");--> statement-breakpoint
 CREATE INDEX "document_element_provenance_version_page_idx" ON "document_element_provenance" USING btree ("document_version_id","page_number");--> statement-breakpoint
 CREATE INDEX "document_embedding_index_status_vault_idx" ON "document_embedding_index_status" USING btree ("embedding_index_id","vault_id");--> statement-breakpoint
 CREATE INDEX "document_embedding_index_status_doc_version_idx" ON "document_embedding_index_status" USING btree ("embedding_index_id","document_id","document_version_id");--> statement-breakpoint
-CREATE INDEX "document_versions_vault_document_number_idx" ON "document_versions" USING btree ("vault_id","document_id","version_number" DESC);--> statement-breakpoint
+CREATE INDEX "document_versions_vault_document_number_idx" ON "document_versions" USING btree ("vault_id","document_id","version_number" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "document_versions_vault_status_uploaded_idx" ON "document_versions" USING btree ("vault_id","processing_status","uploaded_at");--> statement-breakpoint
 CREATE INDEX "document_versions_vault_hash_idx" ON "document_versions" USING btree ("vault_id","original_sha256_hash");--> statement-breakpoint
 CREATE INDEX "document_versions_kek_version_idx" ON "document_versions" USING btree ("file_encryption_kek_version");--> statement-breakpoint
@@ -698,7 +668,6 @@ CREATE INDEX "documents_vault_deleted_created_idx" ON "documents" USING btree ("
 CREATE INDEX "documents_vault_deleted_idx" ON "documents" USING btree ("vault_id","is_deleted");--> statement-breakpoint
 CREATE INDEX "documents_vault_folder_deleted_created_idx" ON "documents" USING btree ("vault_id","folder_id","is_deleted","created_at");--> statement-breakpoint
 CREATE INDEX "documents_processing_status_idx" ON "documents" USING btree ("processing_status");--> statement-breakpoint
-CREATE INDEX "documents_parser_engine_idx" ON "documents" USING btree ("parser_engine");--> statement-breakpoint
 CREATE INDEX "documents_language_metadata_gin_idx" ON "documents" USING gin ("language_metadata");--> statement-breakpoint
 CREATE INDEX "documents_language_code_idx" ON "documents" USING btree (("language_metadata"->>'code')) WHERE "documents"."language_metadata" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "documents_hash_idx" ON "documents" USING btree ("original_sha256_hash");--> statement-breakpoint
@@ -707,8 +676,8 @@ CREATE INDEX "documents_current_version_idx" ON "documents" USING btree ("curren
 CREATE INDEX "email_invitations_email_status_idx" ON "email_invitations" USING btree ("email","status");--> statement-breakpoint
 CREATE INDEX "email_invitations_vault_idx" ON "email_invitations" USING btree ("vault_id");--> statement-breakpoint
 CREATE INDEX "email_invitations_invited_by_idx" ON "email_invitations" USING btree ("invited_by");--> statement-breakpoint
-CREATE UNIQUE INDEX "embedding_indexes_single_active_idx" ON "embedding_indexes" USING btree ("is_active") WHERE "embedding_indexes"."is_active" = true;--> statement-breakpoint
 CREATE INDEX "embedding_indexes_provider_config_idx" ON "embedding_indexes" USING btree ("provider_config_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "embedding_indexes_single_active_idx" ON "embedding_indexes" USING btree ("is_active") WHERE "embedding_indexes"."is_active" = true;--> statement-breakpoint
 CREATE INDEX "permission_requests_status_created_idx" ON "permission_requests" USING btree ("status","created_at");--> statement-breakpoint
 CREATE INDEX "permission_requests_requested_by_idx" ON "permission_requests" USING btree ("requested_by");--> statement-breakpoint
 CREATE INDEX "permission_requests_vault_idx" ON "permission_requests" USING btree ("vault_id");--> statement-breakpoint

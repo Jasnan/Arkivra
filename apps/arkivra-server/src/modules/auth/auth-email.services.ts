@@ -123,15 +123,14 @@ export function createAuthEmailServices({ config }: { config: Config }) {
     config.email.delivery === 'console'
   ) {
     throw new Error(
-      'Email verification is required in production, but ARKIVRA_EMAIL_DELIVERY is set to console. Configure SMTP before starting Arkivra.',
+      'Email verification is required in production, but SMTP is not configured. Set ARKIVRA_SMTP_URL before starting Arkivra.',
     );
   }
 
   if (config.email.delivery === 'smtp') {
     const missingFields = [
       ['ARKIVRA_EMAIL_FROM', config.email.from],
-      ['ARKIVRA_SMTP_HOST', config.email.smtpHost],
-      ['ARKIVRA_SMTP_PORT', config.email.smtpPort],
+      ['ARKIVRA_SMTP_URL', config.email.smtpHost && config.email.smtpPort],
     ].flatMap(([name, value]) => (value ? [] : [name]));
 
     if (missingFields.length > 0) {

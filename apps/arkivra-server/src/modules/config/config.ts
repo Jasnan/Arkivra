@@ -29,11 +29,6 @@ function isValidDocumentEncryptionKeys(value: string) {
     });
 }
 
-const optionalPortSchema = z.preprocess(
-  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
-  z.coerce.number().int().min(1).max(65535).optional(),
-);
-
 const optionalUrlSchema = z.preprocess(
   (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
   z.string().url().optional(),
@@ -437,12 +432,6 @@ export const configDefinition = {
       default: undefined,
       env: 'ARKIVRA_SMTP_URL',
     },
-    delivery: {
-      doc: 'Email delivery backend. Use "console" for local development and "smtp" for production.',
-      schema: z.enum(['console', 'smtp']),
-      default: 'console' as const,
-      env: 'ARKIVRA_EMAIL_DELIVERY',
-    },
     from: {
       doc: 'Email address used as the sender for Arkivra auth emails.',
       schema: z.string().optional(),
@@ -454,42 +443,6 @@ export const configDefinition = {
       schema: z.string(),
       default: 'Arkivra',
       env: 'ARKIVRA_EMAIL_FROM_NAME',
-    },
-    smtpHost: {
-      doc: 'SMTP server host for production email delivery.',
-      schema: z.string().optional(),
-      default: undefined,
-      env: 'ARKIVRA_SMTP_HOST',
-    },
-    smtpPort: {
-      doc: 'SMTP server port for production email delivery.',
-      schema: optionalPortSchema,
-      default: undefined,
-      env: 'ARKIVRA_SMTP_PORT',
-    },
-    smtpSecure: {
-      doc: 'Whether to connect to SMTP using implicit TLS, typically on port 465.',
-      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
-      default: false,
-      env: 'ARKIVRA_SMTP_SECURE',
-    },
-    smtpStartTls: {
-      doc: 'Whether to upgrade a plain SMTP connection with STARTTLS, typically on port 587.',
-      schema: z.union([z.boolean(), z.string().transform((v) => v === 'true' || v === '1')]),
-      default: true,
-      env: 'ARKIVRA_SMTP_STARTTLS',
-    },
-    smtpUser: {
-      doc: 'SMTP username.',
-      schema: z.string().optional(),
-      default: undefined,
-      env: 'ARKIVRA_SMTP_USER',
-    },
-    smtpPassword: {
-      doc: 'SMTP password.',
-      schema: z.string().optional(),
-      default: undefined,
-      env: 'ARKIVRA_SMTP_PASSWORD',
     },
   },
 } as const;
@@ -618,13 +571,13 @@ export function parseConfig({ env }: { env: Record<string, string | undefined> }
     },
     email: {
       ...config.email,
-      delivery: smtpUrl === null ? config.email.delivery : 'smtp',
-      smtpHost: smtpUrl?.host ?? config.email.smtpHost,
-      smtpPassword: smtpUrl?.password ?? config.email.smtpPassword,
-      smtpPort: smtpUrl?.port ?? config.email.smtpPort,
-      smtpSecure: smtpUrl?.secure ?? config.email.smtpSecure,
-      smtpStartTls: smtpUrl?.startTls ?? config.email.smtpStartTls,
-      smtpUser: smtpUrl?.user ?? config.email.smtpUser,
+      delivery: smtpUrl === null ? 'console' as const : 'smtp' as const,
+      smtpHost: smtpUrl?.host,
+      smtpPassword: smtpUrl?.password,
+      smtpPort: smtpUrl?.port,
+      smtpSecure: smtpUrl?.secure ?? false,
+      smtpStartTls: smtpUrl?.startTls ?? true,
+      smtpUser: smtpUrl?.user,
     },
     storage: {
       ...config.storage,

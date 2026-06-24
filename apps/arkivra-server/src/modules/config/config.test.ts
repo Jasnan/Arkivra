@@ -130,15 +130,15 @@ describe('parseConfig', () => {
     expect(config.auth.trustedOrigins).toEqual(['http://trusted.test']);
   });
 
-  it('treats blank optional SMTP port as unset', () => {
+  it('uses console email delivery when ARKIVRA_SMTP_URL is unset', () => {
     const { config } = parseConfig({
       env: {
         ...requiredEnv,
-        ARKIVRA_EMAIL_DELIVERY: 'console',
-        ARKIVRA_SMTP_PORT: '',
       },
     });
 
+    expect(config.email.delivery).toBe('console');
+    expect(config.email.smtpHost).toBeUndefined();
     expect(config.email.smtpPort).toBeUndefined();
   });
 

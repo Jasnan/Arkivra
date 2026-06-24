@@ -525,7 +525,7 @@ describe('search integration', () => {
       tagId: undefined,
       tagIds: ['tag_1', 'tag_2'],
       dateFrom: new Date('2026-04-01'),
-      dateTo: new Date('2026-04-30'),
+      dateTo: new Date('2026-04-30T23:59:59.999Z'),
       sortBy: 'name_asc',
       includeVersions: 'latest',
     });

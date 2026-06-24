@@ -145,7 +145,7 @@ export function createPermissionRequestServices({ db }: { db: Database }) {
 
         const [deletedVault] = await tx
           .update(vaultsTable)
-          .set({ deletedAt: new Date(), deletedBy: reviewedBy, updatedAt: new Date() })
+          .set({ deletedAt: sql`now()`, deletedBy: reviewedBy, updatedAt: sql`now()` })
           .where(
             and(
               eq(vaultsTable.id, request.vaultId),
@@ -176,7 +176,7 @@ export function createPermissionRequestServices({ db }: { db: Database }) {
           })
           .onConflictDoUpdate({
             target: [vaultMembersTable.vaultId, vaultMembersTable.userId],
-            set: { role: 'owner', updatedAt: new Date() },
+            set: { role: 'owner', updatedAt: sql`now()` },
           });
         result.vaultId = request.vaultId;
         result.userId = request.targetUserId;
@@ -192,7 +192,7 @@ export function createPermissionRequestServices({ db }: { db: Database }) {
 
         const [member] = await tx
           .update(vaultMembersTable)
-          .set({ aiAccessLevel, updatedAt: new Date() })
+          .set({ aiAccessLevel, updatedAt: sql`now()` })
           .where(
             and(
               eq(vaultMembersTable.vaultId, request.vaultId),
@@ -265,9 +265,9 @@ export function createPermissionRequestServices({ db }: { db: Database }) {
         .set({
           status: 'approved',
           reviewedBy,
-          reviewedAt: new Date(),
+          reviewedAt: sql`now()`,
           result,
-          updatedAt: new Date(),
+          updatedAt: sql`now()`,
         })
         .where(eq(permissionRequestsTable.id, requestId))
         .returning();
@@ -290,9 +290,9 @@ export function createPermissionRequestServices({ db }: { db: Database }) {
       .set({
         status: 'rejected',
         reviewedBy,
-        reviewedAt: new Date(),
+        reviewedAt: sql`now()`,
         result: reason ? { reason } : {},
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       })
       .where(and(eq(permissionRequestsTable.id, requestId), eq(permissionRequestsTable.status, 'pending')))
       .returning();

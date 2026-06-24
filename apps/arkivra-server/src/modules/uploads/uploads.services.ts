@@ -1,6 +1,6 @@
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../database/database.js';
 import type { DocumentsServices, UploadConflictStrategy } from '../documents/documents.services.js';
 import { uploadSessionsTable } from '../database/schema/index.js';
@@ -163,8 +163,6 @@ export function createUploadsServices({
     const uploadId = generateId({ prefix: 'upl' });
     const stagingKey = buildStagingKey(vaultId, uploadId);
     const partCount = Math.max(1, Math.ceil(totalSize / partSizeBytes));
-    const expiresAt = new Date(Date.now() + sessionTtlHours * 3600_000);
-
     const [row] = await db
       .insert(uploadSessionsTable)
       .values({
@@ -179,7 +177,7 @@ export function createUploadsServices({
         partSize: partSizeBytes,
         partCount,
         stagingKey,
-        expiresAt,
+        expiresAt: sql`now() + (${sessionTtlHours} * interval '1 hour')`,
       })
       .returning();
 
@@ -250,7 +248,15 @@ export function createUploadsServices({
       return null;
     }
 
-    if (row.expiresAt !== null && row.expiresAt < new Date()) {
+    const [expiry] = await db
+      .select({
+        isExpired: sql<boolean>`${uploadSessionsTable.expiresAt} IS NOT NULL AND ${uploadSessionsTable.expiresAt} < now()`,
+      })
+      .from(uploadSessionsTable)
+      .where(eq(uploadSessionsTable.id, uploadId))
+      .limit(1);
+
+    if (expiry?.isExpired === true) {
       throw new Error('Upload session has expired');
     }
 
@@ -297,7 +303,7 @@ export function createUploadsServices({
         status: nextParts.length === row.partCount ? 'paused' : 'uploading',
         errorCode: null,
         errorMessage: null,
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       })
       .where(eq(uploadSessionsTable.id, uploadId))
       .returning();
@@ -362,8 +368,8 @@ export function createUploadsServices({
         status: result.duplicate ? 'failed' : 'completed',
         errorCode: conflictError?.code ?? null,
         errorMessage: conflictError?.message ?? null,
-        completedAt: result.duplicate ? null : new Date(),
-        updatedAt: new Date(),
+        completedAt: result.duplicate ? null : sql`now()`,
+        updatedAt: sql`now()`,
       })
       .where(eq(uploadSessionsTable.id, uploadId))
       .returning();
@@ -411,7 +417,7 @@ export function createUploadsServices({
         status: 'aborted',
         errorCode: null,
         errorMessage: null,
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       })
       .where(eq(uploadSessionsTable.id, uploadId))
       .returning();

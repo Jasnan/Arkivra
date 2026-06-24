@@ -512,7 +512,7 @@ export function createAdminAiServices({
         ollamaEmbeddingHost: normalized.embedding.baseUrl,
         ollamaEmbeddingModel: normalized.embedding.model,
         ollamaEmbeddingDimensions: normalized.embedding.dimensions,
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       })
       .onConflictDoUpdate({
         target: instanceSettingsTable.id,
@@ -535,7 +535,7 @@ export function createAdminAiServices({
           ollamaEmbeddingHost: normalized.embedding.baseUrl,
           ollamaEmbeddingModel: normalized.embedding.model,
           ollamaEmbeddingDimensions: normalized.embedding.dimensions,
-          updatedAt: new Date(),
+          updatedAt: sql`now()`,
         },
       });
 

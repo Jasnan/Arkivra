@@ -11,7 +11,7 @@ export function createActivityServices({ db }: { db: Database }) {
     const [event] = await db
       .insert(activityEventsTable)
       .values({
-        occurredAt: input.occurredAt ?? new Date(),
+        occurredAt: input.occurredAt ?? sql`now()`,
         activityType: input.activityType,
         entityType: input.entityType,
         entityId: input.entityId,

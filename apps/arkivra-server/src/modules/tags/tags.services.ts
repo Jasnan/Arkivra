@@ -69,7 +69,7 @@ export function createTagsServices({ db }: { db: Database }) {
         name,
         color,
         description,
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       })
       .where(eq(tagsTable.id, tagId))
       .returning({

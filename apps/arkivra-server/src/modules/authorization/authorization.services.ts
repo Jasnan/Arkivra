@@ -55,7 +55,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
 
     await db
       .update(usersTable)
-      .set({ systemRole: 'admin', updatedAt: new Date() })
+      .set({ systemRole: 'admin', updatedAt: sql`now()` })
       .where(eq(usersTable.id, userId));
 
     return true;
@@ -227,8 +227,8 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     await db
       .update(usersTable)
       .set({
-        disabledAt: disabled ? new Date() : null,
-        updatedAt: new Date(),
+        disabledAt: disabled ? sql`now()` : null,
+        updatedAt: sql`now()`,
       })
       .where(eq(usersTable.id, userId));
 
@@ -244,7 +244,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
 
     await db
       .update(usersTable)
-      .set({ systemRole: 'admin', updatedAt: new Date() })
+      .set({ systemRole: 'admin', updatedAt: sql`now()` })
       .where(eq(usersTable.id, userId));
 
     return getUserWithAuthorization({ userId });
@@ -267,7 +267,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
 
     await db
       .update(usersTable)
-      .set({ systemRole: 'member', updatedAt: new Date() })
+      .set({ systemRole: 'member', updatedAt: sql`now()` })
       .where(eq(usersTable.id, userId));
 
     return getUserWithAuthorization({ userId });
@@ -368,6 +368,17 @@ export function createAuthorizationServices({ db }: { db: Database }) {
 
   async function getPendingEmailInvitation({ invitationId, email }: { invitationId?: string; email: string }) {
     const normalizedEmail = normalizeEmail(email);
+    await db
+      .update(emailInvitationsTable)
+      .set({ status: 'expired', updatedAt: sql`now()` })
+      .where(and(
+        ...(invitationId ? [eq(emailInvitationsTable.id, invitationId)] : []),
+        eq(emailInvitationsTable.email, normalizedEmail),
+        eq(emailInvitationsTable.status, 'pending'),
+        sql`${emailInvitationsTable.expiresAt} IS NOT NULL`,
+        sql`${emailInvitationsTable.expiresAt} <= now()`,
+      ));
+
     const [invitation] = await db
       .select()
       .from(emailInvitationsTable)
@@ -380,14 +391,6 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       .limit(1);
 
     if (invitation === undefined) {
-      return null;
-    }
-
-    if (invitation.expiresAt !== null && invitation.expiresAt <= new Date()) {
-      await db
-        .update(emailInvitationsTable)
-        .set({ status: 'expired', updatedAt: new Date() })
-        .where(eq(emailInvitationsTable.id, invitation.id));
       return null;
     }
 
@@ -416,7 +419,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       if (invitationSystemRole === 'admin') {
         await tx
           .update(usersTable)
-          .set({ systemRole: 'admin', updatedAt: new Date() })
+          .set({ systemRole: 'admin', updatedAt: sql`now()` })
           .where(eq(usersTable.id, userId));
       }
 
@@ -446,7 +449,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
             set: {
               role: invitation.vaultRole,
               aiAccessLevel: invitation.aiAccessLevel as AiAccessLevel,
-              updatedAt: new Date(),
+              updatedAt: sql`now()`,
             },
           })
           .returning({ id: vaultMembersTable.id });
@@ -469,7 +472,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
             set: {
               role: membership.role,
               aiAccessLevel: membership.aiAccessLevel,
-              updatedAt: new Date(),
+              updatedAt: sql`now()`,
             },
           })
           .returning({ id: vaultMembersTable.id });
@@ -482,9 +485,9 @@ export function createAuthorizationServices({ db }: { db: Database }) {
         .set({
           status: 'accepted',
           acceptedBy: userId,
-          acceptedAt: new Date(),
+          acceptedAt: sql`now()`,
           vaultMemberId,
-          updatedAt: new Date(),
+          updatedAt: sql`now()`,
         })
         .where(eq(emailInvitationsTable.id, invitation.id))
         .returning();

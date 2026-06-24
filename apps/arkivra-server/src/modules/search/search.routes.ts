@@ -74,12 +74,15 @@ function parsePageSize(value: string | undefined) {
   return Number.isInteger(parsed) && parsed >= 1 && parsed <= 100 ? parsed : null;
 }
 
-function parseOptionalDate(value: string | undefined) {
+function parseOptionalDate(value: string | undefined, boundary?: 'start' | 'end') {
   if (value === undefined || value.trim().length === 0) {
     return undefined;
   }
 
-  const parsed = new Date(value);
+  const trimmed = value.trim();
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(trimmed) && boundary !== undefined
+    ? new Date(`${trimmed}T${boundary === 'start' ? '00:00:00.000' : '23:59:59.999'}Z`)
+    : new Date(trimmed);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
@@ -219,8 +222,8 @@ const documentSearchQuerySchema: z.ZodType<DocumentSearchQueryParams, z.ZodTypeD
     pageSize: parsedParam<number>((value) => parsePageSize(optionalString(value))),
     tagId: trimmedOptionalStringSchema,
     tagIds: parsedParam<string[] | undefined>((value) => parseTagIds(optionalString(value))),
-    dateFrom: parsedParam<Date | undefined>((value) => parseOptionalDate(optionalString(value))),
-    dateTo: parsedParam<Date | undefined>((value) => parseOptionalDate(optionalString(value))),
+    dateFrom: parsedParam<Date | undefined>((value) => parseOptionalDate(optionalString(value), 'start')),
+    dateTo: parsedParam<Date | undefined>((value) => parseOptionalDate(optionalString(value), 'end')),
     sortBy: parsedParam<SearchSortBy>((value) => parseSortBy(optionalString(value))),
     searchMode: parsedParam<DocumentSearchMode>((value) =>
       parseDocumentSearchMode(optionalString(value)),
@@ -245,8 +248,8 @@ const globalDocumentSearchQuerySchema: z.ZodType<
   vaultIds: parsedParam<string[] | undefined>((value) => parseVaultIds(optionalString(value))),
   tagId: trimmedOptionalStringSchema,
   tagIds: parsedParam<string[] | undefined>((value) => parseTagIds(optionalString(value))),
-  dateFrom: parsedParam<Date | undefined>((value) => parseOptionalDate(optionalString(value))),
-  dateTo: parsedParam<Date | undefined>((value) => parseOptionalDate(optionalString(value))),
+  dateFrom: parsedParam<Date | undefined>((value) => parseOptionalDate(optionalString(value), 'start')),
+  dateTo: parsedParam<Date | undefined>((value) => parseOptionalDate(optionalString(value), 'end')),
   sortBy: parsedParam<SearchSortBy>((value) => parseSortBy(optionalString(value))),
   searchMode: parsedParam<DocumentSearchMode>((value) =>
     parseDocumentSearchMode(optionalString(value)),

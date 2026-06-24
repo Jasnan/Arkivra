@@ -346,8 +346,6 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
 
       const versionId = providedVersionId ?? generateId({ prefix: 'dvr' });
       const versionNumber = (latestVersion?.versionNumber ?? 0) + 1;
-      const now = new Date();
-
       const [version] = await tx
         .insert(documentVersionsTable)
         .values({
@@ -356,7 +354,7 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
           vaultId,
           versionNumber,
           uploadedBy,
-          uploadedAt: now,
+          uploadedAt: sql`now()`,
           originalName,
           originalSize,
           originalStorageKey,
@@ -396,7 +394,7 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
             fileEncryptionKeyWrapped,
             fileEncryptionKekVersion,
             fileEncryptionAlgorithm,
-            updatedAt: now,
+            updatedAt: sql`now()`,
           })
           .where(and(eq(documentsTable.id, documentId), eq(documentsTable.vaultId, vaultId)));
       }
@@ -447,8 +445,6 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
       const versionId = providedVersionId ?? generateId({ prefix: 'dvr' });
       const logicalName = name ?? originalName;
       const documentOriginalName = logicalOriginalName ?? originalName;
-      const now = new Date();
-
       const [document] = await tx
         .insert(documentsTable)
         .values({
@@ -481,7 +477,7 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
           vaultId,
           versionNumber: 1,
           uploadedBy,
-          uploadedAt: now,
+          uploadedAt: sql`now()`,
           originalName,
           originalSize,
           originalStorageKey,
@@ -502,7 +498,7 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
         .update(documentsTable)
         .set({
           currentVersionId: version.id,
-          updatedAt: now,
+          updatedAt: sql`now()`,
         })
         .where(and(eq(documentsTable.id, document.id), eq(documentsTable.vaultId, vaultId)));
 

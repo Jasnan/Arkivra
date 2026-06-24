@@ -162,7 +162,7 @@ export function createChatServices({
         contextSnapshot: scope,
         userId,
         title: title && title.trim().length > 0 ? truncate(title, 96) : DEFAULT_CHAT_TITLE,
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       })
       .returning();
 
@@ -241,7 +241,7 @@ export function createChatServices({
           documentId: scopeValues.documentId,
           scope: scopeValues.scope,
           contextSnapshot: scope,
-          updatedAt: new Date(),
+          updatedAt: sql`now()`,
         })
         .where(getConversationOwnershipConditions({ userId, chatId }))
         .returning();
@@ -293,8 +293,8 @@ export function createChatServices({
     const [row] = await db
       .update(chatConversationsTable)
       .set({
-        deletedAt: new Date(),
-        updatedAt: new Date(),
+        deletedAt: sql`now()`,
+        updatedAt: sql`now()`,
       })
       .where(getConversationOwnershipConditions({ userId, chatId }))
       .returning();
@@ -812,7 +812,7 @@ export function createChatServices({
         metrics,
       });
       await db.transaction(async (tx) => {
-        const updatedAt = new Date();
+        const updatedAt = sql`now()`;
         const [assistantMessageRow] = await tx
           .insert(chatMessagesTable)
           .values({

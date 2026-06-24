@@ -30,7 +30,7 @@ export type AuditEventFilters = {
 
 export function createAuditServices({ db }: { db: Database }) {
   async function emitAuditEvent(input: EmitAuditEventInput) {
-    const now = input.occurredAt ?? new Date();
+    const occurredAt = input.occurredAt ?? null;
     const actor = input.actor ?? null;
     const target = input.target ?? null;
     const requestContext = input.requestContext ?? null;
@@ -48,7 +48,9 @@ export function createAuditServices({ db }: { db: Database }) {
             eq(auditEventsTable.actorId, actor.id),
             eq(auditEventsTable.documentId, input.documentId),
             eq(auditEventsTable.vaultId, input.vaultId ?? ''),
-            sql`${auditEventsTable.occurredAt} >= ${new Date(now.getTime() - input.dedupe.windowMs)}`,
+            occurredAt === null
+              ? sql`${auditEventsTable.occurredAt} >= now() - (${input.dedupe.windowMs} * interval '1 millisecond')`
+              : sql`${auditEventsTable.occurredAt} >= ${new Date(occurredAt.getTime() - input.dedupe.windowMs)}`,
           ),
         )
         .orderBy(desc(auditEventsTable.occurredAt))
@@ -62,7 +64,7 @@ export function createAuditServices({ db }: { db: Database }) {
     const [event] = await db
       .insert(auditEventsTable)
       .values({
-        occurredAt: now,
+        occurredAt: occurredAt ?? sql`now()`,
         eventType: input.eventType,
         eventCategory: input.eventCategory,
         severity: input.severity ?? 'info',

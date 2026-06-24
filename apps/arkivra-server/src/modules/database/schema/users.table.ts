@@ -13,7 +13,7 @@ export const usersTable = pgTable(
     image: text('image'),
     twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),
     systemRole: text('system_role', { enum: ['admin', 'member'] }).notNull().default('member'),
-    disabledAt: timestamp('disabled_at', { mode: 'date' }),
+    disabledAt: timestamp('disabled_at', { mode: 'date', withTimezone: true }),
   },
   (table) => [
     index('users_email_idx').on(table.email),

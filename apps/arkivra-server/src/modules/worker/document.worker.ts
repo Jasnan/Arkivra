@@ -6,7 +6,7 @@ import type { ProcessDocumentJobData } from './queue.js';
 import type { createActivityServices } from '../activity/activity.services.js';
 import type { EmbeddingIndexQueue } from '../ai/indexing/index.js';
 import { createDocumentsServices } from '../documents/documents.services.js';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { documentsTable, documentVersionsTable, uploadSessionsTable } from '../database/schema/index.js';
 import { createEmbeddingIndexServices } from '../ai/indexing/index.js';
 import { persistParsedDocument } from '../parsing/persistence.js';
@@ -110,8 +110,8 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         status,
         errorCode,
         errorMessage,
-        completedAt: status === 'completed' ? new Date() : null,
-        updatedAt: new Date(),
+        completedAt: status === 'completed' ? sql`now()` : null,
+        updatedAt: sql`now()`,
       })
       .where(
         and(

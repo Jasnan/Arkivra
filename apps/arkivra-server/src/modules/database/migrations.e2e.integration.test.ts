@@ -832,7 +832,7 @@ describe.sequential('migrations smoke', () => {
     );
 
     expect(byKey['chat_conversations.context_frozen_at']?.data_type).toBe(
-      'timestamp without time zone',
+      'timestamp with time zone',
     );
     expect(byKey['chat_conversation_document_versions.conversation_id']?.is_nullable).toBe('NO');
     expect(byKey['chat_conversation_document_versions.vault_id']?.is_nullable).toBe('NO');
@@ -1052,6 +1052,7 @@ describe.sequential('migrations smoke', () => {
     expect(byName.progress?.column_default).toContain('0');
     expect(byName.attempts?.column_default).toContain('0');
     expect(byName.max_attempts?.column_default).toContain('1');
+    expect(byName.run_at?.data_type).toBe('timestamp with time zone');
     expect(byName.run_at?.column_default).toContain('now()');
 
     const { rows: indexRows } = await pool.query<{ indexname: string }>(
@@ -1070,6 +1071,34 @@ describe.sequential('migrations smoke', () => {
         'background_jobs_locked_at_idx',
       ]),
     );
+  });
+
+  test('all timestamp columns are timezone-aware instants', async () => {
+    if (pool === null) {
+      throw new Error('Migration smoke pool not initialised');
+    }
+
+    const { rows } = await pool.query<{
+      table_name: string;
+      column_name: string;
+      data_type: string;
+    }>(
+      `
+        SELECT table_name, column_name, data_type
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND data_type IN ('timestamp without time zone', 'timestamp with time zone')
+        ORDER BY table_name, column_name
+      `,
+    );
+
+    const timezoneLessColumns = rows.filter(
+      row => row.data_type === 'timestamp without time zone',
+    );
+
+    expect(timezoneLessColumns).toEqual([]);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every(row => row.data_type === 'timestamp with time zone')).toBe(true);
   });
 
   test('baseline creates vault folders and folder references', async () => {

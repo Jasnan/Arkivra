@@ -26,9 +26,9 @@ export const chatConversationsTable = pgTable(
       .default('vault'),
     documentId: text('document_id').references(() => documentsTable.id, { onDelete: 'set null' }),
     contextSnapshot: jsonb('context_snapshot').$type<ChatContextSnapshot>().notNull(),
-    contextFrozenAt: timestamp('context_frozen_at', { mode: 'date' }),
+    contextFrozenAt: timestamp('context_frozen_at', { mode: 'date', withTimezone: true }),
     title: text('title').notNull().default('New chat'),
-    deletedAt: timestamp('deleted_at', { mode: 'date' }),
+    deletedAt: timestamp('deleted_at', { mode: 'date', withTimezone: true }),
   },
   (table) => [
     index('chat_conversations_vault_created_idx').on(table.vaultId, table.createdAt),
@@ -75,7 +75,7 @@ export const chatConversationDocumentVersionsTable = pgTable(
       onDelete: 'set null',
     }),
     includedBy: text('included_by').$type<ChatConversationDocumentVersionIncludedBy>().notNull(),
-    createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('chat_conversation_document_versions_conversation_idx').on(table.conversationId),
@@ -115,7 +115,7 @@ export const chatMessageCitationsTable = pgTable(
     citationPrecision: text('citation_precision').$type<ChatMessageCitationPrecision>(),
     snippet: text('snippet'),
     locatorJson: jsonb('locator_json').$type<Record<string, unknown>>(),
-    createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('chat_message_citations_conversation_message_idx').on(

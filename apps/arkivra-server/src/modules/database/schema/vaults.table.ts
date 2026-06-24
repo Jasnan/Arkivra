@@ -12,7 +12,7 @@ export const vaultsTable = pgTable(
     description: text('description'),
 
     createdBy: text('created_by').references(() => usersTable.id, { onDelete: 'set null' }),
-    deletedAt: timestamp('deleted_at', { mode: 'date' }),
+    deletedAt: timestamp('deleted_at', { mode: 'date', withTimezone: true }),
     deletedBy: text('deleted_by').references(() => usersTable.id, { onDelete: 'set null' }),
   },
   (table) => [index('vaults_deleted_at_idx').on(table.deletedAt)],

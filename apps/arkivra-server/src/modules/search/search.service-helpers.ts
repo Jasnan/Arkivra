@@ -161,20 +161,12 @@ export function toIsoString(value: Date | string | null) {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
-export function toSqlDateBoundary(value: Date | null | undefined, boundary: 'start' | 'end') {
+export function toSqlDateBoundary(value: Date | null | undefined, _boundary: 'start' | 'end') {
   if (value === null || value === undefined) {
     return null;
   }
 
-  const normalized = new Date(value);
-
-  if (boundary === 'start') {
-    normalized.setHours(0, 0, 0, 0);
-  } else {
-    normalized.setHours(23, 59, 59, 999);
-  }
-
-  return normalized;
+  return new Date(value);
 }
 
 export function normalizeTagIds(tagId: string | undefined, tagIds: string[] | undefined) {

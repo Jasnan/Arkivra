@@ -51,7 +51,7 @@ export const documentChunkAssetsTable = pgTable(
     fileEncryptionKeyWrapped: text('file_encryption_key_wrapped'),
     fileEncryptionKekVersion: text('file_encryption_kek_version'),
 
-    createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('document_chunk_assets_chunk_idx').on(table.chunkId),

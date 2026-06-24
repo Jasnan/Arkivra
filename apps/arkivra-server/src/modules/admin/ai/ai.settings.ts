@@ -177,18 +177,16 @@ export function createDefaultSettings(config: Config): AdminAiSettings {
 }
 
 export function createDefaultIngestionSettings(config: Config) {
+  const captioningModel = config.ollama.imageCaptioningModel ?? '';
+
   return {
-    summarisationEnabled: false,
-    summarisationHost: config.ollama.host,
-    summarisationModel: 'gemma4:e4b',
-    summarisationMaxImagesPerChunk: 4,
     embeddingEnabled: false,
     embeddingHost: config.ollama.host,
     embeddingModel: 'bge-m3',
     embeddingDimensions: 1024,
-    captioningEnabled: false,
+    captioningEnabled: config.ollama.imageCaptioningEnabled === true && captioningModel.length > 0,
     captioningHost: config.ollama.host,
-    captioningModel: 'gemma4:e4b',
+    captioningModel,
   };
 }
 

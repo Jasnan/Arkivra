@@ -3,7 +3,11 @@ import { Box, Flex, HStack, SimpleGrid, Stack, Table, Text } from '@chakra-ui/re
 import { MoreVertical, Plus, Server, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import type { AdminAiModelCatalogEntry, AdminAiSettings } from '@/features/admin/admin.types';
+import type {
+  AdminAiAvailability,
+  AdminAiModelCatalogEntry,
+  AdminAiSettings,
+} from '@/features/admin/admin.types';
 import { formatDate } from '@/features/documents/documents.utils';
 import { SettingsStatusBadge } from '@/features/settings/components/settings-ui';
 import { AiSettingsSection } from './admin-ai-settings-page-sections';
@@ -18,6 +22,7 @@ interface AdminAiProviderSectionProps {
   geminiProviderStatus: string;
   geminiProviderTone: 'enabled' | 'inactive' | 'warning';
   isSaving: boolean;
+  ollamaAvailability?: AdminAiAvailability;
   ollamaDataUpdatedAt: number;
   ollamaIsFetching: boolean;
   ollamaModels: AdminAiModelCatalogEntry[];
@@ -40,6 +45,7 @@ export function AdminAiProviderSection({
   geminiProviderStatus,
   geminiProviderTone,
   isSaving,
+  ollamaAvailability,
   ollamaDataUpdatedAt,
   ollamaIsFetching,
   ollamaModels,
@@ -148,7 +154,10 @@ export function AdminAiProviderSection({
                         <Text
                           textStyle="sm"
                           color={geminiAvailability?.error ? 'fg.error' : 'fg'}
+                          maxW="full"
                           overflowWrap="anywhere"
+                          whiteSpace="normal"
+                          wordBreak="break-word"
                         >
                           {geminiAvailability?.error ?? geminiProviderStatus}
                         </Text>
@@ -206,7 +215,11 @@ export function AdminAiProviderSection({
                             variant="outline"
                             disabled={
                               !effectiveOllamaBaseUrl.trim() ||
-                              ollamaProviderStatus !== 'Healthy' ||
+                              ollamaProviderStatus === 'Unavailable' ||
+                              ollamaProviderStatus === 'Not Configured' ||
+                              ollamaProviderStatus === 'Checking' ||
+                              ollamaProviderStatus === 'Error' ||
+                              ollamaModels.length === 0 ||
                               isSaving
                             }
                             onClick={onUseOllamaForChat}
@@ -230,10 +243,13 @@ export function AdminAiProviderSection({
                       value={
                         <Text
                           textStyle="sm"
-                          color={ollamaProviderStatus === 'Error' ? 'fg.error' : 'fg'}
+                          color={ollamaAvailability?.error ? 'fg.error' : 'fg'}
+                          maxW="full"
                           overflowWrap="anywhere"
+                          whiteSpace="normal"
+                          wordBreak="break-word"
                         >
-                          {ollamaProviderStatus}
+                          {ollamaAvailability?.error ?? ollamaProviderStatus}
                         </Text>
                       }
                     />
@@ -310,7 +326,7 @@ function ProviderDetailCard({
       bg="bg.surface"
       p="3"
     >
-      <Stack gap="1" minW="0">
+      <Stack gap="1" minW="0" flex="1" maxW="full">
         <Text textStyle="sm" fontWeight="semibold" color="fg">
           {title}
         </Text>
@@ -319,7 +335,7 @@ function ProviderDetailCard({
             {description}
           </Text>
         ) : null}
-        {value ? <Box minW="0">{value}</Box> : null}
+        {value ? <Box minW="0" maxW="full">{value}</Box> : null}
       </Stack>
       {action ? (
         <Flex flexShrink={0} justify={{ base: 'flex-start', md: 'flex-end' }}>

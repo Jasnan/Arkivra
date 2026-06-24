@@ -2,7 +2,6 @@ import { basename } from 'node:path';
 import type { ParserRegistry } from './parser.registry.js';
 import type { ParseInput, ParserEngine } from './parser.types.js';
 import type { ParsedChunk, ParsedDocument, ParserOutput } from './parsed-document.schema.js';
-import type { ChunkSummariser } from './ollama-chunk-summariser.js';
 import type { TextCleaner } from './text-cleaner.js';
 import { ParserValidationError } from './parser.types.js';
 import { parsedDocumentSchema } from './parsed-document.schema.js';
@@ -12,12 +11,11 @@ import { resolveDocumentLanguage } from './language-detection.js';
 export type ParsePipelineOptions = {
   parserRegistry: ParserRegistry;
   cleaner: TextCleaner;
-  chunkSummariser?: ChunkSummariser;
   /** Explicit engine override; falls back to the registry default. */
   engine?: ParserEngine;
 };
 
-export type ParsePipelineStage = 'chunking' | 'summarising';
+export type ParsePipelineStage = 'chunking';
 
 export type ParsePipelineRunHooks = {
   onStageChange?: (stage: ParsePipelineStage) => void | Promise<void>;
@@ -430,7 +428,6 @@ function buildDocumentFallbackChunk({
 export function createParsePipeline({
   parserRegistry,
   cleaner,
-  chunkSummariser,
   engine,
 }: ParsePipelineOptions): ParsePipeline {
   async function buildParsedDocumentFromRawOutput(
@@ -488,17 +485,6 @@ export function createParsePipeline({
           },
         });
         pipelineWarnings.push('parser.empty_chunks_fallback');
-      }
-    }
-
-    if (chunkSummariser !== undefined) {
-      await hooks?.onStageChange?.('summarising');
-      for (const chunk of chunks) {
-        const summary = await chunkSummariser.summarise(chunk);
-        chunk.enhancedContent = summary.enhancedContent;
-        chunk.text = summary.enhancedContent ?? chunk.originalText;
-        chunk.metadata.tokenCount = Math.ceil(chunk.text.length / 4);
-        pipelineWarnings.push(...summary.warnings);
       }
     }
 

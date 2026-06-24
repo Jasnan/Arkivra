@@ -166,6 +166,8 @@ New backup archives are encrypted with the active key version from `ARKIVRA_ENCR
 | Variable                              | Purpose                                         | Default                  |
 | ------------------------------------- | ----------------------------------------------- | ------------------------ |
 | `ARKIVRA_OLLAMA_HOST`                 | Default Ollama-compatible endpoint              | `http://127.0.0.1:11434` |
+| `ARKIVRA_OLLAMA_IMAGE_CAPTIONING_ENABLED` | Caption extracted document images for text search and embeddings | `false` |
+| `ARKIVRA_OLLAMA_IMAGE_CAPTIONING_MODEL` | Ollama vision-capable model used for image captions | unset                    |
 | `ARKIVRA_OLLAMA_EMBEDDING_BATCH_SIZE` | Embedding batch size                            | `16`                     |
 | `ARKIVRA_OLLAMA_LOG_REQUESTS`         | Log Ollama requests and responses for debugging | `false`                  |
 | `ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS` | JSON array of custom AI model catalog entries   | unset                    |

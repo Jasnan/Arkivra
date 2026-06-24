@@ -700,6 +700,127 @@ describe('admin and about pages', () => {
     expect(saveCall).toBeUndefined();
   });
 
+  it('allows selecting an installed Ollama model when the configured default is unavailable', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_admin',
+          sessionId: 'ses_admin',
+          systemRole: 'admin',
+          systemCapabilities: ['system.create_vaults'],
+          isAdmin: true,
+          canCreateVault: true,
+        });
+      }
+
+      if (url === '/api/admin/ai/settings' && (!init || init.method === undefined)) {
+        return jsonResponse({
+          settings: {
+            aiFeaturesEnabled: true,
+            chat: {
+              provider: 'ollama',
+              baseUrl: 'http://127.0.0.1:11434',
+              apiKeySecretRef: null,
+              model: 'gemma4:e4b',
+              allowedModels: ['ollama:gemma4:e4b'],
+            },
+            translation: {
+              provider: 'ollama',
+              baseUrl: 'http://127.0.0.1:11434',
+              apiKeySecretRef: null,
+              model: 'gemma4:e4b',
+            },
+            embedding: {
+              provider: 'ollama',
+              baseUrl: 'http://127.0.0.1:11434',
+              apiKeySecretRef: null,
+              model: 'bge-m3',
+              dimensions: 1024,
+            },
+            ollamaHost: 'http://127.0.0.1:11434',
+            model: 'gemma4:e4b',
+          },
+        });
+      }
+
+      if (url === '/api/admin/ai/status') {
+        return jsonResponse({
+          status: {
+            aiFeaturesEnabled: true,
+            chat: {
+              provider: 'ollama',
+              baseUrl: 'http://127.0.0.1:11434',
+              model: 'gemma4:e4b',
+              allowedModels: ['ollama:gemma4:e4b'],
+            },
+            embedding: {
+              semanticSearchAvailable: false,
+              activeIndex: null,
+              candidateIndexes: [],
+              recentIndexes: [],
+              chunkCoverage: {
+                indexedChunkCount: 0,
+                totalChunkCount: 0,
+              },
+            },
+          },
+        });
+      }
+
+      if (url === '/api/admin/ai/model-catalog') {
+        return jsonResponse({ models: defaultAiModelCatalog });
+      }
+
+      if (url === '/api/admin/ai/availability' && init?.method === 'POST') {
+        return jsonResponse({
+          availability: {
+            host: 'http://127.0.0.1:11434',
+            model: 'gemma4:e4b',
+            reachable: true,
+            modelAvailable: false,
+            models: [
+              {
+                name: 'gemma4:e4b',
+                size: null,
+                modifiedAt: null,
+                capabilities: ['chat', 'vision'],
+                source: 'catalog',
+                available: false,
+                availabilityReason: 'Model is configured in Arkivra but is not installed in Ollama.',
+              },
+              {
+                name: 'qwen2.5:7b',
+                size: 1024,
+                modifiedAt: '2026-04-14T19:00:00.000Z',
+                capabilities: ['chat'],
+                source: 'catalog-and-live',
+                available: true,
+                availabilityReason: null,
+              },
+            ],
+            responseTimeMs: 42,
+            error:
+              'Model "gemma4:e4b" is configured in Arkivra but is not installed in Ollama at http://127.0.0.1:11434. Installed chat-capable models: qwen2.5:7b.',
+          },
+        });
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<AdminAiSettingsPage />);
+
+    await user.click(await screen.findByRole('button', { name: /change chat/i }));
+
+    const dialog = await screen.findByRole('dialog', { name: /configure chat models/i });
+    expect(within(dialog).getAllByText('qwen2.5:7b').length).toBeGreaterThan(0);
+    expect(within(dialog).queryByText('Gemma 4 E4B')).not.toBeInTheDocument();
+  });
+
   it('does not show semantic indexing as building when there are no document chunks', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);

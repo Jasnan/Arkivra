@@ -1,6 +1,5 @@
 import type { DocumentParser, ParseInput } from './parser.types.js';
 import type { ParsedChunk, ParserOutput } from './parsed-document.schema.js';
-import type { ChunkSummariser } from './ollama-chunk-summariser.js';
 import type { TextCleaner } from './text-cleaner.js';
 import { describe, expect, test, vi } from 'vitest';
 import { createParserRegistry } from './parser.registry.js';
@@ -50,14 +49,12 @@ function makeParser(raw: Partial<ParserOutput> = {}): DocumentParser {
 function makePipeline(
   parserOverrides: Partial<ParserOutput> = {},
   cleaner: TextCleaner = createNoopTextCleaner(),
-  chunkSummariser?: ChunkSummariser,
 ) {
   const parser = makeParser(parserOverrides);
   const registry = createParserRegistry({ parsers: [parser], defaultEngine: 'docling' });
   const pipeline = createParsePipeline({
     parserRegistry: registry,
     cleaner,
-    chunkSummariser,
   });
   return { pipeline, parser };
 }
@@ -429,35 +426,4 @@ describe('parse pipeline', () => {
     });
   });
 
-  test('applies chunk summariser output while preserving original text', async () => {
-    const chunkSummariser: ChunkSummariser = {
-      name: 'stub',
-      summarise: async () => ({
-        enhancedContent: 'Enhanced searchable description',
-        warnings: ['ollama_chunk_summariser.image_limit:1/2'],
-      }),
-    };
-
-    const { pipeline } = makePipeline(
-      {
-        chunks: [
-          makeChunk({
-            text: 'Revenue increased to 20.',
-            originalText: 'Revenue increased to 20.',
-            images: [{ mimeType: 'image/png', data: Buffer.from('image') }],
-          }),
-        ],
-      },
-      createNoopTextCleaner(),
-      chunkSummariser,
-    );
-
-    const parsed = await pipeline.run(input);
-    const chunk = parsed.chunks[0]!;
-
-    expect(chunk.originalText).toBe('Revenue increased to 20.');
-    expect(chunk.enhancedContent).toBe('Enhanced searchable description');
-    expect(chunk.text).toBe('Enhanced searchable description');
-    expect(parsed.warnings).toContain('ollama_chunk_summariser.image_limit:1/2');
-  });
 });

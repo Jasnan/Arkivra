@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1781913600000,
-      "tag": "0000_smooth_corsair",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1782306748345,
-      "tag": "0001_nice_wallow",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1782308586341,
-      "tag": "0002_amazing_union_jack",
+      "when": 1782322397270,
+      "tag": "0000_zippy_tomas",
       "breakpoints": true
     }
   ]

@@ -38,6 +38,17 @@ const columnTypeByDrizzleType: Record<string, string> = {
   PgTimestamp: 'timestamp without time zone',
 };
 
+function columnTypeForDrizzleColumn(column: { columnType: string }) {
+  if (column.columnType === 'PgTimestamp') {
+    const timestampColumn = column as { withTimezone?: boolean };
+    return timestampColumn.withTimezone === true
+      ? 'timestamp with time zone'
+      : 'timestamp without time zone';
+  }
+
+  return columnTypeByDrizzleType[column.columnType];
+}
+
 type SchemaColumn = {
   hasDatabaseDefault: boolean;
   isPrimaryKey: boolean;
@@ -116,7 +127,7 @@ function collectSchemaTables(): Map<string, SchemaTable> {
 
     const columns = new Map<string, SchemaColumn>();
     for (const column of tableConfig.columns) {
-      const type = columnTypeByDrizzleType[column.columnType];
+      const type = columnTypeForDrizzleColumn(column);
       if (type === undefined) {
         throw new Error(
           `Unsupported Drizzle column type ${column.columnType} on ${tableConfig.name}.${column.name}`,

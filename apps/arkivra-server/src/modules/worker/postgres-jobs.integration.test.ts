@@ -67,6 +67,20 @@ describe.sequential('postgres background jobs', () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0]?.status).toBe('pending');
+
+    const timingRows = await database.db.execute<{
+      claimable: boolean;
+      run_created_delta_seconds: string;
+    }>(sql`
+      SELECT
+        run_at <= now() AS claimable,
+        abs(extract(epoch from (run_at - created_at))) AS run_created_delta_seconds
+      FROM background_jobs
+      WHERE id = ${jobId}
+    `);
+
+    expect(timingRows.rows[0]?.claimable).toBe(true);
+    expect(Number(timingRows.rows[0]?.run_created_delta_seconds)).toBeLessThan(5);
   });
 
   test('does not let a stale old worker complete over the current owner', async () => {

@@ -1,0 +1,355 @@
+---
+import SectionHeader from "@/components/elements/SectionHeader.astro";
+import Button from "@/components/ui/Button.astro";
+import PricingToggle from "@/components/ui/PricingToggle.astro";
+import { siteConfig } from "@/config/site";
+import { ArrowRight, Check, Sparkles, X } from "@lucide/astro";
+
+interface Props {
+	title?: string;
+	description?: string;
+	showHeader?: boolean;
+}
+
+const {
+	title = "Simple, transparent pricing",
+	description = "Choose a plan that fits your stage. Upgrade anytime as you grow.",
+	showHeader = true,
+} = Astro.props;
+
+const plans = [
+	{
+		name: "Free",
+		monthlyPrice: "$0",
+		yearlyPrice: "$0",
+		monthlyDescription: "For makers exploring a new idea on the side.",
+		yearlyDescription:
+			"Stay free forever — annual billing won't cost you a cent.",
+		monthlySuffix: "/ month",
+		yearlySuffix: "/ month, billed yearly",
+		features: [
+			{ text: "1 active project", included: true },
+			{ text: "Core component library", included: true },
+			{ text: "MDX content support", included: true },
+			{ text: "Self-host only", included: true },
+			{ text: "Community support", included: true },
+			{ text: "Email support", included: false },
+		],
+		cta: "Get started",
+		popular: false,
+	},
+	{
+		name: "Pro",
+		monthlyPrice: "$19",
+		yearlyPrice: "$15",
+		monthlyDescription: "For indie makers shipping their first real product.",
+		yearlyDescription:
+			"Save 20% — best for makers committing to the long haul.",
+		monthlySuffix: "/ month",
+		yearlySuffix: "/ month, billed yearly",
+		features: [
+			{ text: "Unlimited projects", included: true },
+			{ text: "Full component library", included: true },
+			{ text: "Advanced layout system", included: true },
+			{ text: "Custom domains", included: true },
+			{ text: "Built-in animations", included: true },
+			{ text: "Email support (1 biz day)", included: true },
+			{ text: "Quarterly office hours", included: true },
+		],
+		cta: "Start free trial",
+		popular: true,
+	},
+	{
+		name: "Enterprise",
+		monthlyPrice: "$49",
+		yearlyPrice: "$39",
+		monthlyDescription: "For teams scaling beyond a single founder.",
+		yearlyDescription:
+			"Save 20% on annual — plus a dedicated onboarding session.",
+		monthlySuffix: "/ month",
+		yearlySuffix: "/ month, billed yearly",
+		features: [
+			{ text: "Everything in Pro", included: true },
+			{ text: "Team collaboration (10+ seats)", included: true },
+			{ text: "SSO + audit log", included: true },
+			{ text: "Custom integrations", included: true },
+			{ text: "Priority support (same day)", included: true },
+			{ text: "99.9% SLA", included: true },
+		],
+		cta: "Contact sales",
+		popular: false,
+	},
+];
+---
+
+<section class="pricing-section">
+  {showHeader && (
+    <div class="site-container pt-16 md:pt-20" data-aos="fade-up-xs" data-aos-once="true">
+      <SectionHeader title={title} description={description} />
+    </div>
+  )}
+
+  <!-- Billing Toggle -->
+  <div class="site-container mb-12" data-aos="fade-up-xs" data-aos-once="true" data-aos-delay="300" >
+    <PricingToggle />
+  </div>
+
+  <!-- Pricing Cards -->
+  <div class="site-container pb-16">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+      {plans.map((plan, i) => (
+        <div
+          class={`relative p-6 md:p-8 rounded-2xl border transition-all duration-300 ${
+            plan.popular
+              ? 'border-primary shadow-lg scale-[1.02] bg-bg-secondary dark:bg-bg-secondary-dark'
+              : 'border-primary/10 dark:border-neutral-700 bg-bg-secondary dark:bg-bg-secondary-dark'
+          }`}
+          data-aos="fade-up-sm"
+          data-aos-delay={i * 100}
+          data-aos-once="true"
+        >
+          {plan.popular && (
+            <div class="popular-badge absolute -top-3.5 left-1/2 -translate-x-1/2 z-10">
+              <span class="popular-badge__pill">
+                <Sparkles class="w-3.5 h-3.5" stroke-width={2.25} />
+                <span class="popular-badge__label font-brand">Most Popular</span>
+              </span>
+            </div>
+          )}
+
+          <h3 class="text-xl font-semibold text-neutral-800 dark:text-neutral-100 mb-1">{plan.name}</h3>
+          <p
+            class="plan-description text-sm text-neutral-500 dark:text-neutral-400 mb-4"
+            data-monthly={plan.monthlyDescription}
+            data-yearly={plan.yearlyDescription}
+          >
+            {plan.yearlyDescription}
+          </p>
+
+          <div class="mb-6">
+            <span
+              class="plan-price-display text-4xl font-brand text-neutral-800 dark:text-neutral-100"
+              data-period-display
+              data-state="yearly"
+            >
+              <span class="plan-price-placeholder" aria-hidden="true">{plan.yearlyPrice}</span>
+              <span class="plan-price-mask">
+                <span class="plan-price-track">
+                  <span class="plan-price-item" data-period="monthly" aria-hidden="true">{plan.monthlyPrice}</span>
+                  <span class="plan-price-item" data-period="yearly">{plan.yearlyPrice}</span>
+                </span>
+              </span>
+            </span>
+            <span
+              class="plan-suffix text-sm text-neutral-400 ml-1"
+              data-monthly={plan.monthlySuffix}
+              data-yearly={plan.yearlySuffix}
+            >
+              {plan.yearlySuffix}
+            </span>
+          </div>
+
+          <ul class="space-y-3 mb-8">
+            {plan.features.map((feature) => (
+              <li class="flex items-start gap-2">
+                {feature.included ? (
+                  <Check class="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                ) : (
+                  <X class="w-4 h-4 text-neutral-300 dark:text-neutral-600 mt-0.5 flex-shrink-0" />
+                )}
+                <span class={`text-sm ${feature.included ? 'text-neutral-600 dark:text-neutral-300' : 'text-neutral-400 dark:text-neutral-500'}`}>
+                  {feature.text}
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          <Button
+            url={plan.popular ? siteConfig.social.github : "#"}
+            type={plan.popular ? "fill" : "outline"}
+            className="w-full justify-center"
+          >
+            {plan.cta} {plan.popular && <ArrowRight size={16} />}
+          </Button>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<script>
+  function applyPeriod(isYearly: boolean) {
+    const key = isYearly ? 'yearly' : 'monthly';
+    const state = isYearly ? 'yearly' : 'monthly';
+
+    // Roll-animate price displays by flipping data-state (CSS handles the transform).
+    document
+      .querySelectorAll<HTMLElement>('.pricing-section [data-period-display]')
+      .forEach((displayEl) => {
+        displayEl.dataset.state = state;
+        displayEl.querySelectorAll<HTMLElement>('.plan-price-item').forEach((item) => {
+          const isActive = item.dataset.period === state;
+          item.setAttribute('aria-hidden', String(!isActive));
+        });
+      });
+
+    // Text-content swap for description and suffix.
+    document
+      .querySelectorAll<HTMLElement>('.pricing-section [data-monthly][data-yearly]')
+      .forEach((el) => {
+        const next = el.dataset[key];
+        if (next !== undefined && el.textContent !== next) {
+          el.textContent = next;
+        }
+      });
+  }
+
+  window.addEventListener('pricing-toggle', ((e: CustomEvent) => {
+    applyPeriod(Boolean(e.detail?.isYearly));
+  }) as EventListener);
+
+  // Initial state matches PricingToggle's default (yearly).
+  applyPeriod(true);
+</script>
+
+<style>
+  /* ─── Price roll animation ──────────────────────── */
+  /* Placeholder sets the display's size + baseline so the suffix stays
+     aligned to the price's text baseline. Both prices in a card are the
+     same character count, so the placeholder width fits either value. */
+  .plan-price-display {
+    position: relative;
+    display: inline-block;
+    vertical-align: baseline;
+  }
+
+  .plan-price-placeholder {
+    visibility: hidden;
+  }
+
+  .plan-price-mask {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+  }
+
+  .plan-price-track {
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.5s cubic-bezier(0.65, 0, 0.35, 1);
+    will-change: transform;
+  }
+
+  .plan-price-item {
+    display: block;
+  }
+
+  .plan-price-display[data-state="monthly"] .plan-price-track {
+    transform: translateY(0);
+  }
+
+  .plan-price-display[data-state="yearly"] .plan-price-track {
+    transform: translateY(-50%);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .plan-price-track {
+      transition: none;
+    }
+  }
+
+  /* ─── "Most Popular" badge ──────────────────────── */
+  .popular-badge__pill {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.4rem 0.85rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: #fff;
+    background: linear-gradient(
+      120deg,
+      var(--color-primary) 0%,
+      color-mix(in oklab, var(--color-primary) 70%, var(--color-accent)) 55%,
+      var(--color-accent) 100%
+    );
+    box-shadow:
+      0 6px 18px -6px color-mix(in oklab, var(--color-primary) 65%, transparent),
+      0 2px 6px -2px color-mix(in oklab, var(--color-accent) 50%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    isolation: isolate;
+    overflow: hidden;
+  }
+
+  /* Soft outer ring */
+  .popular-badge__pill::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.55),
+      rgba(255, 255, 255, 0) 45%,
+      rgba(255, 255, 255, 0.25)
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Diagonal shine sweep */
+  .popular-badge__pill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      105deg,
+      transparent 30%,
+      rgba(255, 255, 255, 0.55) 50%,
+      transparent 70%
+    );
+    transform: translateX(-120%);
+    animation: popular-shine 4.5s ease-in-out 1s infinite;
+    pointer-events: none;
+  }
+
+  .popular-badge__label {
+    position: relative;
+    z-index: 1;
+    line-height: 1;
+  }
+
+  .popular-badge svg {
+    position: relative;
+    z-index: 1;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.15));
+  }
+
+  @keyframes popular-shine {
+    0%        { transform: translateX(-120%); }
+    55%, 100% { transform: translateX(220%); }
+  }
+
+  /* Dark mode — deeper glow, same gradient */
+  :global(.dark) .popular-badge__pill {
+    box-shadow:
+      0 8px 22px -6px color-mix(in oklab, var(--color-primary) 80%, transparent),
+      0 2px 8px -2px color-mix(in oklab, var(--color-accent) 55%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .popular-badge__pill::after {
+      animation: none;
+    }
+  }
+</style>

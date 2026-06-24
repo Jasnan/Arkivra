@@ -1,90 +1,97 @@
 ---
-import Footer from '../components/Footer.astro';
-import Header from '../components/Header.astro';
-import { useI18n } from '../i18n/i18n';
-import Layout from '../layouts/Layout.astro';
-import { GITHUB_REPO_URL } from '../socials';
-
-const { t } = useI18n();
+import { siteConfig } from "@/config/site";
+import Layout from "@/layouts/Layout.astro";
+import { ArrowRight, GitFork, Mail, Sparkles } from "@lucide/astro";
 
 const contactCards = [
-  {
-    title: t('contact.card.direct.title'),
-    description: [t('contact.card.direct.description-1'), t('contact.card.direct.description-2')],
-    icon: 'i-tabler-mail',
-    iconClass: 'bg-emerald-500/10 text-emerald-700 ring-emerald-700/10 dark:bg-emerald-400/12 dark:text-emerald-300 dark:ring-emerald-300/15',
-    accentClass: 'bg-emerald-700 dark:bg-emerald-300',
-    buttonIconClass: 'text-emerald-700 dark:text-emerald-300',
-    action: {
-      icon: 'i-tabler-mail',
-      label: 'contact@arkivra.app',
-      url: 'mailto:contact@arkivra.app',
-    },
-  },
-  {
-    title: t('contact.card.involved.title'),
-    description: [t('contact.card.involved.description-1'), t('contact.card.involved.description-2')],
-    icon: 'i-tabler-brand-github',
-    iconClass: 'bg-blue-500/10 text-blue-700 ring-blue-700/10 dark:bg-blue-400/12 dark:text-blue-300 dark:ring-blue-300/15',
-    accentClass: 'bg-blue-600 dark:bg-blue-300',
-    buttonIconClass: 'text-foreground',
-    action: {
-      icon: 'i-tabler-brand-github',
-      label: t('contact.card.involved.button-label'),
-      url: GITHUB_REPO_URL,
-    },
-  },
+	{
+		title: "Contact",
+		description:
+			"Questions, partnerships, security reports, or general inquiries.",
+		icon: Mail,
+		toneClass:
+			"bg-emerald-50 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-300",
+		titleClass: "text-emerald-700 dark:text-emerald-300",
+		action: {
+			icon: Mail,
+			label: "Email",
+			description: siteConfig.mail,
+			url: `mailto:${siteConfig.mail}`,
+		},
+	},
+	{
+		title: "Get Involved",
+		description:
+			"Explore the source code, report issues, and contribute to the project.",
+		icon: GitFork,
+		toneClass: "bg-blue-50 text-primary dark:bg-blue-400/10 dark:text-blue-300",
+		titleClass: "text-primary dark:text-blue-300",
+		action: {
+			icon: GitFork,
+			label: "GitHub",
+			description: "Open an issue",
+			url: `${siteConfig.social.github}/issues`,
+		},
+	},
 ];
 ---
 
-<Layout title="Contact" description="Contact Arkivra and follow project contribution channels.">
-  <div class="min-h-screen bg-background text-foreground">
-    <Header />
+<Layout
+  title="Contact - Arkivra"
+  description="Contact Arkivra and follow project contribution channels."
+>
+  <main class="site-container py-12 md:py-20">
+    <section class="max-w-3xl" data-aos="fade-up-xs" data-aos-once="true">
+      <p class="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-xs font-medium text-primary dark:border-primary-light/20 dark:bg-primary-light/10 dark:text-primary-light">
+        <Sparkles size={14} />
+        Get involved
+      </p>
+      <h1 class="font-brand text-4xl leading-tight tracking-normal text-primary dark:text-primary-light sm:text-5xl lg:text-6xl">
+        Contact & Contribute
+      </h1>
+      <p class="mt-5 max-w-2xl text-base leading-8 text-neutral-600 dark:text-neutral-300 md:text-lg">
+        Questions about Arkivra, self-hosting, or deployment?
+        <br class="hidden sm:block" />
+        Reach out directly or participate on GitHub.
+      </p>
+    </section>
 
-    <main class="mx-auto max-w-1200px px-5 pt-28 pb-16 md:px-8 md:pt-34 md:pb-24">
-      <div class="max-w-760px">
-        <div class="text-sm font-semibold uppercase tracking-wide text-primary">{t('contact.eyebrow')}</div>
-        <h1 class="mt-4 font-display text-4xl font-semibold leading-tight md:text-6xl">{t('contact.title')}</h1>
-        <p class="mt-5 max-w-700px text-base leading-7 text-muted-foreground md:text-xl md:leading-8">
-          {t('contact.subtitle.line-1')}
-          <br class="hidden sm:block" />
-          {t('contact.subtitle.line-2')}
-        </p>
-      </div>
+    <section class="mt-12 grid grid-cols-1 gap-7 md:grid-cols-2">
+      {contactCards.map((card, index) => (
+        <article
+          class="flex min-h-[285px] flex-col rounded-lg border border-neutral-200/80 bg-white/90 p-6 dark:border-neutral-700 dark:bg-bg-secondary-dark/90"
+          data-aos="fade-up-sm"
+          data-aos-delay={index * 100}
+          data-aos-once="true"
+        >
+          <div class={`flex h-14 w-14 items-center justify-center rounded-lg ${card.toneClass}`}>
+            <card.icon class="h-8 w-8" stroke-width={1.8} />
+          </div>
 
-      <div class="mt-12 grid grid-cols-1 gap-7 md:grid-cols-2">
-        {
-          contactCards.map(card => (
-            <article class="grid min-h-330px gap-6 rounded-lg border border-border bg-card p-7 shadow-sm transition-[border-color,box-shadow,transform] duration-200 ease-out hover:border-primary/45 hover:shadow-md motion-safe:hover:-translate-y-0.5 dark:hover:bg-foreground/[0.025] md:grid-cols-[88px_1fr] md:p-9">
-              <div class={`flex size-18 items-center justify-center rounded-full ring-1 ${card.iconClass}`}>
-                <div class={`${card.icon} size-8`} aria-hidden="true" />
-              </div>
+          <div class="flex flex-1 flex-col">
+            <h2 class={`mt-6 text-lg font-semibold leading-snug ${card.titleClass}`}>{card.title}</h2>
+            <p class="mt-3 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+              {card.description}
+            </p>
 
-              <div class="flex flex-col">
-                <h2 class="text-2xl font-semibold leading-tight">{card.title}</h2>
-                <div class={`mt-6 h-0.75 w-14 ${card.accentClass}`} aria-hidden="true"></div>
-                <p class="mt-10 max-w-390px text-base leading-7 text-muted-foreground">
-                  {card.description[0]}
-                  <br />
-                  {card.description[1]}
-                </p>
-
-                <a
-                  href={card.action.url}
-                  class="mt-8 inline-flex w-fit items-center gap-2.5 rounded-sm border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground shadow-sm transition hover:bg-muted"
-                >
-                  <div class={`${card.action.icon} size-5 ${card.buttonIconClass}`} aria-hidden="true" />
-                  {card.action.label}
-                  {card.action.url === GITHUB_REPO_URL && <div class="i-tabler-external-link size-4 text-muted-foreground" aria-hidden="true" />}
-                </a>
-              </div>
-            </article>
-          ))
-        }
-      </div>
-
-    </main>
-
-    <Footer class="bg-background" />
-  </div>
+            <a
+              href={card.action.url}
+              target={card.action.url.startsWith("http") ? "_blank" : "_self"}
+              rel={card.action.url.startsWith("http") ? "noopener" : undefined}
+              class="group mt-auto flex w-full items-center gap-4 rounded-xl border border-neutral-200 bg-bg-primary p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-md dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-primary-light/35"
+            >
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/15 bg-white text-primary shadow-sm transition group-hover:bg-primary group-hover:text-white dark:border-primary-light/20 dark:bg-neutral-950 dark:text-primary-light dark:group-hover:bg-primary-light dark:group-hover:text-neutral-950">
+                <card.action.icon class="h-5 w-5" stroke-width={1.8} />
+              </span>
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-neutral-800 dark:text-neutral-100">{card.action.label}</span>
+                <span class="mt-0.5 block truncate text-sm text-neutral-500 dark:text-neutral-400">{card.action.description}</span>
+              </span>
+              <ArrowRight class="ml-auto h-4 w-4 shrink-0 text-neutral-300 transition group-hover:translate-x-1 group-hover:text-primary dark:text-neutral-600 dark:group-hover:text-primary-light" stroke-width={1.8} />
+            </a>
+          </div>
+        </article>
+      ))}
+    </section>
+  </main>
 </Layout>

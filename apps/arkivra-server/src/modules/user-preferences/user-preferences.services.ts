@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { userUiPreferencesTable } from '../database/schema/index.js';
 
 const defaultPreferences: Required<UserUiPreferencesUpdate> = {
-  accentColor: 'teal',
+  accentColor: 'blue',
   density: 'comfortable',
   fontFamily: 'inter',
   fontSize: 'md',

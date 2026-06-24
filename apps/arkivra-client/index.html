@@ -32,7 +32,7 @@
           const density = cachedPreferences.density;
           const radius = cachedPreferences.radius;
           const themeMode = cachedPreferences.themeMode || window.localStorage?.getItem('arkivra.themeMode') || 'system';
-          const accentColor = cachedPreferences.accentColor || 'teal';
+          const accentColor = cachedPreferences.accentColor || 'blue';
           const legacyPreferenceKeys = [
             'arkivra.accentColor',
             'arkivra.density',
@@ -106,7 +106,7 @@
             orange: { solid: '#fb923c', subtle: '#301a0a', fg: '#fdba74', muted: '#7c2d12', hover: '#f97316', focusRing: 'rgba(251, 146, 60, 0.35)' },
             yellow: { solid: '#facc15', subtle: '#2b2308', fg: '#fde047', muted: '#713f12', hover: '#eab308', focusRing: 'rgba(250, 204, 21, 0.35)' },
             green: { solid: '#22c55e', subtle: '#132f1d', fg: '#86efac', muted: '#14532d', hover: '#4ade80', focusRing: 'rgba(34, 197, 94, 0.35)' },
-            blue: { solid: '#60a5fa', subtle: '#172554', fg: '#93c5fd', muted: '#1e3a8a', hover: '#3b82f6', focusRing: 'rgba(96, 165, 250, 0.35)' },
+            blue: { solid: '#3884eb', subtle: 'rgba(56, 132, 235, 0.15)', fg: '#8fb9ff', muted: '#2d6dc3', hover: '#8fb9ff', focusRing: 'rgba(143, 185, 255, 0.35)' },
             cyan: { solid: '#22d3ee', subtle: '#102a33', fg: '#67e8f9', muted: '#164e63', hover: '#06b6d4', focusRing: 'rgba(34, 211, 238, 0.35)' },
             purple: { solid: '#a78bfa', subtle: '#241538', fg: '#c4b5fd', muted: '#4c1d95', hover: '#8b5cf6', focusRing: 'rgba(167, 139, 250, 0.35)' },
             pink: { solid: '#f472b6', subtle: '#351526', fg: '#f9a8d4', muted: '#831843', hover: '#ec4899', focusRing: 'rgba(244, 114, 182, 0.35)' },
@@ -117,7 +117,7 @@
             orange: { solid: '#ea580c', subtle: '#fff7ed', fg: '#c2410c', muted: '#fed7aa', hover: '#9a3412', focusRing: 'rgba(234, 88, 12, 0.35)' },
             yellow: { solid: '#ca8a04', subtle: '#fefce8', fg: '#a16207', muted: '#fde68a', hover: '#854d0e', focusRing: 'rgba(202, 138, 4, 0.35)' },
             green: { solid: '#16a34a', subtle: '#ecfdf5', fg: '#15803d', muted: '#bbf7d0', hover: '#166534', focusRing: 'rgba(22, 163, 74, 0.35)' },
-            blue: { solid: '#2563eb', subtle: '#eff6ff', fg: '#1d4ed8', muted: '#bfdbfe', hover: '#1e40af', focusRing: 'rgba(37, 99, 235, 0.35)' },
+            blue: { solid: '#2d6dc3', subtle: '#edf1f8', fg: '#2d6dc3', muted: '#8fb9ff', hover: '#0066ff', focusRing: 'rgba(45, 109, 195, 0.35)' },
             cyan: { solid: '#0891b2', subtle: '#ecfeff', fg: '#0e7490', muted: '#a5f3fc', hover: '#155e75', focusRing: 'rgba(8, 145, 178, 0.35)' },
             purple: { solid: '#7c3aed', subtle: '#f5f3ff', fg: '#6d28d9', muted: '#ddd6fe', hover: '#5b21b6', focusRing: 'rgba(124, 58, 237, 0.35)' },
             pink: { solid: '#db2777', subtle: '#fdf2f8', fg: '#be185d', muted: '#fbcfe8', hover: '#9d174d', focusRing: 'rgba(219, 39, 119, 0.35)' },

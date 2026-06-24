@@ -10,7 +10,7 @@ export const userUiPreferencesTable = pgTable('user_ui_preferences', {
 
   accentColor: text('accent_color', {
     enum: ['gray', 'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'cyan', 'purple', 'pink'],
-  }).notNull().default('teal'),
+  }).notNull().default('blue'),
   density: text('density', { enum: ['compact', 'comfortable', 'relaxed'] }).notNull().default('comfortable'),
   fontFamily: text('font_family', { enum: ['inter', 'sora', 'space-grotesk'] }).notNull().default('inter'),
   fontSize: text('font_size', { enum: ['sm', 'md', 'lg', 'xl', '2xl'] }).notNull().default('md'),

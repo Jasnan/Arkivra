@@ -62,7 +62,7 @@ interface InitialPreferences {
 
 const defaultUiPreferences: UserUiPreferenceValues = {
   themeMode: defaultThemeMode,
-  accentColor: 'teal',
+  accentColor: 'blue',
   density: 'comfortable',
   fontFamily: defaultTypographyFont,
   fontSize: defaultFontSize,

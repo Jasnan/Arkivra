@@ -255,6 +255,10 @@ const config = defineConfig({
             value: { base: '#ffffff', _dark: '#0b1220' },
           },
 
+          cardHover: {
+            value: { base: '#faf9f5', _dark: '#0b1220' },
+          },
+
           elevated: {
             value: { base: '#ffffff', _dark: '#0f1b2d' },
           },

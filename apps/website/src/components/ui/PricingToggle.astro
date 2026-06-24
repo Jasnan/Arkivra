@@ -1,0 +1,90 @@
+---
+interface Props {
+	monthlyLabel?: string;
+	yearlyLabel?: string;
+	saveText?: string;
+}
+
+const {
+	monthlyLabel = "Monthly",
+	yearlyLabel = "Yearly",
+	saveText = "Save 20%",
+} = Astro.props;
+---
+
+<div class="pricing-toggle flex items-center justify-center gap-3">
+  <span class="toggle-label text-sm font-medium text-neutral-600 dark:text-neutral-300" data-period="monthly">
+    {monthlyLabel}
+  </span>
+
+  <button
+    type="button"
+    role="switch"
+    aria-checked="true"
+    class="toggle-switch relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-offset-2 dark:focus:ring-offset-neutral-900 bg-primary"
+    id="pricing-toggle"
+  >
+    <span class="sr-only">Toggle billing period</span>
+    <span
+      aria-hidden="true"
+      class="toggle-thumb pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition-transform duration-300 ease-in-out translate-x-5"
+    ></span>
+  </button>
+
+  <span class="toggle-label text-sm font-medium text-neutral-800 dark:text-neutral-100" data-period="yearly">
+    {yearlyLabel}
+    <span class="save-badge inline-flex items-center ml-1.5 px-2 py-0.5 rounded-md text-xs font-medium bg-accent/20 text-accent">
+      {saveText}
+    </span>
+  </span>
+</div>
+
+<style>
+  .toggle-label {
+    transition: opacity 0.3s ease;
+  }
+  .toggle-label[data-active="false"] {
+    opacity: 0.5;
+  }
+</style>
+
+<script>
+  const toggle = document.getElementById('pricing-toggle');
+  let isYearly = true;
+
+  function updateToggle(yearly: boolean) {
+    isYearly = yearly;
+    if (!toggle) return;
+
+    toggle.setAttribute('aria-checked', String(yearly));
+    const thumb = toggle.querySelector('.toggle-thumb');
+
+    if (yearly) {
+      toggle.classList.remove('bg-neutral-300', 'dark:bg-neutral-600');
+      toggle.classList.add('bg-primary');
+      thumb?.classList.remove('translate-x-0');
+      thumb?.classList.add('translate-x-5');
+    } else {
+      toggle.classList.remove('bg-primary');
+      toggle.classList.add('bg-neutral-300', 'dark:bg-neutral-600');
+      thumb?.classList.remove('translate-x-5');
+      thumb?.classList.add('translate-x-0');
+    }
+
+    // Update label states
+    document.querySelectorAll('.toggle-label').forEach(label => {
+      const period = label.getAttribute('data-period');
+      label.setAttribute('data-active', period === (yearly ? 'yearly' : 'monthly') ? 'true' : 'false');
+    });
+
+    // Dispatch custom event for parent components
+    window.dispatchEvent(new CustomEvent('pricing-toggle', { detail: { isYearly: yearly } }));
+  }
+
+  toggle?.addEventListener('click', () => {
+    updateToggle(!isYearly);
+  });
+
+  // Initialize
+  updateToggle(true);
+</script>

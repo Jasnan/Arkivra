@@ -1,0 +1,30 @@
+---
+import PageHeader from "@/components/elements/PageHeader.astro";
+import BlogSection from "@/components/sections/BlogSection.astro";
+import Layout from "@/layouts/Layout.astro";
+
+const POSTS_PER_PAGE = 6;
+const currentPage = 1;
+---
+
+<Layout title="Blog - Arkivra" description="Notes from the Arkivra project: releases, architecture, and document workflows.">
+  <section class="relative z-20 container mx-auto my-12 px-7 lg:px-0">
+    <PageHeader
+      title="Arkivra Blog"
+      description="Notes from the Arkivra project: releases, architecture, and document workflows."
+    />
+  </section>
+  <section class="relative z-20 mx-auto my-12 lg:px-0">
+    <div class="mt-12">
+      <BlogSection
+        title=""
+        listPage={true}
+        pagination={{
+          enable: true,
+          currentPage: currentPage
+        }}
+        postsPerPage={POSTS_PER_PAGE}
+      />
+    </div>
+  </section>
+</Layout>

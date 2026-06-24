@@ -1,0 +1,14 @@
+[
+	{
+		"id": 1,
+		"name": "GitHub",
+		"username": "Jasnan/Arkivra",
+		"url": "https://github.com/Jasnan/Arkivra"
+	},
+	{
+		"id": 2,
+		"name": "Email",
+		"username": "contact@arkivra.app",
+		"url": "mailto:contact@arkivra.app"
+	}
+]

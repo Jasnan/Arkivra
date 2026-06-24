@@ -1,6 +1,5 @@
 # build output
 dist/
-
 # generated types
 .astro/
 
@@ -15,11 +14,25 @@ pnpm-debug.log*
 
 # environment variables
 .env
+.env.local
 .env.production
+.env.production.local
 
 # macOS-specific files
 .DS_Store
 
-# jetbrains setting folder
+# IDE
 .idea/
-.eslintcache
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.tmp
+*.temp
+.cache/

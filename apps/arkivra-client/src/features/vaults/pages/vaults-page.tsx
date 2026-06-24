@@ -502,7 +502,7 @@ export function VaultsPage() {
                 py="var(--arkivra-gridItemPadding, 1.25rem)"
                 textAlign="center"
                 transition="background-color 0.15s ease, border-color 0.15s ease"
-                _hover={{ bg: 'bg.workspaceMuted', borderColor: 'border.strong' }}
+                _hover={{ bg: 'bg.cardHover', borderColor: 'border.strong' }}
                 _focus={{ outline: 'none', boxShadow: '0 0 0 2px var(--chakra-colors-border-focus)' }}
                 onClick={() => navigate({ to: ROUTES.vaultRoot(vault.id) })}
                 onContextMenu={(event) => openContextMenu(event, vault)}

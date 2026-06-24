@@ -110,7 +110,7 @@ export function BrowserItemGrid({
             isSelected,
             isDragSource,
             isContextTarget,
-            contextBg: 'bg.workspaceMuted',
+            contextBg: 'bg.cardHover',
             contextBorderColor: 'border.strong',
           });
           const folderDropStyles =
@@ -134,7 +134,7 @@ export function BrowserItemGrid({
                 bg="bg.workspace"
                 transition="background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease"
                 _hover={{
-                  bg: isSelected && !isContextTarget ? 'teal.subtle' : 'bg.workspaceMuted',
+                  bg: isSelected && !isContextTarget ? 'teal.subtle' : 'bg.cardHover',
                   borderColor: isSelected && !isContextTarget ? 'teal.muted' : 'border.strong',
                 }}
                 {...itemSurfaceStyles}
@@ -193,7 +193,7 @@ export function BrowserItemGrid({
                 bg="bg.workspace"
                 transition="background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease"
                 _hover={{
-                  bg: isSelected && !isContextTarget ? 'teal.subtle' : 'bg.workspaceMuted',
+                  bg: isSelected && !isContextTarget ? 'teal.subtle' : 'bg.cardHover',
                   borderColor: isSelected && !isContextTarget ? 'teal.muted' : 'border.strong',
                 }}
                 {...itemSurfaceStyles}

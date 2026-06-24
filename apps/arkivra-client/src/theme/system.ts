@@ -49,6 +49,32 @@ const config = defineConfig({
         heading: { value: 'var(--arkivra-letter-spacing-heading)' },
         display: { value: 'var(--arkivra-letter-spacing-display)' },
       },
+
+      colors: {
+        primary: {
+          DEFAULT: { value: '#2d6dc3' },
+          strong: { value: '#0066ff' },
+          light: { value: '#8fb9ff' },
+        },
+
+        accent: {
+          DEFAULT: { value: '#fad13b' },
+        },
+
+        neutral: {
+          50: { value: '#f7f9fc' },
+          100: { value: '#edf1f8' },
+          200: { value: '#dfe4ed' },
+          300: { value: '#c5cedb' },
+          400: { value: '#92a1b7' },
+          500: { value: '#677487' },
+          600: { value: '#4f5a6d' },
+          700: { value: '#3f4a5a' },
+          800: { value: '#2c3542' },
+          900: { value: '#19222f' },
+          950: { value: '#10161f' },
+        },
+      },
     },
 
     textStyles: {
@@ -202,63 +228,71 @@ const config = defineConfig({
         // Background surfaces
         bg: {
           canvas: {
-            value: { base: '#ffffff', _dark: '#0b0d12' },
+            value: { base: '#fdfaf5', _dark: '#0b1220' },
           },
 
           surface: {
-            value: { base: '#ffffff', _dark: '#11141b' },
+            value: { base: '#ffffff', _dark: '#0f1b2d' },
           },
 
           rail: {
-            value: { base: '#f2f3f5', _dark: '#0f1117' },
+            value: { base: '#faf9f5', _dark: '#0b1220' },
           },
 
           sidebar: {
-            value: { base: '#ffffff', _dark: '#11141b' },
+            value: { base: '#ffffff', _dark: '#0b1220' },
+          },
+
+          header: {
+            value: { base: '#faf9f5', _dark: '#0b1220' },
           },
 
           workspace: {
-            value: { base: '#ffffff', _dark: '#0b0d12' },
+            value: { base: '#ffffff', _dark: '#0f1b2d' },
           },
 
           workspaceMuted: {
-            value: { base: '#fafafa', _dark: '#10131a' },
+            value: { base: '#ffffff', _dark: '#0b1220' },
+          },
+
+          cardHover: {
+            value: { base: '#faf9f5', _dark: '#0b1220' },
           },
 
           elevated: {
-            value: { base: '#ffffff', _dark: '#171b23' },
+            value: { base: '#ffffff', _dark: '#0f1b2d' },
           },
 
           overlay: {
-            value: { base: '#ffffff', _dark: '#1d222b' },
+            value: { base: '#ffffff', _dark: '#0f1b2d' },
           },
 
           subtle: {
-            value: { base: '#fcfcfd', _dark: '#131720' },
+            value: { base: '#ffffff', _dark: '#0b1220' },
           },
 
           muted: {
-            value: { base: '#f4f6f7', _dark: '#0f131a' },
+            value: { base: '#ffffff', _dark: '#0f1b2d' },
           },
 
           modalHeader: {
-            value: { base: '#ffffff', _dark: '#101922' },
+            value: { base: '#ffffff', _dark: '#0f1b2d' },
           },
 
           modalContent: {
-            value: { base: '#f8fbfc', _dark: '#1a2731' },
+            value: { base: '#ffffff', _dark: '#0b1220' },
           },
 
           modalFooter: {
-            value: { base: '#ffffff', _dark: '#101922' },
+            value: { base: '#ffffff', _dark: '#0f1b2d' },
           },
 
           modalField: {
-            value: { base: '#ffffff', _dark: '#17232c' },
+            value: { base: '#ffffff', _dark: '#0f1b2d' },
           },
 
           inverted: {
-            value: { base: '#0b0d12', _dark: '#fafafa' },
+            value: { base: '#0b1220', _dark: '#fdfaf5' },
           },
 
           // Status backgrounds
@@ -282,19 +316,27 @@ const config = defineConfig({
         // Foreground/text colors
         fg: {
           DEFAULT: {
-            value: { base: '#111827', _dark: '#e7eaf0' },
+            value: { base: '#3f4a5a', _dark: '#c5cedb' },
+          },
+
+          heading: {
+            value: { base: '#2d6dc3', _dark: '#3884eb' },
           },
 
           muted: {
-            value: { base: '#4b5563', _dark: '#a1a8b3' },
+            value: { base: '#4f5a6d', _dark: '#92a1b7' },
           },
 
           subtle: {
-            value: { base: '#6b7280', _dark: '#7b8494' },
+            value: { base: '#677487', _dark: '#92a1b7' },
+          },
+
+          tertiary: {
+            value: { base: '#7a6550', _dark: '#9bb3d7' },
           },
 
           inverted: {
-            value: { base: '#fafafa', _dark: '#0b0d12' },
+            value: { base: '#ffffff', _dark: '#0b1220' },
           },
 
           // Status foregrounds
@@ -311,63 +353,63 @@ const config = defineConfig({
           },
 
           info: {
-            value: { base: '#2563eb', _dark: '#60a5fa' },
+            value: { base: '#2d6dc3', _dark: '#8fb9ff' },
           },
         },
 
         // Border colors
         border: {
           DEFAULT: {
-            value: { base: '#dee5ea', _dark: '#242a35' },
+            value: { base: '#dfe4ed', _dark: '#2c3542' },
           },
 
           subtle: {
-            value: { base: '#e6ebef', _dark: '#1c212b' },
+            value: { base: '#edf1f8', _dark: '#19222f' },
           },
 
           surface: {
-            value: { base: '#dee5ea', _dark: '#242a35' },
+            value: { base: '#dfe4ed', _dark: '#2c3542' },
           },
 
           divider: {
-            value: { base: '#e3e8ec', _dark: '#202632' },
+            value: { base: '#dfe4ed', _dark: '#2c3542' },
           },
 
           strong: {
-            value: { base: '#cfd8df', _dark: '#313846' },
+            value: { base: '#c5cedb', _dark: '#3f4a5a' },
           },
 
           inverted: {
-            value: { base: '#111827', _dark: '#e7eaf0' },
+            value: { base: '#19222f', _dark: '#c5cedb' },
           },
         },
 
-        // Arkivra teal accents
+        // Compatibility alias used by the dashboard for the Arkivra primary accent.
         teal: {
           solid: {
-            value: { base: '#178a7b', _dark: '#14b8a6' },
+            value: { base: '#2d6dc3', _dark: '#3884eb' },
           },
 
           subtle: {
-            value: { base: '#e4f7f3', _dark: '#17352f' },
+            value: { base: '#edf1f8', _dark: 'rgba(56, 132, 235, 0.15)' },
           },
 
           fg: {
-            value: { base: '#11675d', _dark: '#5eead4' },
+            value: { base: '#2d6dc3', _dark: '#8fb9ff' },
           },
 
           muted: {
-            value: { base: '#9ee7d8', _dark: '#0c544d' },
+            value: { base: '#8fb9ff', _dark: '#2d6dc3' },
           },
 
           hover: {
-            value: { base: '#136f63', _dark: '#2dd4bf' },
+            value: { base: '#0066ff', _dark: '#8fb9ff' },
           },
 
           focusRing: {
             value: {
-              base: 'rgba(23, 138, 123, 0.35)',
-              _dark: 'rgba(20, 184, 166, 0.35)',
+              base: 'rgba(45, 109, 195, 0.35)',
+              _dark: 'rgba(143, 185, 255, 0.35)',
             },
           },
         },
@@ -375,78 +417,78 @@ const config = defineConfig({
         // Premium auth surfaces
         auth: {
           canvas: {
-            value: { base: '#fbfcfd', _dark: '#050d0d' },
+            value: { base: '#fdfaf5', _dark: '#0b1220' },
           },
 
           canvasEnd: {
-            value: { base: '#f1f7f8', _dark: '#071413' },
+            value: { base: '#faf9f5', _dark: '#0f1b2d' },
           },
 
           card: {
             value: {
               base: 'rgba(255, 255, 255, 0.72)',
-              _dark: 'rgba(17, 20, 27, 0.72)',
+              _dark: 'rgba(15, 27, 45, 0.72)',
             },
           },
 
           cardBorder: {
             value: {
               base: 'rgba(148, 163, 184, 0.16)',
-              _dark: 'rgba(148, 163, 184, 0.14)',
+              _dark: 'rgba(143, 185, 255, 0.16)',
             },
           },
 
           field: {
             value: {
-              base: 'rgba(248, 250, 252, 0.68)',
-              _dark: 'rgba(15, 18, 25, 0.68)',
+              base: 'rgba(255, 255, 255, 0.68)',
+              _dark: 'rgba(15, 27, 45, 0.68)',
             },
           },
 
           fieldBorder: {
             value: {
               base: 'rgba(148, 163, 184, 0.22)',
-              _dark: 'rgba(148, 163, 184, 0.18)',
+              _dark: 'rgba(143, 185, 255, 0.18)',
             },
           },
 
           fieldHover: {
             value: {
               base: 'rgba(255, 255, 255, 0.78)',
-              _dark: 'rgba(18, 22, 30, 0.78)',
+              _dark: 'rgba(15, 27, 45, 0.78)',
             },
           },
 
           primaryFrom: {
-            value: { base: '#178a7b', _dark: '#14b8a6' },
+            value: { base: '#2d6dc3', _dark: '#3884eb' },
           },
 
           primaryTo: {
-            value: { base: '#11675d', _dark: '#0f766e' },
+            value: { base: '#0066ff', _dark: '#2d6dc3' },
           },
 
           glow: {
             value: {
-              base: 'rgba(20, 184, 166, 0.12)',
-              _dark: 'rgba(20, 184, 166, 0.14)',
+              base: 'rgba(45, 109, 195, 0.12)',
+              _dark: 'rgba(56, 132, 235, 0.14)',
             },
           },
 
           horizon: {
             value: {
-              base: 'rgba(20, 184, 166, 0.28)',
-              _dark: 'rgba(45, 212, 191, 0.32)',
+              base: 'rgba(45, 109, 195, 0.28)',
+              _dark: 'rgba(143, 185, 255, 0.32)',
             },
           },
 
           link: {
-            value: { base: '#0f766e', _dark: '#5eead4' },
+            value: { base: '#2d6dc3', _dark: '#8fb9ff' },
           },
 
           particle: {
             value: {
-              base: 'rgba(20, 184, 166, 0.16)',
-              _dark: 'rgba(45, 212, 191, 0.16)',
+              base: 'rgba(45, 109, 195, 0.16)',
+              _dark: 'rgba(143, 185, 255, 0.16)',
             },
           },
         },
@@ -538,6 +580,10 @@ const config = defineConfig({
       fontFamily: 'body',
       bg: 'bg.canvas',
       color: 'fg',
+    },
+
+    'h1, h2, h3': {
+      color: 'fg.heading',
     },
 
     'button, input, select, textarea': {

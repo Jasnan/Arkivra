@@ -37,7 +37,7 @@ export function WorkspaceHeader({
         align="stretch"
         borderBottomWidth="1px"
         borderColor="border.surface"
-        bg="bg.workspace"
+        bg="bg.header"
         position="relative"
       >
         {hasSecondarySidebar ? (
@@ -82,7 +82,7 @@ export function WorkspaceHeader({
       align="center"
       borderBottomWidth="1px"
       borderColor="border.surface"
-      bg="bg.workspace"
+      bg="bg.header"
       px={{ base: '4', md: '5', lg: '4' }}
       position="relative"
     >

@@ -14,7 +14,7 @@ const accentOptions: Array<{ color: string; label: string; value: AccentColor }>
   { value: 'yellow', label: 'Yellow', color: '#facc15' },
   { value: 'green', label: 'Green', color: '#16a34a' },
   { value: 'teal', label: 'Teal', color: '#14b8a6' },
-  { value: 'blue', label: 'Blue', color: '#2563eb' },
+  { value: 'blue', label: 'Blue', color: '#2d6dc3' },
   { value: 'cyan', label: 'Cyan', color: '#0891b2' },
   { value: 'purple', label: 'Purple', color: '#7c3aed' },
   { value: 'pink', label: 'Pink', color: '#db2777' },

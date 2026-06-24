@@ -71,8 +71,8 @@ export function AuthHero() {
         as="h1"
         textStyle="display"
         fontSize={{ base: '3xl', md: '4xl' }}
-        fontWeight="760"
-        color="fg"
+        fontWeight="semibold"
+        color="fg.heading"
         letterSpacing="display"
         lineHeight="1"
         textAlign="center"

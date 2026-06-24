@@ -71,8 +71,35 @@
 }
 
 :root {
+  --color-primary: #2d6dc3;
+  --color-primary-strong: #0066ff;
+  --color-primary-light: #8fb9ff;
+  --color-accent: #fad13b;
+  --color-neutral-50: #f7f9fc;
+  --color-neutral-100: #edf1f8;
+  --color-neutral-200: #dfe4ed;
+  --color-neutral-300: #c5cedb;
+  --color-neutral-400: #92a1b7;
+  --color-neutral-500: #677487;
+  --color-neutral-600: #4f5a6d;
+  --color-neutral-700: #3f4a5a;
+  --color-neutral-800: #2c3542;
+  --color-neutral-900: #19222f;
+  --color-neutral-950: #10161f;
+  --color-bg-primary: #fdfaf5;
+  --color-bg-secondary: #ffffff;
+  --color-bg-primary-light: #faf9f5;
+  --color-bg-primary-dark: #0b1220;
+  --color-bg-secondary-dark: #0f1b2d;
+  --color-text-primary: #2d6dc3;
+  --color-text-secondary: #3f4a5a;
+  --color-text-tertiary: #7a6550;
+  --color-text-primary-dark: #3884eb;
+  --color-text-secondary-dark: #c5cedb;
+  --color-text-tertiary-dark: #9bb3d7;
   --arkivra-font-body: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --arkivra-font-heading: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --arkivra-font-display: var(--arkivra-font-heading);
   --arkivra-font-chat: var(--arkivra-font-body);
   --arkivra-font-sidebar: var(--arkivra-font-body);
   --arkivra-font-table: var(--arkivra-font-body);
@@ -107,8 +134,8 @@
   --arkivra-line-height-display: 1.1;
   --arkivra-line-height-chat: 1.68;
   --arkivra-letter-spacing-body: 0;
-  --arkivra-letter-spacing-heading: -0.012em;
-  --arkivra-letter-spacing-display: -0.022em;
+  --arkivra-letter-spacing-heading: 0;
+  --arkivra-letter-spacing-display: 0;
 }
 
 :root[data-arkivra-font='inter'],
@@ -122,8 +149,8 @@
   --arkivra-form-scale: 1;
   --arkivra-sidebar-scale: 1;
   --arkivra-table-scale: 1;
-  --arkivra-letter-spacing-heading: -0.014em;
-  --arkivra-letter-spacing-display: -0.024em;
+  --arkivra-letter-spacing-heading: 0;
+  --arkivra-letter-spacing-display: 0;
 }
 
 :root[data-arkivra-font='sora'],
@@ -137,8 +164,8 @@
   --arkivra-form-scale: 1;
   --arkivra-sidebar-scale: 1;
   --arkivra-table-scale: 0.99;
-  --arkivra-letter-spacing-heading: -0.012em;
-  --arkivra-letter-spacing-display: -0.02em;
+  --arkivra-letter-spacing-heading: 0;
+  --arkivra-letter-spacing-display: 0;
 }
 
 :root[data-arkivra-font='space-grotesk'],
@@ -152,8 +179,8 @@
   --arkivra-form-scale: 1.04;
   --arkivra-sidebar-scale: 1.04;
   --arkivra-table-scale: 1.03;
-  --arkivra-letter-spacing-heading: -0.006em;
-  --arkivra-letter-spacing-display: -0.012em;
+  --arkivra-letter-spacing-heading: 0;
+  --arkivra-letter-spacing-display: 0;
 }
 
 html {
@@ -200,6 +227,10 @@ textarea {
 .font-display {
   font-family: var(--chakra-fonts-heading, var(--arkivra-font-heading));
   letter-spacing: var(--arkivra-letter-spacing-display);
+}
+
+.font-brand {
+  font-family: var(--chakra-fonts-heading, var(--arkivra-font-heading));
 }
 
 table {

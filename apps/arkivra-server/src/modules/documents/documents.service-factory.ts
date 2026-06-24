@@ -492,7 +492,7 @@ export function createDocumentsServices({
 
     const [doc] = await db
       .update(documentsTable)
-      .set({ name: normalizedName, updatedAt: new Date() })
+      .set({ name: normalizedName, updatedAt: sql`now()` })
       .where(
         and(
           eq(documentsTable.id, documentId),
@@ -560,7 +560,7 @@ export function createDocumentsServices({
       .update(documentsTable)
       .set({
         folderId,
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       })
       .where(
         and(
@@ -593,7 +593,7 @@ export function createDocumentsServices({
   }) {
     const [doc] = await db
       .update(documentsTable)
-      .set({ language, updatedAt: new Date() })
+      .set({ language, updatedAt: sql`now()` })
       .where(
         and(
           eq(documentsTable.id, documentId),
@@ -623,9 +623,9 @@ export function createDocumentsServices({
       .update(documentsTable)
       .set({
         isDeleted: true,
-        deletedAt: new Date(),
+        deletedAt: sql`now()`,
         deletedBy,
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       })
       .where(
         and(
@@ -742,7 +742,7 @@ export function createDocumentsServices({
       .update(documentsTable)
       .set({
         processingStatus,
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       })
       .where(and(eq(documentsTable.id, documentId), eq(documentsTable.vaultId, vaultId)))
       .returning({
@@ -764,12 +764,11 @@ export function createDocumentsServices({
     vaultId: string;
     processingStatus: DocumentProcessingStatus;
   }) {
-    const now = new Date();
     const [version] = await db
       .update(documentVersionsTable)
       .set({
         processingStatus,
-        updatedAt: now,
+        updatedAt: sql`now()`,
       })
       .where(
         and(
@@ -792,7 +791,7 @@ export function createDocumentsServices({
       .update(documentsTable)
       .set({
         processingStatus,
-        updatedAt: now,
+        updatedAt: sql`now()`,
       })
       .where(
         and(

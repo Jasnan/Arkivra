@@ -221,8 +221,6 @@ export function createDocumentVersionLifecycleServices({
           )
           .orderBy(desc(documentVersionsTable.versionNumber))
           .limit(1);
-        const now = new Date();
-
         const [version] = await tx
           .insert(documentVersionsTable)
           .values({
@@ -231,7 +229,7 @@ export function createDocumentVersionLifecycleServices({
             vaultId,
             versionNumber: (latestVersion?.versionNumber ?? 0) + 1,
             uploadedBy: restoredBy,
-            uploadedAt: now,
+            uploadedAt: sql`now()`,
             originalName: sourceVersion.originalName,
             originalSize: sourceVersion.originalSize,
             originalStorageKey: targetSourceStorageKey,
@@ -331,7 +329,7 @@ export function createDocumentVersionLifecycleServices({
             fileEncryptionKeyWrapped: sourceVersion.fileEncryptionKeyWrapped,
             fileEncryptionKekVersion: sourceVersion.fileEncryptionKekVersion,
             fileEncryptionAlgorithm: sourceVersion.fileEncryptionAlgorithm,
-            updatedAt: now,
+            updatedAt: sql`now()`,
           })
           .where(
             and(
@@ -440,9 +438,9 @@ export function createDocumentVersionLifecycleServices({
           parserEngine: null,
           parserEngineVersion: null,
           parserWarnings: null,
-          deletedAt: new Date(),
+          deletedAt: sql`now()`,
           deletedBy,
-          updatedAt: new Date(),
+          updatedAt: sql`now()`,
         })
         .where(
           and(

@@ -10,12 +10,12 @@ export const authSessionsTable = pgTable('auth_sessions', {
     .references(() => usersTable.id, { onDelete: 'cascade' }),
 
   token: text('token').notNull().unique(),
-  expiresAt: timestamp('expires_at', { mode: 'date' }).notNull(),
+  expiresAt: timestamp('expires_at', { mode: 'date', withTimezone: true }).notNull(),
   ipAddress: text('ip_address'),
   userAgent: text('user_agent'),
 
-  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
 });
 
 // Better Auth account table (OAuth providers, credentials)
@@ -31,15 +31,15 @@ export const authAccountsTable = pgTable('auth_accounts', {
 
   accessToken: text('access_token'),
   refreshToken: text('refresh_token'),
-  accessTokenExpiresAt: timestamp('access_token_expires_at', { mode: 'date' }),
-  refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { mode: 'date' }),
+  accessTokenExpiresAt: timestamp('access_token_expires_at', { mode: 'date', withTimezone: true }),
+  refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { mode: 'date', withTimezone: true }),
 
   scope: text('scope'),
   idToken: text('id_token'),
   password: text('password'),
 
-  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
 });
 
 // Better Auth verification table (email verification, password reset)
@@ -48,10 +48,10 @@ export const authVerificationsTable = pgTable('auth_verifications', {
 
   identifier: text('identifier').notNull(),
   value: text('value').notNull(),
-  expiresAt: timestamp('expires_at', { mode: 'date' }).notNull(),
+  expiresAt: timestamp('expires_at', { mode: 'date', withTimezone: true }).notNull(),
 
-  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
 });
 
 // Better Auth two-factor table
@@ -65,6 +65,6 @@ export const authTwoFactorTable = pgTable('auth_two_factor', {
   secret: text('secret').notNull(),
   backupCodes: text('backup_codes').notNull(),
 
-  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
 });

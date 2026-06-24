@@ -1,6 +1,6 @@
 import type { Database } from '../database/database.js';
 import type { UiFontFamily, UserUiPreferences, UserUiPreferencesUpdate } from './user-preferences.types.js';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { userUiPreferencesTable } from '../database/schema/index.js';
 
 const defaultPreferences: Required<UserUiPreferencesUpdate> = {
@@ -92,7 +92,7 @@ export function createUserPreferencesServices({ db }: { db: Database }) {
       .update(userUiPreferencesTable)
       .set({
         ...preferences,
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       })
       .where(eq(userUiPreferencesTable.userId, userId))
       .returning();

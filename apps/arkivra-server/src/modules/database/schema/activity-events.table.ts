@@ -5,8 +5,8 @@ export const activityEventsTable = pgTable(
   'activity_events',
   {
     ...createPrimaryKeyField({ prefix: 'act' }),
-    createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
-    occurredAt: timestamp('occurred_at', { mode: 'date' }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+    occurredAt: timestamp('occurred_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
     activityType: text('activity_type').notNull(),
     entityType: text('entity_type').notNull(),
     entityId: text('entity_id').notNull(),

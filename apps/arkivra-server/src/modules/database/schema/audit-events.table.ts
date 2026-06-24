@@ -5,8 +5,8 @@ export const auditEventsTable = pgTable(
   'audit_events',
   {
     ...createPrimaryKeyField({ prefix: 'aud' }),
-    createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
-    occurredAt: timestamp('occurred_at', { mode: 'date' }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
+    occurredAt: timestamp('occurred_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
     eventType: text('event_type').notNull(),
     eventCategory: text('event_category').notNull(),
     severity: text('severity').notNull().default('info'),

@@ -1,7 +1,7 @@
 import type { Auth } from '../auth/auth.services.js';
 import type { Database } from '../database/database.js';
 import type { Session } from 'better-auth';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { generateRandomString, symmetricDecrypt, symmetricEncrypt } from 'better-auth/crypto';
 import { authAccountsTable, authTwoFactorTable, usersTable } from '../database/schema/index.js';
 
@@ -273,7 +273,7 @@ export function createSensitiveActionServices({
       .update(authTwoFactorTable)
       .set({
         backupCodes: encryptedBackupCodes,
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       })
       .where(eq(authTwoFactorTable.id, twoFactor.id));
 
@@ -312,7 +312,7 @@ export function createSensitiveActionServices({
       .update(usersTable)
       .set({
         twoFactorEnabled: false,
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       })
       .where(eq(usersTable.id, userId));
 
@@ -494,7 +494,7 @@ export function createSensitiveActionServices({
       .update(authAccountsTable)
       .set({
         password: passwordHash,
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       })
       .where(eq(authAccountsTable.id, credentialAccount.id));
 
@@ -546,7 +546,7 @@ export function createSensitiveActionServices({
         .update(authAccountsTable)
         .set({
           password: passwordHash,
-          updatedAt: new Date(),
+          updatedAt: sql`now()`,
         })
         .where(eq(authAccountsTable.id, credentialAccount.id));
     }

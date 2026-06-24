@@ -11,7 +11,7 @@ export const systemCapabilitiesTable = pgTable(
       .references(() => usersTable.id, { onDelete: 'cascade' }),
     capability: text('capability', { enum: ['system.create_vaults'] }).notNull(),
     createdBy: text('created_by').references(() => usersTable.id, { onDelete: 'set null' }),
-    createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     primaryKey({ columns: [table.userId, table.capability], name: 'system_capabilities_pk' }),
@@ -35,7 +35,7 @@ export const permissionRequestsTable = pgTable(
       .notNull()
       .references(() => usersTable.id, { onDelete: 'cascade' }),
     reviewedBy: text('reviewed_by').references(() => usersTable.id, { onDelete: 'set null' }),
-    reviewedAt: timestamp('reviewed_at', { mode: 'date' }),
+    reviewedAt: timestamp('reviewed_at', { mode: 'date', withTimezone: true }),
     vaultId: text('vault_id').references(() => vaultsTable.id, { onDelete: 'cascade' }),
     targetUserId: text('target_user_id').references(() => usersTable.id, { onDelete: 'cascade' }),
     payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
@@ -61,8 +61,8 @@ export const emailInvitationsTable = pgTable(
     email: text('email').notNull(),
     invitedBy: text('invited_by').references(() => usersTable.id, { onDelete: 'set null' }),
     acceptedBy: text('accepted_by').references(() => usersTable.id, { onDelete: 'set null' }),
-    acceptedAt: timestamp('accepted_at', { mode: 'date' }),
-    expiresAt: timestamp('expires_at', { mode: 'date' }),
+    acceptedAt: timestamp('accepted_at', { mode: 'date', withTimezone: true }),
+    expiresAt: timestamp('expires_at', { mode: 'date', withTimezone: true }),
     vaultId: text('vault_id').references(() => vaultsTable.id, { onDelete: 'cascade' }),
     vaultMemberId: text('vault_member_id').references(() => vaultMembersTable.id, { onDelete: 'set null' }),
     vaultRole: text('vault_role', { enum: ['owner', 'editor', 'viewer'] }),

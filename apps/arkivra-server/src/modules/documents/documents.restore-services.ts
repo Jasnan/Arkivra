@@ -138,8 +138,6 @@ export function createDocumentRestoreServices({ db }: { db: Database }) {
 
         const chain = buildFolderRestoreChain({ folders, folderId: deletedDocument.folderId });
         let currentParentId: string | null = null;
-        const now = new Date();
-
         for (const folder of chain) {
           const activeSibling = findActiveSiblingFolderByName({
             folders,
@@ -171,7 +169,7 @@ export function createDocumentRestoreServices({ db }: { db: Database }) {
               isDeleted: false,
               deletedAt: null,
               deletedBy: null,
-              updatedAt: now,
+              updatedAt: sql`now()`,
             })
             .where(and(eq(vaultFoldersTable.id, folder.id), eq(vaultFoldersTable.vaultId, vaultId)))
             .returning({
@@ -238,8 +236,6 @@ export function createDocumentRestoreServices({ db }: { db: Database }) {
         }
       }
       const shouldUpdateDisplayName = deletedDocument.name === deletedDocument.originalName;
-      const now = new Date();
-
       const [doc] = await tx
         .update(documentsTable)
         .set({
@@ -249,7 +245,7 @@ export function createDocumentRestoreServices({ db }: { db: Database }) {
           isDeleted: false,
           deletedAt: null,
           deletedBy: null,
-          updatedAt: now,
+          updatedAt: sql`now()`,
         })
         .where(
           and(

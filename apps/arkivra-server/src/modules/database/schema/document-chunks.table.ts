@@ -55,7 +55,7 @@ export const documentChunksTable = pgTable(
     tablesHtml: jsonb('tables_html').$type<string[]>(),
     citationPrecision: text('citation_precision').notNull().default('document'),
 
-    createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     unique('document_chunks_version_index_unique').on(table.documentVersionId, table.chunkIndex),

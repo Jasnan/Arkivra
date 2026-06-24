@@ -192,7 +192,7 @@ export function createVaultsServices({ db }: { db: Database }) {
       .set({
         name,
         description,
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       })
       .where(and(eq(vaultsTable.id, vaultId), isNull(vaultsTable.deletedAt)))
       .returning({
@@ -231,9 +231,9 @@ export function createVaultsServices({ db }: { db: Database }) {
     const [vault] = await db
       .update(vaultsTable)
       .set({
-        deletedAt: new Date(),
+        deletedAt: sql`now()`,
         deletedBy,
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       })
       .where(and(
         eq(vaultsTable.id, vaultId),
@@ -420,7 +420,7 @@ export function createVaultsServices({ db }: { db: Database }) {
         set: {
           role,
           aiAccessLevel,
-          updatedAt: new Date(),
+          updatedAt: sql`now()`,
         },
       })
       .returning({

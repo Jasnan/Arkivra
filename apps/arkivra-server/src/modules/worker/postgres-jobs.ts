@@ -160,8 +160,8 @@ export class AsyncJob<TData extends Record<string, unknown>> {
       .update(backgroundJobsTable)
       .set({
         progress,
-        lockedAt: new Date(),
-        updatedAt: new Date(),
+        lockedAt: sql`now()`,
+        updatedAt: sql`now()`,
       })
       .where(and(
         eq(backgroundJobsTable.id, this.id),
@@ -235,7 +235,7 @@ export function createPostgresQueue<TData extends Record<string, unknown>>({
   async function add(name: string, payload: TData, options: QueueAddOptions = {}) {
     const id = options.jobId ?? generateId({ prefix: 'job' });
     const repeatPattern = options.repeat?.pattern ?? null;
-    const runAt = repeatPattern === null ? new Date() : getNextCronRun(repeatPattern, new Date());
+    const runAt = repeatPattern === null ? sql`now()` : getNextCronRun(repeatPattern, new Date());
     const maxAttempts = defaultJobOptions.attempts ?? 1;
     const backoffType = defaultJobOptions.backoff?.type ?? null;
     const backoffDelayMs = defaultJobOptions.backoff?.delay ?? null;
@@ -345,8 +345,6 @@ export function createPostgresQueue<TData extends Record<string, unknown>>({
       failed: 0,
     };
 
-    const now = new Date();
-
     for (const state of states) {
       if (state === 'prioritized') {
         counts.prioritized = 0;
@@ -366,7 +364,7 @@ export function createPostgresQueue<TData extends Record<string, unknown>>({
               FROM background_jobs
               WHERE queue_name = ${queueName}
                 AND status = 'pending'
-                AND run_at <= ${now}
+                AND run_at <= now()
             `
           : state === 'delayed'
             ? sql`
@@ -374,7 +372,7 @@ export function createPostgresQueue<TData extends Record<string, unknown>>({
                 FROM background_jobs
                 WHERE queue_name = ${queueName}
                   AND status = 'pending'
-                  AND run_at > ${now}
+                  AND run_at > now()
               `
             : sql`
                 SELECT COUNT(*)::int AS count
@@ -574,7 +572,7 @@ export async function failJob({
         locked_by = NULL,
         locked_at = NULL,
         last_error = ${errorMessage},
-        run_at = ${new Date(Date.now() + retryDelayMs)},
+        run_at = ${retryDelayMs === 0 ? sql`now()` : new Date(Date.now() + retryDelayMs)},
         updated_at = now()
       WHERE id = ${job.id}
         AND queue_name = ${queueName}

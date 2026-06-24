@@ -86,11 +86,11 @@ function createCronMatcher(pattern: string) {
 
   return {
     matches(date: Date) {
-      const minuteMatches = includes(minute, date.getMinutes());
-      const hourMatches = includes(hour, date.getHours());
-      const monthMatches = includes(month, date.getMonth() + 1);
-      const dayOfMonthMatches = includes(dayOfMonth, date.getDate());
-      const dayOfWeekMatches = includes(dayOfWeek, date.getDay());
+      const minuteMatches = includes(minute, date.getUTCMinutes());
+      const hourMatches = includes(hour, date.getUTCHours());
+      const monthMatches = includes(month, date.getUTCMonth() + 1);
+      const dayOfMonthMatches = includes(dayOfMonth, date.getUTCDate());
+      const dayOfWeekMatches = includes(dayOfWeek, date.getUTCDay());
 
       const dayMatches = dayOfMonth.isWildcard || dayOfWeek.isWildcard
         ? dayOfMonthMatches && dayOfWeekMatches
@@ -102,17 +102,19 @@ function createCronMatcher(pattern: string) {
 }
 
 export function getNextCronRun(pattern: string, after = new Date()) {
+  // Cron expressions are evaluated in UTC so workers in different host
+  // timezones schedule the same persisted instants.
   const matcher = createCronMatcher(pattern);
   const candidate = new Date(after.getTime());
-  candidate.setSeconds(0, 0);
-  candidate.setMinutes(candidate.getMinutes() + 1);
+  candidate.setUTCSeconds(0, 0);
+  candidate.setUTCMinutes(candidate.getUTCMinutes() + 1);
 
   for (let index = 0; index < 60 * 24 * 366 * 5; index += 1) {
     if (matcher.matches(candidate)) {
       return new Date(candidate.getTime());
     }
 
-    candidate.setMinutes(candidate.getMinutes() + 1);
+    candidate.setUTCMinutes(candidate.getUTCMinutes() + 1);
   }
 
   throw new Error(`Could not find the next run for cron pattern "${pattern}"`);

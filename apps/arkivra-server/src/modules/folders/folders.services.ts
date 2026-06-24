@@ -1,5 +1,5 @@
 import type { Database } from '../database/database.js';
-import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { documentsTable, vaultFoldersTable } from '../database/schema/index.js';
 import {
   buildFolderAncestorsFromRows,
@@ -550,7 +550,7 @@ export function createFoldersServices({ db }: { db: Database }) {
 
     const [updatedFolder] = await db
       .update(vaultFoldersTable)
-      .set({ name: normalizedName, updatedAt: new Date() })
+      .set({ name: normalizedName, updatedAt: sql`now()` })
       .where(
         and(
           eq(vaultFoldersTable.vaultId, vaultId),
@@ -588,7 +588,7 @@ export function createFoldersServices({ db }: { db: Database }) {
 
     const [folder] = await db
       .update(vaultFoldersTable)
-      .set({ parentId, updatedAt: new Date() })
+      .set({ parentId, updatedAt: sql`now()` })
       .where(
         and(
           eq(vaultFoldersTable.vaultId, vaultId),
@@ -621,15 +621,13 @@ export function createFoldersServices({ db }: { db: Database }) {
     }
 
     const subtreeIds = getSubtreeIds(folders, folderId);
-    const now = new Date();
-
     await db
       .update(documentsTable)
       .set({
         isDeleted: true,
-        deletedAt: now,
+        deletedAt: sql`now()`,
         deletedBy,
-        updatedAt: now,
+        updatedAt: sql`now()`,
       })
       .where(
         and(
@@ -643,9 +641,9 @@ export function createFoldersServices({ db }: { db: Database }) {
       .update(vaultFoldersTable)
       .set({
         isDeleted: true,
-        deletedAt: now,
+        deletedAt: sql`now()`,
         deletedBy,
-        updatedAt: now,
+        updatedAt: sql`now()`,
       })
       .where(
         and(
@@ -724,14 +722,13 @@ export function createFoldersServices({ db }: { db: Database }) {
       }
     }
 
-    const now = new Date();
     await db
       .update(vaultFoldersTable)
       .set({
         isDeleted: false,
         deletedAt: null,
         deletedBy: null,
-        updatedAt: now,
+        updatedAt: sql`now()`,
       })
       .where(
         and(
@@ -746,7 +743,7 @@ export function createFoldersServices({ db }: { db: Database }) {
         isDeleted: false,
         deletedAt: null,
         deletedBy: null,
-        updatedAt: now,
+        updatedAt: sql`now()`,
       })
       .where(
         and(

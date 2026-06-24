@@ -8,6 +8,7 @@ export type Database = ReturnType<typeof setupDatabase>['db'];
 export function setupDatabase({ config }: { config: Config }) {
   const pool = new Pool({
     connectionString: config.database.url,
+    options: '-c timezone=UTC',
   });
 
   const db = drizzle(pool, { schema });

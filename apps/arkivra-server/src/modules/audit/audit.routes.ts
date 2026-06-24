@@ -17,18 +17,21 @@ function parseLimit(value: string | undefined, fallback: number, max: number) {
   return Number.isInteger(parsed) && parsed > 0 ? Math.min(parsed, max) : fallback;
 }
 
-function parseDate(value: string | undefined) {
+function parseDate(value: string | undefined, boundary?: 'start' | 'end') {
   if (value === undefined || value.trim().length === 0) {
     return undefined;
   }
 
-  const date = new Date(value);
+  const trimmed = value.trim();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(trimmed) && boundary !== undefined
+    ? new Date(`${trimmed}T${boundary === 'start' ? '00:00:00.000' : '23:59:59.999'}Z`)
+    : new Date(trimmed);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function getFilters(search: URLSearchParams): AuditEventFilters | null {
-  const dateFrom = parseDate(search.get('dateFrom') ?? undefined);
-  const dateTo = parseDate(search.get('dateTo') ?? undefined);
+  const dateFrom = parseDate(search.get('dateFrom') ?? undefined, 'start');
+  const dateTo = parseDate(search.get('dateTo') ?? undefined, 'end');
   const eventTypes = search.getAll('eventType').map(value => value.trim()).filter(Boolean);
 
   if (dateFrom === null || dateTo === null) {

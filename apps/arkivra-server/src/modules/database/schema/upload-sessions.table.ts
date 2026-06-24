@@ -37,8 +37,8 @@ export const uploadSessionsTable = pgTable(
     status: text('status').notNull().default('initialized'),
     errorCode: text('error_code'),
     errorMessage: text('error_message'),
-    expiresAt: timestamp('expires_at', { mode: 'date' }),
-    completedAt: timestamp('completed_at', { mode: 'date' }),
+    expiresAt: timestamp('expires_at', { mode: 'date', withTimezone: true }),
+    completedAt: timestamp('completed_at', { mode: 'date', withTimezone: true }),
   },
   (table) => [
     index('upload_sessions_vault_user_idx').on(table.vaultId, table.userId),

@@ -58,7 +58,7 @@ export const documentsTable = pgTable(
     currentVersionId: text('current_version_id'),
 
     isDeleted: boolean('is_deleted').notNull().default(false),
-    deletedAt: timestamp('deleted_at', { mode: 'date' }),
+    deletedAt: timestamp('deleted_at', { mode: 'date', withTimezone: true }),
     deletedBy: text('deleted_by').references(() => usersTable.id, { onDelete: 'set null' }),
   },
   (table) => [
@@ -127,7 +127,7 @@ export const documentVersionsTable = pgTable(
     versionNumber: integer('version_number').notNull(),
 
     uploadedBy: text('uploaded_by').references(() => usersTable.id, { onDelete: 'set null' }),
-    uploadedAt: timestamp('uploaded_at', { mode: 'date' }).notNull().defaultNow(),
+    uploadedAt: timestamp('uploaded_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
 
     originalName: text('original_name').notNull(),
     originalSize: integer('original_size').notNull().default(0),
@@ -157,7 +157,7 @@ export const documentVersionsTable = pgTable(
       { onDelete: 'set null' },
     ),
 
-    deletedAt: timestamp('deleted_at', { mode: 'date' }),
+    deletedAt: timestamp('deleted_at', { mode: 'date', withTimezone: true }),
     deletedBy: text('deleted_by').references(() => usersTable.id, { onDelete: 'set null' }),
   },
   (table) => [

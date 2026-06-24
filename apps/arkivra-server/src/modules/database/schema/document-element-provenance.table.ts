@@ -24,7 +24,7 @@ export const documentElementProvenanceTable = pgTable(
     section: text('section'),
     sectionPath: jsonb('section_path').$type<string[]>(),
     sortIndex: integer('sort_index').notNull(),
-    createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     primaryKey({

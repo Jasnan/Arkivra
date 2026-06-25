@@ -67,17 +67,16 @@ function createMockAiServices() {
     ]),
     getModelCatalog: vi.fn(() => [
       {
-        provider: 'ollama',
-        model: 'gemma4:e4b',
-        label: 'Gemma 4 E4B',
+        provider: 'gemini',
+        model: 'gemini-3.5-flash',
+        label: 'Gemini 3.5 Flash',
         capabilities: ['chat', 'vision'],
       },
       {
-        provider: 'ollama',
-        model: 'bge-m3',
-        label: 'BGE-M3',
-        capabilities: ['embedding'],
-        embeddingDimensions: 1024,
+        provider: 'gemini',
+        model: 'gemini-2.5-flash',
+        label: 'Gemini 2.5 Flash',
+        capabilities: ['chat', 'vision'],
       },
     ]),
     checkModelAvailability: vi.fn(async () => ({
@@ -713,7 +712,8 @@ describe('admin ai routes integration', () => {
     const execute = vi
       .fn()
       .mockResolvedValueOnce({ rows: [{ chunk_count: 3 }] })
-      .mockResolvedValueOnce({ rows: [{ count: 0 }] });
+      .mockResolvedValueOnce({ rows: [{ count: 0 }] })
+      .mockResolvedValueOnce({ rows: [] });
     const txExecute = vi.fn(async () => ({ rows: [] }));
     const transaction = vi.fn(async (callback: (tx: { execute: typeof txExecute }) => Promise<void>) =>
       callback({ execute: txExecute }),
@@ -769,7 +769,7 @@ describe('admin ai routes integration', () => {
     });
   });
 
-  test('re-enabling AI applies catalog embedding dimensions before indexing', async () => {
+  test('re-enabling AI preserves selected Ollama embedding dimensions before indexing', async () => {
     const enqueueOrchestrateIndex = vi.fn();
     const onConflictDoUpdate = vi.fn(async () => undefined);
     const values = vi.fn(() => ({ onConflictDoUpdate }));
@@ -791,7 +791,8 @@ describe('admin ai routes integration', () => {
     const execute = vi
       .fn()
       .mockResolvedValueOnce({ rows: [{ chunk_count: 3 }] })
-      .mockResolvedValueOnce({ rows: [{ count: 0 }] });
+      .mockResolvedValueOnce({ rows: [{ count: 0 }] })
+      .mockResolvedValueOnce({ rows: [] });
     const txExecute = vi.fn(async () => ({ rows: [] }));
     const transaction = vi.fn(async (callback: (tx: { execute: typeof txExecute }) => Promise<void>) =>
       callback({ execute: txExecute }),
@@ -837,9 +838,9 @@ describe('admin ai routes integration', () => {
       model: 'gemma4:e4b',
     });
 
-    expect(settings.embedding.dimensions).toBe(768);
+    expect(settings.embedding.dimensions).toBe(1024);
     expect(values).toHaveBeenCalledWith(expect.objectContaining({
-      ollamaEmbeddingDimensions: 768,
+      ollamaEmbeddingDimensions: 1024,
     }));
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(transaction).toHaveBeenCalled();
@@ -857,8 +858,8 @@ describe('admin ai routes integration', () => {
     expect(body.models).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          provider: 'ollama',
-          model: 'gemma4:e4b',
+          provider: 'gemini',
+          model: 'gemini-3.5-flash',
           capabilities: ['chat', 'vision'],
         }),
       ]),
@@ -866,7 +867,7 @@ describe('admin ai routes integration', () => {
     expect(aiServices.getModelCatalog).toHaveBeenCalled();
   });
 
-  test('lists catalog-backed Ollama models', async () => {
+  test('lists discovered AI models for a provider host', async () => {
     const { app, aiServices } = createTestApp({});
     const response = await app.request('/api/admin/ai/models', {
       method: 'POST',
@@ -932,7 +933,7 @@ describe('admin ai routes integration', () => {
     }
   });
 
-  test('filters Ollama chat models by catalog capabilities without provider discovery', async () => {
+  test('filters Ollama chat models by discovered Ollama capabilities', async () => {
     const fetchImpl = vi.fn();
     const aiServices = createAdminAiServices({
       db: {
@@ -950,33 +951,48 @@ describe('admin ai routes integration', () => {
           model: 'plain-text-model:latest',
           logRequests: false,
         },
-        ai: {
-          modelCatalogExtensions: [
-            {
-              provider: 'ollama',
-              model: 'plain-text-model:latest',
-              capabilities: ['chat'],
-            },
-            {
-              provider: 'ollama',
-              model: 'vector-only-local:latest',
-              capabilities: ['embedding'],
-              embeddingDimensions: 768,
-            },
-            {
-              provider: 'ollama',
-              model: 'vision-model:latest',
-              capabilities: ['chat', 'vision'],
-            },
-          ],
-        },
       } as any,
       fetchImpl: fetchImpl as any,
     });
 
+    fetchImpl.mockImplementation(async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      const url = input.toString();
+
+      if (url === 'http://127.0.0.1:11434/api/tags') {
+        return Response.json({
+          models: [
+            { name: 'plain-text-model:latest', size: 1000 },
+            { name: 'vector-only-local:latest', size: 2000 },
+            { name: 'vision-model:latest', size: 3000 },
+          ],
+        });
+      }
+
+      if (url === 'http://127.0.0.1:11434/api/show') {
+        const body = JSON.parse(init?.body?.toString() ?? '{}') as { model?: string };
+        if (body.model === 'vector-only-local:latest') {
+          return Response.json({
+            capabilities: ['embedding'],
+            model_info: { 'bert.embedding_length': 768 },
+          });
+        }
+        if (body.model === 'vision-model:latest') {
+          return Response.json({
+            capabilities: ['completion', 'vision'],
+            model_info: {},
+          });
+        }
+        return Response.json({
+          capabilities: ['completion'],
+          model_info: {},
+        });
+      }
+
+      throw new Error(`Unexpected Ollama request ${url}`);
+    });
+
     const models = await aiServices.listChatModels({ provider: 'ollama' });
 
-    expect(fetchImpl).not.toHaveBeenCalled();
     expect(models.map(model => model.name)).toContain('plain-text-model:latest');
     expect(models.map(model => model.name)).toContain('vision-model:latest');
     expect(models.map(model => model.name)).not.toContain('vector-only-local:latest');
@@ -986,7 +1002,7 @@ describe('admin ai routes integration', () => {
     ]);
   });
 
-  test('appends environment AI model catalog entries', async () => {
+  test('appends non-Ollama environment AI model catalog entries', async () => {
     const aiServices = createAdminAiServices({
       db: { select: vi.fn() } as any,
       config: {
@@ -998,10 +1014,10 @@ describe('admin ai routes integration', () => {
         ai: {
           modelCatalogExtensions: [
             {
-              provider: 'ollama',
-              model: 'custom-chat:latest',
-              label: 'Custom Chat',
-              capabilities: ['chat'],
+              provider: 'gemini',
+              model: 'gemini-custom-chat',
+              label: 'Custom Gemini Chat',
+              capabilities: ['chat', 'vision'],
             },
           ],
         },
@@ -1011,10 +1027,10 @@ describe('admin ai routes integration', () => {
     expect(aiServices.getModelCatalog()).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          provider: 'ollama',
-          model: 'custom-chat:latest',
-          label: 'Custom Chat',
-          capabilities: ['chat'],
+          provider: 'gemini',
+          model: 'gemini-custom-chat',
+          label: 'Custom Gemini Chat',
+          capabilities: ['chat', 'vision'],
         }),
         expect.objectContaining({
           provider: 'gemini',
@@ -1024,7 +1040,7 @@ describe('admin ai routes integration', () => {
     );
   });
 
-  test('environment AI model catalog entries override matching built-ins', async () => {
+  test('environment AI model catalog entries override matching non-Ollama built-ins', async () => {
     const aiServices = createAdminAiServices({
       db: { select: vi.fn() } as any,
       config: {
@@ -1036,11 +1052,10 @@ describe('admin ai routes integration', () => {
         ai: {
           modelCatalogExtensions: [
             {
-              provider: 'ollama',
-              model: 'bge-m3',
-              label: 'BGE-M3 Custom Dimensions',
-              capabilities: ['embedding'],
-              embeddingDimensions: 2048,
+              provider: 'gemini',
+              model: 'gemini-3.5-flash',
+              label: 'Gemini Custom Label',
+              capabilities: ['chat'],
             },
           ],
         },
@@ -1048,10 +1063,10 @@ describe('admin ai routes integration', () => {
     });
 
     expect(aiServices.getModelCatalog().find(
-      entry => entry.provider === 'ollama' && entry.model === 'bge-m3',
+      entry => entry.provider === 'gemini' && entry.model === 'gemini-3.5-flash',
     )).toMatchObject({
-      label: 'BGE-M3 Custom Dimensions',
-      embeddingDimensions: 2048,
+      label: 'Gemini Custom Label',
+      capabilities: ['chat'],
     });
   });
 
@@ -1264,7 +1279,7 @@ describe('admin ai routes integration', () => {
     expect(availability.modelAvailable).toBe(true);
   });
 
-  test('keeps Ollama reachable and returns installed alternatives when the configured model is missing', async () => {
+  test('keeps Ollama reachable and returns available alternatives when the configured model is missing', async () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({
@@ -1304,14 +1319,9 @@ describe('admin ai routes integration', () => {
     expect(select).not.toHaveBeenCalled();
     expect(availability.reachable).toBe(true);
     expect(availability.modelAvailable).toBe(false);
-    expect(availability.error).toContain('Installed chat-capable models: granite4.1:3b');
+    expect(availability.error).toContain('Available chat-capable models: granite4.1:3b');
     expect(availability.models).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          name: 'gemma4:e4b',
-          available: false,
-          source: 'catalog',
-        }),
         expect.objectContaining({
           name: 'granite4.1:3b',
           available: true,

@@ -383,7 +383,7 @@ function ProviderModelsCard({ models }: { models: string[] }) {
           </Flex>
         ) : (
           <Text textStyle="sm" color="fg.muted">
-            No catalog models.
+            No available models.
           </Text>
         )}
       </Stack>

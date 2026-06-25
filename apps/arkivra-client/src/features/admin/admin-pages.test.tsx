@@ -783,27 +783,18 @@ describe('admin and about pages', () => {
             modelAvailable: false,
             models: [
               {
-                name: 'gemma4:e4b',
-                size: null,
-                modifiedAt: null,
-                capabilities: ['chat', 'vision'],
-                source: 'catalog',
-                available: false,
-                availabilityReason: 'Model is configured in Arkivra but is not installed in Ollama.',
-              },
-              {
                 name: 'qwen2.5:7b',
                 size: 1024,
                 modifiedAt: '2026-04-14T19:00:00.000Z',
                 capabilities: ['chat'],
-                source: 'catalog-and-live',
+                source: 'live',
                 available: true,
                 availabilityReason: null,
               },
             ],
             responseTimeMs: 42,
             error:
-              'Model "gemma4:e4b" is configured in Arkivra but is not installed in Ollama at http://127.0.0.1:11434. Installed chat-capable models: qwen2.5:7b.',
+              'Model "gemma4:e4b" is configured in Arkivra but is not available in Ollama at http://127.0.0.1:11434. Available chat-capable models: qwen2.5:7b.',
           },
         });
       }
@@ -953,16 +944,44 @@ describe('admin and about pages', () => {
       }
 
       if (url === '/api/admin/ai/availability' && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body));
         return jsonResponse({
-          availability: {
-            host: 'https://generativelanguage.googleapis.com/v1beta/openai',
-            model: 'gemini-3.5-flash',
-            reachable: true,
-            modelAvailable: true,
-            models: [],
-            responseTimeMs: 42,
-            error: null,
-          },
+          availability:
+            body.provider === 'ollama'
+              ? {
+                  host: 'http://127.0.0.1:11434',
+                  model: 'gemma4:e4b',
+                  reachable: true,
+                  modelAvailable: true,
+                  models: [
+                    {
+                      name: 'bge-m3',
+                      size: 1024,
+                      modifiedAt: '2026-06-19T11:00:00.000Z',
+                      capabilities: ['embedding'],
+                      embeddingDimensions: 1024,
+                      available: true,
+                    },
+                    {
+                      name: 'gemma4:e4b',
+                      size: 1024,
+                      modifiedAt: '2026-06-19T11:00:00.000Z',
+                      capabilities: ['chat', 'vision'],
+                      available: true,
+                    },
+                  ],
+                  responseTimeMs: 42,
+                  error: null,
+                }
+              : {
+                  host: 'https://generativelanguage.googleapis.com/v1beta/openai',
+                  model: 'gemini-3.5-flash',
+                  reachable: true,
+                  modelAvailable: true,
+                  models: [],
+                  responseTimeMs: 42,
+                  error: null,
+                },
         });
       }
 
@@ -1250,7 +1269,23 @@ describe('admin and about pages', () => {
                   model: 'gemma4:e4b',
                   reachable: true,
                   modelAvailable: true,
-                  models: [],
+                  models: [
+                    {
+                      name: 'gemma4:e4b',
+                      size: 1024,
+                      modifiedAt: '2026-04-14T19:00:00.000Z',
+                      capabilities: ['chat', 'vision'],
+                      available: true,
+                    },
+                    {
+                      name: 'bge-m3',
+                      size: 512,
+                      modifiedAt: '2026-04-14T19:45:00.000Z',
+                      capabilities: ['embedding'],
+                      embeddingDimensions: 1024,
+                      available: true,
+                    },
+                  ],
                   responseTimeMs: 42,
                   error: null,
                 }

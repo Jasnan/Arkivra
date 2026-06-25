@@ -234,16 +234,10 @@ describe('parseConfig', () => {
         ...requiredEnv,
         ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS: JSON.stringify([
           {
-            provider: 'ollama',
-            model: 'custom-chat:latest',
-            label: 'Custom Chat',
-            capabilities: ['chat'],
-          },
-          {
-            provider: 'ollama',
-            model: 'custom-embedding:latest',
-            capabilities: ['embedding'],
-            embeddingDimensions: 1536,
+            provider: 'gemini',
+            model: 'gemini-custom-chat',
+            label: 'Custom Gemini Chat',
+            capabilities: ['chat', 'vision'],
           },
         ]),
       },
@@ -251,16 +245,10 @@ describe('parseConfig', () => {
 
     expect(config.ai.modelCatalogExtensions).toEqual([
       {
-        provider: 'ollama',
-        model: 'custom-chat:latest',
-        label: 'Custom Chat',
-        capabilities: ['chat'],
-      },
-      {
-        provider: 'ollama',
-        model: 'custom-embedding:latest',
-        capabilities: ['embedding'],
-        embeddingDimensions: 1536,
+        provider: 'gemini',
+        model: 'gemini-custom-chat',
+        label: 'Custom Gemini Chat',
+        capabilities: ['chat', 'vision'],
       },
     ]);
   });
@@ -303,7 +291,7 @@ describe('parseConfig', () => {
           ...requiredEnv,
           ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS: JSON.stringify([
             {
-              provider: 'ollama',
+              provider: 'gemini',
               model: 'custom:latest',
               capabilities: ['chat', 'audio'],
             },
@@ -320,7 +308,7 @@ describe('parseConfig', () => {
           ...requiredEnv,
           ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS: JSON.stringify([
             {
-              provider: 'ollama',
+              provider: 'gemini',
               model: 'custom-embedding:latest',
               capabilities: ['embedding'],
             },

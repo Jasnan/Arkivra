@@ -15,7 +15,7 @@ Arkivra currently supports these first-class runtime paths:
 
 Provider settings are configured from the admin AI settings page. The default local provider endpoint comes from `ARKIVRA_OLLAMA_HOST`.
 
-Model selection is catalog-based. Arkivra ships a built-in model catalog from the API server, and the dashboard filters that catalog for chat, translation, and embedding pickers. Arkivra does not use live Ollama or Gemini model listing to decide which models appear in pickers. Provider checks may still contact the configured provider to verify that a selected catalog model can be used.
+Ollama model selection is discovered from the configured Ollama endpoint. Arkivra reads the models available in Ollama and inspects their reported capabilities before showing them in chat, translation, and embedding pickers. Gemini model selection remains catalog-based.
 
 ## Ollama-Compatible Providers
 
@@ -25,15 +25,15 @@ Use an Ollama-compatible endpoint for local chat, translation, and embeddings:
 ARKIVRA_OLLAMA_HOST=http://127.0.0.1:11434
 ```
 
-Choose chat, translation, and embedding models from the admin AI settings page. Semantic search also needs an embedding model and dimensions. Arkivra builds an embedding index from parsed document chunks before semantic search is available.
+Install or pull the Ollama models you want Arkivra to use, then choose chat, translation, and embedding models from the admin AI settings page. Semantic search also needs an embedding model and dimensions. Arkivra builds an embedding index from parsed document chunks before semantic search is available.
 
 ## Extending The Model Catalog
 
-Admins can append custom catalog entries with `ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS`. The value must be a JSON array:
+Admins can append custom non-Ollama catalog entries with `ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS`. Ollama entries are discovered from the Ollama API instead of this environment variable. The value must be a JSON array:
 
 ```ts
 {
-  provider: 'ollama' | 'gemini',
+  provider: 'gemini',
   model: string,
   label?: string,
   capabilities: Array<'chat' | 'vision' | 'embedding'>,
@@ -42,24 +42,6 @@ Admins can append custom catalog entries with `ARKIVRA_AI_MODEL_CATALOG_EXTENSIO
 ```
 
 `provider`, `model`, and at least one valid capability are required. `embeddingDimensions` is required for embedding models and must be a positive integer. Entries with the same `provider` and `model` as a built-in entry replace that built-in entry.
-
-Add a custom Ollama chat model:
-
-```dotenv
-ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS='[{"provider":"ollama","model":"qwen2.5:14b","label":"Qwen 2.5 14B","capabilities":["chat"]}]'
-```
-
-Add a custom Ollama vision model for translation:
-
-```dotenv
-ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS='[{"provider":"ollama","model":"llava:13b","label":"LLaVA 13B","capabilities":["chat","vision"]}]'
-```
-
-Add a custom Ollama embedding model with dimensions:
-
-```dotenv
-ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS='[{"provider":"ollama","model":"nomic-embed-text:latest","label":"Nomic Embed Text","capabilities":["embedding"],"embeddingDimensions":768}]'
-```
 
 Add a custom Gemini model:
 

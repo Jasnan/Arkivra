@@ -87,19 +87,6 @@ function mapOllamaLiveCapabilities(capabilities: readonly string[]): AdminAiMode
   return Array.from(mapped);
 }
 
-function mergeCapabilities(...capabilityLists: Array<readonly string[] | undefined>) {
-  const capabilities = new Set<string>();
-
-  for (const capabilityList of capabilityLists) {
-    for (const capability of capabilityList ?? []) {
-      const normalized = capability.trim().toLowerCase();
-      if (normalized.length > 0) capabilities.add(normalized);
-    }
-  }
-
-  return Array.from(capabilities);
-}
-
 function formatInstalledChatModels(models: readonly AdminAiModel[]) {
   return models
     .filter(model => model.available === true && model.capabilities.includes('chat'))
@@ -107,11 +94,9 @@ function formatInstalledChatModels(models: readonly AdminAiModel[]) {
     .sort((left, right) => left.localeCompare(right));
 }
 
-function createMergedOllamaAvailabilityModels({
-  catalog,
+function createLiveOllamaAvailabilityModels({
   liveModels,
 }: {
-  catalog: readonly AdminAiModelCatalogEntry[];
   liveModels: readonly AdminAiModel[];
 }) {
   const merged = new Map<string, AdminAiModel>();
@@ -121,35 +106,20 @@ function createMergedOllamaAvailabilityModels({
     merged.set(existingKey ?? model.name, model);
   }
 
-  for (const entry of catalog.filter(entry => entry.provider === 'ollama')) {
-    setModel({
-      name: entry.model,
-      size: null,
-      modifiedAt: null,
-      capabilities: [...entry.capabilities],
-      description: entry.label ?? null,
-      source: 'catalog',
-      available: false,
-      availabilityReason: 'Model is configured in Arkivra but is not installed in Ollama.',
-      embeddingDimensions: entry.embeddingDimensions,
-    });
-  }
-
   for (const liveModel of liveModels) {
-    const existingKey = Array.from(merged.keys()).find(key => isSameOllamaModel(key, liveModel.name));
-    const existing = existingKey === undefined ? undefined : merged.get(existingKey);
-    const capabilities = mapOllamaLiveCapabilities(liveModel.capabilities);
+    const capabilities = mapOllamaLiveCapabilities(liveModel.capabilities)
+      .filter(capability => capability !== 'embedding' || liveModel.embeddingDimensions !== undefined);
 
-    merged.set(existingKey ?? liveModel.name, {
+    setModel({
       name: liveModel.name,
       size: liveModel.size,
       modifiedAt: liveModel.modifiedAt,
-      capabilities: mergeCapabilities(existing?.capabilities, capabilities),
-      description: existing?.description ?? liveModel.description ?? null,
-      source: existing === undefined ? 'live' : 'catalog-and-live',
+      capabilities,
+      description: liveModel.description ?? null,
+      source: 'live',
       available: true,
       availabilityReason: null,
-      embeddingDimensions: existing?.embeddingDimensions ?? liveModel.embeddingDimensions,
+      embeddingDimensions: liveModel.embeddingDimensions,
     });
   }
 
@@ -669,22 +639,37 @@ export function createAdminAiServices({
 
   async function listChatModels({
     provider,
+    baseUrl,
     includeEmbeddingModels = false,
   }: {
     provider?: AdminAiSettings['chat']['provider'];
     baseUrl?: string;
     includeEmbeddingModels?: boolean;
   } = {}): Promise<AdminAiModel[]> {
-    return getModelCatalog()
-      .filter(entry => provider === undefined || entry.provider === provider)
-      .filter(entry => includeEmbeddingModels || hasCatalogCapability(entry, 'chat'))
-      .map(entry => ({
-        name: entry.model,
-        size: null,
-        modifiedAt: null,
-        capabilities: entry.capabilities,
-        description: entry.label ?? null,
-      }));
+    const catalogModels = provider === 'ollama'
+      ? []
+      : getModelCatalog()
+          .filter(entry => provider === undefined || entry.provider === provider)
+          .filter(entry => entry.provider !== 'ollama')
+          .filter(entry => includeEmbeddingModels || hasCatalogCapability(entry, 'chat'))
+          .map(entry => ({
+            name: entry.model,
+            size: null,
+            modifiedAt: null,
+            capabilities: entry.capabilities,
+            description: entry.label ?? null,
+          }));
+
+    if (provider === 'gemini') {
+      return catalogModels;
+    }
+
+    const liveModels = await listModels({ host: baseUrl ?? configuredOllamaHost });
+    const ollamaModels = createLiveOllamaAvailabilityModels({ liveModels })
+      .filter(entry => includeEmbeddingModels || entry.capabilities.includes('chat'))
+      .map(entry => ({ ...entry, capabilities: [...entry.capabilities] }));
+
+    return [...catalogModels, ...ollamaModels].sort((left, right) => left.name.localeCompare(right.name));
   }
 
   async function probeModelLoad({
@@ -750,10 +735,7 @@ export function createAdminAiServices({
 
     try {
       const liveModels = await listModels({ host: effectiveHost });
-      const models = createMergedOllamaAvailabilityModels({
-        catalog: modelCatalog,
-        liveModels,
-      });
+      const models = createLiveOllamaAvailabilityModels({ liveModels });
       const liveModel = liveModels.find(item => isSameOllamaModel(item.name, effectiveModel));
 
       if (liveModel === undefined) {
@@ -766,8 +748,21 @@ export function createAdminAiServices({
           models,
           responseTimeMs: Date.now() - startedAt,
           error: installedChatModels.length > 0
-            ? `Model "${effectiveModel}" is configured in Arkivra but is not installed in Ollama at ${effectiveHost}. Installed chat-capable models: ${installedChatModels.join(', ')}.`
-            : `Model "${effectiveModel}" is configured in Arkivra but is not installed in Ollama at ${effectiveHost}. No installed chat-capable Ollama models were found.`,
+            ? `Model "${effectiveModel}" is configured in Arkivra but is not available in Ollama at ${effectiveHost}. Available chat-capable models: ${installedChatModels.join(', ')}.`
+            : `Model "${effectiveModel}" is configured in Arkivra but is not available in Ollama at ${effectiveHost}. No chat-capable Ollama models were found.`,
+        };
+      }
+
+      const liveCapabilities = mapOllamaLiveCapabilities(liveModel.capabilities);
+      if (!liveCapabilities.includes('chat')) {
+        return {
+          host: effectiveHost,
+          model: effectiveModel,
+          reachable: true,
+          modelAvailable: false,
+          models,
+          responseTimeMs: Date.now() - startedAt,
+          error: `Model "${effectiveModel}" is running in Ollama but does not report chat capability.`,
         };
       }
 

@@ -14,6 +14,7 @@ const ollamaGenerateResponseSchema = z.object({
 
 const ollamaShowResponseSchema = z.object({
   capabilities: z.array(z.string()).optional().default([]),
+  model_info: z.record(z.string(), z.unknown()).optional().default({}),
 });
 
 const ollamaChatResponseSchema = z.object({
@@ -43,6 +44,7 @@ export type OllamaModel = {
   size: number | null;
   modifiedAt: string | null;
   capabilities: string[];
+  embeddingDimensions?: number;
 };
 
 function chunkIntoBatches<T>(items: T[], batchSize: number) {
@@ -58,6 +60,18 @@ function chunkIntoBatches<T>(items: T[], batchSize: number) {
 
 export function normalizeOllamaHost(host: string | undefined) {
   return (host ?? 'http://127.0.0.1:11434').trim().replace(/\/+$/, '');
+}
+
+function getEmbeddingDimensionsFromModelInfo(modelInfo: Record<string, unknown>) {
+  for (const [key, value] of Object.entries(modelInfo)) {
+    if (!key.toLowerCase().endsWith('.embedding_length')) continue;
+
+    if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+      return value;
+    }
+  }
+
+  return undefined;
 }
 
 async function readJsonErrorMessage(response: Response) {
@@ -130,13 +144,13 @@ export function createOllamaProvider({
 } = {}) {
   let endpointMode: OllamaEmbeddingEndpointMode | null = null;
 
-  async function getModelCapabilities({
+  async function getModelMetadata({
     host,
     model,
   }: {
     host: string;
     model: string;
-  }) {
+  }): Promise<Pick<OllamaModel, 'capabilities' | 'embeddingDimensions'>> {
     const response = await fetchImpl(`${normalizeOllamaHost(host)}/api/show`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -144,15 +158,18 @@ export function createOllamaProvider({
     });
 
     if (!response.ok) {
-      return [];
+      return { capabilities: [] };
     }
 
     const body = ollamaShowResponseSchema.parse(await response.json());
-    return [
-      ...new Set(
-        body.capabilities.map(capability => capability.trim().toLowerCase()).filter(Boolean),
-      ),
-    ];
+    return {
+      capabilities: [
+        ...new Set(
+          body.capabilities.map(capability => capability.trim().toLowerCase()).filter(Boolean),
+        ),
+      ],
+      embeddingDimensions: getEmbeddingDimensionsFromModelInfo(body.model_info),
+    };
   }
 
   async function listModels({ host }: { host: string }): Promise<OllamaModel[]> {
@@ -165,12 +182,20 @@ export function createOllamaProvider({
 
     const body = ollamaTagsResponseSchema.parse(await response.json());
 
-    const models = await Promise.all(body.models.map(async model => ({
-      name: model.name,
-      size: model.size ?? null,
-      modifiedAt: model.modified_at ?? null,
-      capabilities: await getModelCapabilities({ host: normalizedHost, model: model.name }),
-    })));
+    const models = await Promise.all(
+      body.models
+        .map(async model => {
+          const metadata = await getModelMetadata({ host: normalizedHost, model: model.name });
+
+          return {
+            name: model.name,
+            size: model.size ?? null,
+            modifiedAt: model.modified_at ?? null,
+            capabilities: metadata.capabilities,
+            embeddingDimensions: metadata.embeddingDimensions,
+          };
+        }),
+    );
 
     return models.sort((left, right) => left.name.localeCompare(right.name));
   }

@@ -137,7 +137,7 @@ export interface AdminAiModel {
   modifiedAt: string | null;
   capabilities: string[];
   description?: string | null;
-  source?: 'catalog' | 'live' | 'catalog-and-live';
+  source?: 'catalog' | 'live';
   available?: boolean;
   availabilityReason?: string | null;
   embeddingDimensions?: number;

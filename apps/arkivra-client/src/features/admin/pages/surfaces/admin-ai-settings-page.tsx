@@ -88,12 +88,6 @@ function buildAvailableOllamaModels({
 }) {
   if (availability?.reachable !== true) return [];
 
-  if (availability.models.length === 0 && availability.modelAvailable) {
-    return catalogModels
-      .filter((model) => model.provider === 'ollama')
-      .map((model) => ({ ...model, capabilities: [...model.capabilities] }));
-  }
-
   const modelsByName = new Map<string, AdminAiModelCatalogEntry>();
 
   for (const liveModel of availability.models) {
@@ -468,7 +462,7 @@ export function AdminAiSettingsPage() {
     (effectiveTranslationOption?.capabilities.includes('vision') ?? false);
   const selectedEmbeddingProviderModel =
     aiDraft.embedding.provider === 'ollama'
-      ? catalogModels.find((model) =>
+      ? availableOllamaModels.find((model) =>
           model.provider === 'ollama' &&
           hasModelCapability(model, 'embedding') &&
           isSameOllamaModel(model.model, aiDraft.embedding.model),
@@ -734,7 +728,7 @@ export function AdminAiSettingsPage() {
     setAiDraftOverride(merged);
 
     if (merged.aiFeaturesEnabled && !isAiReady) {
-      toast.warning('Choose catalog models from healthy providers before saving AI settings.');
+      toast.warning('Choose available models from healthy providers before saving AI settings.');
       return;
     }
 

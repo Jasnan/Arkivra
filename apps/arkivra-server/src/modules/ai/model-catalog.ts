@@ -39,32 +39,6 @@ export const aiModelCatalogExtensionsSchema = z.array(aiModelCatalogEntrySchema)
 
 export const builtInAiModelCatalog = [
   {
-    provider: 'ollama',
-    model: 'gemma4:e4b',
-    label: 'Gemma 4 E4B',
-    capabilities: ['chat', 'vision'],
-  },
-  {
-    provider: 'ollama',
-    model: 'llama3.2:1b',
-    label: 'Llama 3.2 1B',
-    capabilities: ['chat'],
-  },
-  {
-    provider: 'ollama',
-    model: 'bge-m3',
-    label: 'BGE-M3',
-    capabilities: ['embedding'],
-    embeddingDimensions: 1024,
-  },
-  {
-    provider: 'ollama',
-    model: 'embeddinggemma:latest',
-    label: 'EmbeddingGemma',
-    capabilities: ['embedding'],
-    embeddingDimensions: 768,
-  },
-  {
     provider: 'gemini',
     model: 'gemini-3.5-flash',
     label: 'Gemini 3.5 Flash',
@@ -141,6 +115,8 @@ export function createAiModelCatalog({
   const entriesByKey = new Map<string, AiModelCatalogEntry>();
 
   for (const entry of [...builtInAiModelCatalog, ...extensions]) {
+    if (entry.provider === 'ollama') continue;
+
     entriesByKey.set(`${entry.provider}:${entry.model}`, {
       ...entry,
       capabilities: [...entry.capabilities],

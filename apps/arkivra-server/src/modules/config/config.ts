@@ -285,7 +285,7 @@ export const configDefinition = {
   },
   ai: {
     modelCatalogExtensions: {
-      doc: 'JSON array of additional AI model catalog entries. Entries with the same provider and model replace built-in entries.',
+      doc: 'JSON array of additional non-Ollama AI model catalog entries. Ollama models are discovered from the configured Ollama endpoint.',
       schema: z.string().optional(),
       default: undefined,
       env: 'ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS',

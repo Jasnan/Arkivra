@@ -228,8 +228,8 @@ export function ChatModelsDialog({
               <EmptyChatModelState
                 message={
                   isFetchingChatModels
-                    ? 'Loading catalog models and provider status...'
-                    : 'No catalog chat models are selectable from healthy providers.'
+                    ? 'Loading available models and provider status...'
+                    : 'No chat models are selectable from healthy providers.'
                 }
               />
             ) : !hasFilteredResults ? (
@@ -651,8 +651,8 @@ export function EmbeddingModelDialog({
               ) : (
                 <Text px="3" py="3" textStyle="sm" color="fg.muted">
                   {isFetchingOllamaModels
-                    ? 'Loading catalog models and provider status...'
-                    : 'No catalog embedding models are selectable from a healthy Ollama provider.'}
+                    ? 'Loading available models and provider status...'
+                    : 'No embedding models are selectable from a healthy Ollama provider.'}
                 </Text>
               )}
             </Box>
@@ -828,8 +828,8 @@ export function TranslationModelDialog({
               ) : (
                 <Text px="3" py="3" textStyle="sm" color="fg.muted">
                   {isFetchingModels
-                    ? 'Loading catalog models and provider status...'
-                    : 'No catalog translation models are selectable from healthy providers.'}
+                    ? 'Loading available models and provider status...'
+                    : 'No translation models are selectable from healthy providers.'}
                 </Text>
               )}
             </Box>

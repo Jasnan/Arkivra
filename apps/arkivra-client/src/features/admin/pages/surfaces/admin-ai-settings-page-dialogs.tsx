@@ -577,10 +577,10 @@ export function EmbeddingModelDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent maxW="38rem" w="calc(100vw - 2rem)">
         <DialogHeader px="5" pt="5" pb="3">
-          <DialogTitle>Change embedding model</DialogTitle>
+          <DialogTitle>Choose Search Engine</DialogTitle>
           <DialogDescription>
-            Select the model Arkivra should use for new semantic indexes. The live index keeps
-            serving search until the new one is ready.
+            Select the Search Engine Arkivra should use for semantic search and AI Chat. This is
+            backed by an embedding model on the provider.
           </DialogDescription>
         </DialogHeader>
         <DialogBody px="5" pb="4">
@@ -594,7 +594,7 @@ export function EmbeddingModelDialog({
             >
               <Box px="3" py="2" borderBottomWidth="1px" borderColor="border.surface">
                 <Text textStyle="sm" fontWeight="semibold" color="fg">
-                  Available embedding models
+                  Available Search Engines
                 </Text>
               </Box>
               {embeddingModelOptions.length > 0 ? (
@@ -652,7 +652,7 @@ export function EmbeddingModelDialog({
                 <Text px="3" py="3" textStyle="sm" color="fg.muted">
                   {isFetchingOllamaModels
                     ? 'Loading available models and provider status...'
-                    : 'No embedding models are selectable from a healthy Ollama provider.'}
+                    : 'No Search Engines are selectable from a healthy Ollama provider.'}
                 </Text>
               )}
             </Box>
@@ -667,7 +667,7 @@ export function EmbeddingModelDialog({
               <AlertDescription>
                 <Stack gap="2">
                   <Text fontWeight="semibold">
-                    Changing the embedding model requires rebuilding the semantic search index.
+                    Changing the Search Engine requires rebuilding the semantic search index.
                   </Text>
                   <Stack as="ul" gap="1" ps="4">
                     <Text as="li">

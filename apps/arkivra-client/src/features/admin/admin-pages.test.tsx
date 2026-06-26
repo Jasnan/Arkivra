@@ -49,35 +49,37 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-const defaultAiModelCatalog = [
+const defaultAiProviderModels = [
   {
-    provider: 'ollama',
-    model: 'gemma4:e4b',
-    label: 'Gemma 4 E4B',
+    name: 'gemma4:e4b',
+    description: 'Gemma 4 E4B',
     capabilities: ['chat', 'vision'],
   },
   {
-    provider: 'ollama',
-    model: 'qwen2.5:7b',
+    name: 'qwen2.5:7b',
     capabilities: ['chat'],
   },
   {
-    provider: 'ollama',
-    model: 'bge-m3',
+    name: 'bge-m3',
     capabilities: ['embedding'],
     embeddingDimensions: 1024,
   },
   {
-    provider: 'gemini',
-    model: 'gemini-3.5-flash',
+    name: 'gemini-3.5-flash',
     capabilities: ['chat', 'vision'],
   },
   {
-    provider: 'gemini',
-    model: 'gemini-2.5-flash',
+    name: 'gemini-2.5-flash',
     capabilities: ['chat', 'vision'],
   },
 ];
+
+function defaultProviderModels(provider: 'ollama' | 'gemini') {
+  const geminiModelNames = new Set(['gemini-3.5-flash', 'gemini-2.5-flash']);
+  return defaultAiProviderModels.filter((model) =>
+    provider === 'gemini' ? geminiModelNames.has(model.name) : !geminiModelNames.has(model.name),
+  );
+}
 
 const adminMeResponse = {
   userId: 'usr_admin',
@@ -88,14 +90,14 @@ const adminMeResponse = {
   canCreateVault: true,
 };
 
-type OllamaModelFixture = {
+interface OllamaModelFixture {
   name: string;
   size: number;
   modifiedAt: string;
   capabilities: string[];
   available: boolean;
   embeddingDimensions?: number;
-};
+}
 
 function createAiSettingsFixture({
   aiFeaturesEnabled = true,
@@ -225,7 +227,7 @@ function installAiSettingsFetchMock({
     responseTimeMs: null,
     error: 'Gemini API key environment variable is not configured on the API server.',
   },
-  ollamaAvailability,
+  ollamaAvailability = createOllamaAvailability(),
   settings,
   status = createAiStatusFixture(settings),
 }: {
@@ -253,8 +255,14 @@ function installAiSettingsFetchMock({
       return jsonResponse({ status });
     }
 
-    if (url === '/api/admin/ai/model-catalog') {
-      return jsonResponse({ models: defaultAiModelCatalog });
+    if (url === '/api/admin/ai/models' && init?.method === 'POST') {
+      const body = JSON.parse(String(init.body));
+      const availability = body.provider === 'gemini' ? geminiAvailability : ollamaAvailability;
+      return jsonResponse({
+        models: Array.isArray((availability as { models?: unknown }).models)
+          ? (availability as { models: unknown[] }).models
+          : defaultProviderModels(body.provider === 'gemini' ? 'gemini' : 'ollama'),
+      });
     }
 
     if (url === '/api/admin/ai/availability' && init?.method === 'POST') {
@@ -548,11 +556,6 @@ describe('admin and about pages', () => {
           settings: JSON.parse(String(init.body)),
         });
       }
-
-      if (url === '/api/admin/ai/model-catalog') {
-        return jsonResponse({ models: defaultAiModelCatalog });
-      }
-
       if (url === '/api/admin/ai/models' && init?.method === 'POST') {
         return jsonResponse({
           models: [
@@ -567,12 +570,6 @@ describe('admin and about pages', () => {
               size: 2048,
               modifiedAt: '2026-04-14T19:30:00.000Z',
               capabilities: ['completion'],
-            },
-            {
-              name: 'bge-m3',
-              size: 512,
-              modifiedAt: '2026-04-14T19:45:00.000Z',
-              capabilities: ['embedding'],
             },
           ],
         });
@@ -831,11 +828,6 @@ describe('admin and about pages', () => {
           },
         });
       }
-
-      if (url === '/api/admin/ai/model-catalog') {
-        return jsonResponse({ models: defaultAiModelCatalog });
-      }
-
       if (url === '/api/admin/ai/models' && init?.method === 'POST') {
         return jsonResponse({
           models: [],
@@ -962,11 +954,6 @@ describe('admin and about pages', () => {
           },
         });
       }
-
-      if (url === '/api/admin/ai/model-catalog') {
-        return jsonResponse({ models: defaultAiModelCatalog });
-      }
-
       if (url === '/api/admin/ai/availability' && init?.method === 'POST') {
         return jsonResponse({
           availability: {
@@ -1335,11 +1322,6 @@ describe('admin and about pages', () => {
       if (url === '/api/admin/ai/status') {
         return jsonResponse({ status: createAiStatusFixture(settings) });
       }
-
-      if (url === '/api/admin/ai/model-catalog') {
-        return jsonResponse({ models: defaultAiModelCatalog });
-      }
-
       if (url === '/api/admin/ai/availability' && init?.method === 'POST') {
         const body = JSON.parse(String(init.body));
         await availabilityGate;
@@ -1499,11 +1481,6 @@ describe('admin and about pages', () => {
           },
         });
       }
-
-      if (url === '/api/admin/ai/model-catalog') {
-        return jsonResponse({ models: defaultAiModelCatalog });
-      }
-
       if (url === '/api/admin/ai/models' && init?.method === 'POST') {
         const body = JSON.parse(String(init.body));
         return jsonResponse({
@@ -1662,11 +1639,6 @@ describe('admin and about pages', () => {
           },
         });
       }
-
-      if (url === '/api/admin/ai/model-catalog') {
-        return jsonResponse({ models: defaultAiModelCatalog });
-      }
-
       if (url === '/api/admin/ai/models' && init?.method === 'POST') {
         const body = JSON.parse(String(init.body));
         return jsonResponse({
@@ -1687,13 +1659,20 @@ describe('admin and about pages', () => {
                   },
                 ]
               : [
-                  {
-                    name: 'gemma4:e4b',
-                    size: 1024,
-                    modifiedAt: '2026-04-14T19:00:00.000Z',
-                    capabilities: ['completion', 'vision'],
-                  },
-                ],
+                {
+                  name: 'gemma4:e4b',
+                  size: 1024,
+                  modifiedAt: '2026-04-14T19:00:00.000Z',
+                  capabilities: ['completion', 'vision'],
+                },
+                {
+                  name: 'bge-m3',
+                  size: 1024,
+                  modifiedAt: '2026-04-14T19:00:00.000Z',
+                  capabilities: ['embedding'],
+                  embeddingDimensions: 1024,
+                },
+              ],
         });
       }
 
@@ -1867,11 +1846,6 @@ describe('admin and about pages', () => {
           },
         });
       }
-
-      if (url === '/api/admin/ai/model-catalog') {
-        return jsonResponse({ models: defaultAiModelCatalog });
-      }
-
       if (url === '/api/admin/ai/models' && init?.method === 'POST') {
         const body = JSON.parse(String(init.body));
         return jsonResponse({
@@ -1953,7 +1927,7 @@ describe('admin and about pages', () => {
     await user.click(await screen.findByRole('button', { name: /configure models/i }));
 
     const dialog = await screen.findByRole('dialog', { name: /configure chat models/i });
-    expect(within(dialog).getAllByText('Gemma 4 E4B').length).toBeGreaterThan(0);
+    expect(within(dialog).getAllByText('gemma4:e4b').length).toBeGreaterThan(0);
     expect(within(dialog).queryByText('gemini-3.5-flash')).not.toBeInTheDocument();
   });
 

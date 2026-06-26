@@ -65,20 +65,6 @@ function createMockAiServices() {
         capabilities: ['completion'],
       },
     ]),
-    getModelCatalog: vi.fn(() => [
-      {
-        provider: 'gemini',
-        model: 'gemini-3.5-flash',
-        label: 'Gemini 3.5 Flash',
-        capabilities: ['chat', 'vision'],
-      },
-      {
-        provider: 'gemini',
-        model: 'gemini-2.5-flash',
-        label: 'Gemini 2.5 Flash',
-        capabilities: ['chat', 'vision'],
-      },
-    ]),
     checkModelAvailability: vi.fn(async () => ({
       host: 'http://127.0.0.1:11434',
       model: 'gemma4:e4b',
@@ -190,7 +176,6 @@ describe('admin ai routes integration', () => {
       } as any,
       config: {
         ai: {
-          modelCatalogExtensions: [],
         },
         ollama: {
           host: 'http://127.0.0.1:11434',
@@ -947,24 +932,6 @@ describe('admin ai routes integration', () => {
     });
   });
 
-  test('returns the server AI model catalog', async () => {
-    const { app, aiServices } = createTestApp({});
-    const response = await app.request('/api/admin/ai/model-catalog');
-
-    expect(response.status).toBe(200);
-    const body = (await response.json()) as any;
-    expect(body.models).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          provider: 'gemini',
-          model: 'gemini-3.5-flash',
-          capabilities: ['chat', 'vision'],
-        }),
-      ]),
-    );
-    expect(aiServices.getModelCatalog).toHaveBeenCalled();
-  });
-
   test('lists discovered AI models for a provider host', async () => {
     const { app, aiServices } = createTestApp({});
     const response = await app.request('/api/admin/ai/models', {
@@ -980,14 +947,34 @@ describe('admin ai routes integration', () => {
     });
   });
 
-  test('returns catalog Gemini chat models without reading stored settings', async () => {
+  test('discovers Gemini chat models through the native Models API without reading stored settings', async () => {
     const previousDefaultKey = process.env.GEMINI_API_KEY;
     const previousMissingKey = process.env.ARKIVRA_TEST_MISSING_GEMINI_KEY;
-    delete process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = 'configured';
     delete process.env.ARKIVRA_TEST_MISSING_GEMINI_KEY;
 
     const select = vi.fn(() => {
       throw new Error('stored settings should not be read');
+    });
+    const fetchImpl = vi.fn(async (input: URL | string) => {
+      const url = input.toString();
+
+      if (url === 'https://generativelanguage.googleapis.com/v1beta/openai/models') {
+        return Response.json({ data: [{ id: 'gemini-live-test' }] });
+      }
+
+      return Response.json({
+        models: [
+          {
+            name: 'models/gemini-live-test',
+            displayName: 'Gemini Live Test',
+            description: 'Multimodal image and text model',
+            inputTokenLimit: 128000,
+            outputTokenLimit: 8192,
+            supportedGenerationMethods: ['generateContent', 'countTokens'],
+          },
+        ],
+      });
     });
     const aiServices = createAdminAiServices({
       db: { select } as any,
@@ -998,24 +985,34 @@ describe('admin ai routes integration', () => {
           logRequests: false,
         },
       } as any,
+      fetchImpl: fetchImpl as any,
     });
 
     try {
       const models = await aiServices.listChatModels({ provider: 'gemini' });
-      expect(models.map((model) => model.name)).toContain('gemini-3.5-flash');
+      expect(models).toEqual([
+        expect.objectContaining({
+          name: 'gemini-live-test',
+          capabilities: ['chat', 'vision'],
+          contextWindow: 128000,
+          maxOutputTokens: 8192,
+          supportedGenerationMethods: ['countTokens', 'generateContent'],
+        }),
+      ]);
 
       const availability = await aiServices.checkModelAvailability({
         provider: 'gemini',
         host: 'https://generativelanguage.googleapis.com/v1beta/openai',
-        model: 'gemini-3.5-flash',
+        model: 'gemini-live-test',
         apiKeySecretRef: 'ARKIVRA_TEST_MISSING_GEMINI_KEY',
       });
 
       expect(availability).toMatchObject({
-        reachable: false,
-        modelAvailable: false,
-        error: 'Gemini API key environment variable is not configured on the API server.',
+        reachable: true,
+        modelAvailable: true,
+        error: null,
       });
+      expect(select).not.toHaveBeenCalled();
     } finally {
       if (previousDefaultKey === undefined) {
         delete process.env.GEMINI_API_KEY;
@@ -1102,79 +1099,26 @@ describe('admin ai routes integration', () => {
     ]);
   });
 
-  test('appends non-Ollama environment AI model catalog entries', async () => {
-    const aiServices = createAdminAiServices({
-      db: { select: vi.fn() } as any,
-      config: {
-        ollama: {
-          host: 'http://127.0.0.1:11434',
-          model: 'gemma4:e4b',
-          logRequests: false,
-        },
-        ai: {
-          modelCatalogExtensions: [
-            {
-              provider: 'gemini',
-              model: 'gemini-custom-chat',
-              label: 'Custom Gemini Chat',
-              capabilities: ['chat', 'vision'],
-            },
-          ],
-        },
-      } as any,
-    });
-
-    expect(aiServices.getModelCatalog()).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          provider: 'gemini',
-          model: 'gemini-custom-chat',
-          label: 'Custom Gemini Chat',
-          capabilities: ['chat', 'vision'],
-        }),
-        expect.objectContaining({
-          provider: 'gemini',
-          model: 'gemini-3.5-flash',
-        }),
-      ]),
-    );
-  });
-
-  test('environment AI model catalog entries override matching non-Ollama built-ins', async () => {
-    const aiServices = createAdminAiServices({
-      db: { select: vi.fn() } as any,
-      config: {
-        ollama: {
-          host: 'http://127.0.0.1:11434',
-          model: 'gemma4:e4b',
-          logRequests: false,
-        },
-        ai: {
-          modelCatalogExtensions: [
-            {
-              provider: 'gemini',
-              model: 'gemini-3.5-flash',
-              label: 'Gemini Custom Label',
-              capabilities: ['chat'],
-            },
-          ],
-        },
-      } as any,
-    });
-
-    expect(
-      aiServices
-        .getModelCatalog()
-        .find((entry) => entry.provider === 'gemini' && entry.model === 'gemini-3.5-flash'),
-    ).toMatchObject({
-      label: 'Gemini Custom Label',
-      capabilities: ['chat'],
-    });
-  });
-
   test('checks Gemini availability with the stored provider secret ref', async () => {
     const previousKey = process.env.ARKIVRA_TEST_GEMINI_PROVIDER_KEY;
     process.env.ARKIVRA_TEST_GEMINI_PROVIDER_KEY = 'configured';
+    const fetchImpl = vi.fn(async (input: URL | string) => {
+      const url = input.toString();
+
+      if (url === 'https://generativelanguage.googleapis.com/v1beta/openai/models') {
+        return Response.json({ data: [{ id: 'gemini-3.5-flash' }] });
+      }
+
+      return Response.json({
+        models: [
+          {
+            name: 'models/gemini-3.5-flash',
+            displayName: 'Gemini 3.5 Flash',
+            supportedGenerationMethods: ['generateContent'],
+          },
+        ],
+      });
+    });
     const aiServices = createAdminAiServices({
       db: {
         select: () => ({
@@ -1208,6 +1152,7 @@ describe('admin ai routes integration', () => {
           logRequests: false,
         },
       } as any,
+      fetchImpl: fetchImpl as any,
     });
 
     try {
@@ -1231,6 +1176,23 @@ describe('admin ai routes integration', () => {
     const previousKey = process.env.GEMINI_API_KEY;
     process.env.GEMINI_API_KEY = 'configured';
     const rawLookingKey = `AIza${'x'.repeat(32)}`;
+    const fetchImpl = vi.fn(async (input: URL | string) => {
+      const url = input.toString();
+
+      if (url === 'https://generativelanguage.googleapis.com/v1beta/openai/models') {
+        return Response.json({ data: [{ id: 'gemini-3.5-flash' }] });
+      }
+
+      return Response.json({
+        models: [
+          {
+            name: 'models/gemini-3.5-flash',
+            displayName: 'Gemini 3.5 Flash',
+            supportedGenerationMethods: ['generateContent'],
+          },
+        ],
+      });
+    });
     const aiServices = createAdminAiServices({
       db: {
         select: () => ({
@@ -1264,6 +1226,7 @@ describe('admin ai routes integration', () => {
           logRequests: false,
         },
       } as any,
+      fetchImpl: fetchImpl as any,
     });
 
     try {

@@ -1,6 +1,5 @@
 import { defineConfig } from 'figue';
 import { z } from 'zod';
-import { parseAiModelCatalogExtensions } from '../ai/model-catalog.js';
 
 function isValidBackupArchiveEncryptionKey(value: string) {
   const trimmed = value.trim();
@@ -283,14 +282,6 @@ export const configDefinition = {
       env: 'ARKIVRA_OLLAMA_LOG_REQUESTS',
     },
   },
-  ai: {
-    modelCatalogExtensions: {
-      doc: 'JSON array of additional non-Ollama AI model catalog entries. Ollama models are discovered from the configured Ollama endpoint.',
-      schema: z.string().optional(),
-      default: undefined,
-      env: 'ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS',
-    },
-  },
   encryption: {
     keys: {
       doc: 'KEK keys for envelope encryption. Format: "version:hex-key" (comma-separated for rotation). Example: "1:abcdef0123456789..."',
@@ -551,14 +542,10 @@ export function parseConfig({ env }: { env: Record<string, string | undefined> }
       ? `./var/${appInstance}`
       : config.storage.dataPath;
   const smtpUrl = parseSmtpUrl(config.email.smtpUrl);
-  const modelCatalogExtensions = parseAiModelCatalogExtensions(config.ai.modelCatalogExtensions);
-
   const scopedConfig = {
     ...config,
     ai: {
-      ...config.ai,
       geminiApiKeyConfigured: hasEnvValue(env, 'GEMINI_API_KEY'),
-      modelCatalogExtensions,
     },
     ollama: {
       ...config.ollama,

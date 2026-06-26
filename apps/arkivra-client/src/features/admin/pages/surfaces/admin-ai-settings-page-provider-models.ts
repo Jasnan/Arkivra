@@ -1,5 +1,5 @@
 import type {
-  AdminAiModelCatalogEntry,
+  AdminAiProviderModelOption,
   AdminAiSettings,
   AdminEmbeddingIndexSummary,
 } from '@/features/admin/admin.types';
@@ -13,7 +13,7 @@ export interface EmbeddingModelOption {
   dimensions: number;
   isActive: boolean;
   isConfigured: boolean;
-  isInCatalog: boolean;
+  isDiscovered: boolean;
   capabilities: string[];
 }
 
@@ -34,18 +34,6 @@ export function hasModelCapability(
   return model.capabilities?.some(item => item.toLowerCase() === capability) ?? false;
 }
 
-export function isCatalogChatModel(model: AdminAiModelCatalogEntry) {
-  return hasModelCapability(model, 'chat');
-}
-
-export function isCatalogTranslationModel(model: AdminAiModelCatalogEntry) {
-  return hasModelCapability(model, 'chat') && hasModelCapability(model, 'vision');
-}
-
-export function isCatalogEmbeddingModel(model: AdminAiModelCatalogEntry) {
-  return hasModelCapability(model, 'embedding');
-}
-
 function stripLatestTag(model: string) {
   return model.trim().toLowerCase().replace(ollamaLatestTagPattern, '');
 }
@@ -54,12 +42,12 @@ export function isSameOllamaModel(left: string, right: string) {
   return stripLatestTag(left) === stripLatestTag(right);
 }
 
-function findCatalogModel(
-  catalogModels: AdminAiModelCatalogEntry[],
+function findProviderModel(
+  providerModels: AdminAiProviderModelOption[],
   provider: NonNullable<AdminAiSettings['embedding']['provider']>,
   model: string,
 ) {
-  return catalogModels.find((item) =>
+  return providerModels.find((item) =>
     item.provider === provider &&
     (provider === 'ollama' ? isSameOllamaModel(item.model, model) : item.model === model),
   );
@@ -68,16 +56,16 @@ function findCatalogModel(
 export function buildEmbeddingModelOptions({
   activeIndex,
   baseUrl,
-  catalogModels,
   model,
   provider,
+  providerModels,
   savedEmbedding,
 }: {
   activeIndex: AdminEmbeddingIndexSummary | null;
   baseUrl: string;
-  catalogModels: AdminAiModelCatalogEntry[];
   model: string | null;
   provider: AdminAiSettings['embedding']['provider'];
+  providerModels: AdminAiProviderModelOption[];
   savedEmbedding: AdminAiSettings['embedding'];
 }) {
   const configuredModel = savedEmbedding.model?.trim() || model?.trim() || '';
@@ -87,12 +75,12 @@ export function buildEmbeddingModelOptions({
   function addModelOption(
     optionProvider: NonNullable<AdminAiSettings['embedding']['provider']>,
     optionModel: string,
-    catalogEntry?: AdminAiModelCatalogEntry,
+    providerModel?: AdminAiProviderModelOption,
   ) {
     if (optionModel.length === 0) return;
 
     const key = `${optionProvider}:${baseUrl}:${optionModel}`;
-    const dimensions = catalogEntry?.embeddingDimensions ?? savedEmbedding.dimensions;
+    const dimensions = providerModel?.embeddingDimensions ?? savedEmbedding.dimensions;
     if (dimensions === null) return;
 
     optionByKey.set(key, {
@@ -105,24 +93,24 @@ export function buildEmbeddingModelOptions({
       isActive: activeIndex?.provider === optionProvider && activeIndex.model === optionModel,
       isConfigured:
         savedEmbedding.provider === optionProvider && savedEmbedding.model === optionModel,
-      isInCatalog: catalogEntry !== undefined,
-      capabilities: catalogEntry?.capabilities ?? [],
+      isDiscovered: providerModel !== undefined,
+      capabilities: providerModel?.capabilities ?? [],
     });
   }
 
-  for (const catalogEntry of catalogModels) {
+  for (const providerModel of providerModels) {
     if (
-      (provider === null || catalogEntry.provider === provider) &&
-      catalogEntry.provider === 'ollama' &&
-      hasModelCapability(catalogEntry, 'embedding')
+      (provider === null || providerModel.provider === provider) &&
+      providerModel.provider === 'ollama' &&
+      hasModelCapability(providerModel, 'embedding')
     ) {
-      const optionModel = configuredModel.length > 0 && isSameOllamaModel(catalogEntry.model, configuredModel)
+      const optionModel = configuredModel.length > 0 && isSameOllamaModel(providerModel.model, configuredModel)
         ? configuredModel
-        : activeModel.length > 0 && isSameOllamaModel(catalogEntry.model, activeModel)
+        : activeModel.length > 0 && isSameOllamaModel(providerModel.model, activeModel)
           ? activeModel
-          : catalogEntry.model;
+          : providerModel.model;
 
-      addModelOption(catalogEntry.provider, optionModel, catalogEntry);
+      addModelOption(providerModel.provider, optionModel, providerModel);
     }
   }
 
@@ -130,7 +118,7 @@ export function buildEmbeddingModelOptions({
     addModelOption(
       provider,
       configuredModel,
-      findCatalogModel(catalogModels, provider, configuredModel),
+      findProviderModel(providerModels, provider, configuredModel),
     );
   }
 
@@ -138,7 +126,7 @@ export function buildEmbeddingModelOptions({
     addModelOption(
       provider,
       activeModel,
-      findCatalogModel(catalogModels, provider, activeModel),
+      findProviderModel(providerModels, provider, activeModel),
     );
   }
 

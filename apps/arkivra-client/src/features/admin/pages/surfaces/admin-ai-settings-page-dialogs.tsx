@@ -36,7 +36,7 @@ import {
 } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import type { AdminAiSettings } from '@/features/admin/admin.types';
-import type { EmbeddingModelOption } from './admin-ai-settings-page-model-catalog';
+import type { EmbeddingModelOption } from './admin-ai-settings-page-provider-models';
 
 interface ChatModelOption {
   value: string;
@@ -644,7 +644,7 @@ export function EmbeddingModelDialog({
                         {option.isActive && !option.isConfigured ? (
                           <Badge variant="outline">Live index</Badge>
                         ) : null}
-                        {!option.isInCatalog ? (
+                        {!option.isDiscovered ? (
                           <Badge variant="outline" colorPalette="gray">
                             Unavailable
                           </Badge>
@@ -686,7 +686,7 @@ export function EmbeddingModelDialog({
             disabled={
               selectedEmbeddingModel === null ||
               !selectedEmbeddingModelChanged ||
-              !selectedEmbeddingModel.isInCatalog ||
+              !selectedEmbeddingModel.isDiscovered ||
               isSaving
             }
             onClick={onConfirm}

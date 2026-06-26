@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   checkAiModelAvailability,
-  getAdminAiModelCatalog,
   getAdminAiSettings,
   getAdminAiStatus,
+  listAdminAiProviderModels,
   listPermissionRequests,
   listAdminUsers,
   listAdminVaults,
@@ -24,7 +24,13 @@ export const adminQueryKeys = {
   ai: () => [...adminQueryKeys.all, 'ai'] as const,
   aiSettings: () => [...adminQueryKeys.ai(), 'settings'] as const,
   aiStatus: () => [...adminQueryKeys.ai(), 'status'] as const,
-  aiModelCatalog: () => [...adminQueryKeys.ai(), 'model-catalog'] as const,
+  aiProviderModels: (
+    provider: string,
+    host: string,
+    includeEmbeddingModels: boolean,
+    apiKeySecretRef: string | null | undefined,
+  ) =>
+    [...adminQueryKeys.ai(), 'models', provider, host, includeEmbeddingModels, apiKeySecretRef ?? ''] as const,
   aiAvailability: (provider: string, host: string, model: string, apiKeySecretRef: string | null | undefined) =>
     [...adminQueryKeys.ai(), 'availability', provider, host, model, apiKeySecretRef ?? ''] as const,
 };
@@ -104,10 +110,22 @@ export function useAdminAiStatusQuery({ enabled = true }: { enabled?: boolean } 
   });
 }
 
-export function useAdminAiModelCatalogQuery({ enabled = true }: { enabled?: boolean } = {}) {
+export function useAdminAiProviderModelsQuery({
+  host,
+  provider = 'ollama',
+  includeEmbeddingModels = false,
+  apiKeySecretRef,
+  enabled = true,
+}: {
+  host: string;
+  provider?: 'ollama' | 'gemini';
+  includeEmbeddingModels?: boolean;
+  apiKeySecretRef?: string | null;
+  enabled?: boolean;
+}) {
   return useQuery({
-    queryKey: adminQueryKeys.aiModelCatalog(),
-    queryFn: getAdminAiModelCatalog,
+    queryKey: adminQueryKeys.aiProviderModels(provider, host, includeEmbeddingModels, apiKeySecretRef),
+    queryFn: () => listAdminAiProviderModels({ host, provider, includeEmbeddingModels, apiKeySecretRef }),
     enabled,
   });
 }

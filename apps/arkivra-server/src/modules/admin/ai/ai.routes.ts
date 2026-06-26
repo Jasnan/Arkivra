@@ -17,13 +17,6 @@ const chatProviderSettingsSchema = z.object({
   allowedModels: z.array(z.string().min(1)).optional(),
 });
 
-const ollamaProviderSettingsSchema = z.object({
-  provider: z.literal('ollama'),
-  baseUrl: z.string().url(),
-  apiKeySecretRef: z.string().min(1).nullable().optional(),
-  model: z.string().min(1),
-});
-
 const providerSettingsSchema = z.object({
   provider: z.enum(['ollama', 'gemini']),
   baseUrl: z.string().url(),
@@ -31,13 +24,38 @@ const providerSettingsSchema = z.object({
   model: z.string().min(1),
 });
 
+const nullableUrlSchema = z.string().url().or(z.literal(''));
+
+const embeddingProviderSettingsSchema = z
+  .object({
+    provider: z.literal('ollama').nullable(),
+    baseUrl: nullableUrlSchema,
+    apiKeySecretRef: z.string().min(1).nullable().optional(),
+    model: z.string().min(1).nullable(),
+    dimensions: z.number().int().min(1).nullable(),
+  })
+  .superRefine((settings, context) => {
+    const hasAnySelection =
+      settings.provider !== null || settings.model !== null || settings.dimensions !== null;
+    const hasCompleteSelection =
+      settings.provider !== null &&
+      settings.baseUrl.length > 0 &&
+      settings.model !== null &&
+      settings.dimensions !== null;
+
+    if (hasAnySelection && !hasCompleteSelection) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Embedding provider, base URL, model, and dimensions must be selected together.',
+      });
+    }
+  });
+
 const aiSettingsSchema = z.object({
   aiFeaturesEnabled: z.boolean(),
   chat: chatProviderSettingsSchema,
   translation: providerSettingsSchema.optional(),
-  embedding: ollamaProviderSettingsSchema.extend({
-    dimensions: z.number().int().min(1),
-  }),
+  embedding: embeddingProviderSettingsSchema,
   providers: z.object({
     gemini: z.object({
       baseUrl: z.string().url(),

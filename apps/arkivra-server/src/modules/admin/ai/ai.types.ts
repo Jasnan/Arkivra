@@ -18,6 +18,14 @@ export type AdminAiProviderSettings = {
   dimensions?: number;
 };
 
+export type AdminAiEmbeddingProviderSettings = {
+  provider: 'ollama' | null;
+  baseUrl: string;
+  apiKeySecretRef: string | null;
+  model: string | null;
+  dimensions: number | null;
+};
+
 export type AdminAiChatProviderSettings = AdminAiProviderSettings & {
   provider: AdminAiChatProviderKind;
   allowedModels?: string[];
@@ -27,9 +35,7 @@ export type AdminAiSettings = {
   aiFeaturesEnabled: boolean;
   chat: AdminAiChatProviderSettings;
   translation: AdminAiProviderSettings;
-  embedding: AdminAiProviderSettings & {
-    dimensions: number;
-  };
+  embedding: AdminAiEmbeddingProviderSettings;
   providers?: {
     gemini?: {
       baseUrl: string;

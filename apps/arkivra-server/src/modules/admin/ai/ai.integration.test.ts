@@ -171,8 +171,8 @@ describe('admin ai routes integration', () => {
     expect(settings.embeddingEnabled).toBe(false);
     expect(settings.captioningEnabled).toBe(false);
     expect(settings.captioningModel).toBe('');
-    expect(settings.embeddingModel).toBe('bge-m3');
-    expect(settings.embeddingDimensions).toBe(1024);
+    expect(settings.embeddingModel).toBeNull();
+    expect(settings.embeddingDimensions).toBeNull();
   });
 
   test('reports no configured AI providers when provider environment variables are unset', async () => {
@@ -214,6 +214,9 @@ describe('admin ai routes integration', () => {
       expect(settings.ollamaHost).toBe('');
       expect(settings.chat.baseUrl).toBe('');
       expect(settings.embedding.baseUrl).toBe('');
+      expect(settings.embedding.provider).toBeNull();
+      expect(settings.embedding.model).toBeNull();
+      expect(settings.embedding.dimensions).toBeNull();
       expect(settings.providers?.gemini?.configured).toBe(false);
       expect(availability).toMatchObject({
         host: '',

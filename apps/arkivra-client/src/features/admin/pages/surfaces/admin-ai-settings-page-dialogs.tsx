@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
+  Alert as ChakraAlert,
   Box,
   Flex,
   HStack,
@@ -573,14 +574,18 @@ export function EmbeddingModelDialog({
   onOpenChange: (open: boolean) => void;
   onSelectedModelKeyChange: (key: string) => void;
 }) {
+  const hasConfiguredSearchEngine =
+    aiDraft.embedding.provider !== null &&
+    aiDraft.embedding.model !== null &&
+    aiDraft.embedding.dimensions !== null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent maxW="38rem" w="calc(100vw - 2rem)">
         <DialogHeader px="5" pt="5" pb="3">
-          <DialogTitle>Choose Search Engine</DialogTitle>
+          <DialogTitle>Choose Embedding Model</DialogTitle>
           <DialogDescription>
-            Select the Search Engine Arkivra should use for semantic search and AI Chat. This is
-            backed by an embedding model on the provider.
+            Select the embedding model Arkivra will use for its AI features.
           </DialogDescription>
         </DialogHeader>
         <DialogBody px="5" pb="4">
@@ -594,7 +599,7 @@ export function EmbeddingModelDialog({
             >
               <Box px="3" py="2" borderBottomWidth="1px" borderColor="border.surface">
                 <Text textStyle="sm" fontWeight="semibold" color="fg">
-                  Available Search Engines
+                  Available Embedding Models
                 </Text>
               </Box>
               {embeddingModelOptions.length > 0 ? (
@@ -652,37 +657,23 @@ export function EmbeddingModelDialog({
                 <Text px="3" py="3" textStyle="sm" color="fg.muted">
                   {isFetchingOllamaModels
                     ? 'Loading available models and provider status...'
-                    : 'No Search Engines are selectable from a healthy Ollama provider.'}
+                    : 'No embedding models are selectable from a healthy Ollama provider.'}
                 </Text>
               )}
             </Box>
-            <Alert
-              status="warning"
-              colorPalette="orange"
-              borderColor="orange.muted"
-              bg="orange.subtle"
-              alignItems="flex-start"
-            >
-              <AlertTriangle size={16} />
-              <AlertDescription>
-                <Stack gap="2">
-                  <Text fontWeight="semibold">
-                    Changing the Search Engine requires rebuilding the semantic search index.
-                  </Text>
-                  <Stack as="ul" gap="1" ps="4">
-                    <Text as="li">
-                      The current index will remain available until the new index is ready.
-                    </Text>
-                    <Text as="li">
-                      {aiDraft.aiFeaturesEnabled
-                        ? 'A full reindexing job will run in the background.'
-                        : 'When AI features are enabled, a full reindexing job will run in the background.'}
-                    </Text>
-                    <Text as="li">This may take several hours depending on your data size.</Text>
+            <ChakraAlert.Root status="warning" alignItems="flex-start">
+              <ChakraAlert.Indicator />
+              <ChakraAlert.Content>
+                <ChakraAlert.Title>Confirm before enabling AI</ChakraAlert.Title>
+                <ChakraAlert.Description>
+                  <Stack gap="1" mt="2">
+                    <Text>This model will be used to index your documents for AI search.</Text>
+                    <Text>A background indexing job will start after AI is enabled.</Text>
+                    <Text>Indexing time depends on the size of your document library.</Text>
                   </Stack>
-                </Stack>
-              </AlertDescription>
-            </Alert>
+                </ChakraAlert.Description>
+              </ChakraAlert.Content>
+            </ChakraAlert.Root>
           </Stack>
         </DialogBody>
         <DialogFooter px="5" pb="5" pt="0">
@@ -700,7 +691,7 @@ export function EmbeddingModelDialog({
             }
             onClick={onConfirm}
           >
-            {isSaving ? 'Saving...' : 'Confirm and rebuild'}
+            {isSaving ? 'Saving...' : hasConfiguredSearchEngine ? 'Confirm and rebuild' : 'Confirm'}
           </Button>
         </DialogFooter>
       </DialogContent>

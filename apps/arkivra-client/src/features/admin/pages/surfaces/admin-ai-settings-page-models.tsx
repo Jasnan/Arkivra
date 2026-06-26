@@ -50,13 +50,16 @@ export function AdminAiModelSections({
   onOpenTranslationModelDialog,
 }: AdminAiModelSectionsProps) {
   function openEmbeddingDialog() {
+    const savedEmbeddingModel = savedEmbedding.model;
     const currentOption =
-      embeddingModelOptions.find(
-        (option) =>
-          option.provider === savedEmbedding.provider &&
-          option.baseUrl === savedEmbedding.baseUrl &&
-          isSameOllamaModel(option.model, savedEmbedding.model),
-      ) ?? embeddingModelOptions[0];
+      savedEmbeddingModel === null
+        ? embeddingModelOptions[0]
+        : embeddingModelOptions.find(
+            (option) =>
+              option.provider === savedEmbedding.provider &&
+              option.baseUrl === savedEmbedding.baseUrl &&
+              isSameOllamaModel(option.model, savedEmbeddingModel),
+          ) ?? embeddingModelOptions[0];
 
     onChangeEmbeddingModel(currentOption?.key ?? '');
     onOpenEmbeddingModelDialog();
@@ -143,7 +146,7 @@ export function AdminAiModelSections({
                 <ModelConfigRow
                   icon={<Package size={18} />}
                   title="Embedding model"
-                  description="Used for semantic search indexing"
+                  description="Used for AI search indexing"
                   model={configuredEmbeddingModel || 'Not selected'}
                   modelDescription={
                     configuredEmbeddingModel

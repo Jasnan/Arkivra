@@ -88,14 +88,34 @@ const adminMeResponse = {
   canCreateVault: true,
 };
 
+type OllamaModelFixture = {
+  name: string;
+  size: number;
+  modifiedAt: string;
+  capabilities: string[];
+  available: boolean;
+  embeddingDimensions?: number;
+};
+
 function createAiSettingsFixture({
   aiFeaturesEnabled = true,
   chatModel = 'gemma4:e4b',
   embeddingModel = 'bge-m3',
+  embeddingDimensions = 1024,
   geminiConfigured = false,
   host = 'http://127.0.0.1:11434',
   translationModel = 'gemma4:e4b',
+}: {
+  aiFeaturesEnabled?: boolean;
+  chatModel?: string;
+  embeddingModel?: string | null;
+  embeddingDimensions?: number | null;
+  geminiConfigured?: boolean;
+  host?: string;
+  translationModel?: string;
 } = {}) {
+  const hasEmbeddingSelection = embeddingModel !== null && embeddingDimensions !== null;
+
   return {
     aiFeaturesEnabled,
     chat: {
@@ -112,11 +132,11 @@ function createAiSettingsFixture({
       model: translationModel,
     },
     embedding: {
-      provider: 'ollama',
-      baseUrl: host,
+      provider: hasEmbeddingSelection ? 'ollama' : null,
+      baseUrl: hasEmbeddingSelection ? host : '',
       apiKeySecretRef: null,
       model: embeddingModel,
-      dimensions: 1024,
+      dimensions: embeddingDimensions,
     },
     providers: {
       gemini: {
@@ -152,7 +172,7 @@ function createAiStatusFixture(settings = createAiSettingsFixture()) {
   };
 }
 
-const ollamaModelFixtures = {
+const ollamaModelFixtures: Record<string, OllamaModelFixture> = {
   chat: {
     name: 'gemma4:e4b',
     size: 1024,
@@ -223,6 +243,10 @@ function installAiSettingsFetchMock({
 
     if (url === '/api/admin/ai/settings' && (!init || init.method === undefined)) {
       return jsonResponse({ settings });
+    }
+
+    if (url === '/api/admin/ai/settings' && init?.method === 'PUT') {
+      return jsonResponse({ settings: JSON.parse(String(init.body)) });
     }
 
     if (url === '/api/admin/ai/status') {
@@ -655,10 +679,8 @@ describe('admin and about pages', () => {
     view.unmount();
 
     await renderWithProviders(<AdminAiSettingsPage />);
-    expect(await screen.findByText('AI needs setup')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /choose search engine/i }).length).toBeGreaterThan(
-      0,
-    );
+    expect((await screen.findAllByText('No embedding models available')).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: /choose embedding model/i })).not.toBeInTheDocument();
   });
 
   it('opens a compact invite dialog focused on identity and system permissions', async () => {
@@ -1010,14 +1032,37 @@ describe('admin and about pages', () => {
 
     expect((await screen.findAllByText('AI is not configured')).length).toBeGreaterThan(0);
     expect(
-      screen.getByText(/Configure a provider when you want features like semantic search/i),
+      screen.getByText(/Configure a provider when you want features like AI search/i),
     ).toBeInTheDocument();
     expect(screen.queryByText('AI is enabled')).not.toBeInTheDocument();
     expect(screen.queryByText('AI is ready')).not.toBeInTheDocument();
     expect(screen.queryByText('bge-m3')).not.toBeInTheDocument();
   });
 
-  it('returns to setup when the selected Search Engine disappears from Ollama', async () => {
+  it('shows no Embedding Models available when provider discovery finds no embedding models', async () => {
+    const settings = createAiSettingsFixture({
+      aiFeaturesEnabled: false,
+      embeddingModel: null,
+      embeddingDimensions: null,
+    });
+    installAiSettingsFetchMock({
+      settings,
+      ollamaAvailability: createOllamaAvailability({
+        model: 'gemma4:e4b',
+        modelAvailable: true,
+        models: [ollamaModelFixtures.chat],
+      }),
+    });
+
+    await renderWithProviders(<AdminAiSettingsPage />);
+
+    expect((await screen.findAllByText('No embedding models available')).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: /choose embedding model/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('AI is ready')).not.toBeInTheDocument();
+    expect(screen.queryByText('AI is enabled')).not.toBeInTheDocument();
+  });
+
+  it('returns to no Embedding Models available when the selected Embedding Model disappears and no alternatives exist', async () => {
     const settings = createAiSettingsFixture({ aiFeaturesEnabled: true });
     installAiSettingsFetchMock({
       settings,
@@ -1030,12 +1075,42 @@ describe('admin and about pages', () => {
 
     await renderWithProviders(<AdminAiSettingsPage />);
 
+    expect((await screen.findAllByText('No embedding models available')).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: /choose embedding model/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('AI is enabled')).not.toBeInTheDocument();
+    expect(screen.queryByText('AI is ready')).not.toBeInTheDocument();
+  });
+
+  it('returns to choose embedding model when the saved Embedding Model disappears and alternatives exist', async () => {
+    const settings = createAiSettingsFixture({ aiFeaturesEnabled: true });
+    installAiSettingsFetchMock({
+      settings,
+      ollamaAvailability: createOllamaAvailability({
+        model: 'gemma4:e4b',
+        modelAvailable: true,
+        models: [
+          ollamaModelFixtures.chat,
+          {
+            name: 'embeddinggemma:300m',
+            size: 1024,
+            modifiedAt: '2026-04-14T19:00:00.000Z',
+            capabilities: ['embedding'],
+            available: true,
+            embeddingDimensions: 768,
+          },
+        ],
+      }),
+    });
+
+    await renderWithProviders(<AdminAiSettingsPage />);
+
     expect(await screen.findByText('AI needs setup')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /choose search engine/i }).length).toBeGreaterThan(
+    expect(screen.getAllByRole('button', { name: /choose embedding model/i }).length).toBeGreaterThan(
       0,
     );
     expect(screen.queryByText('AI is enabled')).not.toBeInTheDocument();
     expect(screen.queryByText('AI is ready')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Embedding Model:/i)).not.toBeInTheDocument();
   });
 
   it('keeps AI enabled when only the translation model disappears', async () => {
@@ -1060,7 +1135,7 @@ describe('admin and about pages', () => {
     expect(await screen.findByText('AI is enabled')).toBeInTheDocument();
     expect(screen.getAllByText('Needs configuration').length).toBeGreaterThan(0);
     expect(screen.getByText('No translation model selected.')).toBeInTheDocument();
-    expect(screen.getByText('Semantic Search')).toBeInTheDocument();
+    expect(screen.getByText('AI Search')).toBeInTheDocument();
     expect(screen.getByText('AI Chat')).toBeInTheDocument();
   });
 
@@ -1083,27 +1158,130 @@ describe('admin and about pages', () => {
     expect(await screen.findByText('AI is enabled')).toBeInTheDocument();
     expect(screen.getAllByText('Needs configuration').length).toBeGreaterThan(0);
     expect(screen.getByText('No default chat model selected.')).toBeInTheDocument();
-    expect(screen.getByText('Semantic Search')).toBeInTheDocument();
+    expect(screen.getByText('AI Search')).toBeInTheDocument();
   });
 
-  it('does not discard the selected Search Engine during a temporary provider outage', async () => {
+  it('requires choosing a Embedding Model when multiple embedding models are discovered', async () => {
+    const settings = createAiSettingsFixture({
+      aiFeaturesEnabled: false,
+      embeddingModel: null,
+      embeddingDimensions: null,
+    });
+    installAiSettingsFetchMock({
+      settings,
+      ollamaAvailability: createOllamaAvailability({
+        models: [
+          ollamaModelFixtures.chat,
+          ollamaModelFixtures.embedding,
+          {
+            name: 'embeddinggemma:300m',
+            size: 1024,
+            modifiedAt: '2026-04-14T19:00:00.000Z',
+            capabilities: ['embedding'],
+            available: true,
+            embeddingDimensions: 768,
+          },
+        ],
+      }),
+    });
+
+    await renderWithProviders(<AdminAiSettingsPage />);
+
+    expect(await screen.findByText('AI needs setup')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /choose embedding model/i }).length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.queryByText('AI is ready')).not.toBeInTheDocument();
+    expect(screen.queryByText('AI is enabled')).not.toBeInTheDocument();
+  });
+
+  it('reuses a previously saved Embedding Model when it is still available', async () => {
     const settings = createAiSettingsFixture({ aiFeaturesEnabled: false });
     installAiSettingsFetchMock({
       settings,
       ollamaAvailability: createOllamaAvailability({
-        model: 'gemma4:e4b',
-        modelAvailable: false,
-        models: [],
-        reachable: false,
+        models: [ollamaModelFixtures.chat, ollamaModelFixtures.embedding],
       }),
     });
 
     await renderWithProviders(<AdminAiSettingsPage />);
 
     expect(await screen.findByText('AI is ready')).toBeInTheDocument();
-    expect(screen.getByText(/Search Engine:/i)).toHaveTextContent('bge-m3');
-    expect(screen.getByText(/0 healthy providers/i)).toBeInTheDocument();
+    expect(screen.getByText(/Embedding Model:/i)).toHaveTextContent('bge-m3');
+    expect(screen.queryByRole('dialog', { name: /choose embedding model/i })).not.toBeInTheDocument();
     expect(screen.queryByText('AI needs setup')).not.toBeInTheDocument();
+  });
+
+  it('prompts to confirm the only discovered Embedding Model before marking AI ready', async () => {
+    const user = userEvent.setup();
+    const settings = createAiSettingsFixture({
+      aiFeaturesEnabled: false,
+      embeddingModel: null,
+      embeddingDimensions: null,
+    });
+    const fetchMock = installAiSettingsFetchMock({
+      settings,
+      ollamaAvailability: createOllamaAvailability({
+        models: [ollamaModelFixtures.chat, ollamaModelFixtures.embedding],
+      }),
+    });
+
+    await renderWithProviders(<AdminAiSettingsPage />);
+
+    expect(await screen.findByText('AI needs setup')).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog', { name: /choose embedding model/i });
+    expect(within(dialog).getByText('bge-m3')).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      '/api/admin/ai/settings',
+      expect.objectContaining({ method: 'PUT' }),
+    );
+
+    await user.click(within(dialog).getByRole('button', { name: /^confirm$/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/admin/ai/settings',
+        expect.objectContaining({
+          method: 'PUT',
+          body: expect.stringContaining('"model":"bge-m3"'),
+        }),
+      );
+    });
+  });
+
+  it('keeps Embedding Model unselected when the automatic single-model prompt is closed', async () => {
+    const user = userEvent.setup();
+    const settings = createAiSettingsFixture({
+      aiFeaturesEnabled: false,
+      embeddingModel: null,
+      embeddingDimensions: null,
+    });
+    const fetchMock = installAiSettingsFetchMock({
+      settings,
+      ollamaAvailability: createOllamaAvailability({
+        models: [ollamaModelFixtures.chat, ollamaModelFixtures.embedding],
+      }),
+    });
+
+    await renderWithProviders(<AdminAiSettingsPage />);
+
+    expect(await screen.findByText('AI needs setup')).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog', { name: /choose embedding model/i });
+
+    await user.click(within(dialog).getByRole('button', { name: /cancel/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /choose embedding model/i })).not.toBeInTheDocument();
+    });
+    expect(screen.getByText('AI needs setup')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /choose embedding model/i }).length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.queryByText('AI is ready')).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      '/api/admin/ai/settings',
+      expect.objectContaining({ method: 'PUT' }),
+    );
   });
 
   it('shows a stable loading state while provider discovery is pending', async () => {

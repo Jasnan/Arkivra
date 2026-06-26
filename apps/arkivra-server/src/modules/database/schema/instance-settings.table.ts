@@ -25,6 +25,6 @@ export const instanceSettingsTable = pgTable('instance_settings', {
   translationApiKeySecretRef: text('translation_api_key_secret_ref'),
   ollamaEmbeddingEnabled: boolean('ollama_embedding_enabled').notNull().default(false),
   ollamaEmbeddingHost: text('ollama_embedding_host').notNull().default('http://127.0.0.1:11434'),
-  ollamaEmbeddingModel: text('ollama_embedding_model').notNull().default('bge-m3'),
-  ollamaEmbeddingDimensions: integer('ollama_embedding_dimensions').notNull().default(1024),
+  ollamaEmbeddingModel: text('ollama_embedding_model'),
+  ollamaEmbeddingDimensions: integer('ollama_embedding_dimensions'),
 });

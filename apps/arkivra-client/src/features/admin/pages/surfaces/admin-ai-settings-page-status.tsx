@@ -175,7 +175,7 @@ export function AdminAiCapabilitiesSection({
             icon={<Search size={22} />}
             iconBg="green.subtle"
             iconColor="green.solid"
-            label="Semantic Search"
+            label="AI Search"
             requirement="Embedding model"
             onToggle={onToggleSemantic}
           />
@@ -239,8 +239,8 @@ export function AdminAiSemanticSearchSection({
 
   return (
     <AiSettingsSection
-      title="Semantic Search"
-      description="Overview of your semantic search index."
+      title="AI Search"
+      description="Overview of your AI search index."
     >
       <Stack gap="3">
         <SimpleGrid

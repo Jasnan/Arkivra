@@ -297,10 +297,12 @@ describe.sequential('migrations smoke', () => {
     expect(byName.ollama_embedding_enabled?.column_default).toContain('false');
 
     expect(byName.ollama_embedding_model?.data_type).toBe('text');
-    expect(byName.ollama_embedding_model?.column_default).toContain("'bge-m3'");
+    expect(byName.ollama_embedding_model?.is_nullable).toBe('YES');
+    expect(byName.ollama_embedding_model?.column_default).toBeNull();
 
     expect(byName.ollama_embedding_dimensions?.data_type).toBe('integer');
-    expect(byName.ollama_embedding_dimensions?.column_default).toContain('1024');
+    expect(byName.ollama_embedding_dimensions?.is_nullable).toBe('YES');
+    expect(byName.ollama_embedding_dimensions?.column_default).toBeNull();
   });
 
   test('baseline keeps parser artifacts on documents and document_versions', async () => {

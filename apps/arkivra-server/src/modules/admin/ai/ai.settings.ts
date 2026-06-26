@@ -154,11 +154,11 @@ export function createDefaultSettings(config: Config): AdminAiSettings {
       model,
     },
     embedding: {
-      provider: 'ollama',
-      baseUrl: ollamaHost,
+      provider: null,
+      baseUrl: '',
       apiKeySecretRef: null,
-      model: 'bge-m3',
-      dimensions: 1024,
+      model: null,
+      dimensions: null,
     },
     providers: {
       gemini: {
@@ -179,8 +179,8 @@ export function createDefaultIngestionSettings(config: Config) {
   return {
     embeddingEnabled: false,
     embeddingHost: ollamaHost,
-    embeddingModel: 'bge-m3',
-    embeddingDimensions: 1024,
+    embeddingModel: null,
+    embeddingDimensions: null,
     captioningEnabled:
       ollamaHost.length > 0 &&
       config.ollama.imageCaptioningEnabled === true &&
@@ -219,8 +219,16 @@ export function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
     fallbackOllamaHost: input.ollamaHost,
   });
   const translationModel = (input.translation?.model ?? chatModel).trim();
-  const embeddingBaseUrl = normalizeHost(input.embedding?.baseUrl ?? chatBaseUrl);
-  const embeddingModel = input.embedding.model.trim();
+  const embeddingProvider = input.embedding?.provider === 'ollama' ? 'ollama' : null;
+  const embeddingBaseUrl =
+    embeddingProvider === null ? '' : normalizeHost(input.embedding?.baseUrl ?? chatBaseUrl);
+  const embeddingModel = input.embedding?.model?.trim() || null;
+  const embeddingDimensions =
+    typeof input.embedding?.dimensions === 'number' && input.embedding.dimensions > 0
+      ? input.embedding.dimensions
+      : null;
+  const hasEmbeddingSelection =
+    embeddingProvider !== null && embeddingModel !== null && embeddingDimensions !== null;
   const legacyOllamaHost =
     chatProvider === 'ollama'
       ? chatBaseUrl
@@ -232,13 +240,13 @@ export function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
       ? chatModel
       : requestedTranslationProvider === 'ollama'
         ? translationModel
-        : input.model || embeddingModel;
+        : input.model || embeddingModel || '';
   const geminiApiKeySecretRef =
     input.providers?.gemini?.apiKeySecretRef ??
     (chatProvider === 'gemini' ? input.chat?.apiKeySecretRef : null);
 
   return {
-    aiFeaturesEnabled: input.aiFeaturesEnabled,
+    aiFeaturesEnabled: input.aiFeaturesEnabled && hasEmbeddingSelection,
     chat: {
       provider: chatProvider,
       baseUrl: chatBaseUrl,
@@ -256,11 +264,11 @@ export function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
       model: translationModel,
     },
     embedding: {
-      provider: 'ollama',
+      provider: embeddingProvider,
       baseUrl: embeddingBaseUrl,
       apiKeySecretRef: null,
       model: embeddingModel,
-      dimensions: input.embedding.dimensions,
+      dimensions: embeddingDimensions,
     },
     providers: {
       gemini: {

@@ -16,11 +16,11 @@ export const emptyAiSettings: AdminAiSettings = {
     model: '',
   },
   embedding: {
-    provider: 'ollama',
+    provider: null,
     baseUrl: '',
     apiKeySecretRef: null,
-    model: 'bge-m3',
-    dimensions: 1024,
+    model: null,
+    dimensions: null,
   },
   providers: {
     gemini: {

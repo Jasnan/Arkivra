@@ -4564,15 +4564,13 @@
           "name": "ollama_embedding_model",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'bge-m3'"
+          "notNull": false
         },
         "ollama_embedding_dimensions": {
           "name": "ollama_embedding_dimensions",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
-          "default": 1024
+          "notNull": false
         }
       },
       "indexes": {},

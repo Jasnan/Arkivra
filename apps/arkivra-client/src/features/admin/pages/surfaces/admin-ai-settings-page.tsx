@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Box, Flex, Grid, HStack, SimpleGrid, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -72,10 +72,10 @@ export interface ChatModelOption {
   capabilities: string[];
 }
 
-type AiSetupState = 'no_providers' | 'needs_search_engine' | 'ready' | 'enabled';
+type AiSetupState = 'no_providers' | 'no_search_engines' | 'needs_search_engine' | 'ready' | 'enabled';
 
 interface SearchEngine {
-  provider: AdminAiSettings['embedding']['provider'];
+  provider: NonNullable<AdminAiSettings['embedding']['provider']>;
   baseUrl: string;
   model: string;
   dimensions: number;
@@ -110,10 +110,12 @@ function getAiSetupStatus({
   aiEnabled,
   providers,
   selectedSearchEngine,
+  searchEngineCount,
 }: {
   aiEnabled: boolean;
   providers: AiProviderSummary[];
   selectedSearchEngine?: SearchEngine;
+  searchEngineCount: number;
 }): AiSetupStatus {
   const configuredProviders = providers.filter((provider) => provider.isConfigured).length;
   const healthyProviders = providers.filter((provider) => provider.isHealthy).length;
@@ -129,7 +131,7 @@ function getAiSetupStatus({
 
   if (selectedSearchEngine === undefined) {
     return {
-      state: 'needs_search_engine',
+      state: searchEngineCount > 0 ? 'needs_search_engine' : 'no_search_engines',
       configuredProviders,
       healthyProviders,
       aiEnabled,
@@ -260,6 +262,9 @@ export function AdminAiSettingsPage() {
   const [draftDefaultChatModel, setDraftDefaultChatModel] = useState('');
   const [isEmbeddingModelDialogOpen, setIsEmbeddingModelDialogOpen] = useState(false);
   const [selectedEmbeddingModelKey, setSelectedEmbeddingModelKey] = useState('');
+  const [autoPromptedSearchEngineKey, setAutoPromptedSearchEngineKey] = useState<string | null>(
+    null,
+  );
   const [isTranslationModelDialogOpen, setIsTranslationModelDialogOpen] = useState(false);
   const [selectedTranslationModelKey, setSelectedTranslationModelKey] = useState('');
   const [showProviderDetails, setShowProviderDetails] = useState(false);
@@ -540,12 +545,12 @@ export function AdminAiSettingsPage() {
     effectiveTranslationModel.length > 0 &&
     (effectiveTranslationOption?.capabilities.includes('vision') ?? false);
   const selectedEmbeddingProviderModel =
-    aiDraft.embedding.provider === 'ollama'
+    aiDraft.embedding.provider === 'ollama' && aiDraft.embedding.model !== null
       ? availableOllamaModels.find(
           (model) =>
             model.provider === 'ollama' &&
             hasModelCapability(model, 'embedding') &&
-            isSameOllamaModel(model.model, aiDraft.embedding.model),
+            isSameOllamaModel(model.model, aiDraft.embedding.model ?? ''),
         )
       : undefined;
   const isSelectedEmbeddingModelConfirmedMissing =
@@ -553,17 +558,18 @@ export function AdminAiSettingsPage() {
     isOllamaProviderReachable &&
     selectedEmbeddingProviderModel === undefined;
   const isEmbeddingSelectionConfigured =
+    aiDraft.embedding.provider !== null &&
     aiDraft.embedding.baseUrl.trim().length > 0 &&
-    aiDraft.embedding.model.trim().length > 0 &&
+    (aiDraft.embedding.model?.trim().length ?? 0) > 0 &&
     Number.isInteger(aiDraft.embedding.dimensions) &&
-    aiDraft.embedding.dimensions > 0;
+    (aiDraft.embedding.dimensions ?? 0) > 0;
   const selectedSearchEngine =
     isEmbeddingSelectionConfigured && !isSelectedEmbeddingModelConfirmedMissing
       ? {
-          provider: aiDraft.embedding.provider,
+          provider: aiDraft.embedding.provider!,
           baseUrl: aiDraft.embedding.baseUrl,
-          model: aiDraft.embedding.model,
-          dimensions: aiDraft.embedding.dimensions,
+          model: aiDraft.embedding.model!,
+          dimensions: aiDraft.embedding.dimensions!,
         }
       : undefined;
   const isEmbeddingConfigValid = selectedSearchEngine !== undefined;
@@ -603,11 +609,11 @@ export function AdminAiSettingsPage() {
           : (currentIndex?.status ?? 'idle');
   const indexedChunks = chunkCoverage.indexedChunkCount;
   const configuredEmbeddingProvider =
-    savedAiSettings.embedding.provider || aiDraft.embedding.provider;
+    savedAiSettings.embedding.provider ?? aiDraft.embedding.provider;
   const embeddingModelOptions = useMemo<EmbeddingModelOption[]>(() => {
     return buildEmbeddingModelOptions({
       activeIndex,
-      baseUrl: aiDraft.embedding.baseUrl,
+      baseUrl: aiDraft.embedding.baseUrl || effectiveOllamaBaseUrl,
       catalogModels: availableOllamaModels,
       model: aiDraft.embedding.model,
       provider: aiDraft.embedding.provider,
@@ -619,10 +625,15 @@ export function AdminAiSettingsPage() {
     aiDraft.embedding.model,
     aiDraft.embedding.provider,
     availableOllamaModels,
+    effectiveOllamaBaseUrl,
     savedAiSettings.embedding,
   ]);
   const selectedEmbeddingModel =
     embeddingModelOptions.find((option) => option.key === selectedEmbeddingModelKey) ?? null;
+  const selectableEmbeddingModelOptions = useMemo(
+    () => embeddingModelOptions.filter((option) => option.isInCatalog),
+    [embeddingModelOptions],
+  );
   const selectedEmbeddingModelChanged =
     selectedEmbeddingModel !== null &&
     (savedAiSettings.embedding.provider !== selectedEmbeddingModel.provider ||
@@ -667,6 +678,7 @@ export function AdminAiSettingsPage() {
     aiEnabled: aiDraft.aiFeaturesEnabled,
     providers: providerSummaries,
     selectedSearchEngine,
+    searchEngineCount: selectableEmbeddingModelOptions.length,
   });
   const visibleProviderSummaries = providerSummaries.filter((provider) => provider.isConfigured);
   const isAiReady = aiSetupStatus.state === 'ready' || aiSetupStatus.state === 'enabled';
@@ -682,6 +694,35 @@ export function AdminAiSettingsPage() {
     aiModelCatalogQuery.isLoading ||
     isInitialGeminiDiscoveryPending ||
     isInitialOllamaDiscoveryPending;
+
+  useEffect(() => {
+    const savedEmbeddingSelected =
+      savedAiSettings.embedding.provider !== null &&
+      savedAiSettings.embedding.model !== null &&
+      savedAiSettings.embedding.dimensions !== null;
+    const onlyEmbeddingOption =
+      selectableEmbeddingModelOptions.length === 1 ? selectableEmbeddingModelOptions[0] : null;
+
+    if (
+      isAiConfigurationLoading ||
+      savedEmbeddingSelected ||
+      onlyEmbeddingOption === null ||
+      autoPromptedSearchEngineKey === onlyEmbeddingOption.key
+    ) {
+      return;
+    }
+
+    setSelectedEmbeddingModelKey(onlyEmbeddingOption.key);
+    setAutoPromptedSearchEngineKey(onlyEmbeddingOption.key);
+    setIsEmbeddingModelDialogOpen(true);
+  }, [
+    autoPromptedSearchEngineKey,
+    isAiConfigurationLoading,
+    savedAiSettings.embedding.dimensions,
+    savedAiSettings.embedding.model,
+    savedAiSettings.embedding.provider,
+    selectableEmbeddingModelOptions,
+  ]);
 
   function mergeAiDraft(next: AiSettingsDraftOverride): AdminAiSettings {
     const merged: AdminAiSettings = {
@@ -738,18 +779,19 @@ export function AdminAiSettingsPage() {
         : effectiveTranslationModel.trim() ||
           savedAiSettings.translation?.model ||
           emptyAiSettings.translation.model;
-    const embeddingBaseUrl = settings.embedding.baseUrl.trim() || ollamaBaseUrl;
-    const embeddingModel =
-      settings.embedding.model.trim() ||
-      savedAiSettings.embedding.model ||
-      emptyAiSettings.embedding.model;
-    const embeddingDimensions =
-      settings.embedding.dimensions > 0
-        ? settings.embedding.dimensions
-        : savedAiSettings.embedding.dimensions || emptyAiSettings.embedding.dimensions;
+    const hasEmbeddingSelection =
+      settings.embedding.provider !== null &&
+      (settings.embedding.model?.trim().length ?? 0) > 0 &&
+      (settings.embedding.dimensions ?? 0) > 0;
+    const embeddingBaseUrl = hasEmbeddingSelection
+      ? settings.embedding.baseUrl.trim() || ollamaBaseUrl
+      : '';
+    const embeddingModel = hasEmbeddingSelection ? settings.embedding.model!.trim() : null;
+    const embeddingDimensions = hasEmbeddingSelection ? settings.embedding.dimensions! : null;
 
     return {
       ...settings,
+      aiFeaturesEnabled: settings.aiFeaturesEnabled && hasEmbeddingSelection,
       chat: {
         ...settings.chat,
         provider: chatSelection.provider,
@@ -770,6 +812,7 @@ export function AdminAiSettingsPage() {
       },
       embedding: {
         ...settings.embedding,
+        provider: hasEmbeddingSelection ? settings.embedding.provider : null,
         baseUrl: embeddingBaseUrl,
         model: embeddingModel,
         dimensions: embeddingDimensions,
@@ -833,8 +876,10 @@ export function AdminAiSettingsPage() {
     if (options.confirmEmbeddingChange && nextEmbeddingConfigChanged) {
       const nextOption = embeddingModelOptions.find(
         (option) =>
+          option.isInCatalog &&
           option.provider === merged.embedding.provider &&
           option.baseUrl === merged.embedding.baseUrl &&
+          merged.embedding.model !== null &&
           option.model === merged.embedding.model,
       );
       setSelectedEmbeddingModelKey(nextOption?.key ?? '');
@@ -862,13 +907,17 @@ export function AdminAiSettingsPage() {
   }
 
   function openSearchEngineDialog() {
+    const savedEmbeddingModel = savedAiSettings.embedding.model;
     const currentOption =
-      embeddingModelOptions.find(
-        (option) =>
-          option.provider === savedAiSettings.embedding.provider &&
-          option.baseUrl === savedAiSettings.embedding.baseUrl &&
-          isSameOllamaModel(option.model, savedAiSettings.embedding.model),
-      ) ?? embeddingModelOptions[0];
+      savedEmbeddingModel === null
+        ? (selectableEmbeddingModelOptions[0] ?? embeddingModelOptions[0])
+        : embeddingModelOptions.find(
+            (option) =>
+              option.isInCatalog &&
+              option.provider === savedAiSettings.embedding.provider &&
+              option.baseUrl === savedAiSettings.embedding.baseUrl &&
+              isSameOllamaModel(option.model, savedEmbeddingModel),
+          ) ?? selectableEmbeddingModelOptions[0] ?? embeddingModelOptions[0];
 
     setSelectedEmbeddingModelKey(currentOption?.key ?? '');
     setIsEmbeddingModelDialogOpen(true);
@@ -976,7 +1025,7 @@ export function AdminAiSettingsPage() {
                 onDisableAi={() => persistAiDraft({ aiFeaturesEnabled: false })}
                 onEnableAi={() => {
                   if (!isAiReady) {
-                    toast.warning('Choose a Search Engine before enabling AI.');
+                    toast.warning('Choose an embedding model before enabling AI.');
                     return;
                   }
 
@@ -1254,13 +1303,13 @@ function AiStateHero({
             {state === 'ready' ? (
               <Stack gap="1">
                 <Text textStyle="sm" color="fg.muted">
-                  Search Engine:{' '}
+                  Embedding Model:{' '}
                   <chakra.span fontWeight="semibold" color="fg">
                     {searchEngineModel}
                   </chakra.span>
                 </Text>
                 <Text textStyle="xs" color="fg.muted">
-                  Used for Semantic Search and AI Chat.
+                  Powers AI Search and AI Chat.
                 </Text>
               </Stack>
             ) : null}
@@ -1268,8 +1317,13 @@ function AiStateHero({
               {state === 'needs_search_engine' ? (
                 <Button type="button" size="sm" onClick={onChooseSearchEngine}>
                   <Search size={16} />
-                  Choose Search Engine
+                  Choose Embedding Model
                 </Button>
+              ) : null}
+              {state === 'no_search_engines' ? (
+                <Text textStyle="sm" fontWeight="medium" color="fg.muted">
+                  No embedding models available
+                </Text>
               ) : null}
               {state === 'ready' ? (
                 <Button type="button" size="sm" disabled={isSaving} onClick={onEnableAi}>
@@ -1337,8 +1391,8 @@ function AiUnconfiguredState() {
             AI is not configured
           </Text>
           <Text color="fg.muted" fontSize={{ base: 'md', md: 'lg' }} lineHeight="1.65">
-            Arkivra works without AI. Configure a provider when you want features like semantic
-            search, document chat, and translation.
+            Arkivra works without AI. Configure a provider when you want features like AI search,
+            document chat, and translation.
           </Text>
         </Stack>
 
@@ -1475,7 +1529,7 @@ function AiCapabilitySection({
   onConfigureTranslation: () => void;
 }) {
   const isEnabled = state === 'enabled';
-  const blocked = state === 'needs_search_engine';
+  const blocked = state === 'needs_search_engine' || state === 'no_search_engines';
   const previewOnly = state === 'ready';
 
   return (
@@ -1487,7 +1541,7 @@ function AiCapabilitySection({
           </Text>
           <Text textStyle="sm" color="fg.muted">
             {blocked
-              ? 'These features require a Search Engine to be selected.'
+              ? 'These features require an embedding model to be selected.'
               : isEnabled
                 ? 'Configure AI services for this instance.'
                 : 'Enable AI to make these services available.'}
@@ -1496,7 +1550,7 @@ function AiCapabilitySection({
 
         <SimpleGrid columns={{ base: 1, lg: 3 }} gap="3">
           <AiServiceCard
-            title="Semantic Search"
+            title="AI Search"
             description="Find documents by meaning, not keywords."
             icon={<Search size={22} />}
             iconBg="green.subtle"
@@ -1505,7 +1559,7 @@ function AiCapabilitySection({
             statusTone={blocked ? 'inactive' : 'enabled'}
             footer={
               blocked
-                ? 'Requires a Search Engine'
+                ? 'Requires an embedding model'
                 : isEnabled
                   ? semanticStatus
                   : 'Will become available after AI is enabled.'
@@ -1529,10 +1583,10 @@ function AiCapabilitySection({
             {!blocked ? (
               <Stack gap="3">
                 <ModelSummary
-                  label="Search Engine"
+                  label="Embedding Model"
                   model={searchEngineModel || 'Not selected'}
                   provider={formatProvider(searchEngineProvider)}
-                  detail="Used for Semantic Search and AI Chat."
+                  detail="Powers AI Search and AI Chat."
                 />
                 {isEnabled ? (
                   <Stack gap="2">
@@ -1570,7 +1624,7 @@ function AiCapabilitySection({
             statusTone={blocked ? 'inactive' : isChatConfigValid ? 'enabled' : 'warning'}
             footer={
               blocked
-                ? 'Requires a Search Engine'
+                ? 'Requires an embedding model'
                 : isEnabled
                   ? `${chatModelCount.toLocaleString()} models available`
                   : 'Will become available after AI is enabled.'
@@ -1598,7 +1652,7 @@ function AiCapabilitySection({
                   provider=""
                   detail={
                     isChatConfigValid
-                      ? 'Uses the configured Search Engine.'
+                      ? 'Uses the configured embedding model.'
                       : 'No default chat model selected.'
                   }
                 />
@@ -2016,7 +2070,7 @@ function DetailTile({
 }
 
 function HeroVisual({ compact = false, state }: { state: AiSetupState; compact?: boolean }) {
-  const isWarning = state === 'needs_search_engine';
+  const isWarning = state === 'needs_search_engine' || state === 'no_search_engines';
   const isSuccess = state === 'ready' || state === 'enabled';
   const color = isWarning ? 'orange.solid' : isSuccess ? 'green.solid' : 'blue.solid';
   const bg = isWarning ? 'orange.subtle' : isSuccess ? 'green.subtle' : 'blue.subtle';
@@ -2033,7 +2087,7 @@ function HeroVisual({ compact = false, state }: { state: AiSetupState; compact?:
       borderColor={isWarning ? 'orange.muted' : isSuccess ? 'green.muted' : 'blue.muted'}
       aria-hidden="true"
     >
-      {state === 'needs_search_engine' ? (
+      {state === 'needs_search_engine' || state === 'no_search_engines' ? (
         <TriangleAlert size={compact ? 44 : 64} />
       ) : state === 'no_providers' ? (
         <Package size={compact ? 44 : 64} />
@@ -2067,7 +2121,18 @@ function getHeroContent(state: AiSetupState) {
     return {
       title: 'AI needs setup',
       badge: 'Needs setup',
-      description: 'Choose a Search Engine before enabling AI.',
+      description: 'Choose an embedding model that powers AI search before enabling AI.',
+      badgePalette: 'orange',
+      borderColor: 'orange.muted',
+      bg: 'orange.subtle',
+    };
+  }
+
+  if (state === 'no_search_engines') {
+    return {
+      title: 'No embedding models available',
+      badge: 'Needs setup',
+      description: 'Connect a provider with an embedding model before enabling AI.',
       badgePalette: 'orange',
       borderColor: 'orange.muted',
       bg: 'orange.subtle',

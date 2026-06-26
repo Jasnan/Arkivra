@@ -6,7 +6,7 @@ import type {
 
 export interface EmbeddingModelOption {
   key: string;
-  provider: AdminAiSettings['embedding']['provider'];
+  provider: NonNullable<AdminAiSettings['embedding']['provider']>;
   providerLabel: string;
   baseUrl: string;
   model: string;
@@ -20,7 +20,8 @@ export interface EmbeddingModelOption {
 export const geminiBaseUrl = 'https://generativelanguage.googleapis.com/v1beta/openai';
 const ollamaLatestTagPattern = /:latest$/;
 
-export function formatProvider(provider: string) {
+export function formatProvider(provider: string | null) {
+  if (provider === null) return 'Not selected';
   if (provider === 'ollama') return 'Ollama';
   if (provider === 'gemini') return 'Google Gemini';
   return provider;
@@ -55,7 +56,7 @@ export function isSameOllamaModel(left: string, right: string) {
 
 function findCatalogModel(
   catalogModels: AdminAiModelCatalogEntry[],
-  provider: AdminAiSettings['embedding']['provider'],
+  provider: NonNullable<AdminAiSettings['embedding']['provider']>,
   model: string,
 ) {
   return catalogModels.find((item) =>
@@ -75,55 +76,67 @@ export function buildEmbeddingModelOptions({
   activeIndex: AdminEmbeddingIndexSummary | null;
   baseUrl: string;
   catalogModels: AdminAiModelCatalogEntry[];
-  model: string;
+  model: string | null;
   provider: AdminAiSettings['embedding']['provider'];
   savedEmbedding: AdminAiSettings['embedding'];
 }) {
-  const configuredModel = savedEmbedding.model.trim() || model.trim();
+  const configuredModel = savedEmbedding.model?.trim() || model?.trim() || '';
   const activeModel = activeIndex?.model.trim() ?? '';
   const optionByKey = new Map<string, EmbeddingModelOption>();
 
-  function addModelOption(optionModel: string, catalogEntry?: AdminAiModelCatalogEntry) {
+  function addModelOption(
+    optionProvider: NonNullable<AdminAiSettings['embedding']['provider']>,
+    optionModel: string,
+    catalogEntry?: AdminAiModelCatalogEntry,
+  ) {
     if (optionModel.length === 0) return;
 
-    const key = `${provider}:${baseUrl}:${optionModel}`;
+    const key = `${optionProvider}:${baseUrl}:${optionModel}`;
     const dimensions = catalogEntry?.embeddingDimensions ?? savedEmbedding.dimensions;
+    if (dimensions === null) return;
 
     optionByKey.set(key, {
       key,
-      provider,
-      providerLabel: formatProvider(provider),
+      provider: optionProvider,
+      providerLabel: formatProvider(optionProvider),
       baseUrl,
       model: optionModel,
       dimensions,
-      isActive: activeIndex?.provider === provider && activeIndex.model === optionModel,
-      isConfigured: savedEmbedding.provider === provider && savedEmbedding.model === optionModel,
+      isActive: activeIndex?.provider === optionProvider && activeIndex.model === optionModel,
+      isConfigured:
+        savedEmbedding.provider === optionProvider && savedEmbedding.model === optionModel,
       isInCatalog: catalogEntry !== undefined,
       capabilities: catalogEntry?.capabilities ?? [],
     });
   }
 
   for (const catalogEntry of catalogModels) {
-    if (catalogEntry.provider === provider && hasModelCapability(catalogEntry, 'embedding')) {
+    if (
+      (provider === null || catalogEntry.provider === provider) &&
+      catalogEntry.provider === 'ollama' &&
+      hasModelCapability(catalogEntry, 'embedding')
+    ) {
       const optionModel = configuredModel.length > 0 && isSameOllamaModel(catalogEntry.model, configuredModel)
         ? configuredModel
         : activeModel.length > 0 && isSameOllamaModel(catalogEntry.model, activeModel)
           ? activeModel
           : catalogEntry.model;
 
-      addModelOption(optionModel, catalogEntry);
+      addModelOption(catalogEntry.provider, optionModel, catalogEntry);
     }
   }
 
-  if (configuredModel.length > 0) {
+  if (provider !== null && configuredModel.length > 0) {
     addModelOption(
+      provider,
       configuredModel,
       findCatalogModel(catalogModels, provider, configuredModel),
     );
   }
 
-  if (activeModel.length > 0) {
+  if (provider !== null && activeModel.length > 0) {
     addModelOption(
+      provider,
       activeModel,
       findCatalogModel(catalogModels, provider, activeModel),
     );
@@ -131,6 +144,7 @@ export function buildEmbeddingModelOptions({
 
   return Array.from(optionByKey.values()).sort(
     (left, right) =>
-      left.providerLabel.localeCompare(right.providerLabel) || left.model.localeCompare(right.model),
+      left.providerLabel.localeCompare(right.providerLabel) ||
+      left.model.localeCompare(right.model),
   );
 }

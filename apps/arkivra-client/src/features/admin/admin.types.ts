@@ -103,6 +103,14 @@ export interface AdminAiProviderSettings {
   model: string;
 }
 
+export interface AdminAiEmbeddingProviderSettings {
+  provider: 'ollama' | null;
+  baseUrl: string;
+  apiKeySecretRef: string | null;
+  model: string | null;
+  dimensions: number | null;
+}
+
 export interface AdminAiChatProviderSettings extends AdminAiProviderSettings {
   allowedModels?: string[];
 }
@@ -111,9 +119,7 @@ export interface AdminAiSettings {
   aiFeaturesEnabled: boolean;
   chat: AdminAiChatProviderSettings;
   translation: AdminAiProviderSettings;
-  embedding: AdminAiProviderSettings & {
-    dimensions: number;
-  };
+  embedding: AdminAiEmbeddingProviderSettings;
   providers?: {
     gemini?: {
       baseUrl: string;

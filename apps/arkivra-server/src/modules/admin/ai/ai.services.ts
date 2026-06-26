@@ -169,6 +169,22 @@ function shouldCompareIndexWithCorpus(status: AdminEmbeddingIndexSummary['status
   return status === 'building' || status === 'ready' || status === 'active';
 }
 
+function hasEmbeddingSelection(
+  settings: AdminAiSettings,
+): settings is AdminAiSettings & {
+  embedding: AdminAiSettings['embedding'] & {
+    provider: 'ollama';
+    model: string;
+    dimensions: number;
+  };
+} {
+  return (
+    settings.embedding.provider !== null &&
+    settings.embedding.model !== null &&
+    settings.embedding.dimensions !== null
+  );
+}
+
 export function createAdminAiServices({
   db,
   config,
@@ -199,7 +215,8 @@ export function createAdminAiServices({
 
     return {
       ...settings,
-      aiFeaturesEnabled: settings.aiFeaturesEnabled && hasConfiguredOllamaProvider,
+      aiFeaturesEnabled:
+        settings.aiFeaturesEnabled && hasConfiguredOllamaProvider && hasEmbeddingSelection(settings),
       chat: {
         ...settings.chat,
         baseUrl: settings.chat.provider === 'ollama' ? configuredOllamaHost : settings.chat.baseUrl,
@@ -213,7 +230,7 @@ export function createAdminAiServices({
       },
       embedding: {
         ...settings.embedding,
-        baseUrl: configuredOllamaHost,
+        baseUrl: settings.embedding.provider === 'ollama' ? configuredOllamaHost : '',
       },
       providers: {
         ...settings.providers,
@@ -294,11 +311,14 @@ export function createAdminAiServices({
         model: stored.ollamaTranslationModel ?? stored.ollamaModel,
       },
       embedding: {
-        provider: 'ollama',
-        baseUrl: configuredOllamaHost,
+        provider:
+          stored.ollamaEmbeddingModel !== null && stored.ollamaEmbeddingDimensions !== null
+            ? 'ollama'
+            : null,
+        baseUrl: stored.ollamaEmbeddingModel === null ? '' : configuredOllamaHost,
         apiKeySecretRef: null,
-        model: stored.ollamaEmbeddingModel,
-        dimensions: stored.ollamaEmbeddingDimensions,
+        model: stored.ollamaEmbeddingModel ?? null,
+        dimensions: stored.ollamaEmbeddingDimensions ?? null,
       },
       providers: {
         gemini: {
@@ -483,10 +503,14 @@ export function createAdminAiServices({
 
     return {
       embeddingEnabled:
-        hasConfiguredOllamaProvider && stored.aiFeaturesEnabled && stored.ollamaEmbeddingEnabled,
+        hasConfiguredOllamaProvider &&
+        stored.aiFeaturesEnabled &&
+        stored.ollamaEmbeddingEnabled &&
+        stored.ollamaEmbeddingModel !== null &&
+        stored.ollamaEmbeddingDimensions !== null,
       embeddingHost: configuredOllamaHost,
-      embeddingModel: stored.ollamaEmbeddingModel,
-      embeddingDimensions: stored.ollamaEmbeddingDimensions,
+      embeddingModel: stored.ollamaEmbeddingModel ?? null,
+      embeddingDimensions: stored.ollamaEmbeddingDimensions ?? null,
       captioningEnabled:
         hasConfiguredOllamaProvider &&
         defaults.captioningEnabled &&
@@ -497,6 +521,10 @@ export function createAdminAiServices({
   }
 
   async function hasSemanticIndexForSettings(settings: AdminAiSettings) {
+    if (!hasEmbeddingSelection(settings)) {
+      return false;
+    }
+
     const corpusChunkCount = await getCorpusChunkCount();
     const result = await db.execute<{ count: number }>(sql`
       SELECT count(*)::int AS count
@@ -530,6 +558,10 @@ export function createAdminAiServices({
   }
 
   async function getMatchingActiveEmbeddingIndexId(settings: AdminAiSettings) {
+    if (!hasEmbeddingSelection(settings)) {
+      return null;
+    }
+
     const result = await db.execute<MatchingIndexRow>(sql`
       SELECT ei.id
       FROM embedding_indexes AS ei
@@ -580,12 +612,15 @@ export function createAdminAiServices({
       previousSettings.embedding.dimensions !== initialNormalized.embedding.dimensions;
     const aiWasEnabled = previousSettings.aiFeaturesEnabled;
     const shouldApplyCatalogEmbeddingDimensions =
-      initialEmbeddingConfigChanged || (!aiWasEnabled && initialNormalized.aiFeaturesEnabled);
-    const catalogEmbeddingEntry = findCatalogEntry(
-      modelCatalog,
-      initialNormalized.embedding.provider,
-      initialNormalized.embedding.model,
-    );
+      hasEmbeddingSelection(initialNormalized) &&
+      (initialEmbeddingConfigChanged || (!aiWasEnabled && initialNormalized.aiFeaturesEnabled));
+    const catalogEmbeddingEntry = hasEmbeddingSelection(initialNormalized)
+      ? findCatalogEntry(
+          modelCatalog,
+          initialNormalized.embedding.provider,
+          initialNormalized.embedding.model,
+        )
+      : null;
     const normalized =
       shouldApplyCatalogEmbeddingDimensions &&
       catalogEmbeddingEntry?.embeddingDimensions !== undefined
@@ -652,6 +687,7 @@ export function createAdminAiServices({
 
     const shouldPrepareSemanticSearch =
       normalized.aiFeaturesEnabled &&
+      hasEmbeddingSelection(normalized) &&
       (embeddingConfigChanged || !aiWasEnabled) &&
       !(await hasSemanticIndexForSettings(normalized));
 

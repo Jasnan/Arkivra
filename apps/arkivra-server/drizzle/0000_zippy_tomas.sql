@@ -411,8 +411,8 @@ CREATE TABLE "instance_settings" (
 	"translation_api_key_secret_ref" text,
 	"ollama_embedding_enabled" boolean DEFAULT false NOT NULL,
 	"ollama_embedding_host" text DEFAULT 'http://127.0.0.1:11434' NOT NULL,
-	"ollama_embedding_model" text DEFAULT 'bge-m3' NOT NULL,
-	"ollama_embedding_dimensions" integer DEFAULT 1024 NOT NULL
+	"ollama_embedding_model" text,
+	"ollama_embedding_dimensions" integer
 );
 --> statement-breakpoint
 CREATE TABLE "permission_requests" (

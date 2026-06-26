@@ -26,6 +26,7 @@ type ChatConversationRailProps = ComponentProps<typeof ChatConversationRail>;
 export function ChatWorkspaceBanners({
   aiAccessMessage,
   canUseChat,
+  chatModelUnavailableMessage,
   contextUnavailableMessage,
   isContextReadOnly,
   runtimeState,
@@ -34,6 +35,7 @@ export function ChatWorkspaceBanners({
 }: {
   aiAccessMessage: string;
   canUseChat: boolean;
+  chatModelUnavailableMessage?: string | null;
   contextUnavailableMessage: string;
   isContextReadOnly: boolean;
   runtimeState: AssistantChatRuntimeState;
@@ -124,6 +126,23 @@ export function ChatWorkspaceBanners({
         >
           <AlertCircle size={16} />
           {aiAccessMessage}
+        </Flex>
+      ) : null}
+      {chatModelUnavailableMessage ? (
+        <Flex
+          align="center"
+          gap="2"
+          borderBottomWidth="1px"
+          borderColor="border"
+          bg="bg.warning"
+          px="4"
+          py="3"
+          fontSize="sm"
+          color="fg.warning"
+          sm={{ px: '6' }}
+        >
+          <AlertCircle size={16} />
+          {chatModelUnavailableMessage}
         </Flex>
       ) : null}
     </Box>

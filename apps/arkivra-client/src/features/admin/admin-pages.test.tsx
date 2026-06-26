@@ -1161,6 +1161,37 @@ describe('admin and about pages', () => {
     expect(screen.getByText('AI Search')).toBeInTheDocument();
   });
 
+  it('does not preselect a chat model when multiple chat models are available', async () => {
+    const user = userEvent.setup();
+    const settings = createAiSettingsFixture({
+      aiFeaturesEnabled: true,
+      chatModel: '',
+      translationModel: '',
+    });
+    installAiSettingsFetchMock({
+      settings,
+      ollamaAvailability: createOllamaAvailability({
+        model: '',
+        modelAvailable: false,
+        models: [
+          ollamaModelFixtures.chat,
+          ollamaModelFixtures.alternateChat,
+          ollamaModelFixtures.embedding,
+        ],
+      }),
+    });
+
+    await renderWithProviders(<AdminAiSettingsPage />);
+
+    await user.click(await screen.findByRole('button', { name: /configure models/i }));
+
+    const dialog = await screen.findByRole('dialog', { name: /configure chat models/i });
+    expect(within(dialog).getByText('Enabled Models (0)')).toBeInTheDocument();
+    expect(within(dialog).getByText('0 models enabled · select an enabled default model')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Default model')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /save chat models/i })).toBeDisabled();
+  });
+
   it('requires choosing a Embedding Model when multiple embedding models are discovered', async () => {
     const settings = createAiSettingsFixture({
       aiFeaturesEnabled: false,
@@ -1207,7 +1238,7 @@ describe('admin and about pages', () => {
     await renderWithProviders(<AdminAiSettingsPage />);
 
     expect(await screen.findByText('AI is ready')).toBeInTheDocument();
-    expect(screen.getByText(/Embedding Model:/i)).toHaveTextContent('bge-m3');
+    expect(screen.queryByText(/Embedding Model:/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: /choose embedding model/i })).not.toBeInTheDocument();
     expect(screen.queryByText('AI needs setup')).not.toBeInTheDocument();
   });
@@ -1352,6 +1383,11 @@ describe('admin and about pages', () => {
     await renderWithProviders(<AdminAiSettingsPage />);
 
     expect(await screen.findByText('AI is ready')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Setup is complete. Enable AI to start indexing your documents and make AI features available.',
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /enable ai/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^configure$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /configure models/i })).not.toBeInTheDocument();

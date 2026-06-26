@@ -4518,14 +4518,14 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'gemma4:e4b'"
+          "default": "''"
         },
         "ollama_translation_model": {
           "name": "ollama_translation_model",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'gemma4:e4b'"
+          "default": "''"
         },
         "translation_provider": {
           "name": "translation_provider",

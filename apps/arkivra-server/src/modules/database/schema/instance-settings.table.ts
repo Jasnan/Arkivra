@@ -17,9 +17,9 @@ export const instanceSettingsTable = pgTable('instance_settings', {
   geminiApiKeySecretRef: text('gemini_api_key_secret_ref'),
 
   ollamaHost: text('ollama_host').notNull().default('http://127.0.0.1:11434'),
-  ollamaModel: text('ollama_model').notNull().default('gemma4:e4b'),
+  ollamaModel: text('ollama_model').notNull().default(''),
 
-  ollamaTranslationModel: text('ollama_translation_model').notNull().default('gemma4:e4b'),
+  ollamaTranslationModel: text('ollama_translation_model').notNull().default(''),
   translationProvider: text('translation_provider').notNull().default('ollama'),
   translationBaseUrl: text('translation_base_url'),
   translationApiKeySecretRef: text('translation_api_key_secret_ref'),

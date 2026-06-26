@@ -33,6 +33,12 @@ const createdConversationState = vi.hoisted(() => ({
 const loadingConversationState = vi.hoisted(() => ({
   chatId: '',
 }));
+const chatModelOptionsState = vi.hoisted(() => ({
+  models: ['ollama:llama3.2'],
+  defaultModel: 'ollama:llama3.2',
+  isLoading: false,
+  isError: false,
+}));
 
 function haveSameMessageIds(left: any[], right: any[]) {
   if (left.length !== right.length) return false;
@@ -703,12 +709,12 @@ vi.mock('../chat.queries', () => ({
   useChatModelOptionsQuery: () => ({
     data: {
       options: {
-        models: [],
-        defaultModel: '',
+        models: chatModelOptionsState.models,
+        defaultModel: chatModelOptionsState.defaultModel,
       },
     },
-    isLoading: false,
-    isError: false,
+    isLoading: chatModelOptionsState.isLoading,
+    isError: chatModelOptionsState.isError,
   }),
   useCreateChatConversationMutation: () => ({
     mutateAsync: createConversationMock,
@@ -729,6 +735,10 @@ describe('chat workspace new chat drafts', () => {
     vi.clearAllMocks();
     createdConversationState.conversation = null;
     loadingConversationState.chatId = '';
+    chatModelOptionsState.models = ['ollama:llama3.2'];
+    chatModelOptionsState.defaultModel = 'ollama:llama3.2';
+    chatModelOptionsState.isLoading = false;
+    chatModelOptionsState.isError = false;
     createConversationMock.mockImplementation(async ({ title, contextSnapshot }) => {
       createdConversationState.conversation = {
         id: 'chat_created',
@@ -865,6 +875,30 @@ describe('chat workspace new chat drafts', () => {
       text: 'Hello from a draft',
       options: { intent: null },
     });
+  });
+
+  it('blocks chat input when no chat models are available', async () => {
+    const user = userEvent.setup();
+    chatModelOptionsState.models = [];
+    chatModelOptionsState.defaultModel = '';
+
+    await renderWithProviders(
+      <ChatWorkspace
+        scope={{}}
+        inputPlaceholder="Ask anything"
+      />,
+    );
+
+    expect(
+      await screen.findByText('No chat models are available from the configured chat providers.'),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/chat message/i)).toBeDisabled();
+    expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: /send message/i }));
+
+    expect(createConversationMock).not.toHaveBeenCalled();
+    expect(runtimeSendTextMock).not.toHaveBeenCalled();
   });
 
   it('loads saved history only after selecting a previous conversation', async () => {

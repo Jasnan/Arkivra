@@ -291,7 +291,7 @@ describe.sequential('migrations smoke', () => {
     const byName = Object.fromEntries(rows.map((row) => [row.column_name, row]));
 
     expect(byName.ollama_translation_model?.data_type).toBe('text');
-    expect(byName.ollama_translation_model?.column_default).toContain("'gemma4:e4b'");
+    expect(byName.ollama_translation_model?.column_default).toContain("''");
 
     expect(byName.ollama_embedding_enabled?.data_type).toBe('boolean');
     expect(byName.ollama_embedding_enabled?.column_default).toContain('false');

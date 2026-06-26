@@ -155,7 +155,7 @@ export function createServer({
           model: settings.chat.provider === 'gemini'
             ? settings.chat.model
             : (defaultGeminiModel ?? settings.chat.model),
-          allowedModels: settings.chat.allowedModels ?? [settings.chat.model],
+          allowedModels: settings.chat.allowedModels ?? [],
           maxImagesPerRequest: DEFAULT_CHAT_MAX_IMAGES_PER_REQUEST,
         };
       }
@@ -174,13 +174,21 @@ export function createServer({
         model: settings.chat.provider === 'ollama'
           ? settings.chat.model
           : settings.model,
-        allowedModels: settings.chat.allowedModels ?? [settings.chat.model],
+        allowedModels: settings.chat.allowedModels ?? [],
         maxImagesPerRequest: DEFAULT_CHAT_MAX_IMAGES_PER_REQUEST,
       };
     },
     listAvailableModels: async () => {
       const settings = await aiServices.getSettings();
-      const allowedModels = settings.chat.allowedModels ?? [settings.chat.model];
+      const allowedModels =
+        settings.chat.allowedModels && settings.chat.allowedModels.length > 0
+          ? settings.chat.allowedModels
+          : settings.chat.model.length > 0
+            ? [settings.chat.model]
+            : [];
+      if (allowedModels.length === 0) {
+        return [];
+      }
       const allowedModelValues = new Set(
         allowedModels.map(model =>
           parseChatModelSelection({

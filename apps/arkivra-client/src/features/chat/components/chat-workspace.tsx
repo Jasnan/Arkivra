@@ -237,10 +237,16 @@ export function ChatWorkspace({
 
   const availableModels = modelOptionsQuery.data?.options.models ?? [];
   const defaultModel = modelOptionsQuery.data?.options.defaultModel ?? '';
+  const hasLoadedChatModels = !modelOptionsQuery.isLoading && !modelOptionsQuery.isError;
+  const chatModelUnavailableMessage =
+    'No chat models are available from the configured chat providers.';
   const resolvedSelectedModel =
-    selectedModel && (availableModels.length === 0 || availableModels.includes(selectedModel))
+    selectedModel && availableModels.includes(selectedModel)
       ? selectedModel
-      : defaultModel || availableModels[0] || '';
+      : defaultModel && availableModels.includes(defaultModel)
+        ? defaultModel
+        : '';
+  const hasUsableChatModels = !hasLoadedChatModels || resolvedSelectedModel.length > 0;
 
   const persistedMessages = useMemo<ChatMessage[]>(
     () => selectedChatQuery.data?.conversation.messages ?? [],
@@ -267,7 +273,11 @@ export function ChatWorkspace({
     !isStreaming &&
     !createConversation.isPending;
   const isComposerDisabled =
-    isSelectedConversationLoading || !canUseChat || isStreaming || createConversation.isPending;
+    isSelectedConversationLoading ||
+    !canUseChat ||
+    !hasUsableChatModels ||
+    isStreaming ||
+    createConversation.isPending;
   const visibleConversations = useMemo<ChatConversation[]>(() => {
     const conversations = conversationsQuery.data?.conversations ?? [];
     if (!isDraftConversation) return conversations;
@@ -565,7 +575,7 @@ export function ChatWorkspace({
 
   async function handleSend(content: string, intentOverride?: ChatIntent | null) {
     const resolvedIntent = isActiveGlobalChat ? (intentOverride ?? effectiveIntent) : null;
-    if (runtimeHandle === null) return;
+    if (runtimeHandle === null || !hasUsableChatModels) return;
     activeRuntimeChatIdRef.current = effectiveSelectedChatId;
 
     try {
@@ -714,6 +724,9 @@ export function ChatWorkspace({
           <ChatWorkspaceBanners
             aiAccessMessage={aiAccessMessage}
             canUseChat={canUseChat}
+            chatModelUnavailableMessage={
+              hasLoadedChatModels && !hasUsableChatModels ? chatModelUnavailableMessage : null
+            }
             contextUnavailableMessage={contextUnavailableMessage}
             isContextReadOnly={isContextReadOnly}
             runtimeState={runtimeState}
@@ -758,7 +771,7 @@ export function ChatWorkspace({
                     title={experience.emptyTitle}
                     description={experience.emptyDescription}
                     promptSuggestions={experience.promptSuggestions}
-                    disabled={!canUseChat}
+                    disabled={!canUseChat || !hasUsableChatModels}
                     onPromptSelect={(prompt) => {
                       void handleSend(prompt);
                     }}
@@ -774,7 +787,7 @@ export function ChatWorkspace({
               currentVaultId={activeVaultId}
               scope={activeScope}
               onQuickReplySelect={
-                isActiveGlobalChat
+                isActiveGlobalChat && hasUsableChatModels
                   ? (reply) => {
                       void handleSend(reply, effectiveIntent);
                     }

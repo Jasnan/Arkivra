@@ -59,7 +59,7 @@ export function AdminAiPlatformSection({
               <Text fontSize="lg" fontWeight="semibold" color="fg" lineHeight="short">
                 AI Platform
               </Text>
-              <Badge colorPalette={aiFeaturesEnabled ? 'teal' : 'gray'} variant="subtle">
+              <Badge colorPalette={aiFeaturesEnabled ? 'green' : 'gray'} variant="subtle">
                 {aiFeaturesEnabled ? 'Enabled' : 'Not enabled'}
               </Badge>
             </HStack>
@@ -95,7 +95,10 @@ export function AdminAiPlatformSection({
               <Text textStyle="sm" fontWeight="semibold" color="fg">
                 Requirements
               </Text>
-              <Badge colorPalette={isAiReady ? 'teal' : 'gray'} variant="subtle">
+              <Badge
+                colorPalette={aiFeaturesEnabled ? 'green' : isAiReady ? 'blue' : 'gray'}
+                variant="subtle"
+              >
                 {completedCount} / {readinessChecks.length} completed
               </Badge>
             </HStack>

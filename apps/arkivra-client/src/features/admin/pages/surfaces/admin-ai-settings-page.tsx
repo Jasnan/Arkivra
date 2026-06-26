@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 import { Box, Flex, Grid, HStack, SimpleGrid, Stack, Text, chakra } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
+  BookOpen,
+  Bot,
   CheckCircle2,
   ChevronRight,
   ExternalLink,
@@ -37,6 +39,7 @@ import type {
 } from '@/features/admin/admin.types';
 import { meQueryKeys, useMeQuery } from '@/features/me/me.queries';
 import type { MeResponse } from '@/features/me/me.types';
+import aiFeaturesIllustration from '@/assets/ai-features.png';
 import { AdminAccessBoundary } from './admin-shared';
 import {
   ChatModelsDialog,
@@ -178,8 +181,8 @@ function buildAvailableOllamaModels({
   for (const liveModel of availability.models) {
     if (liveModel.available === false) continue;
 
-    const catalogModel = catalogModels.find((model) =>
-      model.provider === 'ollama' && isSameOllamaModel(model.model, liveModel.name),
+    const catalogModel = catalogModels.find(
+      (model) => model.provider === 'ollama' && isSameOllamaModel(model.model, liveModel.name),
     );
     const capabilities = mapOllamaCapabilities([
       ...liveModel.capabilities,
@@ -327,6 +330,7 @@ export function AdminAiSettingsPage() {
   const firstGeminiChatModel =
     geminiCatalogModels.find((model) => hasModelCapability(model, 'chat'))?.model ??
     (aiDraft.chat.provider === 'gemini' ? aiDraft.chat.model : '');
+  const isGeminiConfigured = aiDraft.providers?.gemini?.configured === true;
   const firstOllamaChatModel =
     ollamaCatalogModels.find((model) => hasModelCapability(model, 'chat'))?.model ??
     (aiDraft.chat.provider === 'ollama' ? aiDraft.chat.model : aiDraft.model);
@@ -334,7 +338,7 @@ export function AdminAiSettingsPage() {
     host: geminiBaseUrl,
     model: firstGeminiChatModel,
     provider: 'gemini',
-    enabled: isEnabled && firstGeminiChatModel.length > 0,
+    enabled: isEnabled && isGeminiConfigured && firstGeminiChatModel.length > 0,
   });
   const geminiAvailability = geminiAvailabilityQuery.data?.availability;
   const isGeminiProviderHealthy = geminiAvailability?.modelAvailable === true;
@@ -359,10 +363,11 @@ export function AdminAiSettingsPage() {
     [geminiCatalogModels, isGeminiProviderHealthy],
   );
   const availableOllamaModels = useMemo(
-    () => buildAvailableOllamaModels({
-      availability: ollamaAvailability,
-      catalogModels: ollamaCatalogModels,
-    }),
+    () =>
+      buildAvailableOllamaModels({
+        availability: ollamaAvailability,
+        catalogModels: ollamaCatalogModels,
+      }),
     [ollamaAvailability, ollamaCatalogModels],
   );
   const chatModelOptions = useMemo<ChatModelOption[]>(() => {
@@ -399,17 +404,17 @@ export function AdminAiSettingsPage() {
     const geminiOptions = availableGeminiChatModels
       .filter((model) => hasModelCapability(model, 'chat') && hasModelCapability(model, 'vision'))
       .map((model) => ({
-      key: formatChatModelValue({ provider: 'gemini', model: model.model }),
-      provider: 'gemini' as const,
-      providerLabel: 'Gemini',
-      model: model.model,
-      label: getCatalogLabel(model),
-      baseUrl: geminiBaseUrl,
-      description: model.label ?? null,
-      capabilities: model.capabilities,
-      isConfigured:
-        aiDraft.translation.provider === 'gemini' && aiDraft.translation.model === model.model,
-    }));
+        key: formatChatModelValue({ provider: 'gemini', model: model.model }),
+        provider: 'gemini' as const,
+        providerLabel: 'Gemini',
+        model: model.model,
+        label: getCatalogLabel(model),
+        baseUrl: geminiBaseUrl,
+        description: model.label ?? null,
+        capabilities: model.capabilities,
+        isConfigured:
+          aiDraft.translation.provider === 'gemini' && aiDraft.translation.model === model.model,
+      }));
     const ollamaOptions = availableOllamaModels
       .filter((model) => hasModelCapability(model, 'chat') && hasModelCapability(model, 'vision'))
       .map((model) => ({
@@ -444,9 +449,7 @@ export function AdminAiSettingsPage() {
   const configuredChatModel = configuredChatSelection.value;
   const isConfiguredChatModelAvailable =
     configuredChatModel.length > 0 && chatModelValues.includes(configuredChatModel);
-  const effectiveDefaultChatModel = isConfiguredChatModelAvailable
-    ? configuredChatModel
-    : '';
+  const effectiveDefaultChatModel = isConfiguredChatModelAvailable ? configuredChatModel : '';
   const effectiveDefaultChatSelection = parseChatModelValue({
     value: effectiveDefaultChatModel || configuredChatModel,
     fallbackProvider: aiDraft.chat.provider,
@@ -467,10 +470,8 @@ export function AdminAiSettingsPage() {
   const effectiveTranslationOption =
     (isConfiguredTranslationModelAvailable
       ? translationModelOptions.find((option) => option.key === configuredTranslationModelKey)
-      : null) ??
-    null;
-  const effectiveTranslationModel =
-    effectiveTranslationOption?.model ?? configuredTranslationModel;
+      : null) ?? null;
+  const effectiveTranslationModel = effectiveTranslationOption?.model ?? configuredTranslationModel;
   const selectedTranslationModel =
     translationModelOptions.find((option) => option.key === selectedTranslationModelKey) ?? null;
   const selectedTranslationModelChanged =
@@ -513,11 +514,13 @@ export function AdminAiSettingsPage() {
       : ollamaProviderStatus === 'Checking'
         ? 'inactive'
         : 'warning';
-  const geminiProviderStatus = geminiAvailabilityQuery.isFetching
-    ? 'Checking'
-    : geminiAvailability?.modelAvailable
-      ? 'Healthy'
-      : 'Not configured';
+  const geminiProviderStatus = !isGeminiConfigured
+    ? 'Not configured'
+    : geminiAvailabilityQuery.isFetching
+      ? 'Checking'
+      : geminiAvailability?.modelAvailable
+        ? 'Healthy'
+        : 'Unavailable';
   const geminiProviderTone =
     geminiProviderStatus === 'Healthy'
       ? 'enabled'
@@ -531,19 +534,18 @@ export function AdminAiSettingsPage() {
     ).trim().length > 0 &&
     effectiveTranslationModel.length > 0 &&
     effectiveTranslationOption !== null &&
-    (
-      (effectiveTranslationOption.provider === 'gemini' && isGeminiProviderHealthy) ||
-      (effectiveTranslationOption.provider === 'ollama' && isConfiguredTranslationModelAvailable)
-    );
+    ((effectiveTranslationOption.provider === 'gemini' && isGeminiProviderHealthy) ||
+      (effectiveTranslationOption.provider === 'ollama' && isConfiguredTranslationModelAvailable));
   const isTranslationModelMultimodal =
     effectiveTranslationModel.length > 0 &&
     (effectiveTranslationOption?.capabilities.includes('vision') ?? false);
   const selectedEmbeddingProviderModel =
     aiDraft.embedding.provider === 'ollama'
-      ? availableOllamaModels.find((model) =>
-          model.provider === 'ollama' &&
-          hasModelCapability(model, 'embedding') &&
-          isSameOllamaModel(model.model, aiDraft.embedding.model),
+      ? availableOllamaModels.find(
+          (model) =>
+            model.provider === 'ollama' &&
+            hasModelCapability(model, 'embedding') &&
+            isSameOllamaModel(model.model, aiDraft.embedding.model),
         )
       : undefined;
   const isSelectedEmbeddingModelConfirmedMissing =
@@ -635,7 +637,7 @@ export function AdminAiSettingsPage() {
       endpoint: geminiBaseUrl,
       status: geminiProviderStatus,
       tone: geminiProviderTone,
-      isConfigured: geminiAvailability?.reachable === true,
+      isConfigured: isGeminiConfigured,
       isHealthy: geminiProviderStatus === 'Healthy',
       modelCount: geminiCatalogModels.length,
       models: geminiCatalogModels.map((model) => model.model),
@@ -667,9 +669,7 @@ export function AdminAiSettingsPage() {
     selectedSearchEngine,
   });
   const visibleProviderSummaries = providerSummaries.filter((provider) => provider.isConfigured);
-  const isAiReady =
-    aiSetupStatus.state === 'ready' ||
-    aiSetupStatus.state === 'enabled';
+  const isAiReady = aiSetupStatus.state === 'ready' || aiSetupStatus.state === 'enabled';
   const isInitialGeminiDiscoveryPending =
     geminiAvailabilityQuery.isLoading ||
     (geminiAvailabilityQuery.isFetching && geminiAvailabilityQuery.data === undefined);
@@ -723,10 +723,7 @@ export function AdminAiSettingsPage() {
       value: effectiveDefaultChatModel.trim(),
       fallbackProvider: settings.chat.provider,
     });
-    const chatSelection =
-      configuredModel.model.length > 0
-        ? configuredModel
-        : fallbackDefault;
+    const chatSelection = configuredModel.model.length > 0 ? configuredModel : fallbackDefault;
     const ollamaBaseUrl = (
       chatSelection.provider === 'ollama' && settings.chat.baseUrl.trim().length > 0
         ? settings.chat.baseUrl
@@ -969,23 +966,25 @@ export function AdminAiSettingsPage() {
           <AiConfigurationLoadingState />
         ) : (
           <>
-            <AiStateHero
-              state={aiSetupStatus.state}
-              healthyProviderCount={aiSetupStatus.healthyProviders}
-              isSaving={aiSettingsMutation.isPending}
-              searchEngineModel={aiSetupStatus.selectedSearchEngine?.model ?? ''}
-              onChooseSearchEngine={openSearchEngineDialog}
-              onDisableAi={() => persistAiDraft({ aiFeaturesEnabled: false })}
-              onEnableAi={() => {
-                if (!isAiReady) {
-                  toast.warning('Choose a Search Engine before enabling AI.');
-                  return;
-                }
+            {aiSetupStatus.state !== 'no_providers' ? (
+              <AiStateHero
+                state={aiSetupStatus.state}
+                healthyProviderCount={aiSetupStatus.healthyProviders}
+                isSaving={aiSettingsMutation.isPending}
+                searchEngineModel={aiSetupStatus.selectedSearchEngine?.model ?? ''}
+                onChooseSearchEngine={openSearchEngineDialog}
+                onDisableAi={() => persistAiDraft({ aiFeaturesEnabled: false })}
+                onEnableAi={() => {
+                  if (!isAiReady) {
+                    toast.warning('Choose a Search Engine before enabling AI.');
+                    return;
+                  }
 
-                persistAiDraft({ aiFeaturesEnabled: true });
-              }}
-              onToggleProviderDetails={() => setShowProviderDetails((current) => !current)}
-            />
+                  persistAiDraft({ aiFeaturesEnabled: true });
+                }}
+                onToggleProviderDetails={() => setShowProviderDetails((current) => !current)}
+              />
+            ) : null}
 
             {aiSetupStatus.state === 'no_providers' ? (
               <AiUnconfiguredState />
@@ -1008,7 +1007,9 @@ export function AdminAiSettingsPage() {
                   indexProgress={indexProgress}
                   isChatConfigValid={isChatConfigValid}
                   isSaving={aiSettingsMutation.isPending}
-                  isTranslationConfigValid={isTranslationConfigValid && isTranslationModelMultimodal}
+                  isTranslationConfigValid={
+                    isTranslationConfigValid && isTranslationModelMultimodal
+                  }
                   searchEngineModel={aiSetupStatus.selectedSearchEngine?.model ?? ''}
                   searchEngineProvider={
                     aiSetupStatus.selectedSearchEngine?.provider ?? configuredEmbeddingProvider
@@ -1040,7 +1041,11 @@ export function AdminAiSettingsPage() {
         chatModelOptions={chatModelOptions}
         draftAllowedChatModels={draftAllowedChatModels}
         draftDefaultChatModel={draftDefaultChatModel}
-        isFetchingChatModels={aiModelCatalogQuery.isFetching || geminiAvailabilityQuery.isFetching || ollamaAvailabilityQuery.isFetching}
+        isFetchingChatModels={
+          aiModelCatalogQuery.isFetching ||
+          geminiAvailabilityQuery.isFetching ||
+          ollamaAvailabilityQuery.isFetching
+        }
         isSaving={aiSettingsMutation.isPending}
         onAllowedModelChange={updateDraftAllowedChatModel}
         onDefaultModelChange={updateDraftDefaultChatModel}
@@ -1055,7 +1060,9 @@ export function AdminAiSettingsPage() {
         selectedEmbeddingModel={selectedEmbeddingModel}
         selectedEmbeddingModelChanged={selectedEmbeddingModelChanged}
         selectedEmbeddingModelKey={selectedEmbeddingModelKey}
-        isFetchingOllamaModels={aiModelCatalogQuery.isFetching || ollamaAvailabilityQuery.isFetching}
+        isFetchingOllamaModels={
+          aiModelCatalogQuery.isFetching || ollamaAvailabilityQuery.isFetching
+        }
         isSaving={aiSettingsMutation.isPending}
         onConfirm={() => {
           if (selectedEmbeddingModel === null) return;
@@ -1082,7 +1089,11 @@ export function AdminAiSettingsPage() {
         selectedTranslationModel={selectedTranslationModel}
         selectedTranslationModelChanged={selectedTranslationModelChanged}
         selectedTranslationModelKey={selectedTranslationModelKey}
-        isFetchingModels={aiModelCatalogQuery.isFetching || geminiAvailabilityQuery.isFetching || ollamaAvailabilityQuery.isFetching}
+        isFetchingModels={
+          aiModelCatalogQuery.isFetching ||
+          geminiAvailabilityQuery.isFetching ||
+          ollamaAvailabilityQuery.isFetching
+        }
         isSaving={aiSettingsMutation.isPending}
         onConfirm={() => {
           if (selectedTranslationModel === null) return;
@@ -1205,8 +1216,7 @@ function AiStateHero({
   const content = getHeroContent(state);
   const hasProviders = state !== 'no_providers';
   const isEnabled = state === 'enabled';
-  const providerSummary =
-    `${healthyProviderCount.toLocaleString()} healthy provider${healthyProviderCount === 1 ? '' : 's'}`;
+  const providerSummary = `${healthyProviderCount.toLocaleString()} healthy provider${healthyProviderCount === 1 ? '' : 's'}`;
 
   return (
     <Card
@@ -1221,7 +1231,10 @@ function AiStateHero({
         alignItems="center"
       >
         <Grid
-          templateColumns={{ base: '1fr', md: isEnabled ? '8rem minmax(0, 1fr)' : '12rem minmax(0, 1fr)' }}
+          templateColumns={{
+            base: '1fr',
+            md: isEnabled ? '8rem minmax(0, 1fr)' : '12rem minmax(0, 1fr)',
+          }}
           gap={{ base: '4', md: isEnabled ? '4' : '6' }}
           alignItems="center"
         >
@@ -1241,7 +1254,10 @@ function AiStateHero({
             {state === 'ready' ? (
               <Stack gap="1">
                 <Text textStyle="sm" color="fg.muted">
-                  Search Engine: <chakra.span fontWeight="semibold" color="fg">{searchEngineModel}</chakra.span>
+                  Search Engine:{' '}
+                  <chakra.span fontWeight="semibold" color="fg">
+                    {searchEngineModel}
+                  </chakra.span>
                 </Text>
                 <Text textStyle="xs" color="fg.muted">
                   Used for Semantic Search and AI Chat.
@@ -1262,7 +1278,13 @@ function AiStateHero({
                 </Button>
               ) : null}
               {state === 'enabled' ? (
-                <Button type="button" size="sm" variant="outline" disabled={isSaving} onClick={onDisableAi}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isSaving}
+                  onClick={onDisableAi}
+                >
                   <Settings size={16} />
                   {isSaving ? 'Saving...' : 'Disable AI'}
                 </Button>
@@ -1292,72 +1314,124 @@ function AiStateHero({
 
 function AiUnconfiguredState() {
   return (
-    <Card p={{ base: '6', lg: '10' }} shadow="xs">
-      <Stack gap="5" align="center" textAlign="center" minH="24rem" justify="center">
-        <Flex
-          boxSize="32"
-          rounded="full"
-          align="center"
-          justify="center"
-          bg="blue.subtle"
-          color="blue.solid"
+    <Card p={{ base: '6', md: '8', lg: '12' }} shadow="xs">
+      <Stack
+        gap={{ base: '6', md: '7' }}
+        align="center"
+        textAlign="center"
+        minH="34rem"
+        justify="center"
+      >
+        <chakra.img
+          src={aiFeaturesIllustration}
+          alt=""
           aria-hidden="true"
-        >
-          <Package size={56} />
-        </Flex>
-        <Stack gap="2" maxW="38rem">
-          <Text fontSize={{ base: '2xl', md: '3xl' }} fontWeight="semibold" color="fg">
+          w={{ base: '18rem', md: '24rem', lg: '29rem' }}
+          maxW="100%"
+          pointerEvents="none"
+          userSelect="none"
+        />
+
+        <Stack gap="3" maxW="43rem">
+          <Text fontSize={{ base: '3xl', md: '4xl' }} fontWeight="semibold" color="fg">
             AI is not configured
           </Text>
-          <Text color="fg.muted">
-            AI features are optional. No AI providers were detected. Configure a provider through
-            environment variables to get started.
+          <Text color="fg.muted" fontSize={{ base: 'md', md: 'lg' }} lineHeight="1.65">
+            Arkivra works without AI. Configure a provider when you want features like semantic
+            search, document chat, and translation.
           </Text>
         </Stack>
+
         <Box
           rounded="md"
           borderWidth="1px"
           borderColor="blue.muted"
           bg="blue.subtle"
-          px="4"
-          py="3"
-          maxW="36rem"
+          px={{ base: '4', md: '5' }}
+          py={{ base: '4', md: '5' }}
+          maxW="42rem"
+          w="full"
           textAlign="start"
         >
           <HStack align="flex-start" gap="3">
-            <Box color="fg.info" pt="0.5">
-              <Info size={18} />
+            <Box color="blue.solid" flexShrink={0} pt="0.5">
+              <Info size={22} />
             </Box>
             <Stack gap="1">
-              <Text textStyle="sm" fontWeight="semibold" color="blue.solid">
+              <Text textStyle="sm" fontWeight="semibold" color="fg">
                 What you'll need
               </Text>
               <Text textStyle="sm" color="fg.muted">
-                At least one AI provider configured on the server through environment variables.
+                One supported AI provider configured on the server through environment variables.
               </Text>
             </Stack>
           </HStack>
         </Box>
+
+        <Stack gap="4" align="center" w="full" maxW="42rem">
+          <HStack gap="4" w="full" color="fg.muted">
+            <Box h="1px" bg="border.surface" flex="1" />
+            <Text textStyle="sm" fontWeight="medium" whiteSpace="nowrap">
+              Supported providers
+            </Text>
+            <Box h="1px" bg="border.surface" flex="1" />
+          </HStack>
+          <HStack gap="3" flexWrap="wrap" justify="center">
+            <ProviderChip icon={<Bot size={20} />} label="Ollama" />
+            <ProviderChip icon={<Sparkles size={22} />} label="Google Gemini" color="blue.solid" />
+          </HStack>
+        </Stack>
+
         <chakra.a
           href="https://docs.arkivra.app"
           target="_blank"
           rel="noreferrer"
           display="inline-flex"
           alignItems="center"
-          gap="2"
+          gap="3"
           rounded="md"
-          px="4"
-          py="2.5"
+          px="5"
+          py="3"
           bg="blue.solid"
           color="blue.contrast"
-          fontWeight="medium"
+          fontWeight="semibold"
+          shadow="xs"
           _hover={{ bg: 'blue.emphasized', textDecoration: 'none' }}
         >
-          Learn how to configure a provider
-          <ExternalLink size={16} />
+          <BookOpen size={18} />
+          View setup guide
+          <ExternalLink size={18} />
         </chakra.a>
       </Stack>
     </Card>
+  );
+}
+
+function ProviderChip({
+  color = 'fg',
+  icon,
+  label,
+}: {
+  color?: string;
+  icon: ReactNode;
+  label: string;
+}) {
+  return (
+    <HStack
+      gap="3"
+      rounded="md"
+      borderWidth="1px"
+      borderColor="border.surface"
+      bg="bg.surface"
+      px="5"
+      py="3"
+      shadow="xs"
+    >
+      <Box color={color}>{icon}</Box>
+      <Text textStyle="sm" fontWeight="semibold" color="fg">
+        {label}
+      </Text>
+    </HStack>
   );
 }
 
@@ -1439,7 +1513,13 @@ function AiCapabilitySection({
             previewOnly={previewOnly}
             action={
               isEnabled ? (
-                <Button type="button" size="sm" variant="outline" disabled={isSaving} onClick={onConfigureSearchEngine}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isSaving}
+                  onClick={onConfigureSearchEngine}
+                >
                   <Settings size={14} />
                   Configure
                 </Button>
@@ -1458,7 +1538,8 @@ function AiCapabilitySection({
                   <Stack gap="2">
                     <HStack justify="space-between" gap="3">
                       <Text textStyle="xs" color="fg.muted">
-                        {indexedChunks.toLocaleString()} of {totalChunks.toLocaleString()} chunks indexed
+                        {indexedChunks.toLocaleString()} of {totalChunks.toLocaleString()} chunks
+                        indexed
                       </Text>
                       <Text textStyle="xs" color="fg.muted">
                         {indexProgress}%
@@ -1477,7 +1558,15 @@ function AiCapabilitySection({
             icon={<MessageSquare size={22} />}
             iconBg="blue.subtle"
             iconColor="blue.solid"
-            status={blocked ? 'Unavailable' : isEnabled ? (isChatConfigValid ? 'Available' : 'Needs configuration') : undefined}
+            status={
+              blocked
+                ? 'Unavailable'
+                : isEnabled
+                  ? isChatConfigValid
+                    ? 'Available'
+                    : 'Needs configuration'
+                  : undefined
+            }
             statusTone={blocked ? 'inactive' : isChatConfigValid ? 'enabled' : 'warning'}
             footer={
               blocked
@@ -1523,7 +1612,15 @@ function AiCapabilitySection({
             icon={<Languages size={22} />}
             iconBg="purple.subtle"
             iconColor="purple.solid"
-            status={blocked ? 'Unavailable' : isEnabled ? (isTranslationConfigValid ? 'Available' : 'Needs configuration') : undefined}
+            status={
+              blocked
+                ? 'Unavailable'
+                : isEnabled
+                  ? isTranslationConfigValid
+                    ? 'Available'
+                    : 'Needs configuration'
+                  : undefined
+            }
             statusTone={blocked ? 'inactive' : isTranslationConfigValid ? 'enabled' : 'warning'}
             footer={
               blocked
@@ -1606,7 +1703,14 @@ function AiServiceCard({
       <Stack gap="4">
         <HStack gap="3" justify="space-between" align="start">
           <HStack gap="3" minW="0" align="center">
-            <Flex boxSize="11" rounded="md" bg={iconBg} color={iconColor} align="center" justify="center">
+            <Flex
+              boxSize="11"
+              rounded="md"
+              bg={iconBg}
+              color={iconColor}
+              align="center"
+              justify="center"
+            >
               {icon}
             </Flex>
             <Text textStyle="sm" fontWeight="semibold" color="fg">
@@ -1628,9 +1732,20 @@ function AiServiceCard({
           </Box>
         ) : null}
       </Stack>
-      <Flex gap="3" align="center" justify="space-between" borderTopWidth="1px" borderColor="border.surface" pt="3">
+      <Flex
+        gap="3"
+        align="center"
+        justify="space-between"
+        borderTopWidth="1px"
+        borderColor="border.surface"
+        pt="3"
+      >
         <HStack gap="2" minW="0" color={statusTone === 'enabled' ? 'fg.success' : 'fg.muted'}>
-          {statusTone === 'enabled' && !previewOnly ? <CheckCircle2 size={15} /> : <Info size={15} />}
+          {statusTone === 'enabled' && !previewOnly ? (
+            <CheckCircle2 size={15} />
+          ) : (
+            <Info size={15} />
+          )}
           <Text textStyle="xs" color="fg.muted" truncate>
             {footer}
           </Text>
@@ -1772,7 +1887,14 @@ function ProviderDetail({
         py="3"
       >
         <HStack gap="3" minW="0">
-          <Flex boxSize="9" rounded="md" align="center" justify="center" bg="bg.subtle" color="fg.muted">
+          <Flex
+            boxSize="9"
+            rounded="md"
+            align="center"
+            justify="center"
+            bg="bg.subtle"
+            color="fg.muted"
+          >
             {provider.id === 'gemini' ? <Sparkles size={18} /> : <Package size={18} />}
           </Flex>
           <Stack gap="0" minW="0">
@@ -1794,7 +1916,9 @@ function ProviderDetail({
             {provider.modelCount.toLocaleString()} models available
           </Text>
           <Text textStyle="sm" color="fg.muted">
-            {provider.updatedAt ? `Checked ${formatRelativeTime(provider.updatedAt)}` : 'Not checked'}
+            {provider.updatedAt
+              ? `Checked ${formatRelativeTime(provider.updatedAt)}`
+              : 'Not checked'}
           </Text>
           <Button
             type="button"
@@ -1815,7 +1939,11 @@ function ProviderDetail({
         <Box bg="bg.subtle" px="4" py="3">
           <SimpleGrid columns={{ base: 1, lg: 2 }} gap="3">
             <DetailTile label="Connection status" value={provider.error ?? provider.status} />
-            <DetailTile label="Endpoint" value={provider.endpoint || 'Configured on the server'} mono />
+            <DetailTile
+              label="Endpoint"
+              value={provider.endpoint || 'Configured on the server'}
+              mono
+            />
             <Box
               gridColumn={{ base: 'auto', lg: '1 / -1' }}
               rounded="md"
@@ -1853,9 +1981,25 @@ function ProviderDetail({
   );
 }
 
-function DetailTile({ label, mono = false, value }: { label: string; value: string; mono?: boolean }) {
+function DetailTile({
+  label,
+  mono = false,
+  value,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
   return (
-    <Stack gap="1" rounded="md" borderWidth="1px" borderColor="border.surface" bg="bg.surface" p="3" minW="0">
+    <Stack
+      gap="1"
+      rounded="md"
+      borderWidth="1px"
+      borderColor="border.surface"
+      bg="bg.surface"
+      p="3"
+      minW="0"
+    >
       <Text textStyle="xs" color="fg.muted">
         {label}
       </Text>
@@ -1901,7 +2045,9 @@ function HeroVisual({ compact = false, state }: { state: AiSetupState; compact?:
 }
 
 function HealthDot({ healthy }: { healthy: boolean }) {
-  return <Box boxSize="2" rounded="full" bg={healthy ? 'green.solid' : 'orange.solid'} flexShrink={0} />;
+  return (
+    <Box boxSize="2" rounded="full" bg={healthy ? 'green.solid' : 'orange.solid'} flexShrink={0} />
+  );
 }
 
 function getHeroContent(state: AiSetupState) {
@@ -1921,8 +2067,7 @@ function getHeroContent(state: AiSetupState) {
     return {
       title: 'AI needs setup',
       badge: 'Needs setup',
-      description:
-        'Choose a Search Engine before enabling AI.',
+      description: 'Choose a Search Engine before enabling AI.',
       badgePalette: 'orange',
       borderColor: 'orange.muted',
       bg: 'orange.subtle',

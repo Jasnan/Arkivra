@@ -497,7 +497,7 @@ function parseSmtpUrl(raw: string | undefined) {
   return {
     host: url.hostname,
     password: url.password ? decodeURIComponent(url.password) : undefined,
-    port: url.port ? Number.parseInt(url.port, 10) : (secure ? 465 : 587),
+    port: url.port ? Number.parseInt(url.port, 10) : secure ? 465 : 587,
     secure,
     startTls: startTlsParam === null ? !secure : startTlsParam === 'true' || startTlsParam === '1',
     user: url.username ? decodeURIComponent(url.username) : undefined,
@@ -546,19 +546,23 @@ export function parseConfig({ env }: { env: Record<string, string | undefined> }
     ? normalizeBaseUrl(config.server.webBaseUrl ?? webOrigin)
     : (publicOrigin ?? webOrigin);
   const appInstance = config.app.instance;
-  const rootDataPath = appInstance && !hasEnvValue(env, 'ARKIVRA_DATA_PATH')
-    ? `./var/${appInstance}`
-    : config.storage.dataPath;
+  const rootDataPath =
+    appInstance && !hasEnvValue(env, 'ARKIVRA_DATA_PATH')
+      ? `./var/${appInstance}`
+      : config.storage.dataPath;
   const smtpUrl = parseSmtpUrl(config.email.smtpUrl);
-  const modelCatalogExtensions = parseAiModelCatalogExtensions(
-    config.ai.modelCatalogExtensions,
-  );
+  const modelCatalogExtensions = parseAiModelCatalogExtensions(config.ai.modelCatalogExtensions);
 
   const scopedConfig = {
     ...config,
     ai: {
       ...config.ai,
+      geminiApiKeyConfigured: hasEnvValue(env, 'GEMINI_API_KEY'),
       modelCatalogExtensions,
+    },
+    ollama: {
+      ...config.ollama,
+      configured: hasEnvValue(env, 'ARKIVRA_OLLAMA_HOST'),
     },
     server: {
       ...config.server,
@@ -583,7 +587,7 @@ export function parseConfig({ env }: { env: Record<string, string | undefined> }
     },
     email: {
       ...config.email,
-      delivery: smtpUrl === null ? 'console' as const : 'smtp' as const,
+      delivery: smtpUrl === null ? ('console' as const) : ('smtp' as const),
       smtpHost: smtpUrl?.host,
       smtpPassword: smtpUrl?.password,
       smtpPort: smtpUrl?.port,

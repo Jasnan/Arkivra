@@ -48,7 +48,7 @@ function createMockAiServices() {
         semanticSearchAvailable: false,
       },
     })),
-    updateSettings: vi.fn(async settings => settings),
+    updateSettings: vi.fn(async (settings) => settings),
     listModels: vi.fn(async () => [
       {
         name: 'gemma4:e4b',
@@ -84,12 +84,14 @@ function createMockAiServices() {
       model: 'gemma4:e4b',
       reachable: true,
       modelAvailable: true,
-      models: [{
-        name: 'gemma4:e4b',
-        size: 1000,
-        modifiedAt: '2026-04-23T12:00:00.000Z',
-        capabilities: ['completion'],
-      }],
+      models: [
+        {
+          name: 'gemma4:e4b',
+          size: 1000,
+          modifiedAt: '2026-04-23T12:00:00.000Z',
+          capabilities: ['completion'],
+        },
+      ],
       responseTimeMs: 42,
       error: null,
     })),
@@ -173,31 +175,89 @@ describe('admin ai routes integration', () => {
     expect(settings.embeddingDimensions).toBe(1024);
   });
 
+  test('reports no configured AI providers when provider environment variables are unset', async () => {
+    const previousGeminiKey = process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+    const aiServices = createAdminAiServices({
+      db: {
+        select: () => ({
+          from: () => ({
+            where: () => ({
+              limit: async () => [],
+            }),
+          }),
+        }),
+      } as any,
+      config: {
+        ai: {
+          modelCatalogExtensions: [],
+        },
+        ollama: {
+          host: 'http://127.0.0.1:11434',
+          configured: false,
+          imageCaptioningEnabled: false,
+          imageCaptioningModel: '',
+          logRequests: false,
+        },
+      } as any,
+    });
+
+    try {
+      const settings = await aiServices.getSettings();
+      const availability = await aiServices.checkModelAvailability({
+        provider: 'ollama',
+        host: 'http://127.0.0.1:11434',
+        model: 'gemma4:e4b',
+      });
+
+      expect(settings.aiFeaturesEnabled).toBe(false);
+      expect(settings.ollamaHost).toBe('');
+      expect(settings.chat.baseUrl).toBe('');
+      expect(settings.embedding.baseUrl).toBe('');
+      expect(settings.providers?.gemini?.configured).toBe(false);
+      expect(availability).toMatchObject({
+        host: '',
+        reachable: false,
+        modelAvailable: false,
+        models: [],
+        error: 'Ollama provider is not configured on the API server.',
+      });
+    } finally {
+      if (previousGeminiKey === undefined) {
+        delete process.env.GEMINI_API_KEY;
+      } else {
+        process.env.GEMINI_API_KEY = previousGeminiKey;
+      }
+    }
+  });
+
   test('resolves Ollama connection settings from server config instead of stored admin values', async () => {
     const aiServices = createAdminAiServices({
       db: {
         select: () => ({
           from: () => ({
             where: () => ({
-              limit: async () => [{
-                aiFeaturesEnabled: true,
-                chatProvider: 'ollama',
-                chatBaseUrl: 'http://stored-ollama.invalid:11434',
-                chatApiKeySecretRef: null,
-                chatModel: 'llama3.2:1b',
-                chatAllowedModels: ['ollama:llama3.2:1b'],
-                geminiApiKeySecretRef: null,
-                ollamaHost: 'http://stored-ollama.invalid:11434',
-                ollamaModel: 'llama3.2:1b',
-                ollamaTranslationModel: 'llama3.2:1b',
-                translationProvider: 'ollama',
-                translationBaseUrl: 'http://stored-ollama.invalid:11434',
-                translationApiKeySecretRef: null,
-                ollamaEmbeddingEnabled: true,
-                ollamaEmbeddingHost: 'http://stored-ollama.invalid:11434',
-                ollamaEmbeddingModel: 'bge-m3',
-                ollamaEmbeddingDimensions: 1024,
-              }],
+              limit: async () => [
+                {
+                  aiFeaturesEnabled: true,
+                  chatProvider: 'ollama',
+                  chatBaseUrl: 'http://stored-ollama.invalid:11434',
+                  chatApiKeySecretRef: null,
+                  chatModel: 'llama3.2:1b',
+                  chatAllowedModels: ['ollama:llama3.2:1b'],
+                  geminiApiKeySecretRef: null,
+                  ollamaHost: 'http://stored-ollama.invalid:11434',
+                  ollamaModel: 'llama3.2:1b',
+                  ollamaTranslationModel: 'llama3.2:1b',
+                  translationProvider: 'ollama',
+                  translationBaseUrl: 'http://stored-ollama.invalid:11434',
+                  translationApiKeySecretRef: null,
+                  ollamaEmbeddingEnabled: true,
+                  ollamaEmbeddingHost: 'http://stored-ollama.invalid:11434',
+                  ollamaEmbeddingModel: 'bge-m3',
+                  ollamaEmbeddingDimensions: 1024,
+                },
+              ],
             }),
           }),
         }),
@@ -230,7 +290,7 @@ describe('admin ai routes integration', () => {
     const { app } = createTestApp({});
     const response = await app.request('/api/admin/ai/settings');
     expect(response.status).toBe(200);
-    const body = await response.json() as any;
+    const body = (await response.json()) as any;
     expect(body.settings.model).toBe('gemma4:e4b');
   });
 
@@ -238,7 +298,7 @@ describe('admin ai routes integration', () => {
     const { app } = createTestApp({});
     const response = await app.request('/api/admin/ai/status');
     expect(response.status).toBe(200);
-    const body = await response.json() as any;
+    const body = (await response.json()) as any;
     expect(body.status.chat.provider).toBe('ollama');
     expect(body.status.embedding.semanticSearchAvailable).toBe(false);
   });
@@ -249,14 +309,16 @@ describe('admin ai routes integration', () => {
         select: () => ({
           from: () => ({
             where: () => ({
-              limit: async () => [{
-                aiFeaturesEnabled: false,
-                ollamaHost: 'http://127.0.0.1:11434',
-                ollamaModel: 'gemma4:e4b',
-                ollamaEmbeddingHost: 'http://127.0.0.1:11434',
-                ollamaEmbeddingModel: 'bge-m3',
-                ollamaEmbeddingDimensions: 1024,
-              }],
+              limit: async () => [
+                {
+                  aiFeaturesEnabled: false,
+                  ollamaHost: 'http://127.0.0.1:11434',
+                  ollamaModel: 'gemma4:e4b',
+                  ollamaEmbeddingHost: 'http://127.0.0.1:11434',
+                  ollamaEmbeddingModel: 'bge-m3',
+                  ollamaEmbeddingDimensions: 1024,
+                },
+              ],
             }),
           }),
         }),
@@ -264,28 +326,32 @@ describe('admin ai routes integration', () => {
           .fn()
           .mockResolvedValueOnce({ rows: [{ chunk_count: 3 }] })
           .mockResolvedValueOnce({
-            rows: [{
-              id: 'eix_active',
-              provider_config_id: 'aip_embedding',
-              provider: 'ollama',
-              model: 'bge-m3',
-              dimensions: 1024,
-              distance_metric: 'cosine',
-              status: 'active',
-              is_active: true,
-              expected_chunk_count: 1,
-              embedded_chunk_count: 1,
-              failed_chunk_count: 0,
-              failure_message: null,
-              build_started_at: '2026-05-31T21:36:48.791Z',
-              build_completed_at: '2026-05-31T21:36:51.599Z',
-              activated_at: '2026-05-31T21:36:51.602Z',
-              created_at: '2026-05-31T21:36:48.791Z',
-              updated_at: '2026-05-31T21:36:51.602Z',
-            }],
+            rows: [
+              {
+                id: 'eix_active',
+                provider_config_id: 'aip_embedding',
+                provider: 'ollama',
+                model: 'bge-m3',
+                dimensions: 1024,
+                distance_metric: 'cosine',
+                status: 'active',
+                is_active: true,
+                expected_chunk_count: 1,
+                embedded_chunk_count: 1,
+                failed_chunk_count: 0,
+                failure_message: null,
+                build_started_at: '2026-05-31T21:36:48.791Z',
+                build_completed_at: '2026-05-31T21:36:51.599Z',
+                activated_at: '2026-05-31T21:36:51.602Z',
+                created_at: '2026-05-31T21:36:48.791Z',
+                updated_at: '2026-05-31T21:36:51.602Z',
+              },
+            ],
           })
           .mockResolvedValueOnce({ rows: [] })
-          .mockResolvedValueOnce({ rows: [{ embedding_index_id: 'eix_active', embedded_chunk_count: 1 }] }),
+          .mockResolvedValueOnce({
+            rows: [{ embedding_index_id: 'eix_active', embedded_chunk_count: 1 }],
+          }),
       } as any,
       config: {
         ollama: {
@@ -316,14 +382,16 @@ describe('admin ai routes integration', () => {
         select: () => ({
           from: () => ({
             where: () => ({
-              limit: async () => [{
-                aiFeaturesEnabled: false,
-                ollamaHost: 'http://127.0.0.1:11434',
-                ollamaModel: 'gemma4:e4b',
-                ollamaEmbeddingHost: 'http://127.0.0.1:11434',
-                ollamaEmbeddingModel: 'bge-m3',
-                ollamaEmbeddingDimensions: 1024,
-              }],
+              limit: async () => [
+                {
+                  aiFeaturesEnabled: false,
+                  ollamaHost: 'http://127.0.0.1:11434',
+                  ollamaModel: 'gemma4:e4b',
+                  ollamaEmbeddingHost: 'http://127.0.0.1:11434',
+                  ollamaEmbeddingModel: 'bge-m3',
+                  ollamaEmbeddingDimensions: 1024,
+                },
+              ],
             }),
           }),
         }),
@@ -331,25 +399,27 @@ describe('admin ai routes integration', () => {
           .fn()
           .mockResolvedValueOnce({ rows: [{ chunk_count: 2 }] })
           .mockResolvedValueOnce({
-            rows: [{
-              id: 'eix_active',
-              provider_config_id: 'aip_embedding',
-              provider: 'ollama',
-              model: 'bge-m3',
-              dimensions: 1024,
-              distance_metric: 'cosine',
-              status: 'active',
-              is_active: true,
-              expected_chunk_count: 1,
-              embedded_chunk_count: 1,
-              failed_chunk_count: 0,
-              failure_message: null,
-              build_started_at: '2026-05-31T21:36:48.791Z',
-              build_completed_at: '2026-05-31T21:36:51.599Z',
-              activated_at: '2026-05-31T21:36:51.602Z',
-              created_at: '2026-05-31T21:36:48.791Z',
-              updated_at: '2026-05-31T21:36:51.602Z',
-            }],
+            rows: [
+              {
+                id: 'eix_active',
+                provider_config_id: 'aip_embedding',
+                provider: 'ollama',
+                model: 'bge-m3',
+                dimensions: 1024,
+                distance_metric: 'cosine',
+                status: 'active',
+                is_active: true,
+                expected_chunk_count: 1,
+                embedded_chunk_count: 1,
+                failed_chunk_count: 0,
+                failure_message: null,
+                build_started_at: '2026-05-31T21:36:48.791Z',
+                build_completed_at: '2026-05-31T21:36:51.599Z',
+                activated_at: '2026-05-31T21:36:51.602Z',
+                created_at: '2026-05-31T21:36:48.791Z',
+                updated_at: '2026-05-31T21:36:51.602Z',
+              },
+            ],
           })
           .mockResolvedValueOnce({ rows: [] })
           .mockResolvedValueOnce({ rows: [] }),
@@ -460,7 +530,7 @@ describe('admin ai routes integration', () => {
       ollamaHost: 'http://127.0.0.1:11434',
       model: 'gemma4:e4b',
     }));
-    aiServices.updateSettings = vi.fn(async settings => ({
+    aiServices.updateSettings = vi.fn(async (settings) => ({
       ...settings,
       embedding: {
         ...settings.embedding,
@@ -505,44 +575,56 @@ describe('admin ai routes integration', () => {
 
     expect(response.status).toBe(200);
     expect(auditServices.emitAuditEvent).toHaveBeenCalledTimes(4);
-    expect(auditServices.emitAuditEvent).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      eventType: 'ai.features_toggled',
-      eventCategory: 'system',
-      metadata: { enabled: true },
-      before: { aiFeaturesEnabled: false },
-      after: { aiFeaturesEnabled: true },
-    }));
-    expect(auditServices.emitAuditEvent).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      eventType: 'ai.chat_model_changed',
-      eventCategory: 'system',
-      metadata: {
-        provider: 'ollama',
-        model: 'qwen3:5b',
-      },
-      before: expect.objectContaining({ model: 'gemma4:e4b' }),
-      after: expect.objectContaining({ model: 'qwen3:5b' }),
-    }));
-    expect(auditServices.emitAuditEvent).toHaveBeenNthCalledWith(3, expect.objectContaining({
-      eventType: 'ai.translation_model_changed',
-      eventCategory: 'system',
-      metadata: {
-        provider: 'ollama',
-        model: 'qwen3:5b',
-      },
-      before: expect.objectContaining({ model: 'gemma4:e4b' }),
-      after: expect.objectContaining({ model: 'qwen3:5b' }),
-    }));
-    expect(auditServices.emitAuditEvent).toHaveBeenNthCalledWith(4, expect.objectContaining({
-      eventType: 'ai.embedding_model_changed',
-      eventCategory: 'system',
-      metadata: {
-        provider: 'ollama',
-        model: 'embeddinggemma:300m',
-        dimensions: 768,
-      },
-      before: expect.objectContaining({ model: 'bge-m3', dimensions: 1024 }),
-      after: expect.objectContaining({ model: 'embeddinggemma:300m', dimensions: 768 }),
-    }));
+    expect(auditServices.emitAuditEvent).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        eventType: 'ai.features_toggled',
+        eventCategory: 'system',
+        metadata: { enabled: true },
+        before: { aiFeaturesEnabled: false },
+        after: { aiFeaturesEnabled: true },
+      }),
+    );
+    expect(auditServices.emitAuditEvent).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        eventType: 'ai.chat_model_changed',
+        eventCategory: 'system',
+        metadata: {
+          provider: 'ollama',
+          model: 'qwen3:5b',
+        },
+        before: expect.objectContaining({ model: 'gemma4:e4b' }),
+        after: expect.objectContaining({ model: 'qwen3:5b' }),
+      }),
+    );
+    expect(auditServices.emitAuditEvent).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        eventType: 'ai.translation_model_changed',
+        eventCategory: 'system',
+        metadata: {
+          provider: 'ollama',
+          model: 'qwen3:5b',
+        },
+        before: expect.objectContaining({ model: 'gemma4:e4b' }),
+        after: expect.objectContaining({ model: 'qwen3:5b' }),
+      }),
+    );
+    expect(auditServices.emitAuditEvent).toHaveBeenNthCalledWith(
+      4,
+      expect.objectContaining({
+        eventType: 'ai.embedding_model_changed',
+        eventCategory: 'system',
+        metadata: {
+          provider: 'ollama',
+          model: 'embeddinggemma:300m',
+          dimensions: 768,
+        },
+        before: expect.objectContaining({ model: 'bge-m3', dimensions: 1024 }),
+        after: expect.objectContaining({ model: 'embeddinggemma:300m', dimensions: 768 }),
+      }),
+    );
   });
 
   test('does not audit AI settings updates without relevant changes', async () => {
@@ -622,14 +704,16 @@ describe('admin ai routes integration', () => {
     const select = vi.fn(() => ({
       from: () => ({
         where: () => ({
-          limit: async () => [{
-            aiFeaturesEnabled: false,
-            ollamaHost: 'http://127.0.0.1:11434',
-            ollamaModel: 'gemma4:e4b',
-            ollamaEmbeddingHost: 'http://127.0.0.1:11434',
-            ollamaEmbeddingModel: 'bge-m3',
-            ollamaEmbeddingDimensions: 1024,
-          }],
+          limit: async () => [
+            {
+              aiFeaturesEnabled: false,
+              ollamaHost: 'http://127.0.0.1:11434',
+              ollamaModel: 'gemma4:e4b',
+              ollamaEmbeddingHost: 'http://127.0.0.1:11434',
+              ollamaEmbeddingModel: 'bge-m3',
+              ollamaEmbeddingDimensions: 1024,
+            },
+          ],
         }),
       }),
     }));
@@ -639,8 +723,9 @@ describe('admin ai routes integration', () => {
       .mockResolvedValueOnce({ rows: [{ count: 0 }] })
       .mockResolvedValueOnce({ rows: [{ id: 'eix_active' }] });
     const txExecute = vi.fn(async () => ({ rows: [] }));
-    const transaction = vi.fn(async (callback: (tx: { execute: typeof txExecute }) => Promise<void>) =>
-      callback({ execute: txExecute }),
+    const transaction = vi.fn(
+      async (callback: (tx: { execute: typeof txExecute }) => Promise<void>) =>
+        callback({ execute: txExecute }),
     );
     const fetchImpl = vi.fn();
     const aiServices = createAdminAiServices({
@@ -698,14 +783,16 @@ describe('admin ai routes integration', () => {
     const select = vi.fn(() => ({
       from: () => ({
         where: () => ({
-          limit: async () => [{
-            aiFeaturesEnabled: false,
-            ollamaHost: 'http://127.0.0.1:11434',
-            ollamaModel: 'gemma4:e4b',
-            ollamaEmbeddingHost: 'http://127.0.0.1:11434',
-            ollamaEmbeddingModel: 'bge-m3',
-            ollamaEmbeddingDimensions: 1024,
-          }],
+          limit: async () => [
+            {
+              aiFeaturesEnabled: false,
+              ollamaHost: 'http://127.0.0.1:11434',
+              ollamaModel: 'gemma4:e4b',
+              ollamaEmbeddingHost: 'http://127.0.0.1:11434',
+              ollamaEmbeddingModel: 'bge-m3',
+              ollamaEmbeddingDimensions: 1024,
+            },
+          ],
         }),
       }),
     }));
@@ -715,8 +802,9 @@ describe('admin ai routes integration', () => {
       .mockResolvedValueOnce({ rows: [{ count: 0 }] })
       .mockResolvedValueOnce({ rows: [] });
     const txExecute = vi.fn(async () => ({ rows: [] }));
-    const transaction = vi.fn(async (callback: (tx: { execute: typeof txExecute }) => Promise<void>) =>
-      callback({ execute: txExecute }),
+    const transaction = vi.fn(
+      async (callback: (tx: { execute: typeof txExecute }) => Promise<void>) =>
+        callback({ execute: txExecute }),
     );
     const fetchImpl = vi.fn();
     const aiServices = createAdminAiServices({
@@ -760,9 +848,11 @@ describe('admin ai routes integration', () => {
     });
 
     expect(transaction).toHaveBeenCalled();
-    expect(values).toHaveBeenCalledWith(expect.objectContaining({
-      ollamaEmbeddingDimensions: 768,
-    }));
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ollamaEmbeddingDimensions: 768,
+      }),
+    );
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(enqueueOrchestrateIndex).toHaveBeenCalledWith({
       embeddingIndexId: expect.stringMatching(/^eix_/),
@@ -777,14 +867,16 @@ describe('admin ai routes integration', () => {
     const select = vi.fn(() => ({
       from: () => ({
         where: () => ({
-          limit: async () => [{
-            aiFeaturesEnabled: false,
-            ollamaHost: 'http://127.0.0.1:11434',
-            ollamaModel: 'gemma4:e4b',
-            ollamaEmbeddingHost: 'http://127.0.0.1:11434',
-            ollamaEmbeddingModel: 'embeddinggemma:latest',
-            ollamaEmbeddingDimensions: 1024,
-          }],
+          limit: async () => [
+            {
+              aiFeaturesEnabled: false,
+              ollamaHost: 'http://127.0.0.1:11434',
+              ollamaModel: 'gemma4:e4b',
+              ollamaEmbeddingHost: 'http://127.0.0.1:11434',
+              ollamaEmbeddingModel: 'embeddinggemma:latest',
+              ollamaEmbeddingDimensions: 1024,
+            },
+          ],
         }),
       }),
     }));
@@ -794,8 +886,9 @@ describe('admin ai routes integration', () => {
       .mockResolvedValueOnce({ rows: [{ count: 0 }] })
       .mockResolvedValueOnce({ rows: [] });
     const txExecute = vi.fn(async () => ({ rows: [] }));
-    const transaction = vi.fn(async (callback: (tx: { execute: typeof txExecute }) => Promise<void>) =>
-      callback({ execute: txExecute }),
+    const transaction = vi.fn(
+      async (callback: (tx: { execute: typeof txExecute }) => Promise<void>) =>
+        callback({ execute: txExecute }),
     );
     const fetchImpl = vi.fn();
     const aiServices = createAdminAiServices({
@@ -839,9 +932,11 @@ describe('admin ai routes integration', () => {
     });
 
     expect(settings.embedding.dimensions).toBe(1024);
-    expect(values).toHaveBeenCalledWith(expect.objectContaining({
-      ollamaEmbeddingDimensions: 1024,
-    }));
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ollamaEmbeddingDimensions: 1024,
+      }),
+    );
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(transaction).toHaveBeenCalled();
     expect(enqueueOrchestrateIndex).toHaveBeenCalledWith({
@@ -854,7 +949,7 @@ describe('admin ai routes integration', () => {
     const response = await app.request('/api/admin/ai/model-catalog');
 
     expect(response.status).toBe(200);
-    const body = await response.json() as any;
+    const body = (await response.json()) as any;
     expect(body.models).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -904,7 +999,7 @@ describe('admin ai routes integration', () => {
 
     try {
       const models = await aiServices.listChatModels({ provider: 'gemini' });
-      expect(models.map(model => model.name)).toContain('gemini-3.5-flash');
+      expect(models.map((model) => model.name)).toContain('gemini-3.5-flash');
 
       const availability = await aiServices.checkModelAvailability({
         provider: 'gemini',
@@ -955,48 +1050,50 @@ describe('admin ai routes integration', () => {
       fetchImpl: fetchImpl as any,
     });
 
-    fetchImpl.mockImplementation(async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
-      const url = input.toString();
+    fetchImpl.mockImplementation(
+      async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+        const url = input.toString();
 
-      if (url === 'http://127.0.0.1:11434/api/tags') {
-        return Response.json({
-          models: [
-            { name: 'plain-text-model:latest', size: 1000 },
-            { name: 'vector-only-local:latest', size: 2000 },
-            { name: 'vision-model:latest', size: 3000 },
-          ],
-        });
-      }
-
-      if (url === 'http://127.0.0.1:11434/api/show') {
-        const body = JSON.parse(init?.body?.toString() ?? '{}') as { model?: string };
-        if (body.model === 'vector-only-local:latest') {
+        if (url === 'http://127.0.0.1:11434/api/tags') {
           return Response.json({
-            capabilities: ['embedding'],
-            model_info: { 'bert.embedding_length': 768 },
+            models: [
+              { name: 'plain-text-model:latest', size: 1000 },
+              { name: 'vector-only-local:latest', size: 2000 },
+              { name: 'vision-model:latest', size: 3000 },
+            ],
           });
         }
-        if (body.model === 'vision-model:latest') {
+
+        if (url === 'http://127.0.0.1:11434/api/show') {
+          const body = JSON.parse(init?.body?.toString() ?? '{}') as { model?: string };
+          if (body.model === 'vector-only-local:latest') {
+            return Response.json({
+              capabilities: ['embedding'],
+              model_info: { 'bert.embedding_length': 768 },
+            });
+          }
+          if (body.model === 'vision-model:latest') {
+            return Response.json({
+              capabilities: ['completion', 'vision'],
+              model_info: {},
+            });
+          }
           return Response.json({
-            capabilities: ['completion', 'vision'],
+            capabilities: ['completion'],
             model_info: {},
           });
         }
-        return Response.json({
-          capabilities: ['completion'],
-          model_info: {},
-        });
-      }
 
-      throw new Error(`Unexpected Ollama request ${url}`);
-    });
+        throw new Error(`Unexpected Ollama request ${url}`);
+      },
+    );
 
     const models = await aiServices.listChatModels({ provider: 'ollama' });
 
-    expect(models.map(model => model.name)).toContain('plain-text-model:latest');
-    expect(models.map(model => model.name)).toContain('vision-model:latest');
-    expect(models.map(model => model.name)).not.toContain('vector-only-local:latest');
-    expect(models.find(model => model.name === 'vision-model:latest')?.capabilities).toEqual([
+    expect(models.map((model) => model.name)).toContain('plain-text-model:latest');
+    expect(models.map((model) => model.name)).toContain('vision-model:latest');
+    expect(models.map((model) => model.name)).not.toContain('vector-only-local:latest');
+    expect(models.find((model) => model.name === 'vision-model:latest')?.capabilities).toEqual([
       'chat',
       'vision',
     ]);
@@ -1062,9 +1159,11 @@ describe('admin ai routes integration', () => {
       } as any,
     });
 
-    expect(aiServices.getModelCatalog().find(
-      entry => entry.provider === 'gemini' && entry.model === 'gemini-3.5-flash',
-    )).toMatchObject({
+    expect(
+      aiServices
+        .getModelCatalog()
+        .find((entry) => entry.provider === 'gemini' && entry.model === 'gemini-3.5-flash'),
+    ).toMatchObject({
       label: 'Gemini Custom Label',
       capabilities: ['chat'],
     });
@@ -1078,21 +1177,23 @@ describe('admin ai routes integration', () => {
         select: () => ({
           from: () => ({
             where: () => ({
-              limit: async () => [{
-                aiFeaturesEnabled: true,
-                chatProvider: 'gemini',
-                chatBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-                chatApiKeySecretRef: 'ARKIVRA_TEST_MISSING_GEMINI_KEY',
-                chatModel: 'gemini-3.5-flash',
-                chatAllowedModels: ['gemini-3.5-flash'],
-                geminiApiKeySecretRef: 'ARKIVRA_TEST_GEMINI_PROVIDER_KEY',
-                ollamaHost: 'http://127.0.0.1:11434',
-                ollamaModel: 'gemma4:e4b',
-                ollamaTranslationModel: 'gemma4:e4b',
-                ollamaEmbeddingHost: 'http://127.0.0.1:11434',
-                ollamaEmbeddingModel: 'bge-m3',
-                ollamaEmbeddingDimensions: 1024,
-              }],
+              limit: async () => [
+                {
+                  aiFeaturesEnabled: true,
+                  chatProvider: 'gemini',
+                  chatBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+                  chatApiKeySecretRef: 'ARKIVRA_TEST_MISSING_GEMINI_KEY',
+                  chatModel: 'gemini-3.5-flash',
+                  chatAllowedModels: ['gemini-3.5-flash'],
+                  geminiApiKeySecretRef: 'ARKIVRA_TEST_GEMINI_PROVIDER_KEY',
+                  ollamaHost: 'http://127.0.0.1:11434',
+                  ollamaModel: 'gemma4:e4b',
+                  ollamaTranslationModel: 'gemma4:e4b',
+                  ollamaEmbeddingHost: 'http://127.0.0.1:11434',
+                  ollamaEmbeddingModel: 'bge-m3',
+                  ollamaEmbeddingDimensions: 1024,
+                },
+              ],
             }),
           }),
         }),
@@ -1132,21 +1233,23 @@ describe('admin ai routes integration', () => {
         select: () => ({
           from: () => ({
             where: () => ({
-              limit: async () => [{
-                aiFeaturesEnabled: true,
-                chatProvider: 'gemini',
-                chatBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-                chatApiKeySecretRef: rawLookingKey,
-                chatModel: 'gemini-3.5-flash',
-                chatAllowedModels: ['gemini-3.5-flash'],
-                geminiApiKeySecretRef: rawLookingKey,
-                ollamaHost: 'http://127.0.0.1:11434',
-                ollamaModel: 'gemma4:e4b',
-                ollamaTranslationModel: 'gemma4:e4b',
-                ollamaEmbeddingHost: 'http://127.0.0.1:11434',
-                ollamaEmbeddingModel: 'bge-m3',
-                ollamaEmbeddingDimensions: 1024,
-              }],
+              limit: async () => [
+                {
+                  aiFeaturesEnabled: true,
+                  chatProvider: 'gemini',
+                  chatBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+                  chatApiKeySecretRef: rawLookingKey,
+                  chatModel: 'gemini-3.5-flash',
+                  chatAllowedModels: ['gemini-3.5-flash'],
+                  geminiApiKeySecretRef: rawLookingKey,
+                  ollamaHost: 'http://127.0.0.1:11434',
+                  ollamaModel: 'gemma4:e4b',
+                  ollamaTranslationModel: 'gemma4:e4b',
+                  ollamaEmbeddingHost: 'http://127.0.0.1:11434',
+                  ollamaEmbeddingModel: 'bge-m3',
+                  ollamaEmbeddingDimensions: 1024,
+                },
+              ],
             }),
           }),
         }),
@@ -1200,7 +1303,7 @@ describe('admin ai routes integration', () => {
     });
 
     expect(response.status).toBe(200);
-    const body = await response.json() as any;
+    const body = (await response.json()) as any;
     expect(body.availability.reachable).toBe(false);
     expect(body.availability.modelAvailable).toBe(false);
   });
@@ -1234,26 +1337,39 @@ describe('admin ai routes integration', () => {
   test('checks explicit Ollama availability without reading stored AI settings', async () => {
     const fetchImpl = vi
       .fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        models: [
-          { name: 'llama3.2:1b', size: 1000, modified_at: '2026-04-23T12:00:00.000Z' },
-        ],
-      }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        capabilities: ['completion'],
-      }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        response: 'ok',
-      }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }));
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            models: [{ name: 'llama3.2:1b', size: 1000, modified_at: '2026-04-23T12:00:00.000Z' }],
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            capabilities: ['completion'],
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            response: 'ok',
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+      );
     const select = vi.fn(() => {
       throw new Error('stored settings should not be read');
     });
@@ -1282,20 +1398,30 @@ describe('admin ai routes integration', () => {
   test('keeps Ollama reachable and returns available alternatives when the configured model is missing', async () => {
     const fetchImpl = vi
       .fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        models: [
-          { name: 'granite4.1:3b', size: 1000, modified_at: '2026-04-23T12:00:00.000Z' },
-        ],
-      }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        capabilities: ['completion', 'vision'],
-      }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }));
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            models: [
+              { name: 'granite4.1:3b', size: 1000, modified_at: '2026-04-23T12:00:00.000Z' },
+            ],
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            capabilities: ['completion', 'vision'],
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+      );
     const select = vi.fn(() => {
       throw new Error('stored settings should not be read');
     });
@@ -1335,26 +1461,39 @@ describe('admin ai routes integration', () => {
   test('marks a listed model unavailable when Ollama cannot load it', async () => {
     const fetchImpl = vi
       .fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        models: [
-          { name: 'gemma4:e4b', size: 1000, modified_at: '2026-04-23T12:00:00.000Z' },
-        ],
-      }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        capabilities: ['completion'],
-      }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        error: 'unable to load model: corrupted blob',
-      }), {
-        status: 500,
-        headers: { 'content-type': 'application/json' },
-      }));
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            models: [{ name: 'gemma4:e4b', size: 1000, modified_at: '2026-04-23T12:00:00.000Z' }],
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            capabilities: ['completion'],
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: 'unable to load model: corrupted blob',
+          }),
+          {
+            status: 500,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+      );
 
     const aiServices = createAdminAiServices({
       db: {
@@ -1385,5 +1524,4 @@ describe('admin ai routes integration', () => {
     expect(availability.modelAvailable).toBe(false);
     expect(availability.error).toMatch(/listed but could not be loaded/i);
   });
-
 });

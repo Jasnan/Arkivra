@@ -89,8 +89,8 @@ function mapOllamaLiveCapabilities(capabilities: readonly string[]): AdminAiMode
 
 function formatInstalledChatModels(models: readonly AdminAiModel[]) {
   return models
-    .filter(model => model.available === true && model.capabilities.includes('chat'))
-    .map(model => model.name)
+    .filter((model) => model.available === true && model.capabilities.includes('chat'))
+    .map((model) => model.name)
     .sort((left, right) => left.localeCompare(right));
 }
 
@@ -102,13 +102,14 @@ function createLiveOllamaAvailabilityModels({
   const merged = new Map<string, AdminAiModel>();
 
   function setModel(model: AdminAiModel) {
-    const existingKey = Array.from(merged.keys()).find(key => isSameOllamaModel(key, model.name));
+    const existingKey = Array.from(merged.keys()).find((key) => isSameOllamaModel(key, model.name));
     merged.set(existingKey ?? model.name, model);
   }
 
   for (const liveModel of liveModels) {
-    const capabilities = mapOllamaLiveCapabilities(liveModel.capabilities)
-      .filter(capability => capability !== 'embedding' || liveModel.embeddingDimensions !== undefined);
+    const capabilities = mapOllamaLiveCapabilities(liveModel.capabilities).filter(
+      (capability) => capability !== 'embedding' || liveModel.embeddingDimensions !== undefined,
+    );
 
     setModel({
       name: liveModel.name,
@@ -165,9 +166,7 @@ function createEmptyDocumentStatuses(): AdminEmbeddingIndexSummary['documentStat
 }
 
 function shouldCompareIndexWithCorpus(status: AdminEmbeddingIndexSummary['status']) {
-  return status === 'building'
-    || status === 'ready'
-    || status === 'active';
+  return status === 'building' || status === 'ready' || status === 'active';
 }
 
 export function createAdminAiServices({
@@ -182,29 +181,48 @@ export function createAdminAiServices({
   fetchImpl?: typeof fetch;
 }) {
   const ollama = createOllamaProvider({ fetchImpl });
-  const configuredOllamaHost = normalizeHost(config.ollama.host);
+  const configuredOllamaHost =
+    config.ollama.configured === false ? '' : normalizeHost(config.ollama.host);
+  const hasConfiguredOllamaProvider = configuredOllamaHost.length > 0;
   const modelCatalog = createAiModelCatalog({
     extensions: config.ai?.modelCatalogExtensions ?? [],
   }) as AdminAiModelCatalogEntry[];
 
   function applyConfiguredOllamaHost(settings: AdminAiSettings): AdminAiSettings {
+    const geminiApiKeySecretRef = settings.providers?.gemini?.apiKeySecretRef ?? null;
+    const geminiConfigured =
+      resolveApiKey(
+        geminiApiKeySecretRef,
+        settings.chat.provider === 'gemini' ? settings.chat.apiKeySecretRef : null,
+        settings.translation.provider === 'gemini' ? settings.translation.apiKeySecretRef : null,
+      ) !== null;
+
     return {
       ...settings,
+      aiFeaturesEnabled: settings.aiFeaturesEnabled && hasConfiguredOllamaProvider,
       chat: {
         ...settings.chat,
-        baseUrl: settings.chat.provider === 'ollama'
-          ? configuredOllamaHost
-          : settings.chat.baseUrl,
+        baseUrl: settings.chat.provider === 'ollama' ? configuredOllamaHost : settings.chat.baseUrl,
       },
       translation: {
         ...settings.translation,
-        baseUrl: settings.translation.provider === 'ollama'
-          ? configuredOllamaHost
-          : settings.translation.baseUrl,
+        baseUrl:
+          settings.translation.provider === 'ollama'
+            ? configuredOllamaHost
+            : settings.translation.baseUrl,
       },
       embedding: {
         ...settings.embedding,
         baseUrl: configuredOllamaHost,
+      },
+      providers: {
+        ...settings.providers,
+        gemini: {
+          ...settings.providers?.gemini,
+          baseUrl: GEMINI_OPENAI_COMPATIBLE_BASE_URL,
+          apiKeySecretRef: geminiApiKeySecretRef,
+          configured: geminiConfigured,
+        },
       },
       ollamaHost: configuredOllamaHost,
     };
@@ -230,24 +248,29 @@ export function createAdminAiServices({
 
     const storedChatProvider = stored.chatProvider === 'gemini' ? 'gemini' : 'ollama';
     const chatSelection = parseChatModelSelection({
-      value: stored.chatModel ?? stored.ollamaModel ?? getDefaultChatModel(storedChatProvider, defaults.model),
+      value:
+        stored.chatModel ??
+        stored.ollamaModel ??
+        getDefaultChatModel(storedChatProvider, defaults.model),
       fallbackProvider: storedChatProvider,
     });
     const chatProvider = chatSelection.provider;
     const chatModel = chatSelection.model;
     const chatBaseUrl = normalizeChatBaseUrl({
       provider: chatProvider,
-      baseUrl: chatProvider === 'ollama'
-        ? configuredOllamaHost
-        : (stored.chatBaseUrl ?? stored.ollamaHost),
+      baseUrl:
+        chatProvider === 'ollama'
+          ? configuredOllamaHost
+          : (stored.chatBaseUrl ?? stored.ollamaHost),
       fallbackOllamaHost: configuredOllamaHost,
     });
     const storedTranslationProvider = stored.translationProvider === 'gemini' ? 'gemini' : 'ollama';
     const translationBaseUrl = normalizeChatBaseUrl({
       provider: storedTranslationProvider,
-      baseUrl: storedTranslationProvider === 'ollama'
-        ? configuredOllamaHost
-        : (stored.translationBaseUrl ?? stored.ollamaHost),
+      baseUrl:
+        storedTranslationProvider === 'ollama'
+          ? configuredOllamaHost
+          : (stored.translationBaseUrl ?? stored.ollamaHost),
       fallbackOllamaHost: configuredOllamaHost,
     });
 
@@ -316,10 +339,12 @@ export function createAdminAiServices({
         ei.created_at DESC
       LIMIT 12
     `);
-    const indexIds = indexRows.rows.map(row => row.id);
-    const statusCounts = indexIds.length === 0
-      ? []
-      : (await db.execute<DocumentStatusCountRow>(sql`
+    const indexIds = indexRows.rows.map((row) => row.id);
+    const statusCounts =
+      indexIds.length === 0
+        ? []
+        : (
+            await db.execute<DocumentStatusCountRow>(sql`
           SELECT
             deis.embedding_index_id,
             deis.status,
@@ -329,15 +354,21 @@ export function createAdminAiServices({
           INNER JOIN documents AS d ON d.id = dv.document_id
             AND d.vault_id = dv.vault_id
             AND d.current_version_id = dv.id
-          WHERE deis.embedding_index_id IN (${sql.join(indexIds.map(id => sql`${id}`), sql`, `)})
+          WHERE deis.embedding_index_id IN (${sql.join(
+            indexIds.map((id) => sql`${id}`),
+            sql`, `,
+          )})
             AND dv.processing_status = 'completed'
             AND dv.deleted_at IS NULL
             AND d.is_deleted = false
           GROUP BY deis.embedding_index_id, deis.status
-        `)).rows;
-    const currentEmbeddedCounts = indexIds.length === 0
-      ? []
-      : (await db.execute<CurrentEmbeddedChunkCountRow>(sql`
+        `)
+          ).rows;
+    const currentEmbeddedCounts =
+      indexIds.length === 0
+        ? []
+        : (
+            await db.execute<CurrentEmbeddedChunkCountRow>(sql`
           SELECT
             dce.embedding_index_id,
             count(dce.chunk_id)::int AS embedded_chunk_count
@@ -346,24 +377,32 @@ export function createAdminAiServices({
           INNER JOIN documents AS d ON d.id = dv.document_id
             AND d.vault_id = dv.vault_id
             AND d.current_version_id = dv.id
-          WHERE dce.embedding_index_id IN (${sql.join(indexIds.map(id => sql`${id}`), sql`, `)})
+          WHERE dce.embedding_index_id IN (${sql.join(
+            indexIds.map((id) => sql`${id}`),
+            sql`, `,
+          )})
             AND dv.processing_status = 'completed'
             AND dv.deleted_at IS NULL
             AND d.is_deleted = false
           GROUP BY dce.embedding_index_id
-        `)).rows;
-    const documentStatusesByIndexId = new Map<string, AdminEmbeddingIndexSummary['documentStatuses']>();
+        `)
+          ).rows;
+    const documentStatusesByIndexId = new Map<
+      string,
+      AdminEmbeddingIndexSummary['documentStatuses']
+    >();
     const currentEmbeddedCountByIndexId = new Map(
-      currentEmbeddedCounts.map(row => [row.embedding_index_id, row.embedded_chunk_count]),
+      currentEmbeddedCounts.map((row) => [row.embedding_index_id, row.embedded_chunk_count]),
     );
 
     for (const row of statusCounts) {
-      const statuses = documentStatusesByIndexId.get(row.embedding_index_id) ?? createEmptyDocumentStatuses();
+      const statuses =
+        documentStatusesByIndexId.get(row.embedding_index_id) ?? createEmptyDocumentStatuses();
       statuses[row.status] = row.count;
       documentStatusesByIndexId.set(row.embedding_index_id, statuses);
     }
 
-    const indexes: AdminEmbeddingIndexSummary[] = indexRows.rows.map(row => ({
+    const indexes: AdminEmbeddingIndexSummary[] = indexRows.rows.map((row) => ({
       id: row.id,
       providerConfigId: row.provider_config_id,
       provider: row.provider,
@@ -376,7 +415,7 @@ export function createAdminAiServices({
         ? Math.max(row.expected_chunk_count, corpusChunkCount)
         : row.expected_chunk_count,
       embeddedChunkCount: shouldCompareIndexWithCorpus(row.status)
-        ? currentEmbeddedCountByIndexId.get(row.id) ?? 0
+        ? (currentEmbeddedCountByIndexId.get(row.id) ?? 0)
         : row.embedded_chunk_count,
       failedChunkCount: row.failed_chunk_count,
       failureMessage: row.failure_message,
@@ -387,14 +426,15 @@ export function createAdminAiServices({
       updatedAt: toIsoOrNull(row.updated_at)!,
       documentStatuses: documentStatusesByIndexId.get(row.id) ?? createEmptyDocumentStatuses(),
     }));
-    const activeIndex = indexes.find(index => index.isActive && index.status === 'active') ?? null;
-    const candidateIndexes = indexes.filter(index =>
-      index.status === 'building'
-      || index.status === 'ready'
-      || index.status === 'failed',
+    const activeIndex =
+      indexes.find((index) => index.isActive && index.status === 'active') ?? null;
+    const candidateIndexes = indexes.filter(
+      (index) =>
+        index.status === 'building' || index.status === 'ready' || index.status === 'failed',
     );
-    const progressIndex = candidateIndexes.find(index => index.status === 'building' || index.status === 'ready')
-      ?? activeIndex;
+    const progressIndex =
+      candidateIndexes.find((index) => index.status === 'building' || index.status === 'ready') ??
+      activeIndex;
 
     return {
       aiFeaturesEnabled: settings.aiFeaturesEnabled,
@@ -442,11 +482,15 @@ export function createAdminAiServices({
     }
 
     return {
-      embeddingEnabled: stored.aiFeaturesEnabled && stored.ollamaEmbeddingEnabled,
+      embeddingEnabled:
+        hasConfiguredOllamaProvider && stored.aiFeaturesEnabled && stored.ollamaEmbeddingEnabled,
       embeddingHost: configuredOllamaHost,
       embeddingModel: stored.ollamaEmbeddingModel,
       embeddingDimensions: stored.ollamaEmbeddingDimensions,
-      captioningEnabled: defaults.captioningEnabled && defaults.captioningModel.length > 0,
+      captioningEnabled:
+        hasConfiguredOllamaProvider &&
+        defaults.captioningEnabled &&
+        defaults.captioningModel.length > 0,
       captioningHost: configuredOllamaHost,
       captioningModel: defaults.captioningModel,
     };
@@ -505,53 +549,59 @@ export function createAdminAiServices({
 
   async function updateSettings(nextSettings: AdminAiSettings): Promise<AdminAiSettings> {
     const previousSettings = await getSettings();
-    const initialNormalized = applyConfiguredOllamaHost(normalizeSettings({
-      ...nextSettings,
-      chat: {
-        ...nextSettings.chat,
-        baseUrl: nextSettings.chat.provider === 'ollama'
-          ? configuredOllamaHost
-          : nextSettings.chat.baseUrl,
-      },
-      translation: {
-        ...nextSettings.translation,
-        baseUrl: nextSettings.translation.provider === 'ollama'
-          ? configuredOllamaHost
-          : nextSettings.translation.baseUrl,
-      },
-      embedding: {
-        ...nextSettings.embedding,
-        baseUrl: configuredOllamaHost,
-      },
-      ollamaHost: configuredOllamaHost,
-    }));
+    const initialNormalized = applyConfiguredOllamaHost(
+      normalizeSettings({
+        ...nextSettings,
+        chat: {
+          ...nextSettings.chat,
+          baseUrl:
+            nextSettings.chat.provider === 'ollama'
+              ? configuredOllamaHost
+              : nextSettings.chat.baseUrl,
+        },
+        translation: {
+          ...nextSettings.translation,
+          baseUrl:
+            nextSettings.translation.provider === 'ollama'
+              ? configuredOllamaHost
+              : nextSettings.translation.baseUrl,
+        },
+        embedding: {
+          ...nextSettings.embedding,
+          baseUrl: configuredOllamaHost,
+        },
+        ollamaHost: configuredOllamaHost,
+      }),
+    );
     const initialEmbeddingConfigChanged =
-      previousSettings.embedding.provider !== initialNormalized.embedding.provider
-      || previousSettings.embedding.baseUrl !== initialNormalized.embedding.baseUrl
-      || previousSettings.embedding.model !== initialNormalized.embedding.model
-      || previousSettings.embedding.dimensions !== initialNormalized.embedding.dimensions;
+      previousSettings.embedding.provider !== initialNormalized.embedding.provider ||
+      previousSettings.embedding.baseUrl !== initialNormalized.embedding.baseUrl ||
+      previousSettings.embedding.model !== initialNormalized.embedding.model ||
+      previousSettings.embedding.dimensions !== initialNormalized.embedding.dimensions;
     const aiWasEnabled = previousSettings.aiFeaturesEnabled;
-    const shouldApplyCatalogEmbeddingDimensions = initialEmbeddingConfigChanged
-      || (!aiWasEnabled && initialNormalized.aiFeaturesEnabled);
+    const shouldApplyCatalogEmbeddingDimensions =
+      initialEmbeddingConfigChanged || (!aiWasEnabled && initialNormalized.aiFeaturesEnabled);
     const catalogEmbeddingEntry = findCatalogEntry(
       modelCatalog,
       initialNormalized.embedding.provider,
       initialNormalized.embedding.model,
     );
-    const normalized = shouldApplyCatalogEmbeddingDimensions && catalogEmbeddingEntry?.embeddingDimensions !== undefined
-      ? {
-          ...initialNormalized,
-          embedding: {
-            ...initialNormalized.embedding,
-            dimensions: catalogEmbeddingEntry.embeddingDimensions,
-          },
-        }
-      : initialNormalized;
+    const normalized =
+      shouldApplyCatalogEmbeddingDimensions &&
+      catalogEmbeddingEntry?.embeddingDimensions !== undefined
+        ? {
+            ...initialNormalized,
+            embedding: {
+              ...initialNormalized.embedding,
+              dimensions: catalogEmbeddingEntry.embeddingDimensions,
+            },
+          }
+        : initialNormalized;
     const embeddingConfigChanged =
-      previousSettings.embedding.provider !== normalized.embedding.provider
-      || previousSettings.embedding.baseUrl !== normalized.embedding.baseUrl
-      || previousSettings.embedding.model !== normalized.embedding.model
-      || previousSettings.embedding.dimensions !== normalized.embedding.dimensions;
+      previousSettings.embedding.provider !== normalized.embedding.provider ||
+      previousSettings.embedding.baseUrl !== normalized.embedding.baseUrl ||
+      previousSettings.embedding.model !== normalized.embedding.model ||
+      previousSettings.embedding.dimensions !== normalized.embedding.dimensions;
 
     await db
       .insert(instanceSettingsTable)
@@ -601,14 +651,15 @@ export function createAdminAiServices({
       });
 
     const shouldPrepareSemanticSearch =
-      normalized.aiFeaturesEnabled
-      && (embeddingConfigChanged || !aiWasEnabled)
-      && !(await hasSemanticIndexForSettings(normalized));
+      normalized.aiFeaturesEnabled &&
+      (embeddingConfigChanged || !aiWasEnabled) &&
+      !(await hasSemanticIndexForSettings(normalized));
 
     if (shouldPrepareSemanticSearch && embeddingIndexQueue !== undefined) {
-      const matchingActiveIndexId = !embeddingConfigChanged && !aiWasEnabled
-        ? await getMatchingActiveEmbeddingIndexId(normalized)
-        : null;
+      const matchingActiveIndexId =
+        !embeddingConfigChanged && !aiWasEnabled
+          ? await getMatchingActiveEmbeddingIndexId(normalized)
+          : null;
 
       if (matchingActiveIndexId !== null) {
         await embeddingIndexQueue.enqueueOrchestrateIndex({
@@ -620,7 +671,9 @@ export function createAdminAiServices({
           model: normalized.embedding.model,
           dimensions: normalized.embedding.dimensions,
           baseUrl: normalized.embedding.baseUrl,
-          ...(normalized.embedding.apiKeySecretRef ? { apiKeySecretRef: normalized.embedding.apiKeySecretRef } : {}),
+          ...(normalized.embedding.apiKeySecretRef
+            ? { apiKeySecretRef: normalized.embedding.apiKeySecretRef }
+            : {}),
         });
       }
     }
@@ -630,11 +683,15 @@ export function createAdminAiServices({
 
   async function listModels({ host }: { host?: string } = {}): Promise<AdminAiModel[]> {
     const effectiveHost = normalizeHost(host ?? configuredOllamaHost);
+    if (effectiveHost.length === 0) {
+      return [];
+    }
+
     return await ollama.listModels({ host: effectiveHost });
   }
 
   function getModelCatalog(): AdminAiModelCatalogEntry[] {
-    return modelCatalog.map(entry => ({ ...entry, capabilities: [...entry.capabilities] }));
+    return modelCatalog.map((entry) => ({ ...entry, capabilities: [...entry.capabilities] }));
   }
 
   async function listChatModels({
@@ -646,19 +703,20 @@ export function createAdminAiServices({
     baseUrl?: string;
     includeEmbeddingModels?: boolean;
   } = {}): Promise<AdminAiModel[]> {
-    const catalogModels = provider === 'ollama'
-      ? []
-      : getModelCatalog()
-          .filter(entry => provider === undefined || entry.provider === provider)
-          .filter(entry => entry.provider !== 'ollama')
-          .filter(entry => includeEmbeddingModels || hasCatalogCapability(entry, 'chat'))
-          .map(entry => ({
-            name: entry.model,
-            size: null,
-            modifiedAt: null,
-            capabilities: entry.capabilities,
-            description: entry.label ?? null,
-          }));
+    const catalogModels =
+      provider === 'ollama'
+        ? []
+        : getModelCatalog()
+            .filter((entry) => provider === undefined || entry.provider === provider)
+            .filter((entry) => entry.provider !== 'ollama')
+            .filter((entry) => includeEmbeddingModels || hasCatalogCapability(entry, 'chat'))
+            .map((entry) => ({
+              name: entry.model,
+              size: null,
+              modifiedAt: null,
+              capabilities: entry.capabilities,
+              description: entry.label ?? null,
+            }));
 
     if (provider === 'gemini') {
       return catalogModels;
@@ -666,19 +724,15 @@ export function createAdminAiServices({
 
     const liveModels = await listModels({ host: baseUrl ?? configuredOllamaHost });
     const ollamaModels = createLiveOllamaAvailabilityModels({ liveModels })
-      .filter(entry => includeEmbeddingModels || entry.capabilities.includes('chat'))
-      .map(entry => ({ ...entry, capabilities: [...entry.capabilities] }));
+      .filter((entry) => includeEmbeddingModels || entry.capabilities.includes('chat'))
+      .map((entry) => ({ ...entry, capabilities: [...entry.capabilities] }));
 
-    return [...catalogModels, ...ollamaModels].sort((left, right) => left.name.localeCompare(right.name));
+    return [...catalogModels, ...ollamaModels].sort((left, right) =>
+      left.name.localeCompare(right.name),
+    );
   }
 
-  async function probeModelLoad({
-    host,
-    model,
-  }: {
-    host: string;
-    model: string;
-  }) {
+  async function probeModelLoad({ host, model }: { host: string; model: string }) {
     await ollama.probeGenerate({ host, model });
   }
 
@@ -693,30 +747,42 @@ export function createAdminAiServices({
     provider?: AdminAiSettings['chat']['provider'];
     apiKeySecretRef?: string | null;
   } = {}): Promise<AdminAiModelAvailability> {
-    const settings = host === undefined || model === undefined
-      ? await getSettings()
-      : null;
+    const settings = host === undefined || model === undefined ? await getSettings() : null;
     const effectiveProvider = provider ?? settings?.chat.provider ?? 'ollama';
-    const effectiveHost = effectiveProvider === 'gemini'
-      ? normalizeGeminiBaseUrl(host ?? settings?.chat.baseUrl)
-      : configuredOllamaHost;
+    const effectiveHost =
+      effectiveProvider === 'gemini'
+        ? normalizeGeminiBaseUrl(host ?? settings?.chat.baseUrl)
+        : configuredOllamaHost;
     const effectiveModel = (
-      model
-      ?? settings?.chat.model
-      ?? getDefaultChatModel(effectiveProvider, DEFAULT_OLLAMA_CHAT_MODEL)
+      model ??
+      settings?.chat.model ??
+      getDefaultChatModel(effectiveProvider, DEFAULT_OLLAMA_CHAT_MODEL)
     ).trim();
     const startedAt = Date.now();
 
+    if (effectiveProvider === 'ollama' && !hasConfiguredOllamaProvider) {
+      return {
+        host: '',
+        model: effectiveModel,
+        reachable: false,
+        modelAvailable: false,
+        models: [],
+        responseTimeMs: null,
+        error: 'Ollama provider is not configured on the API server.',
+      };
+    }
+
     if (effectiveProvider === 'gemini') {
-      const models = (await listChatModels({ provider: 'gemini' }))
-        .filter(item => item.capabilities.includes('chat'));
+      const models = (await listChatModels({ provider: 'gemini' })).filter((item) =>
+        item.capabilities.includes('chat'),
+      );
       const catalogEntry = findCatalogEntry(modelCatalog, 'gemini', effectiveModel);
       const modelAvailable = catalogEntry !== null && hasCatalogCapability(catalogEntry, 'chat');
-      const apiKeyAvailable = resolveApiKey(
-        apiKeySecretRef
-        ?? settings?.providers?.gemini?.apiKeySecretRef,
-        settings?.chat.apiKeySecretRef,
-      ) !== null;
+      const apiKeyAvailable =
+        resolveApiKey(
+          apiKeySecretRef ?? settings?.providers?.gemini?.apiKeySecretRef,
+          settings?.chat.apiKeySecretRef,
+        ) !== null;
 
       return {
         host: effectiveHost,
@@ -728,15 +794,15 @@ export function createAdminAiServices({
         error: !modelAvailable
           ? `Model "${effectiveModel}" is not in Arkivra's AI model catalog for Gemini chat.`
           : !apiKeyAvailable
-              ? 'Gemini API key environment variable is not configured on the API server.'
-              : null,
+            ? 'Gemini API key environment variable is not configured on the API server.'
+            : null,
       };
     }
 
     try {
       const liveModels = await listModels({ host: effectiveHost });
       const models = createLiveOllamaAvailabilityModels({ liveModels });
-      const liveModel = liveModels.find(item => isSameOllamaModel(item.name, effectiveModel));
+      const liveModel = liveModels.find((item) => isSameOllamaModel(item.name, effectiveModel));
 
       if (liveModel === undefined) {
         const installedChatModels = formatInstalledChatModels(models);
@@ -747,9 +813,10 @@ export function createAdminAiServices({
           modelAvailable: false,
           models,
           responseTimeMs: Date.now() - startedAt,
-          error: installedChatModels.length > 0
-            ? `Model "${effectiveModel}" is configured in Arkivra but is not available in Ollama at ${effectiveHost}. Available chat-capable models: ${installedChatModels.join(', ')}.`
-            : `Model "${effectiveModel}" is configured in Arkivra but is not available in Ollama at ${effectiveHost}. No chat-capable Ollama models were found.`,
+          error:
+            installedChatModels.length > 0
+              ? `Model "${effectiveModel}" is configured in Arkivra but is not available in Ollama at ${effectiveHost}. Available chat-capable models: ${installedChatModels.join(', ')}.`
+              : `Model "${effectiveModel}" is configured in Arkivra but is not available in Ollama at ${effectiveHost}. No chat-capable Ollama models were found.`,
         };
       }
 
@@ -779,9 +846,10 @@ export function createAdminAiServices({
           modelAvailable: false,
           models,
           responseTimeMs: Date.now() - startedAt,
-          error: error instanceof Error
-            ? `Model "${effectiveModel}" is listed but could not be loaded: ${error.message}`
-            : `Model "${effectiveModel}" is listed but could not be loaded.`,
+          error:
+            error instanceof Error
+              ? `Model "${effectiveModel}" is listed but could not be loaded: ${error.message}`
+              : `Model "${effectiveModel}" is listed but could not be loaded.`,
         };
       }
 

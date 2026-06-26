@@ -1,6 +1,5 @@
 import type { Config } from '../../config/config.js';
 import { normalizeOllamaHost } from '../../ai/providers/index.js';
-import { builtInAiModelCatalog } from '../../ai/model-catalog.js';
 import type { AdminAiChatProviderKind, AdminAiSettings } from './ai.types.js';
 
 const DEFAULT_GEMINI_API_KEY_SECRET_REF = 'GEMINI_API_KEY';
@@ -9,10 +8,7 @@ const RAW_GOOGLE_API_KEY_PATTERN = /^AIza[\w-]{20,}$/;
 export const INSTANCE_AI_SETTINGS_ID = 'instance_ai_settings';
 export const GEMINI_OPENAI_COMPATIBLE_BASE_URL =
   'https://generativelanguage.googleapis.com/v1beta/openai';
-export const DEFAULT_OLLAMA_CHAT_MODEL = 'gemma4:e4b';
-export const CURATED_GEMINI_CHAT_MODELS = builtInAiModelCatalog
-  .filter((entry) => entry.provider === 'gemini' && entry.capabilities.includes('chat'))
-  .map((entry) => entry.model);
+export const LEGACY_DEFAULT_OLLAMA_CHAT_MODEL = 'gemma4:e4b';
 
 export function normalizeHost(host: string) {
   return normalizeOllamaHost(host);
@@ -86,17 +82,6 @@ export function parseChatModelSelection({
   };
 }
 
-export function getDefaultChatModel(
-  provider: AdminAiSettings['chat']['provider'],
-  fallbackModel: string,
-) {
-  if (provider === 'gemini') {
-    return CURATED_GEMINI_CHAT_MODELS[0] ?? fallbackModel;
-  }
-
-  return fallbackModel;
-}
-
 export function normalizeAllowedChatModels({
   provider,
   model,
@@ -106,13 +91,20 @@ export function normalizeAllowedChatModels({
   model: string;
   allowedModels: readonly string[] | null | undefined;
 }) {
-  const defaultSelection = parseChatModelSelection({ value: model, fallbackProvider: provider });
-  const candidates = normalizeModelList([...(allowedModels ?? []), defaultSelection.value]);
+  const defaultSelection =
+    model.trim().length > 0
+      ? parseChatModelSelection({ value: model, fallbackProvider: provider })
+      : null;
+  const candidates = normalizeModelList([
+    ...(allowedModels ?? []),
+    ...(defaultSelection ? [defaultSelection.value] : []),
+  ]);
   const filtered = candidates
     .map((candidate) => parseChatModelSelection({ value: candidate, fallbackProvider: provider }))
+    .filter((selection) => selection.model.length > 0)
     .map((selection) => selection.value);
 
-  return filtered.length > 0 ? normalizeModelList(filtered) : [defaultSelection.value];
+  return normalizeModelList(filtered);
 }
 
 export function normalizeApiKeySecretRef(secretRef: string | null | undefined) {
@@ -136,7 +128,7 @@ export function resolveApiKey(...secretRefs: Array<string | null | undefined>) {
 
 export function createDefaultSettings(config: Config): AdminAiSettings {
   const ollamaHost = config.ollama.configured === false ? '' : config.ollama.host;
-  const model = ollamaHost.length > 0 ? DEFAULT_OLLAMA_CHAT_MODEL : '';
+  const model = '';
 
   return {
     aiFeaturesEnabled: false,
@@ -145,13 +137,13 @@ export function createDefaultSettings(config: Config): AdminAiSettings {
       baseUrl: ollamaHost,
       apiKeySecretRef: null,
       model,
-      allowedModels: model.length > 0 ? [model] : [],
+      allowedModels: [],
     },
     translation: {
       provider: 'ollama',
       baseUrl: ollamaHost,
       apiKeySecretRef: null,
-      model,
+      model: '',
     },
     embedding: {
       provider: null,
@@ -192,9 +184,7 @@ export function createDefaultIngestionSettings(config: Config) {
 
 export function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
   const requestedChatProvider = input.chat?.provider === 'gemini' ? 'gemini' : 'ollama';
-  const requestedChatModel = (
-    input.chat?.model ?? getDefaultChatModel(requestedChatProvider, input.model)
-  ).trim();
+  const requestedChatModel = (input.chat?.model ?? '').trim();
   const chatSelection = parseChatModelSelection({
     value: requestedChatModel,
     fallbackProvider: requestedChatProvider,
@@ -218,7 +208,7 @@ export function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
     baseUrl: input.translation?.baseUrl,
     fallbackOllamaHost: input.ollamaHost,
   });
-  const translationModel = (input.translation?.model ?? chatModel).trim();
+  const translationModel = (input.translation?.model ?? '').trim();
   const embeddingProvider = input.embedding?.provider === 'ollama' ? 'ollama' : null;
   const embeddingBaseUrl =
     embeddingProvider === null ? '' : normalizeHost(input.embedding?.baseUrl ?? chatBaseUrl);

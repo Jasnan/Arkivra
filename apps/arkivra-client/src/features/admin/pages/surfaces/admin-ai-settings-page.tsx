@@ -490,7 +490,9 @@ export function AdminAiSettingsPage() {
   );
   const effectiveAllowedChatModels =
     savedAllowedChatModels.length === 0
-      ? chatModelValues
+      ? effectiveDefaultChatModel.length > 0
+        ? chatModelValues.filter((model) => model === effectiveDefaultChatModel)
+        : []
       : chatModelValues.filter(
           (model) =>
             savedAllowedChatModelValues.includes(model) || model === effectiveDefaultChatModel,
@@ -760,11 +762,7 @@ export function AdminAiSettingsPage() {
       value: settings.chat.model.trim(),
       fallbackProvider: settings.chat.provider,
     });
-    const fallbackDefault = parseChatModelValue({
-      value: effectiveDefaultChatModel.trim(),
-      fallbackProvider: settings.chat.provider,
-    });
-    const chatSelection = configuredModel.model.length > 0 ? configuredModel : fallbackDefault;
+    const chatSelection = configuredModel;
     const ollamaBaseUrl = (
       chatSelection.provider === 'ollama' && settings.chat.baseUrl.trim().length > 0
         ? settings.chat.baseUrl
@@ -773,12 +771,7 @@ export function AdminAiSettingsPage() {
     const chatBaseUrl = chatSelection.provider === 'gemini' ? geminiBaseUrl : ollamaBaseUrl;
     const translationBaseUrl = (settings.translation.baseUrl || ollamaBaseUrl).trim();
     const configuredTranslation = settings.translation.model.trim();
-    const translationModel =
-      configuredTranslation.length > 0
-        ? configuredTranslation
-        : effectiveTranslationModel.trim() ||
-          savedAiSettings.translation?.model ||
-          emptyAiSettings.translation.model;
+    const translationModel = configuredTranslation;
     const hasEmbeddingSelection =
       settings.embedding.provider !== null &&
       (settings.embedding.model?.trim().length ?? 0) > 0 &&
@@ -891,7 +884,8 @@ export function AdminAiSettingsPage() {
   }
 
   function openChatModelsDialog() {
-    const defaultModel = effectiveDefaultChatModel || chatModelOptions[0]?.value || '';
+    const defaultModel =
+      effectiveDefaultChatModel || (chatModelOptions.length === 1 ? chatModelOptions[0]!.value : '');
     const allowed =
       effectiveAllowedChatModels.length > 0
         ? effectiveAllowedChatModels
@@ -925,7 +919,8 @@ export function AdminAiSettingsPage() {
 
   function openTranslationModelDialog() {
     setSelectedTranslationModelKey(
-      effectiveTranslationOption?.key ?? translationModelOptions[0]?.key ?? '',
+      effectiveTranslationOption?.key ??
+        (translationModelOptions.length === 1 ? translationModelOptions[0]!.key : ''),
     );
     setIsTranslationModelDialogOpen(true);
   }
@@ -1020,7 +1015,6 @@ export function AdminAiSettingsPage() {
                 state={aiSetupStatus.state}
                 healthyProviderCount={aiSetupStatus.healthyProviders}
                 isSaving={aiSettingsMutation.isPending}
-                searchEngineModel={aiSetupStatus.selectedSearchEngine?.model ?? ''}
                 onChooseSearchEngine={openSearchEngineDialog}
                 onDisableAi={() => persistAiDraft({ aiFeaturesEnabled: false })}
                 onEnableAi={() => {
@@ -1250,12 +1244,10 @@ function AiStateHero({
   onDisableAi,
   onEnableAi,
   onToggleProviderDetails,
-  searchEngineModel,
   state,
 }: {
   state: AiSetupState;
   healthyProviderCount: number;
-  searchEngineModel: string;
   isSaving: boolean;
   onChooseSearchEngine: () => void;
   onDisableAi: () => void;
@@ -1300,19 +1292,6 @@ function AiStateHero({
             <Text textStyle="sm" color="fg.muted" maxW="42rem">
               {content.description}
             </Text>
-            {state === 'ready' ? (
-              <Stack gap="1">
-                <Text textStyle="sm" color="fg.muted">
-                  Embedding Model:{' '}
-                  <chakra.span fontWeight="semibold" color="fg">
-                    {searchEngineModel}
-                  </chakra.span>
-                </Text>
-                <Text textStyle="xs" color="fg.muted">
-                  Powers AI Search and AI Chat.
-                </Text>
-              </Stack>
-            ) : null}
             <HStack gap="2" flexWrap="wrap">
               {state === 'needs_search_engine' ? (
                 <Button type="button" size="sm" onClick={onChooseSearchEngine}>
@@ -1586,7 +1565,6 @@ function AiCapabilitySection({
                   label="Embedding Model"
                   model={searchEngineModel || 'Not selected'}
                   provider={formatProvider(searchEngineProvider)}
-                  detail="Powers AI Search and AI Chat."
                 />
                 {isEnabled ? (
                   <Stack gap="2">
@@ -1819,7 +1797,7 @@ function ModelSummary({
   label: string;
   model: string;
   provider: string;
-  detail: string;
+  detail?: string;
 }) {
   return (
     <Stack gap="1">
@@ -2071,9 +2049,10 @@ function DetailTile({
 
 function HeroVisual({ compact = false, state }: { state: AiSetupState; compact?: boolean }) {
   const isWarning = state === 'needs_search_engine' || state === 'no_search_engines';
-  const isSuccess = state === 'ready' || state === 'enabled';
-  const color = isWarning ? 'orange.solid' : isSuccess ? 'green.solid' : 'blue.solid';
-  const bg = isWarning ? 'orange.subtle' : isSuccess ? 'green.subtle' : 'blue.subtle';
+  const colorPalette =
+    state === 'enabled' ? 'green' : state === 'ready' ? 'blue' : isWarning ? 'orange' : 'gray';
+  const color = `${colorPalette}.solid`;
+  const bg = `${colorPalette}.subtle`;
 
   return (
     <Flex
@@ -2084,7 +2063,7 @@ function HeroVisual({ compact = false, state }: { state: AiSetupState; compact?:
       bg={bg}
       color={color}
       borderWidth="1px"
-      borderColor={isWarning ? 'orange.muted' : isSuccess ? 'green.muted' : 'blue.muted'}
+      borderColor={`${colorPalette}.muted`}
       aria-hidden="true"
     >
       {state === 'needs_search_engine' || state === 'no_search_engines' ? (
@@ -2143,10 +2122,11 @@ function getHeroContent(state: AiSetupState) {
     return {
       title: 'AI is ready',
       badge: 'Ready',
-      description: 'Everything is ready. Enable AI to make AI features available.',
-      badgePalette: 'green',
-      borderColor: 'green.muted',
-      bg: 'green.subtle',
+      description:
+        'Setup is complete. Enable AI to start indexing your documents and make AI features available.',
+      badgePalette: 'blue',
+      borderColor: 'blue.muted',
+      bg: 'blue.subtle',
     };
   }
 

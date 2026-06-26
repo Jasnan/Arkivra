@@ -314,7 +314,7 @@ export function createChatServices({
     return {
       defaultModel: modelValues.includes(configuredDefault)
         ? configuredDefault
-        : (modelValues[0] ?? ''),
+        : '',
       models: modelValues,
     };
   }
@@ -538,8 +538,7 @@ export function createChatServices({
                   value: requestedModel,
                   fallbackProvider: defaultSettings.provider,
                 })
-              : availableModels.find(item => item.value === configuredDefault)
-                ?? availableModels[0];
+              : availableModels.find(item => item.value === configuredDefault);
 
           if (effectiveSelection === undefined || effectiveSelection.model.length === 0) {
             throw new Error('No chat models are available from the configured chat providers.');

@@ -22,11 +22,10 @@ import { createOllamaProvider } from '../../ai/providers/index.js';
 import { instanceSettingsTable } from '../../database/schema/index.js';
 import {
   GEMINI_OPENAI_COMPATIBLE_BASE_URL,
-  DEFAULT_OLLAMA_CHAT_MODEL,
   INSTANCE_AI_SETTINGS_ID,
+  LEGACY_DEFAULT_OLLAMA_CHAT_MODEL,
   createDefaultIngestionSettings,
   createDefaultSettings,
-  getDefaultChatModel,
   normalizeAllowedChatModels,
   normalizeApiKeySecretRef,
   normalizeChatBaseUrl,
@@ -264,11 +263,18 @@ export function createAdminAiServices({
     }
 
     const storedChatProvider = stored.chatProvider === 'gemini' ? 'gemini' : 'ollama';
+    const storedAllowedChatModels = Array.isArray(stored.chatAllowedModels)
+      ? stored.chatAllowedModels
+      : [];
+    const storedLegacyChatModel =
+      stored.ollamaModel !== LEGACY_DEFAULT_OLLAMA_CHAT_MODEL ? stored.ollamaModel : '';
+    const storedChatModel =
+      stored.chatModel ??
+      (storedAllowedChatModels.length > 0
+        ? storedLegacyChatModel
+        : defaults.model.trim());
     const chatSelection = parseChatModelSelection({
-      value:
-        stored.chatModel ??
-        stored.ollamaModel ??
-        getDefaultChatModel(storedChatProvider, defaults.model),
+      value: storedChatModel,
       fallbackProvider: storedChatProvider,
     });
     const chatProvider = chatSelection.provider;
@@ -301,14 +307,19 @@ export function createAdminAiServices({
         allowedModels: normalizeAllowedChatModels({
           provider: chatProvider,
           model: chatModel,
-          allowedModels: stored.chatAllowedModels,
+          allowedModels: storedAllowedChatModels,
         }),
       },
       translation: {
         provider: storedTranslationProvider,
         baseUrl: translationBaseUrl,
         apiKeySecretRef: normalizeApiKeySecretRef(stored.translationApiKeySecretRef),
-        model: stored.ollamaTranslationModel ?? stored.ollamaModel,
+        model:
+          stored.ollamaTranslationModel === LEGACY_DEFAULT_OLLAMA_CHAT_MODEL &&
+          stored.chatModel === null &&
+          storedAllowedChatModels.length === 0
+            ? ''
+            : (stored.ollamaTranslationModel ?? ''),
       },
       embedding: {
         provider:
@@ -647,7 +658,7 @@ export function createAdminAiServices({
         chatBaseUrl: normalized.chat.baseUrl,
         chatApiKeySecretRef: normalized.chat.apiKeySecretRef,
         chatModel: normalized.chat.model,
-        chatAllowedModels: normalized.chat.allowedModels ?? [normalized.chat.model],
+        chatAllowedModels: normalized.chat.allowedModels ?? [],
         geminiApiKeySecretRef: normalized.providers?.gemini?.apiKeySecretRef ?? null,
         ollamaHost: normalized.ollamaHost,
         ollamaModel: normalized.model,
@@ -669,7 +680,7 @@ export function createAdminAiServices({
           chatBaseUrl: normalized.chat.baseUrl,
           chatApiKeySecretRef: normalized.chat.apiKeySecretRef,
           chatModel: normalized.chat.model,
-          chatAllowedModels: normalized.chat.allowedModels ?? [normalized.chat.model],
+          chatAllowedModels: normalized.chat.allowedModels ?? [],
           geminiApiKeySecretRef: normalized.providers?.gemini?.apiKeySecretRef ?? null,
           ollamaHost: normalized.ollamaHost,
           ollamaModel: normalized.model,
@@ -792,7 +803,7 @@ export function createAdminAiServices({
     const effectiveModel = (
       model ??
       settings?.chat.model ??
-      getDefaultChatModel(effectiveProvider, DEFAULT_OLLAMA_CHAT_MODEL)
+      ''
     ).trim();
     const startedAt = Date.now();
 

@@ -54,7 +54,7 @@ const citation: Citation = {
 };
 
 describe('chat service helpers', () => {
-  test('does not include a configured default model that is no longer available', async () => {
+  test('does not replace a missing configured default with the first available model', async () => {
     const services = createChatServices({
       db: {} as any,
       searchServices: {} as any,
@@ -72,7 +72,7 @@ describe('chat service helpers', () => {
     });
 
     await expect(services.getModelOptions()).resolves.toEqual({
-      defaultModel: 'ollama:glm-ocr:q8_0',
+      defaultModel: '',
       models: ['ollama:glm-ocr:q8_0', 'ollama:granite4.1:3b'],
     });
   });

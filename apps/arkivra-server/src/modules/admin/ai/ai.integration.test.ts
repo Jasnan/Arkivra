@@ -847,6 +847,121 @@ describe('admin ai routes integration', () => {
     });
   });
 
+  test('resolves missing Gemini embedding dimensions before creating an index', async () => {
+    const previousKey = process.env.ARKIVRA_TEST_GEMINI_PROVIDER_KEY;
+    process.env.ARKIVRA_TEST_GEMINI_PROVIDER_KEY = 'configured';
+    const enqueueOrchestrateIndex = vi.fn();
+    const onConflictDoUpdate = vi.fn(async () => undefined);
+    const values = vi.fn(() => ({ onConflictDoUpdate }));
+    const insert = vi.fn(() => ({ values }));
+    const select = vi.fn(() => ({
+      from: () => ({
+        where: () => ({
+          limit: async () => [
+            {
+              aiFeaturesEnabled: false,
+              ollamaHost: 'http://127.0.0.1:11434',
+              ollamaModel: 'gemma4:e4b',
+              ollamaEmbeddingHost: 'http://127.0.0.1:11434',
+              ollamaEmbeddingModel: null,
+              ollamaEmbeddingDimensions: null,
+            },
+          ],
+        }),
+      }),
+    }));
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ chunk_count: 3 }] })
+      .mockResolvedValueOnce({ rows: [{ count: 0 }] });
+    const txExecute = vi.fn(async () => ({ rows: [] }));
+    const transaction = vi.fn(
+      async (callback: (tx: { execute: typeof txExecute }) => Promise<void>) =>
+        callback({ execute: txExecute }),
+    );
+    const fetchImpl = vi.fn(async (input: URL | string, init?: RequestInit) => {
+      const url = input.toString();
+      if (url === 'https://generativelanguage.googleapis.com/v1beta/openai/embeddings') {
+        expect(JSON.parse(String(init?.body))).toEqual({
+          model: 'gemini-embedding-2-preview',
+          input: ['dimension probe'],
+        });
+        return Response.json({
+          data: [{ index: 0, embedding: Array.from({ length: 3072 }, () => 0.1) }],
+        });
+      }
+
+      throw new Error(`Unexpected request ${url}`);
+    });
+    const aiServices = createAdminAiServices({
+      db: { execute, insert, select, transaction } as any,
+      config: {
+        ollama: {
+          host: 'http://127.0.0.1:11434',
+          model: 'gemma4:e4b',
+          logRequests: false,
+        },
+      } as any,
+      embeddingIndexQueue: {
+        enqueueOrchestrateIndex,
+      } as any,
+      fetchImpl: fetchImpl as any,
+    });
+
+    try {
+      await aiServices.updateSettings({
+        aiFeaturesEnabled: true,
+        chat: {
+          provider: 'gemini',
+          baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+          apiKeySecretRef: 'ARKIVRA_TEST_GEMINI_PROVIDER_KEY',
+          model: 'gemini-3.5-flash',
+        },
+        translation: {
+          provider: 'gemini',
+          baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+          apiKeySecretRef: 'ARKIVRA_TEST_GEMINI_PROVIDER_KEY',
+          model: 'gemini-3.5-flash',
+        },
+        embedding: {
+          provider: 'gemini',
+          baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+          apiKeySecretRef: 'ARKIVRA_TEST_GEMINI_PROVIDER_KEY',
+          model: 'gemini-embedding-2-preview',
+          dimensions: null,
+        },
+        providers: {
+          gemini: {
+            baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+            apiKeySecretRef: 'ARKIVRA_TEST_GEMINI_PROVIDER_KEY',
+          },
+        },
+        ollamaHost: 'http://127.0.0.1:11434',
+        model: 'gemini-3.5-flash',
+      });
+
+      expect(values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeddingProvider: 'gemini',
+          embeddingModel: 'gemini-embedding-2-preview',
+          embeddingDimensions: 3072,
+          ollamaEmbeddingModel: null,
+          ollamaEmbeddingDimensions: null,
+        }),
+      );
+      expect(transaction).toHaveBeenCalled();
+      expect(enqueueOrchestrateIndex).toHaveBeenCalledWith({
+        embeddingIndexId: expect.stringMatching(/^eix_/),
+      });
+    } finally {
+      if (previousKey === undefined) {
+        delete process.env.ARKIVRA_TEST_GEMINI_PROVIDER_KEY;
+      } else {
+        process.env.ARKIVRA_TEST_GEMINI_PROVIDER_KEY = previousKey;
+      }
+    }
+  });
+
   test('re-enabling AI preserves selected Ollama embedding dimensions before indexing', async () => {
     const enqueueOrchestrateIndex = vi.fn();
     const onConflictDoUpdate = vi.fn(async () => undefined);
@@ -1024,6 +1139,92 @@ describe('admin ai routes integration', () => {
         delete process.env.ARKIVRA_TEST_MISSING_GEMINI_KEY;
       } else {
         process.env.ARKIVRA_TEST_MISSING_GEMINI_KEY = previousMissingKey;
+      }
+    }
+  });
+
+  test('discovers Gemini OpenAI-compatible embedding models with probed dimensions', async () => {
+    const previousDefaultKey = process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = 'configured';
+    const select = vi.fn(() => {
+      throw new Error('stored settings should not be read');
+    });
+    const fetchImpl = vi.fn(async (input: URL | string, init?: RequestInit) => {
+      const url = input.toString();
+
+      if (url === 'https://generativelanguage.googleapis.com/v1beta/openai/models') {
+        return Response.json({
+          data: [
+            { id: 'gemini-embedding-2-preview' },
+            { id: 'gemini-3.5-flash' },
+          ],
+        });
+      }
+
+      if (url === 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000') {
+        return Response.json({
+          models: [
+            {
+              name: 'models/gemini-embedding-2',
+              displayName: 'Gemini Embedding 2',
+              supportedGenerationMethods: ['embedContent'],
+            },
+            {
+              name: 'models/gemini-3.5-flash',
+              displayName: 'Gemini 3.5 Flash',
+              supportedGenerationMethods: ['generateContent'],
+            },
+          ],
+        });
+      }
+
+      if (url === 'https://generativelanguage.googleapis.com/v1beta/openai/embeddings') {
+        expect(JSON.parse(String(init?.body))).toEqual({
+          model: 'gemini-embedding-2-preview',
+          input: ['dimension probe'],
+        });
+        return Response.json({
+          data: [{ index: 0, embedding: Array.from({ length: 3072 }, () => 0.1) }],
+        });
+      }
+
+      throw new Error(`Unexpected request ${url}`);
+    });
+    const aiServices = createAdminAiServices({
+      db: { select } as any,
+      config: {
+        ollama: {
+          host: 'http://127.0.0.1:11434',
+          model: 'gemma4:e4b',
+          logRequests: false,
+        },
+      } as any,
+      fetchImpl: fetchImpl as any,
+    });
+
+    try {
+      const models = await aiServices.listChatModels({
+        provider: 'gemini',
+        includeEmbeddingModels: true,
+      });
+
+      expect(models).toEqual([
+        expect.objectContaining({
+          name: 'gemini-3.5-flash',
+          capabilities: ['chat'],
+        }),
+        expect.objectContaining({
+          name: 'gemini-embedding-2-preview',
+          capabilities: ['embedding'],
+          embeddingDimensions: 3072,
+        }),
+      ]);
+      expect(select).not.toHaveBeenCalled();
+    } finally {
+      if (previousDefaultKey === undefined) {
+        delete process.env.GEMINI_API_KEY;
+      } else {
+        process.env.GEMINI_API_KEY = previousDefaultKey;
       }
     }
   });

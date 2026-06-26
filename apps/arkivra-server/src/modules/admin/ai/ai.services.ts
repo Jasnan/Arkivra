@@ -12,7 +12,11 @@ import type {
 import type { EmbeddingIndexQueue } from '../../ai/indexing/index.js';
 import { eq, sql } from 'drizzle-orm';
 import { createEmbeddingIndexServices } from '../../ai/indexing/index.js';
-import { createGeminiProvider, createOllamaProvider } from '../../ai/providers/index.js';
+import {
+  createGeminiEmbeddingProvider,
+  createGeminiProvider,
+  createOllamaProvider,
+} from '../../ai/providers/index.js';
 import { instanceSettingsTable } from '../../database/schema/index.js';
 import {
   GEMINI_OPENAI_COMPATIBLE_BASE_URL,
@@ -26,6 +30,7 @@ import {
   normalizeGeminiBaseUrl,
   normalizeHost,
   normalizeSettings,
+  isAdminAiProviderKind,
   parseChatModelSelection,
   resolveApiKey,
 } from './ai.settings.js';
@@ -166,7 +171,7 @@ function hasEmbeddingSelection(
   settings: AdminAiSettings,
 ): settings is AdminAiSettings & {
   embedding: AdminAiSettings['embedding'] & {
-    provider: 'ollama';
+    provider: NonNullable<AdminAiSettings['embedding']['provider']>;
     model: string;
     dimensions: number;
   };
@@ -176,6 +181,44 @@ function hasEmbeddingSelection(
     settings.embedding.model !== null &&
     settings.embedding.dimensions !== null
   );
+}
+
+function hasEmbeddingModelSelection(
+  settings: AdminAiSettings,
+): settings is AdminAiSettings & {
+  embedding: AdminAiSettings['embedding'] & {
+    provider: NonNullable<AdminAiSettings['embedding']['provider']>;
+    model: string;
+  };
+} {
+  return settings.embedding.provider !== null && settings.embedding.model !== null;
+}
+
+function embeddingSelectionIsUsable({
+  settings,
+  hasConfiguredOllamaProvider,
+}: {
+  settings: AdminAiSettings;
+  hasConfiguredOllamaProvider: boolean;
+}) {
+  if (!hasEmbeddingModelSelection(settings)) {
+    return false;
+  }
+
+  if (settings.embedding.provider === 'ollama') {
+    return hasConfiguredOllamaProvider;
+  }
+
+  if (settings.embedding.provider === 'gemini') {
+    return resolveApiKey(
+      settings.embedding.apiKeySecretRef,
+      settings.providers?.gemini?.apiKeySecretRef,
+      settings.chat.provider === 'gemini' ? settings.chat.apiKeySecretRef : null,
+      settings.translation.provider === 'gemini' ? settings.translation.apiKeySecretRef : null,
+    ) !== null;
+  }
+
+  return false;
 }
 
 export function createAdminAiServices({
@@ -191,6 +234,7 @@ export function createAdminAiServices({
 }) {
   const ollama = createOllamaProvider({ fetchImpl });
   const gemini = createGeminiProvider({ fetchImpl });
+  const geminiEmbedding = createGeminiEmbeddingProvider({ fetchImpl });
   const configuredOllamaHost =
     config.ollama.configured === false ? '' : normalizeHost(config.ollama.host);
   const hasConfiguredOllamaProvider = configuredOllamaHost.length > 0;
@@ -206,7 +250,8 @@ export function createAdminAiServices({
     return {
       ...settings,
       aiFeaturesEnabled:
-        settings.aiFeaturesEnabled && hasConfiguredOllamaProvider && hasEmbeddingSelection(settings),
+        settings.aiFeaturesEnabled &&
+        embeddingSelectionIsUsable({ settings, hasConfiguredOllamaProvider }),
       chat: {
         ...settings.chat,
         baseUrl: settings.chat.provider === 'ollama' ? configuredOllamaHost : settings.chat.baseUrl,
@@ -220,7 +265,12 @@ export function createAdminAiServices({
       },
       embedding: {
         ...settings.embedding,
-        baseUrl: settings.embedding.provider === 'ollama' ? configuredOllamaHost : '',
+        baseUrl:
+          settings.embedding.provider === 'ollama'
+            ? configuredOllamaHost
+            : settings.embedding.provider === 'gemini'
+              ? normalizeGeminiBaseUrl(settings.embedding.baseUrl)
+              : '',
       },
       providers: {
         ...settings.providers,
@@ -287,6 +337,26 @@ export function createAdminAiServices({
           : (stored.translationBaseUrl ?? stored.ollamaHost),
       fallbackOllamaHost: configuredOllamaHost,
     });
+    const storedEmbeddingProvider = isAdminAiProviderKind(stored.embeddingProvider)
+      ? stored.embeddingProvider
+      : stored.ollamaEmbeddingModel !== null && stored.ollamaEmbeddingDimensions !== null
+        ? 'ollama'
+        : null;
+    const storedEmbeddingModel = stored.embeddingModel ?? stored.ollamaEmbeddingModel ?? null;
+    const storedEmbeddingDimensions =
+      stored.embeddingDimensions ?? stored.ollamaEmbeddingDimensions ?? null;
+    const storedEmbeddingBaseUrl =
+      storedEmbeddingProvider === 'ollama'
+        ? configuredOllamaHost
+        : storedEmbeddingProvider === 'gemini'
+          ? normalizeGeminiBaseUrl(stored.embeddingBaseUrl)
+          : '';
+    const storedEmbeddingApiKeySecretRef =
+      storedEmbeddingProvider === 'gemini'
+        ? normalizeApiKeySecretRef(
+            stored.embeddingApiKeySecretRef ?? stored.geminiApiKeySecretRef,
+          )
+        : null;
 
     return applyConfiguredOllamaHost({
       aiFeaturesEnabled: stored.aiFeaturesEnabled,
@@ -314,13 +384,13 @@ export function createAdminAiServices({
       },
       embedding: {
         provider:
-          stored.ollamaEmbeddingModel !== null && stored.ollamaEmbeddingDimensions !== null
-            ? 'ollama'
+          storedEmbeddingModel !== null && storedEmbeddingDimensions !== null
+            ? storedEmbeddingProvider
             : null,
-        baseUrl: stored.ollamaEmbeddingModel === null ? '' : configuredOllamaHost,
-        apiKeySecretRef: null,
-        model: stored.ollamaEmbeddingModel ?? null,
-        dimensions: stored.ollamaEmbeddingDimensions ?? null,
+        baseUrl: storedEmbeddingModel === null ? '' : storedEmbeddingBaseUrl,
+        apiKeySecretRef: storedEmbeddingApiKeySecretRef,
+        model: storedEmbeddingModel,
+        dimensions: storedEmbeddingDimensions,
       },
       providers: {
         gemini: {
@@ -497,22 +567,17 @@ export function createAdminAiServices({
 
   async function getIngestionSettings() {
     const defaults = createDefaultIngestionSettings(config);
-    const stored = await getStoredSettings();
-
-    if (stored === undefined) {
-      return defaults;
-    }
+    const settings = await getSettings();
 
     return {
       embeddingEnabled:
-        hasConfiguredOllamaProvider &&
-        stored.aiFeaturesEnabled &&
-        stored.ollamaEmbeddingEnabled &&
-        stored.ollamaEmbeddingModel !== null &&
-        stored.ollamaEmbeddingDimensions !== null,
-      embeddingHost: configuredOllamaHost,
-      embeddingModel: stored.ollamaEmbeddingModel ?? null,
-      embeddingDimensions: stored.ollamaEmbeddingDimensions ?? null,
+        settings.aiFeaturesEnabled &&
+        settings.embedding.provider !== null &&
+        settings.embedding.model !== null &&
+        settings.embedding.dimensions !== null,
+      embeddingHost: settings.embedding.baseUrl || defaults.embeddingHost,
+      embeddingModel: settings.embedding.model,
+      embeddingDimensions: settings.embedding.dimensions,
       captioningEnabled:
         hasConfiguredOllamaProvider &&
         defaults.captioningEnabled &&
@@ -581,6 +646,61 @@ export function createAdminAiServices({
     return result.rows[0]?.id ?? null;
   }
 
+  async function resolveEmbeddingDimensionsForSettings(
+    settings: AdminAiSettings,
+  ): Promise<AdminAiSettings> {
+    if (!settings.aiFeaturesEnabled || !hasEmbeddingModelSelection(settings)) {
+      return settings;
+    }
+
+    if (settings.embedding.dimensions !== null) {
+      return settings;
+    }
+
+    if (settings.embedding.provider === 'ollama') {
+      const dimensions = await ollama.resolveEmbeddingDimensions({
+        host: settings.embedding.baseUrl,
+        model: settings.embedding.model,
+      });
+
+      return {
+        ...settings,
+        embedding: {
+          ...settings.embedding,
+          dimensions,
+        },
+      };
+    }
+
+    if (settings.embedding.provider === 'gemini') {
+      const [vector] = await geminiEmbedding.embed({
+        texts: ['dimension probe'],
+        config: {
+          provider: 'gemini',
+          baseUrl: settings.embedding.baseUrl,
+          apiKeySecretRef: settings.embedding.apiKeySecretRef ?? undefined,
+          model: settings.embedding.model,
+          dimensions: 1,
+        },
+      });
+      const dimensions = vector?.length;
+
+      if (dimensions === undefined || !Number.isInteger(dimensions) || dimensions <= 0) {
+        throw new Error(`Could not determine embedding dimensions for ${settings.embedding.model}.`);
+      }
+
+      return {
+        ...settings,
+        embedding: {
+          ...settings.embedding,
+          dimensions,
+        },
+      };
+    }
+
+    return settings;
+  }
+
   async function updateSettings(nextSettings: AdminAiSettings): Promise<AdminAiSettings> {
     const previousSettings = await getSettings();
     const initialNormalized = applyConfiguredOllamaHost(
@@ -602,13 +722,16 @@ export function createAdminAiServices({
         },
         embedding: {
           ...nextSettings.embedding,
-          baseUrl: configuredOllamaHost,
+          baseUrl:
+            nextSettings.embedding.provider === 'ollama'
+              ? configuredOllamaHost
+              : nextSettings.embedding.baseUrl,
         },
         ollamaHost: configuredOllamaHost,
       }),
     );
     const aiWasEnabled = previousSettings.aiFeaturesEnabled;
-    const normalized = initialNormalized;
+    const normalized = await resolveEmbeddingDimensionsForSettings(initialNormalized);
     const embeddingConfigChanged =
       previousSettings.embedding.provider !== normalized.embedding.provider ||
       previousSettings.embedding.baseUrl !== normalized.embedding.baseUrl ||
@@ -632,10 +755,21 @@ export function createAdminAiServices({
         translationProvider: normalized.translation.provider,
         translationBaseUrl: normalized.translation.baseUrl,
         translationApiKeySecretRef: normalized.translation.apiKeySecretRef,
-        ollamaEmbeddingEnabled: normalized.aiFeaturesEnabled,
-        ollamaEmbeddingHost: normalized.embedding.baseUrl,
-        ollamaEmbeddingModel: normalized.embedding.model,
-        ollamaEmbeddingDimensions: normalized.embedding.dimensions,
+        embeddingProvider: normalized.embedding.provider,
+        embeddingBaseUrl: normalized.embedding.baseUrl || null,
+        embeddingApiKeySecretRef: normalized.embedding.apiKeySecretRef,
+        embeddingModel: normalized.embedding.model,
+        embeddingDimensions: normalized.embedding.dimensions,
+        ollamaEmbeddingEnabled:
+          normalized.aiFeaturesEnabled && normalized.embedding.provider === 'ollama',
+        ollamaEmbeddingHost:
+          normalized.embedding.provider === 'ollama'
+            ? normalized.embedding.baseUrl
+            : configuredOllamaHost,
+        ollamaEmbeddingModel:
+          normalized.embedding.provider === 'ollama' ? normalized.embedding.model : null,
+        ollamaEmbeddingDimensions:
+          normalized.embedding.provider === 'ollama' ? normalized.embedding.dimensions : null,
         updatedAt: sql`now()`,
       })
       .onConflictDoUpdate({
@@ -654,10 +788,21 @@ export function createAdminAiServices({
           translationProvider: normalized.translation.provider,
           translationBaseUrl: normalized.translation.baseUrl,
           translationApiKeySecretRef: normalized.translation.apiKeySecretRef,
-          ollamaEmbeddingEnabled: normalized.aiFeaturesEnabled,
-          ollamaEmbeddingHost: normalized.embedding.baseUrl,
-          ollamaEmbeddingModel: normalized.embedding.model,
-          ollamaEmbeddingDimensions: normalized.embedding.dimensions,
+          embeddingProvider: normalized.embedding.provider,
+          embeddingBaseUrl: normalized.embedding.baseUrl || null,
+          embeddingApiKeySecretRef: normalized.embedding.apiKeySecretRef,
+          embeddingModel: normalized.embedding.model,
+          embeddingDimensions: normalized.embedding.dimensions,
+          ollamaEmbeddingEnabled:
+            normalized.aiFeaturesEnabled && normalized.embedding.provider === 'ollama',
+          ollamaEmbeddingHost:
+            normalized.embedding.provider === 'ollama'
+              ? normalized.embedding.baseUrl
+              : configuredOllamaHost,
+          ollamaEmbeddingModel:
+            normalized.embedding.provider === 'ollama' ? normalized.embedding.model : null,
+          ollamaEmbeddingDimensions:
+            normalized.embedding.provider === 'ollama' ? normalized.embedding.dimensions : null,
           updatedAt: sql`now()`,
         },
       });
@@ -730,23 +875,58 @@ export function createAdminAiServices({
       throw new Error('Gemini API key environment variable is not configured on the API server.');
     }
 
-    return (await gemini.listModels({ apiKey })).map((model) => ({
-      name: model.name,
-      size: null,
-      modifiedAt: null,
-      capabilities: model.capabilities,
-      description: model.description ?? model.displayName,
-      displayName: model.displayName,
-      supportedGenerationMethods: model.supportedGenerationMethods,
-      inputTokenLimit: model.inputTokenLimit,
-      outputTokenLimit: model.outputTokenLimit,
-      version: model.version,
-      contextWindow: model.contextWindow,
-      maxOutputTokens: model.maxOutputTokens,
-      providerMetadata: model.providerMetadata,
-      source: 'live',
-      available: true,
-      availabilityReason: null,
+    const models = await gemini.listModels({ apiKey });
+    return await Promise.all(models.map(async (model) => {
+      let embeddingDimensions: number | undefined;
+
+      if (model.capabilities.includes('embedding')) {
+        try {
+          const [vector] = await geminiEmbedding.embed({
+            texts: ['dimension probe'],
+            config: {
+              provider: 'gemini',
+              baseUrl: GEMINI_OPENAI_COMPATIBLE_BASE_URL,
+              apiKeySecretRef:
+                normalizeApiKeySecretRef(apiKeySecretRef) ??
+                normalizeApiKeySecretRef(settings?.providers?.gemini?.apiKeySecretRef) ??
+                normalizeApiKeySecretRef(
+                  settings?.chat.provider === 'gemini' ? settings.chat.apiKeySecretRef : null,
+                ) ??
+                normalizeApiKeySecretRef(
+                  settings?.translation.provider === 'gemini'
+                    ? settings.translation.apiKeySecretRef
+                    : null,
+                ) ??
+                undefined,
+              model: model.name,
+              dimensions: 1,
+            },
+          });
+          embeddingDimensions = vector?.length;
+        } catch {
+          embeddingDimensions = undefined;
+        }
+      }
+
+      return {
+        name: model.name,
+        size: null,
+        modifiedAt: null,
+        capabilities: model.capabilities,
+        description: model.description ?? model.displayName,
+        displayName: model.displayName,
+        supportedGenerationMethods: model.supportedGenerationMethods,
+        inputTokenLimit: model.inputTokenLimit,
+        outputTokenLimit: model.outputTokenLimit,
+        version: model.version,
+        contextWindow: model.contextWindow,
+        maxOutputTokens: model.maxOutputTokens,
+        providerMetadata: model.providerMetadata,
+        source: 'live' as const,
+        available: true,
+        availabilityReason: null,
+        embeddingDimensions,
+      };
     }));
   }
 
@@ -833,24 +1013,7 @@ export function createAdminAiServices({
       }
 
       try {
-        const models = (await gemini.listModels({ apiKey })).map((model) => ({
-          name: model.name,
-          size: null,
-          modifiedAt: null,
-          capabilities: model.capabilities,
-          description: model.description ?? model.displayName,
-          displayName: model.displayName,
-          supportedGenerationMethods: model.supportedGenerationMethods,
-          inputTokenLimit: model.inputTokenLimit,
-          outputTokenLimit: model.outputTokenLimit,
-          version: model.version,
-          contextWindow: model.contextWindow,
-          maxOutputTokens: model.maxOutputTokens,
-          providerMetadata: model.providerMetadata,
-          source: 'live' as const,
-          available: true,
-          availabilityReason: null,
-        }));
+        const models = await listGeminiModels({ settings, apiKeySecretRef });
         const liveModel = models.find((item) => item.name === effectiveModel);
         const modelAvailable = liveModel?.capabilities.includes('chat') === true;
 

@@ -27,7 +27,7 @@ import {
   createEmbeddingIndexQueue,
   createEmbeddingIndexWorker,
 } from './modules/ai/indexing/index.js';
-import { createOllamaEmbeddingProvider } from './modules/ai/providers/index.js';
+import { createEmbeddingProviderRegistry } from './modules/ai/providers/index.js';
 
 export async function startApp() {
   loadApiEnvFiles();
@@ -157,11 +157,9 @@ export async function startApp() {
       appInstance: config.app.instance,
       adminAiServices,
       pauseWhen: backupServices.isMaintenanceModeEnabled,
-      embeddingProviders: {
-        ollama: createOllamaEmbeddingProvider({
-          batchSize: config.ollama.embeddingBatchSize,
-        }),
-      },
+      embeddingProviders: createEmbeddingProviderRegistry({
+        ollamaBatchSize: config.ollama.embeddingBatchSize,
+      }),
     });
     try {
       const settings = await adminAiServices.getSettings();

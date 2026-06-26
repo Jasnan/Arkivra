@@ -23,6 +23,13 @@ export const instanceSettingsTable = pgTable('instance_settings', {
   translationProvider: text('translation_provider').notNull().default('ollama'),
   translationBaseUrl: text('translation_base_url'),
   translationApiKeySecretRef: text('translation_api_key_secret_ref'),
+
+  embeddingProvider: text('embedding_provider'),
+  embeddingBaseUrl: text('embedding_base_url'),
+  embeddingApiKeySecretRef: text('embedding_api_key_secret_ref'),
+  embeddingModel: text('embedding_model'),
+  embeddingDimensions: integer('embedding_dimensions'),
+
   ollamaEmbeddingEnabled: boolean('ollama_embedding_enabled').notNull().default(false),
   ollamaEmbeddingHost: text('ollama_embedding_host').notNull().default('http://127.0.0.1:11434'),
   ollamaEmbeddingModel: text('ollama_embedding_model'),

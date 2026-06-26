@@ -1,5 +1,5 @@
 import type { Database } from '../../database/database.js';
-import type { EmbeddingProvider, EmbeddingProviderKind } from '../providers/types.js';
+import type { EmbeddingProviderRegistry } from '../providers/types.js';
 import type { AsyncJob } from '../../worker/postgres-jobs.js';
 import type { EmbeddingIndexJobData, EmbeddingIndexQueue } from './embedding-index.queue.js';
 import { sql } from 'drizzle-orm';
@@ -16,8 +16,6 @@ import {
   createEmbeddingIndexServices,
   hashEmbeddingContent,
 } from './embedding-index.services.js';
-
-type EmbeddingProviderRegistry = Partial<Record<EmbeddingProviderKind, EmbeddingProvider>>;
 
 type ChunkRow = {
   document_id: string;

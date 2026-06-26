@@ -10,7 +10,7 @@ export interface EmbeddingModelOption {
   providerLabel: string;
   baseUrl: string;
   model: string;
-  dimensions: number;
+  dimensions: number | null;
   isActive: boolean;
   isConfigured: boolean;
   isDiscovered: boolean;
@@ -42,6 +42,18 @@ export function isSameOllamaModel(left: string, right: string) {
   return stripLatestTag(left) === stripLatestTag(right);
 }
 
+export function isSameProviderModel({
+  provider,
+  left,
+  right,
+}: {
+  provider: string | null;
+  left: string;
+  right: string;
+}) {
+  return provider === 'ollama' ? isSameOllamaModel(left, right) : left === right;
+}
+
 function findProviderModel(
   providerModels: AdminAiProviderModelOption[],
   provider: NonNullable<AdminAiSettings['embedding']['provider']>,
@@ -49,7 +61,7 @@ function findProviderModel(
 ) {
   return providerModels.find((item) =>
     item.provider === provider &&
-    (provider === 'ollama' ? isSameOllamaModel(item.model, model) : item.model === model),
+    isSameProviderModel({ provider, left: item.model, right: model }),
   );
 }
 
@@ -58,6 +70,7 @@ export function buildEmbeddingModelOptions({
   baseUrl,
   model,
   provider,
+  providerBaseUrls,
   providerModels,
   savedEmbedding,
 }: {
@@ -65,6 +78,7 @@ export function buildEmbeddingModelOptions({
   baseUrl: string;
   model: string | null;
   provider: AdminAiSettings['embedding']['provider'];
+  providerBaseUrls?: Partial<Record<NonNullable<AdminAiSettings['embedding']['provider']>, string>>;
   providerModels: AdminAiProviderModelOption[];
   savedEmbedding: AdminAiSettings['embedding'];
 }) {
@@ -79,34 +93,45 @@ export function buildEmbeddingModelOptions({
   ) {
     if (optionModel.length === 0) return;
 
-    const key = `${optionProvider}:${baseUrl}:${optionModel}`;
-    const dimensions = providerModel?.embeddingDimensions ?? savedEmbedding.dimensions;
-    if (dimensions === null) return;
+    const optionBaseUrl = providerBaseUrls?.[optionProvider] ?? baseUrl;
+    const key = `${optionProvider}:${optionBaseUrl}:${optionModel}`;
+    const dimensions = providerModel?.embeddingDimensions ?? savedEmbedding.dimensions ?? null;
 
     optionByKey.set(key, {
       key,
       provider: optionProvider,
       providerLabel: formatProvider(optionProvider),
-      baseUrl,
+      baseUrl: optionBaseUrl,
       model: optionModel,
       dimensions,
-      isActive: activeIndex?.provider === optionProvider && activeIndex.model === optionModel,
+      isActive:
+        activeIndex?.provider === optionProvider &&
+        isSameProviderModel({ provider: optionProvider, left: activeIndex.model, right: optionModel }),
       isConfigured:
-        savedEmbedding.provider === optionProvider && savedEmbedding.model === optionModel,
+        savedEmbedding.provider === optionProvider &&
+        savedEmbedding.model !== null &&
+        isSameProviderModel({ provider: optionProvider, left: savedEmbedding.model, right: optionModel }),
       isDiscovered: providerModel !== undefined,
       capabilities: providerModel?.capabilities ?? [],
     });
   }
 
   for (const providerModel of providerModels) {
-    if (
-      (provider === null || providerModel.provider === provider) &&
-      providerModel.provider === 'ollama' &&
-      hasModelCapability(providerModel, 'embedding')
-    ) {
-      const optionModel = configuredModel.length > 0 && isSameOllamaModel(providerModel.model, configuredModel)
+    if (hasModelCapability(providerModel, 'embedding')) {
+      const optionModel =
+        configuredModel.length > 0 &&
+        isSameProviderModel({
+          provider: providerModel.provider,
+          left: providerModel.model,
+          right: configuredModel,
+        })
         ? configuredModel
-        : activeModel.length > 0 && isSameOllamaModel(providerModel.model, activeModel)
+        : activeModel.length > 0 &&
+          isSameProviderModel({
+            provider: providerModel.provider,
+            left: providerModel.model,
+            right: activeModel,
+          })
           ? activeModel
           : providerModel.model;
 

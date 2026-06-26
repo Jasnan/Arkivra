@@ -281,6 +281,11 @@ describe.sequential('migrations smoke', () => {
           AND table_name = 'instance_settings'
           AND column_name IN (
             'ollama_translation_model',
+            'embedding_provider',
+            'embedding_base_url',
+            'embedding_api_key_secret_ref',
+            'embedding_model',
+            'embedding_dimensions',
             'ollama_embedding_enabled',
             'ollama_embedding_model',
             'ollama_embedding_dimensions'
@@ -292,6 +297,17 @@ describe.sequential('migrations smoke', () => {
 
     expect(byName.ollama_translation_model?.data_type).toBe('text');
     expect(byName.ollama_translation_model?.column_default).toContain("''");
+
+    expect(byName.embedding_provider?.data_type).toBe('text');
+    expect(byName.embedding_provider?.is_nullable).toBe('YES');
+    expect(byName.embedding_base_url?.data_type).toBe('text');
+    expect(byName.embedding_base_url?.is_nullable).toBe('YES');
+    expect(byName.embedding_api_key_secret_ref?.data_type).toBe('text');
+    expect(byName.embedding_api_key_secret_ref?.is_nullable).toBe('YES');
+    expect(byName.embedding_model?.data_type).toBe('text');
+    expect(byName.embedding_model?.is_nullable).toBe('YES');
+    expect(byName.embedding_dimensions?.data_type).toBe('integer');
+    expect(byName.embedding_dimensions?.is_nullable).toBe('YES');
 
     expect(byName.ollama_embedding_enabled?.data_type).toBe('boolean');
     expect(byName.ollama_embedding_enabled?.column_default).toContain('false');

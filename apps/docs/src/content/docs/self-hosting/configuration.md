@@ -170,7 +170,6 @@ New backup archives are encrypted with the active key version from `ARKIVRA_ENCR
 | `ARKIVRA_OLLAMA_IMAGE_CAPTIONING_MODEL`   | Ollama vision-capable model used for image captions                     | unset   |
 | `ARKIVRA_OLLAMA_EMBEDDING_BATCH_SIZE`     | Embedding batch size                                                    | `16`    |
 | `ARKIVRA_OLLAMA_LOG_REQUESTS`             | Log Ollama requests and responses for debugging                         | `false` |
-| `ARKIVRA_AI_MODEL_CATALOG_EXTENSIONS`     | JSON array of custom non-Ollama AI model catalog entries                | unset   |
 
 Do not enable provider request logging with sensitive documents unless you have a deliberate redacted logging plan.
 

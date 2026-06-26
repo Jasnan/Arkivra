@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type {
   AdminAiAvailability,
-  AdminAiModelCatalogEntry,
+  AdminAiProviderModelOption,
   AdminAiSettings,
 } from '@/features/admin/admin.types';
 import { formatDate } from '@/features/documents/documents.utils';
@@ -18,14 +18,14 @@ interface AdminAiProviderSectionProps {
   expandedProvider: 'ollama' | 'gemini' | null;
   geminiAvailability?: { modelAvailable?: boolean; error?: string | null };
   geminiDataUpdatedAt: number;
-  geminiModels: AdminAiModelCatalogEntry[];
+  geminiModels: AdminAiProviderModelOption[];
   geminiProviderStatus: string;
   geminiProviderTone: 'enabled' | 'inactive' | 'warning';
   isSaving: boolean;
   ollamaAvailability?: AdminAiAvailability;
   ollamaDataUpdatedAt: number;
   ollamaIsFetching: boolean;
-  ollamaModels: AdminAiModelCatalogEntry[];
+  ollamaModels: AdminAiProviderModelOption[];
   ollamaProviderStatus: string;
   ollamaProviderTone: 'enabled' | 'inactive' | 'warning';
   onExpandedProviderChange: (provider: 'ollama' | 'gemini' | null) => void;

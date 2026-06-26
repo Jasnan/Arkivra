@@ -70,6 +70,7 @@ const aiHostSchema = z.object({
   host: z.string().url(),
   provider: z.enum(['ollama', 'gemini']).optional(),
   includeEmbeddingModels: z.boolean().optional(),
+  apiKeySecretRef: z.string().min(1).nullable().optional(),
 });
 
 const aiAvailabilitySchema = z.object({
@@ -99,11 +100,6 @@ export function registerAdminAiRoutes({
   app.get('/api/admin/ai/status', async (context) => {
     const status = await aiServices.getStatus();
     return context.json({ status });
-  });
-
-  app.get('/api/admin/ai/model-catalog', async (context) => {
-    const models = aiServices.getModelCatalog();
-    return context.json({ models });
   });
 
   app.put('/api/admin/ai/settings', async (context) => {
@@ -143,7 +139,7 @@ export function registerAdminAiRoutes({
         {
           error: {
             code: 'admin.invalid_ai_models_payload',
-            message: 'A valid Ollama host is required.',
+            message: 'A valid AI provider host is required.',
           },
         },
         400,
@@ -155,6 +151,7 @@ export function registerAdminAiRoutes({
         provider: parsed.data.provider,
         baseUrl: parsed.data.host,
         includeEmbeddingModels: parsed.data.includeEmbeddingModels,
+        apiKeySecretRef: parsed.data.apiKeySecretRef,
       });
       return context.json({ models });
     } catch (error) {

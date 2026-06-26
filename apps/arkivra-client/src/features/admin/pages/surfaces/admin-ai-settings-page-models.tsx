@@ -4,8 +4,8 @@ import { Languages, MessageSquare, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { AdminAiSettings } from '@/features/admin/admin.types';
 import { SettingsStatusBadge } from '@/features/settings/components/settings-ui';
-import { formatProvider, isSameOllamaModel } from './admin-ai-settings-page-model-catalog';
-import type { EmbeddingModelOption } from './admin-ai-settings-page-model-catalog';
+import { formatProvider, isSameOllamaModel } from './admin-ai-settings-page-provider-models';
+import type { EmbeddingModelOption } from './admin-ai-settings-page-provider-models';
 import { AiSettingsSection } from './admin-ai-settings-page-sections';
 
 interface AdminAiModelSectionsProps {

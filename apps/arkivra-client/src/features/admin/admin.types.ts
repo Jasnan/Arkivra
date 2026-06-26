@@ -88,7 +88,7 @@ export interface AdminVault {
 export type AdminAiProviderKind = 'ollama' | 'gemini';
 export type AdminAiModelCapability = 'chat' | 'vision' | 'embedding';
 
-export interface AdminAiModelCatalogEntry {
+export interface AdminAiProviderModelOption {
   provider: AdminAiProviderKind;
   model: string;
   label?: string;
@@ -144,7 +144,15 @@ export interface AdminAiModel {
   modifiedAt: string | null;
   capabilities: string[];
   description?: string | null;
-  source?: 'catalog' | 'live';
+  displayName?: string | null;
+  supportedGenerationMethods?: string[];
+  inputTokenLimit?: number | null;
+  outputTokenLimit?: number | null;
+  version?: string | null;
+  contextWindow?: number | null;
+  maxOutputTokens?: number | null;
+  providerMetadata?: Record<string, unknown>;
+  source?: 'live';
   available?: boolean;
   availabilityReason?: string | null;
   embeddingDimensions?: number;

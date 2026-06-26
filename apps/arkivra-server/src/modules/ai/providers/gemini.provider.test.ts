@@ -115,7 +115,7 @@ describe('gemini provider', () => {
     );
   });
 
-  test('filters native models to OpenAI-compatible chat and embedding endpoint models', async () => {
+  test('uses OpenAI-compatible models as source of truth and enriches native metadata', async () => {
     const provider = createGeminiProvider({
       fetchImpl: vi.fn(async (input: URL | string) => {
         const url = input.toString();
@@ -171,16 +171,74 @@ describe('gemini provider', () => {
         name: 'gemini-embedding-compatible',
         capabilities: ['embedding'],
       }),
+      expect.objectContaining({
+        name: 'gemini-live-compatible',
+        capabilities: [],
+      }),
+      expect.objectContaining({
+        name: 'imagen-compatible',
+        capabilities: [],
+      }),
     ]);
   });
 
-  test('surfaces native Models API failures without fallback models', async () => {
+  test('includes OpenAI-compatible embedding models that are not exact native model IDs', async () => {
     const provider = createGeminiProvider({
       fetchImpl: vi.fn(async (input: URL | string) => {
         const url = input.toString();
 
         if (url === 'https://generativelanguage.googleapis.com/v1beta/openai/models') {
-          return Response.json({ data: [] });
+          return Response.json({
+            data: [
+              { id: 'gemini-embedding-2-preview' },
+              { id: 'gemini-chat-compatible' },
+            ],
+          });
+        }
+
+        if (url === 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000') {
+          return Response.json({
+            models: [
+              {
+                name: 'models/gemini-embedding-2',
+                supportedGenerationMethods: ['embedContent', 'countTokens'],
+              },
+              {
+                name: 'models/gemini-chat-compatible',
+                supportedGenerationMethods: ['generateContent', 'countTokens'],
+              },
+            ],
+          });
+        }
+
+        throw new Error(`Unexpected request ${url}`);
+      }) as any,
+    });
+
+    await expect(provider.listModels({ apiKey: 'test-key' })).resolves.toEqual([
+      expect.objectContaining({
+        name: 'gemini-chat-compatible',
+        capabilities: ['chat'],
+      }),
+      expect.objectContaining({
+        name: 'gemini-embedding-2-preview',
+        capabilities: ['embedding'],
+      }),
+    ]);
+  });
+
+  test('keeps OpenAI-compatible models when native metadata is unavailable', async () => {
+    const provider = createGeminiProvider({
+      fetchImpl: vi.fn(async (input: URL | string) => {
+        const url = input.toString();
+
+        if (url === 'https://generativelanguage.googleapis.com/v1beta/openai/models') {
+          return Response.json({
+            data: [
+              { id: 'gemini-3.5-flash' },
+              { id: 'gemini-embedding-2-preview' },
+            ],
+          });
         }
 
         return Response.json(
@@ -190,9 +248,18 @@ describe('gemini provider', () => {
       }) as any,
     });
 
-    await expect(provider.listModels({ apiKey: 'bad-key' })).rejects.toThrow(
-      'Could not query Gemini models: API key not valid (UNAUTHENTICATED)',
-    );
+    await expect(provider.listModels({ apiKey: 'test-key' })).resolves.toEqual([
+      expect.objectContaining({
+        name: 'gemini-3.5-flash',
+        capabilities: ['chat'],
+        contextWindow: null,
+      }),
+      expect.objectContaining({
+        name: 'gemini-embedding-2-preview',
+        capabilities: ['embedding'],
+        contextWindow: null,
+      }),
+    ]);
   });
 
   test('surfaces OpenAI compatibility model discovery failures without fallback models', async () => {

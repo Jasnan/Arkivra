@@ -5,6 +5,8 @@ export type EmbeddingProviderKind =
   | 'voyage'
   | 'custom';
 
+export type EmbeddingProviderRegistry = Partial<Record<EmbeddingProviderKind, EmbeddingProvider>>;
+
 export type EmbeddingModelConfig = {
   provider: EmbeddingProviderKind;
   model: string;

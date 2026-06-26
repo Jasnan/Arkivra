@@ -556,7 +556,7 @@ export function EmbeddingModelDialog({
   selectedEmbeddingModel,
   selectedEmbeddingModelChanged,
   selectedEmbeddingModelKey,
-  isFetchingOllamaModels,
+  isFetchingModels,
   isSaving,
   onConfirm,
   onOpenChange,
@@ -568,7 +568,7 @@ export function EmbeddingModelDialog({
   selectedEmbeddingModel: EmbeddingModelOption | null;
   selectedEmbeddingModelChanged: boolean;
   selectedEmbeddingModelKey: string;
-  isFetchingOllamaModels: boolean;
+  isFetchingModels: boolean;
   isSaving: boolean;
   onConfirm: () => void;
   onOpenChange: (open: boolean) => void;
@@ -576,8 +576,7 @@ export function EmbeddingModelDialog({
 }) {
   const hasConfiguredSearchEngine =
     aiDraft.embedding.provider !== null &&
-    aiDraft.embedding.model !== null &&
-    aiDraft.embedding.dimensions !== null;
+    aiDraft.embedding.model !== null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -655,9 +654,9 @@ export function EmbeddingModelDialog({
                 </RadioGroup>
               ) : (
                 <Text px="3" py="3" textStyle="sm" color="fg.muted">
-                  {isFetchingOllamaModels
+                  {isFetchingModels
                     ? 'Loading available models and provider status...'
-                    : 'No embedding models are selectable from a healthy Ollama provider.'}
+                    : 'No embedding models are selectable from a configured provider.'}
                 </Text>
               )}
             </Box>

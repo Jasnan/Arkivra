@@ -104,7 +104,7 @@ export interface AdminAiProviderSettings {
 }
 
 export interface AdminAiEmbeddingProviderSettings {
-  provider: 'ollama' | null;
+  provider: AdminAiProviderKind | null;
   baseUrl: string;
   apiKeySecretRef: string | null;
   model: string | null;

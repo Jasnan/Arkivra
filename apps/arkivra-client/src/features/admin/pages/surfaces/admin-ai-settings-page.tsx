@@ -52,7 +52,7 @@ import {
   formatProvider,
   geminiBaseUrl,
   hasModelCapability,
-  isSameOllamaModel,
+  isSameProviderModel,
 } from './admin-ai-settings-page-provider-models';
 import type { EmbeddingModelOption } from './admin-ai-settings-page-provider-models';
 import { emptyAiSettings } from './admin-ai-settings-page-state';
@@ -78,7 +78,7 @@ interface SearchEngine {
   provider: NonNullable<AdminAiSettings['embedding']['provider']>;
   baseUrl: string;
   model: string;
-  dimensions: number;
+  dimensions: number | null;
 }
 
 interface AiSetupStatus {
@@ -386,6 +386,13 @@ export function AdminAiSettingsPage() {
       }),
     [isOllamaProviderReachable, ollamaAvailability?.models, ollamaModelsQuery.data?.models],
   );
+  const availableEmbeddingProviderModels = useMemo(
+    () =>
+      [...geminiProviderModels, ...availableOllamaModels].filter((model) =>
+        hasModelCapability(model, 'embedding'),
+      ),
+    [availableOllamaModels, geminiProviderModels],
+  );
   const chatModelOptions = useMemo<ChatModelOption[]>(() => {
     const geminiOptions = availableGeminiChatModels.map((model) => ({
       value: formatChatModelValue({ provider: 'gemini', model: model.model }),
@@ -558,31 +565,38 @@ export function AdminAiSettingsPage() {
     effectiveTranslationModel.length > 0 &&
     (effectiveTranslationOption?.capabilities.includes('vision') ?? false);
   const selectedEmbeddingProviderModel =
-    aiDraft.embedding.provider === 'ollama' && aiDraft.embedding.model !== null
-      ? availableOllamaModels.find(
+    aiDraft.embedding.provider !== null && aiDraft.embedding.model !== null
+      ? availableEmbeddingProviderModels.find(
           (model) =>
-            model.provider === 'ollama' &&
-            hasModelCapability(model, 'embedding') &&
-            isSameOllamaModel(model.model, aiDraft.embedding.model ?? ''),
+            model.provider === aiDraft.embedding.provider &&
+            isSameProviderModel({
+              provider: model.provider,
+              left: model.model,
+              right: aiDraft.embedding.model ?? '',
+            }),
         )
       : undefined;
+  const isSelectedEmbeddingProviderReachable =
+    aiDraft.embedding.provider === 'ollama'
+      ? isOllamaProviderReachable
+      : aiDraft.embedding.provider === 'gemini'
+        ? geminiModelsQuery.isSuccess
+        : false;
   const isSelectedEmbeddingModelConfirmedMissing =
-    aiDraft.embedding.provider === 'ollama' &&
-    isOllamaProviderReachable &&
+    aiDraft.embedding.provider !== null &&
+    isSelectedEmbeddingProviderReachable &&
     selectedEmbeddingProviderModel === undefined;
   const isEmbeddingSelectionConfigured =
     aiDraft.embedding.provider !== null &&
     aiDraft.embedding.baseUrl.trim().length > 0 &&
-    (aiDraft.embedding.model?.trim().length ?? 0) > 0 &&
-    Number.isInteger(aiDraft.embedding.dimensions) &&
-    (aiDraft.embedding.dimensions ?? 0) > 0;
+    (aiDraft.embedding.model?.trim().length ?? 0) > 0;
   const selectedSearchEngine =
     isEmbeddingSelectionConfigured && !isSelectedEmbeddingModelConfirmedMissing
       ? {
           provider: aiDraft.embedding.provider!,
           baseUrl: aiDraft.embedding.baseUrl,
           model: aiDraft.embedding.model!,
-          dimensions: aiDraft.embedding.dimensions!,
+          dimensions: aiDraft.embedding.dimensions ?? null,
         }
       : undefined;
   const isEmbeddingConfigValid = selectedSearchEngine !== undefined;
@@ -629,7 +643,11 @@ export function AdminAiSettingsPage() {
       baseUrl: aiDraft.embedding.baseUrl || effectiveOllamaBaseUrl,
       model: aiDraft.embedding.model,
       provider: aiDraft.embedding.provider,
-      providerModels: availableOllamaModels,
+      providerBaseUrls: {
+        gemini: geminiBaseUrl,
+        ollama: effectiveOllamaBaseUrl,
+      },
+      providerModels: availableEmbeddingProviderModels,
       savedEmbedding: savedAiSettings.embedding,
     });
   }, [
@@ -637,7 +655,7 @@ export function AdminAiSettingsPage() {
     aiDraft.embedding.baseUrl,
     aiDraft.embedding.model,
     aiDraft.embedding.provider,
-    availableOllamaModels,
+    availableEmbeddingProviderModels,
     effectiveOllamaBaseUrl,
     savedAiSettings.embedding,
   ]);
@@ -721,8 +739,7 @@ export function AdminAiSettingsPage() {
   useEffect(() => {
     const savedEmbeddingSelected =
       savedAiSettings.embedding.provider !== null &&
-      savedAiSettings.embedding.model !== null &&
-      savedAiSettings.embedding.dimensions !== null;
+      savedAiSettings.embedding.model !== null;
     const onlyEmbeddingOption =
       selectableEmbeddingModelOptions.length === 1 ? selectableEmbeddingModelOptions[0] : null;
 
@@ -795,13 +812,14 @@ export function AdminAiSettingsPage() {
     const translationModel = configuredTranslation;
     const hasEmbeddingSelection =
       settings.embedding.provider !== null &&
-      (settings.embedding.model?.trim().length ?? 0) > 0 &&
-      (settings.embedding.dimensions ?? 0) > 0;
+      (settings.embedding.model?.trim().length ?? 0) > 0;
     const embeddingBaseUrl = hasEmbeddingSelection
-      ? settings.embedding.baseUrl.trim() || ollamaBaseUrl
+      ? settings.embedding.provider === 'gemini'
+        ? geminiBaseUrl
+        : settings.embedding.baseUrl.trim() || ollamaBaseUrl
       : '';
     const embeddingModel = hasEmbeddingSelection ? settings.embedding.model!.trim() : null;
-    const embeddingDimensions = hasEmbeddingSelection ? settings.embedding.dimensions! : null;
+    const embeddingDimensions = hasEmbeddingSelection ? settings.embedding.dimensions : null;
 
     return {
       ...settings,
@@ -931,7 +949,11 @@ export function AdminAiSettingsPage() {
               option.isDiscovered &&
               option.provider === savedAiSettings.embedding.provider &&
               option.baseUrl === savedAiSettings.embedding.baseUrl &&
-              isSameOllamaModel(option.model, savedEmbeddingModel),
+              isSameProviderModel({
+                provider: option.provider,
+                left: option.model,
+                right: savedEmbeddingModel,
+              }),
           ) ?? selectableEmbeddingModelOptions[0] ?? embeddingModelOptions[0];
 
     setSelectedEmbeddingModelKey(currentOption?.key ?? '');
@@ -1125,7 +1147,12 @@ export function AdminAiSettingsPage() {
         selectedEmbeddingModel={selectedEmbeddingModel}
         selectedEmbeddingModelChanged={selectedEmbeddingModelChanged}
         selectedEmbeddingModelKey={selectedEmbeddingModelKey}
-        isFetchingOllamaModels={ollamaModelsQuery.isFetching || ollamaAvailabilityQuery.isFetching}
+        isFetchingModels={
+          geminiModelsQuery.isFetching ||
+          geminiAvailabilityQuery.isFetching ||
+          ollamaModelsQuery.isFetching ||
+          ollamaAvailabilityQuery.isFetching
+        }
         isSaving={aiSettingsMutation.isPending}
         onConfirm={() => {
           if (selectedEmbeddingModel === null) return;

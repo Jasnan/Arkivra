@@ -4,14 +4,14 @@ import { Languages, MessageSquare, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { AdminAiSettings } from '@/features/admin/admin.types';
 import { SettingsStatusBadge } from '@/features/settings/components/settings-ui';
-import { formatProvider, isSameOllamaModel } from './admin-ai-settings-page-provider-models';
+import { formatProvider, isSameProviderModel } from './admin-ai-settings-page-provider-models';
 import type { EmbeddingModelOption } from './admin-ai-settings-page-provider-models';
 import { AiSettingsSection } from './admin-ai-settings-page-sections';
 
 interface AdminAiModelSectionsProps {
   aiDraft: AdminAiSettings;
   chatModelOptions: string[];
-  configuredEmbeddingDimensions: number;
+  configuredEmbeddingDimensions: number | null;
   configuredEmbeddingModel: string;
   configuredEmbeddingProvider: AdminAiSettings['embedding']['provider'];
   effectiveDefaultChatModel: string;
@@ -58,7 +58,11 @@ export function AdminAiModelSections({
             (option) =>
               option.provider === savedEmbedding.provider &&
               option.baseUrl === savedEmbedding.baseUrl &&
-              isSameOllamaModel(option.model, savedEmbeddingModel),
+              isSameProviderModel({
+                provider: option.provider,
+                left: option.model,
+                right: savedEmbeddingModel,
+              }),
           ) ?? embeddingModelOptions[0];
 
     onChangeEmbeddingModel(currentOption?.key ?? '');
@@ -150,7 +154,9 @@ export function AdminAiModelSections({
                   model={configuredEmbeddingModel || 'Not selected'}
                   modelDescription={
                     configuredEmbeddingModel
-                      ? `${configuredEmbeddingDimensions.toLocaleString()} dimensions`
+                      ? configuredEmbeddingDimensions === null
+                        ? 'Dimensions will be detected when indexing starts'
+                        : `${configuredEmbeddingDimensions.toLocaleString()} dimensions`
                       : 'Connect a provider before selecting models'
                   }
                   provider={formatProvider(configuredEmbeddingProvider)}

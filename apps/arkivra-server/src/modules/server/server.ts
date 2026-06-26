@@ -44,7 +44,7 @@ import { createAdminAiServices } from '../admin/ai/ai.services.js';
 import { createSensitiveActionServices } from '../security/sensitive-actions.services.js';
 import { registerSensitiveActionRoutes } from '../security/sensitive-actions.routes.js';
 import {
-  createOllamaEmbeddingProvider,
+  createEmbeddingProviderRegistry,
 } from '../ai/providers/index.js';
 import { createEmbeddingIndexServices } from '../ai/indexing/index.js';
 import { createDocumentSearchServices } from '../search/search.services.js';
@@ -100,13 +100,13 @@ export function createServer({
   const aiServices = adminAiServices ?? createAdminAiServices({ db, config });
   const sensitiveActionServices = createSensitiveActionServices({ auth, db });
   const documentsServices = createDocumentsServices({ db, storage, encryption });
-  const embeddingProvider = createOllamaEmbeddingProvider({
-    batchSize: config.ollama.embeddingBatchSize,
+  const embeddingProviders = createEmbeddingProviderRegistry({
+    ollamaBatchSize: config.ollama.embeddingBatchSize,
   });
   const embeddingIndexServices = createEmbeddingIndexServices({ db });
   const searchServices = createDocumentSearchServices({
     db,
-    embeddingProvider,
+    embeddingProviders,
     resolveActiveEmbeddingIndex: async () => {
       const settings = await aiServices.getSettings();
       if (!settings.aiFeaturesEnabled) {

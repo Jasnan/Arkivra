@@ -1,7 +1,8 @@
 import { z } from 'zod';
 
 export const GEMINI_NATIVE_MODELS_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
-export const GEMINI_OPENAI_COMPATIBLE_MODELS_URL = `${GEMINI_NATIVE_MODELS_BASE_URL}/openai/models`;
+export const GEMINI_OPENAI_COMPATIBLE_BASE_URL = `${GEMINI_NATIVE_MODELS_BASE_URL}/openai`;
+export const GEMINI_OPENAI_COMPATIBLE_MODELS_URL = `${GEMINI_OPENAI_COMPATIBLE_BASE_URL}/models`;
 
 const geminiModelSchema = z.object({
   name: z.string().min(1),
@@ -77,6 +78,14 @@ function supportsOpenAiEmbeddings({
   supportedGenerationMethods: readonly string[];
 }) {
   return isOpenAiCompatible && hasMethod(supportedGenerationMethods, 'embedContent');
+}
+
+function supportsNativeChatCompletions(supportedGenerationMethods: readonly string[]) {
+  return hasMethod(supportedGenerationMethods, 'generateContent');
+}
+
+function supportsNativeEmbeddings(supportedGenerationMethods: readonly string[]) {
+  return hasMethod(supportedGenerationMethods, 'embedContent');
 }
 
 export function detectGeminiVisionCapability({
@@ -179,6 +188,102 @@ function normalizeOpenAiCompatibleModelIds(models: Array<{ id: string }>) {
   return new Set(models.map(model => normalizeGeminiModelId(model.id)));
 }
 
+function looksLikeGeminiEmbeddingModelId(modelId: string) {
+  return /\bembed(?:ding)?\b|embedding/i.test(modelId);
+}
+
+function inferOpenAiCompatibleCapabilities(modelId: string): string[] {
+  if (looksLikeGeminiEmbeddingModelId(modelId)) {
+    return ['embedding'];
+  }
+
+  return /^gemini-/i.test(modelId) ? ['chat'] : [];
+}
+
+function getNativeModelAliasesForOpenAiModelId(modelId: string) {
+  const aliases = new Set([modelId]);
+
+  if (looksLikeGeminiEmbeddingModelId(modelId)) {
+    aliases.add(modelId.replace(/-preview$/i, ''));
+  }
+
+  return aliases;
+}
+
+function findNativeModelForOpenAiModel({
+  modelId,
+  nativeModelsById,
+}: {
+  modelId: string;
+  nativeModelsById: ReadonlyMap<string, z.infer<typeof geminiModelSchema>>;
+}) {
+  for (const alias of getNativeModelAliasesForOpenAiModelId(modelId)) {
+    const nativeModel = nativeModelsById.get(alias);
+    if (nativeModel !== undefined) {
+      return nativeModel;
+    }
+  }
+
+  return undefined;
+}
+
+function createOpenAiCompatibleModel({
+  modelId,
+  nativeModel,
+}: {
+  modelId: string;
+  nativeModel?: z.infer<typeof geminiModelSchema>;
+}): GeminiModel {
+  const supportedGenerationMethods = normalizeSupportedGenerationMethods(
+    nativeModel?.supportedGenerationMethods ?? [],
+  );
+  const capabilities = new Set(
+    supportedGenerationMethods.length > 0
+      ? [
+          ...(supportsNativeChatCompletions(supportedGenerationMethods) ? ['chat'] : []),
+          ...(supportsNativeEmbeddings(supportedGenerationMethods) ? ['embedding'] : []),
+        ]
+      : inferOpenAiCompatibleCapabilities(modelId),
+  );
+  const displayName = nativeModel?.displayName ?? null;
+  const description = nativeModel?.description ?? null;
+
+  if (
+    capabilities.has('chat') &&
+    detectGeminiVisionCapability({
+      modelId,
+      displayName,
+      description,
+      supportedGenerationMethods,
+    })
+  ) {
+    capabilities.add('vision');
+  }
+
+  return {
+    name: modelId,
+    displayName,
+    description,
+    supportedGenerationMethods,
+    inputTokenLimit: nativeModel?.inputTokenLimit ?? null,
+    outputTokenLimit: nativeModel?.outputTokenLimit ?? null,
+    version: nativeModel?.version ?? null,
+    capabilities: Array.from(capabilities).sort((left, right) => left.localeCompare(right)),
+    contextWindow: nativeModel?.inputTokenLimit ?? null,
+    maxOutputTokens: nativeModel?.outputTokenLimit ?? null,
+    providerMetadata: {
+      ...(nativeModel ?? {
+        name: modelId,
+        supportedGenerationMethods: [],
+      }),
+      openAiCompatibleModelId: modelId,
+      source: nativeModel === undefined
+        ? 'openai-compatible-models'
+        : 'openai-compatible-models+native-models',
+    },
+  };
+}
+
 export function createGeminiProvider({
   fetchImpl = fetch,
 }: {
@@ -206,37 +311,46 @@ export function createGeminiProvider({
   }: {
     apiKey: string;
   }): Promise<GeminiModel[]> {
-    const models: GeminiModel[] = [];
     const openAiCompatibleModelIds = await listOpenAiCompatibleModelIds({ apiKey });
+    const nativeModelsById = new Map<string, z.infer<typeof geminiModelSchema>>();
     let pageToken: string | undefined;
 
-    do {
-      const url = new URL(`${GEMINI_NATIVE_MODELS_BASE_URL}/models`);
-      url.searchParams.set('pageSize', '1000');
-      if (pageToken !== undefined) {
-        url.searchParams.set('pageToken', pageToken);
-      }
+    try {
+      do {
+        const url = new URL(`${GEMINI_NATIVE_MODELS_BASE_URL}/models`);
+        url.searchParams.set('pageSize', '1000');
+        if (pageToken !== undefined) {
+          url.searchParams.set('pageToken', pageToken);
+        }
 
-      const response = await fetchImpl(url, {
-        headers: {
-          'x-goog-api-key': apiKey,
-        },
-      });
+        const response = await fetchImpl(url, {
+          headers: {
+            'x-goog-api-key': apiKey,
+          },
+        });
 
-      if (!response.ok) {
-        throw new Error(`Could not query Gemini models: ${await readGeminiError(response)}`);
-      }
+        if (!response.ok) {
+          throw new Error(`Could not query Gemini models: ${await readGeminiError(response)}`);
+        }
 
-      const body = geminiModelsResponseSchema.parse(await response.json());
-      models.push(
-        ...body.models
-          .map(model => normalizeGeminiModel(model, { openAiCompatibleModelIds }))
-          .filter(model => model.capabilities.includes('chat') || model.capabilities.includes('embedding')),
-      );
-      pageToken = body.nextPageToken?.trim() || undefined;
-    } while (pageToken !== undefined);
+        const body = geminiModelsResponseSchema.parse(await response.json());
+        for (const model of body.models) {
+          nativeModelsById.set(normalizeGeminiModelId(model.name), model);
+        }
+        pageToken = body.nextPageToken?.trim() || undefined;
+      } while (pageToken !== undefined);
+    } catch {
+      nativeModelsById.clear();
+    }
 
-    return models.sort((left, right) => left.name.localeCompare(right.name));
+    return Array.from(openAiCompatibleModelIds)
+      .map(modelId =>
+        createOpenAiCompatibleModel({
+          modelId,
+          nativeModel: findNativeModelForOpenAiModel({ modelId, nativeModelsById }),
+        }),
+      )
+      .sort((left, right) => left.name.localeCompare(right.name));
   }
 
   return {

@@ -11,7 +11,7 @@ export type AdminAiProviderSettings = {
 };
 
 export type AdminAiEmbeddingProviderSettings = {
-  provider: 'ollama' | null;
+  provider: AdminAiProviderKind | null;
   baseUrl: string;
   apiKeySecretRef: string | null;
   model: string | null;

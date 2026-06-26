@@ -28,7 +28,7 @@ const nullableUrlSchema = z.string().url().or(z.literal(''));
 
 const embeddingProviderSettingsSchema = z
   .object({
-    provider: z.literal('ollama').nullable(),
+    provider: z.enum(['ollama', 'gemini']).nullable(),
     baseUrl: nullableUrlSchema,
     apiKeySecretRef: z.string().min(1).nullable().optional(),
     model: z.string().min(1).nullable(),
@@ -40,13 +40,12 @@ const embeddingProviderSettingsSchema = z
     const hasCompleteSelection =
       settings.provider !== null &&
       settings.baseUrl.length > 0 &&
-      settings.model !== null &&
-      settings.dimensions !== null;
+      settings.model !== null;
 
     if (hasAnySelection && !hasCompleteSelection) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Embedding provider, base URL, model, and dimensions must be selected together.',
+        message: 'Embedding provider, base URL, and model must be selected together.',
       });
     }
   });

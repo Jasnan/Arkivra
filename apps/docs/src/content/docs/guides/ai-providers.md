@@ -13,7 +13,7 @@ Arkivra currently supports these first-class runtime paths:
 - Translation: Ollama-compatible chat endpoints.
 - Semantic indexing: Ollama-compatible embedding endpoints.
 
-Provider settings are configured from the admin AI settings page. The default local provider endpoint comes from `ARKIVRA_OLLAMA_HOST`.
+Provider settings are configured from environment variables and selected from the admin AI settings page. Set `ARKIVRA_OLLAMA_HOST` to make an Ollama-compatible provider available.
 
 Ollama model selection is discovered from the configured Ollama endpoint. Arkivra reads the models available in Ollama and inspects their reported capabilities before showing them in chat, translation, and embedding pickers. Gemini model selection remains catalog-based.
 

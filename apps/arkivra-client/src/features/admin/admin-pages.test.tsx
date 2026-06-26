@@ -92,6 +92,7 @@ function createAiSettingsFixture({
   aiFeaturesEnabled = true,
   chatModel = 'gemma4:e4b',
   embeddingModel = 'bge-m3',
+  geminiConfigured = false,
   host = 'http://127.0.0.1:11434',
   translationModel = 'gemma4:e4b',
 } = {}) {
@@ -121,6 +122,7 @@ function createAiSettingsFixture({
       gemini: {
         baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
         apiKeySecretRef: null,
+        configured: geminiConfigured,
       },
     },
     ollamaHost: host,
@@ -654,7 +656,9 @@ describe('admin and about pages', () => {
 
     await renderWithProviders(<AdminAiSettingsPage />);
     expect(await screen.findByText('AI needs setup')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /choose search engine/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: /choose search engine/i }).length).toBeGreaterThan(
+      0,
+    );
   });
 
   it('opens a compact invite dialog focused on identity and system permissions', async () => {
@@ -847,7 +851,9 @@ describe('admin and about pages', () => {
     const providerDetailButtons = await screen.findAllByRole('button', { name: /view details/i });
     await user.click(providerDetailButtons.at(-1)!);
     expect(
-      await screen.findByText(/providers are read-only and configured through environment variables/i),
+      await screen.findByText(
+        /providers are read-only and configured through environment variables/i,
+      ),
     ).toBeInTheDocument();
     expect(screen.getByText('http://127.0.0.1:11434')).toBeInTheDocument();
     expect(screen.queryByLabelText(/ollama base url/i)).not.toBeInTheDocument();
@@ -897,6 +903,13 @@ describe('admin and about pages', () => {
               apiKeySecretRef: null,
               model: 'bge-m3',
               dimensions: 1024,
+            },
+            providers: {
+              gemini: {
+                baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+                apiKeySecretRef: null,
+                configured: true,
+              },
             },
             ollamaHost: 'http://127.0.0.1:11434',
             model: 'gemma4:e4b',
@@ -996,7 +1009,9 @@ describe('admin and about pages', () => {
     await renderWithProviders(<AdminAiSettingsPage />);
 
     expect((await screen.findAllByText('AI is not configured')).length).toBeGreaterThan(0);
-    expect(screen.getByText(/No AI providers were detected/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Configure a provider when you want features like semantic search/i),
+    ).toBeInTheDocument();
     expect(screen.queryByText('AI is enabled')).not.toBeInTheDocument();
     expect(screen.queryByText('AI is ready')).not.toBeInTheDocument();
     expect(screen.queryByText('bge-m3')).not.toBeInTheDocument();
@@ -1016,7 +1031,9 @@ describe('admin and about pages', () => {
     await renderWithProviders(<AdminAiSettingsPage />);
 
     expect(await screen.findByText('AI needs setup')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /choose search engine/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: /choose search engine/i }).length).toBeGreaterThan(
+      0,
+    );
     expect(screen.queryByText('AI is enabled')).not.toBeInTheDocument();
     expect(screen.queryByText('AI is ready')).not.toBeInTheDocument();
   });
@@ -1204,6 +1221,13 @@ describe('admin and about pages', () => {
               model: 'bge-m3',
               dimensions: 1024,
             },
+            providers: {
+              gemini: {
+                baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+                apiKeySecretRef: null,
+                configured: true,
+              },
+            },
             ollamaHost: 'http://127.0.0.1:11434',
             model: 'gemma4:e4b',
           },
@@ -1388,6 +1412,13 @@ describe('admin and about pages', () => {
               model: 'bge-m3',
               dimensions: 1024,
             },
+            providers: {
+              gemini: {
+                baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+                apiKeySecretRef: null,
+                configured: true,
+              },
+            },
             ollamaHost: 'http://127.0.0.1:11434',
             model: 'gemma4:e4b',
           },
@@ -1512,6 +1543,17 @@ describe('admin and about pages', () => {
 
     await renderWithProviders(<AdminAiSettingsPage />);
 
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([url, init]) => {
+          if (String(url) !== '/api/admin/ai/availability' || init?.method !== 'POST') {
+            return false;
+          }
+
+          return JSON.parse(String(init.body)).provider === 'gemini';
+        }),
+      ).toBe(true);
+    });
     await user.click(await screen.findByRole('button', { name: /view providers/i }));
     expect(screen.queryByLabelText(/gemini api key environment variable/i)).not.toBeInTheDocument();
     await user.click(await screen.findByRole('button', { name: /configure models/i }));

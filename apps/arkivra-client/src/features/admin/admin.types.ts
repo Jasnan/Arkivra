@@ -118,6 +118,7 @@ export interface AdminAiSettings {
     gemini?: {
       baseUrl: string;
       apiKeySecretRef: string | null;
+      configured?: boolean;
     };
   };
   ollamaHost: string;

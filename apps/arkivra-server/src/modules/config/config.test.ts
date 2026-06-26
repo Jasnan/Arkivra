@@ -253,6 +253,28 @@ describe('parseConfig', () => {
     ]);
   });
 
+  it('tracks whether AI providers are explicitly configured', () => {
+    const defaults = parseConfig({
+      env: {
+        ...requiredEnv,
+      },
+    }).config;
+    const configured = parseConfig({
+      env: {
+        ...requiredEnv,
+        ARKIVRA_OLLAMA_HOST: 'http://ollama.test:11434',
+        GEMINI_API_KEY: 'configured',
+      },
+    }).config;
+
+    expect(defaults.ollama.host).toBe('http://127.0.0.1:11434');
+    expect(defaults.ollama.configured).toBe(false);
+    expect(defaults.ai.geminiApiKeyConfigured).toBe(false);
+    expect(configured.ollama.host).toBe('http://ollama.test:11434');
+    expect(configured.ollama.configured).toBe(true);
+    expect(configured.ai.geminiApiKeyConfigured).toBe(true);
+  });
+
   it('reads Ollama image captioning settings', () => {
     const defaults = parseConfig({
       env: {

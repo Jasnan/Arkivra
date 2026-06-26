@@ -7,11 +7,12 @@ const DEFAULT_GEMINI_API_KEY_SECRET_REF = 'GEMINI_API_KEY';
 const RAW_GOOGLE_API_KEY_PATTERN = /^AIza[\w-]{20,}$/;
 
 export const INSTANCE_AI_SETTINGS_ID = 'instance_ai_settings';
-export const GEMINI_OPENAI_COMPATIBLE_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
+export const GEMINI_OPENAI_COMPATIBLE_BASE_URL =
+  'https://generativelanguage.googleapis.com/v1beta/openai';
 export const DEFAULT_OLLAMA_CHAT_MODEL = 'gemma4:e4b';
 export const CURATED_GEMINI_CHAT_MODELS = builtInAiModelCatalog
-  .filter(entry => entry.provider === 'gemini' && entry.capabilities.includes('chat'))
-  .map(entry => entry.model);
+  .filter((entry) => entry.provider === 'gemini' && entry.capabilities.includes('chat'))
+  .map((entry) => entry.model);
 
 export function normalizeHost(host: string) {
   return normalizeOllamaHost(host);
@@ -54,13 +55,7 @@ function normalizeModelList(models: readonly string[]) {
 
 type ChatProvider = AdminAiSettings['chat']['provider'];
 
-function formatChatModelValue({
-  provider,
-  model,
-}: {
-  provider: ChatProvider;
-  model: string;
-}) {
+function formatChatModelValue({ provider, model }: { provider: ChatProvider; model: string }) {
   return `${provider}:${model}`;
 }
 
@@ -114,8 +109,8 @@ export function normalizeAllowedChatModels({
   const defaultSelection = parseChatModelSelection({ value: model, fallbackProvider: provider });
   const candidates = normalizeModelList([...(allowedModels ?? []), defaultSelection.value]);
   const filtered = candidates
-    .map(candidate => parseChatModelSelection({ value: candidate, fallbackProvider: provider }))
-    .map(selection => selection.value);
+    .map((candidate) => parseChatModelSelection({ value: candidate, fallbackProvider: provider }))
+    .map((selection) => selection.value);
 
   return filtered.length > 0 ? normalizeModelList(filtered) : [defaultSelection.value];
 }
@@ -140,8 +135,8 @@ export function resolveApiKey(...secretRefs: Array<string | null | undefined>) {
 }
 
 export function createDefaultSettings(config: Config): AdminAiSettings {
-  const ollamaHost = config.ollama.host;
-  const model = DEFAULT_OLLAMA_CHAT_MODEL;
+  const ollamaHost = config.ollama.configured === false ? '' : config.ollama.host;
+  const model = ollamaHost.length > 0 ? DEFAULT_OLLAMA_CHAT_MODEL : '';
 
   return {
     aiFeaturesEnabled: false,
@@ -150,7 +145,7 @@ export function createDefaultSettings(config: Config): AdminAiSettings {
       baseUrl: ollamaHost,
       apiKeySecretRef: null,
       model,
-      allowedModels: [model],
+      allowedModels: model.length > 0 ? [model] : [],
     },
     translation: {
       provider: 'ollama',
@@ -169,6 +164,7 @@ export function createDefaultSettings(config: Config): AdminAiSettings {
       gemini: {
         baseUrl: GEMINI_OPENAI_COMPATIBLE_BASE_URL,
         apiKeySecretRef: null,
+        configured: resolveApiKey() !== null,
       },
     },
     ollamaHost,
@@ -178,14 +174,18 @@ export function createDefaultSettings(config: Config): AdminAiSettings {
 
 export function createDefaultIngestionSettings(config: Config) {
   const captioningModel = config.ollama.imageCaptioningModel ?? '';
+  const ollamaHost = config.ollama.configured === false ? '' : config.ollama.host;
 
   return {
     embeddingEnabled: false,
-    embeddingHost: config.ollama.host,
+    embeddingHost: ollamaHost,
     embeddingModel: 'bge-m3',
     embeddingDimensions: 1024,
-    captioningEnabled: config.ollama.imageCaptioningEnabled === true && captioningModel.length > 0,
-    captioningHost: config.ollama.host,
+    captioningEnabled:
+      ollamaHost.length > 0 &&
+      config.ollama.imageCaptioningEnabled === true &&
+      captioningModel.length > 0,
+    captioningHost: ollamaHost,
     captioningModel,
   };
 }
@@ -211,7 +211,8 @@ export function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
     model: chatModel,
     allowedModels: input.chat?.allowedModels,
   });
-  const requestedTranslationProvider = input.translation?.provider === 'gemini' ? 'gemini' : 'ollama';
+  const requestedTranslationProvider =
+    input.translation?.provider === 'gemini' ? 'gemini' : 'ollama';
   const translationBaseUrl = normalizeChatBaseUrl({
     provider: requestedTranslationProvider,
     baseUrl: input.translation?.baseUrl,
@@ -225,17 +226,16 @@ export function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
       ? chatBaseUrl
       : requestedTranslationProvider === 'ollama'
         ? translationBaseUrl
-        : (input.ollamaHost || embeddingBaseUrl);
+        : input.ollamaHost || embeddingBaseUrl;
   const legacyOllamaModel =
     chatProvider === 'ollama'
       ? chatModel
       : requestedTranslationProvider === 'ollama'
         ? translationModel
-        : (input.model || embeddingModel);
-  const geminiApiKeySecretRef = (
-    input.providers?.gemini?.apiKeySecretRef
-    ?? (chatProvider === 'gemini' ? input.chat?.apiKeySecretRef : null)
-  );
+        : input.model || embeddingModel;
+  const geminiApiKeySecretRef =
+    input.providers?.gemini?.apiKeySecretRef ??
+    (chatProvider === 'gemini' ? input.chat?.apiKeySecretRef : null);
 
   return {
     aiFeaturesEnabled: input.aiFeaturesEnabled,

@@ -1,7 +1,4 @@
-import type {
-  AdminAiProviderSettings,
-  AdminAiSettings,
-} from '@/features/admin/admin.types';
+import type { AdminAiProviderSettings, AdminAiSettings } from '@/features/admin/admin.types';
 
 export const emptyAiSettings: AdminAiSettings = {
   aiFeaturesEnabled: false,
@@ -29,6 +26,7 @@ export const emptyAiSettings: AdminAiSettings = {
     gemini: {
       baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
       apiKeySecretRef: null,
+      configured: false,
     },
   },
   ollamaHost: '',

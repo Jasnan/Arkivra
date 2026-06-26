@@ -34,6 +34,7 @@ export type AdminAiSettings = {
     gemini?: {
       baseUrl: string;
       apiKeySecretRef: string | null;
+      configured?: boolean;
     };
   };
   // Legacy fields retained for runtime callers during the provider split.

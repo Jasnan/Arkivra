@@ -1,20 +1,25 @@
 import { useMemo, useState } from 'react';
 import {
-  Alert as ChakraAlert,
   Box,
   Flex,
   HStack,
-  RadioGroup as ChakraRadioGroup,
   SimpleGrid,
   Stack,
   Text,
-  chakra,
 } from '@chakra-ui/react';
 import type { ReactNode } from 'react';
-import { AlertTriangle, CheckCircle2, Search } from 'lucide-react';
-import googleBrandSvg from '@/assets/brand-google.svg?raw';
+import {
+  CheckCircle2,
+  Database,
+  Info,
+  Languages,
+  Layers3,
+  MessageCircle,
+  Search,
+  Server,
+  Sparkles,
+} from 'lucide-react';
 import { useAccentColor } from '@/components/providers/accent-color-context';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -62,9 +67,9 @@ export interface TranslationModelOption {
 }
 
 const visibleChatModelCardCount = 5;
-const chatModelCardMinH = '3.5rem';
-const chatModelListMaxH = '19.5rem';
-const chatModelPanelH = '24.5rem';
+const chatModelCardMinH = '5rem';
+const chatModelListMaxH = '31.5rem';
+const chatModelPanelH = '38.5rem';
 
 export function ChatModelsDialog({
   open,
@@ -124,6 +129,9 @@ export function ChatModelsDialog({
   const enabledModelOptions = filteredChatModelOptions.filter((option) =>
     allowedModelSet.has(option.value),
   );
+  const allEnabledModelOptions = chatModelOptions.filter((option) =>
+    allowedModelSet.has(option.value),
+  );
   const availableModelOptions =
     visibilityFilter === 'enabled'
       ? []
@@ -148,16 +156,21 @@ export function ChatModelsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent maxW="72rem" w="calc(100vw - 2rem)" maxH="calc(100vh - 2rem)">
-        <DialogHeader px="5" pt="5" pb="3">
-          <DialogTitle>Configure Chat Models</DialogTitle>
+      <DialogContent maxW="96rem" w="calc(100vw - 2rem)" maxH="calc(100vh - 2rem)">
+        <DialogHeader px={{ base: '5', md: '7' }} pt="6" pb="4">
+          <HStack gap="3" align="center" pe="10">
+            <Box color={`${accentColor}.solid`} flexShrink={0}>
+              <MessageCircle size={24} />
+            </Box>
+            <DialogTitle>Configure Chat Models</DialogTitle>
+          </HStack>
           <DialogDescription>
-            Choose which chat models users can access and select the default model for new chats.
+            Choose which chat models users can access in chat and select the default for new conversations.
           </DialogDescription>
         </DialogHeader>
-        <DialogBody px="5" pb="4" overflowY="auto">
-          <Stack gap="4">
-            <SimpleGrid columns={{ base: 1, md: 3 }} gap="3" alignItems="end">
+        <DialogBody px={{ base: '5', md: '7' }} pb="5" overflowY="auto">
+          <Stack gap="5">
+            <SimpleGrid columns={{ base: 1, md: 3 }} gap="5" alignItems="end">
               <Stack gap="1.5">
                 <Text textStyle="xs" fontWeight="semibold" color="fg.muted">
                   Search
@@ -177,6 +190,7 @@ export function ChatModelsDialog({
                     aria-label="Search chat models"
                     value={searchQuery}
                     ps="9"
+                    h="12"
                     bg="bg.surface"
                     placeholder="Search models..."
                     onChange={(event) => setSearchQuery(event.currentTarget.value)}
@@ -236,7 +250,7 @@ export function ChatModelsDialog({
             ) : !hasFilteredResults ? (
               <EmptyChatModelState message="No models match the current filters." />
             ) : (
-              <SimpleGrid columns={{ base: 1, lg: 2 }} gap="4" alignItems="start">
+              <SimpleGrid columns={{ base: 1, xl: 2 }} gap="5" alignItems="start">
                 <ChatModelPanel
                   title={`Available Models (${availableModelOptions.length.toLocaleString()})`}
                   description="Enable more models to make them available to users."
@@ -271,55 +285,56 @@ export function ChatModelsDialog({
 
                 <ChatModelPanel
                   title={`Enabled Models (${enabledModelOptions.length.toLocaleString()})`}
-                  description="Models users can choose in chat."
+                  description="Users can choose from these models in chat."
                   tone="enabled"
+                  headerActions={
+                    <DefaultChatModelSelect
+                      enabledModelOptions={allEnabledModelOptions}
+                      value={draftDefaultChatModel}
+                      onChange={onDefaultModelChange}
+                    />
+                  }
                 >
                   {enabledModelOptions.length > 0 ? (
                     <ChatModelList
                       shouldScroll={enabledModelOptions.length > visibleChatModelCardCount}
                       maxH={chatModelListMaxH}
                     >
-                      <ChakraRadioGroup.Root
-                        name="default-chat-model"
-                        value={draftDefaultChatModel}
-                        colorPalette={accentColor}
-                        size="sm"
-                        variant="solid"
-                        onValueChange={(details) => {
-                          if (details.value !== null) {
-                            onDefaultModelChange(details.value);
-                          }
-                        }}
-                      >
-                        <Stack gap="2">
-                          {enabledModelOptions.map((option) => (
-                            <ChatModelCard
-                              key={option.value}
-                              accentColor={accentColor}
-                              option={option}
-                              isDefault={option.value === draftDefaultChatModel}
-                              variant="enabled"
-                              onDisable={() => handleDisable(option)}
-                            />
-                          ))}
-                        </Stack>
-                      </ChakraRadioGroup.Root>
+                      <Stack gap="3">
+                        {enabledModelOptions.map((option) => (
+                          <ChatModelCard
+                            key={option.value}
+                            accentColor={accentColor}
+                            option={option}
+                            isDefault={option.value === draftDefaultChatModel}
+                            variant="enabled"
+                            onDefault={() => onDefaultModelChange(option.value)}
+                            onDisable={() => handleDisable(option)}
+                          />
+                        ))}
+                      </Stack>
                     </ChatModelList>
                   ) : (
                     <EmptyChatModelState message="No enabled models match the current filters." />
                   )}
+                  <ChatModelInfoNotice />
                 </ChatModelPanel>
               </SimpleGrid>
             )}
           </Stack>
         </DialogBody>
-        <DialogFooter px="5" py="4" borderTopWidth="1px" borderColor="border.surface">
+        <DialogFooter
+          px={{ base: '5', md: '7' }}
+          py="4"
+          borderTopWidth="1px"
+          borderColor="border.surface"
+        >
           <HStack gap="2" me="auto" color={isDefaultEnabled ? 'fg.muted' : 'orange.fg'}>
             <CheckCircle2 size={16} />
             <Text textStyle="sm">
               {draftAllowedChatModels.length.toLocaleString()} models enabled
               {isDefaultEnabled
-                ? ` · ${getChatModelLabel(chatModelOptions, draftDefaultChatModel)} is default`
+                ? ` · Default: ${getChatModelLabel(chatModelOptions, draftDefaultChatModel)}`
                 : ' · select an enabled default model'}
             </Text>
           </HStack>
@@ -338,32 +353,41 @@ export function ChatModelsDialog({
 function ChatModelPanel({
   children,
   description,
+  headerActions,
   title,
   tone,
 }: {
   children: ReactNode;
   description: string;
+  headerActions?: ReactNode;
   title: string;
   tone?: 'enabled';
 }) {
   return (
     <Stack
       gap="3"
-      h={{ base: 'auto', lg: chatModelPanelH }}
-      rounded="lg"
+      h={{ base: 'auto', xl: chatModelPanelH }}
+      rounded="md"
       borderWidth="1px"
-      borderColor={tone === 'enabled' ? 'teal.muted' : 'border.surface'}
-      bg={tone === 'enabled' ? 'teal.subtle' : 'bg.subtle'}
-      p="3"
+      borderColor={tone === 'enabled' ? 'blue.muted' : 'border.surface'}
+      bg={tone === 'enabled' ? 'blue.subtle' : 'bg.subtle'}
+      p={{ base: '3', md: '4' }}
     >
-      <Stack gap="0.5" minW="0">
-        <Text textStyle="sm" fontWeight="semibold" color={tone === 'enabled' ? 'teal.fg' : 'fg'}>
-          {title}
-        </Text>
-        <Text textStyle="xs" color="fg.muted">
-          {description}
-        </Text>
-      </Stack>
+      <Flex gap="3" align={{ base: 'stretch', md: 'start' }} direction={{ base: 'column', md: 'row' }}>
+        <Stack gap="1" minW="0" flex="1">
+          <Text textStyle="md" fontWeight="semibold" color={tone === 'enabled' ? 'blue.fg' : 'fg'}>
+            {title}
+          </Text>
+          <Text textStyle="sm" color="fg.muted">
+            {description}
+          </Text>
+        </Stack>
+        {headerActions ? (
+          <Box flexShrink={0} w={{ base: 'full', md: '18rem' }}>
+            {headerActions}
+          </Box>
+        ) : null}
+      </Flex>
       {children}
     </Stack>
   );
@@ -397,6 +421,7 @@ function ChatModelCard({
   isDefault = false,
   onDisable,
   onEnable,
+  onDefault,
   option,
   variant,
 }: {
@@ -404,6 +429,7 @@ function ChatModelCard({
   isDefault?: boolean;
   onDisable?: () => void;
   onEnable?: () => void;
+  onDefault?: () => void;
   option: ChatModelOption;
   variant: 'available' | 'enabled';
 }) {
@@ -411,121 +437,128 @@ function ChatModelCard({
     <Box
       rounded="lg"
       borderWidth="1px"
-      borderColor={isDefault ? `${accentColor}.solid` : 'border.surface'}
+      borderColor={isDefault ? `${accentColor}.muted` : 'border.surface'}
       bg="bg.surface"
       minH={chatModelCardMinH}
       display="flex"
       alignItems="center"
-      px="2.5"
-      py="2"
+      px={{ base: '3', md: '4' }}
+      py="3"
       shadow={isDefault ? 'sm' : 'xs'}
     >
-      <HStack align="center" gap="2.5" w="full">
-        <ModelProviderIcon provider={option.provider} />
-        <Stack gap="1.5" minW="0" flex="1" justify="center">
-          <Stack gap="1" minW="0">
-            <HStack gap="2" minW="0" justify="space-between" align="center">
-              <HStack gap="2" minW="0" flex="1" flexWrap="wrap" align="center">
-                <Text textStyle="sm" fontWeight="semibold" color="fg" wordBreak="break-word">
-                  {option.label}
-                </Text>
-                <Badge variant="outline" colorPalette={getProviderBadgeColor(option.provider)}>
-                  {option.providerLabel}
-                </Badge>
-              </HStack>
-              {variant === 'available' ? (
-                <Button type="button" size="xs" variant="outline" flexShrink={0} onClick={onEnable}>
-                  Enable
-                </Button>
-              ) : null}
-              {variant === 'enabled' ? (
-                <HStack gap="2" flexShrink={0}>
-                  <DefaultChatModelRadioItem isDefault={isDefault} value={option.value} />
-                  <Button
-                    type="button"
-                    size="xs"
-                    variant="outline"
-                    disabled={isDefault}
-                    onClick={onDisable}
-                  >
-                    Disable
-                  </Button>
-                </HStack>
-              ) : null}
-            </HStack>
-            {option.description ? (
-              <Text textStyle="xs" color="fg.muted">
-                {option.description}
-              </Text>
-            ) : null}
-          </Stack>
+      <Flex
+        align={{ base: 'stretch', sm: 'center' }}
+        direction={{ base: 'column', sm: 'row' }}
+        gap="3"
+        w="full"
+      >
+        <Stack gap="0.5" minW="0" flex="1">
+          <Text textStyle="sm" fontWeight="semibold" color="fg" wordBreak="break-word">
+            {option.label}
+          </Text>
+          <Text textStyle="sm" color="fg.muted">
+            {option.providerLabel}
+          </Text>
         </Stack>
-      </HStack>
+        {variant === 'available' ? (
+          <Button type="button" size="sm" variant="outline" flexShrink={0} onClick={onEnable}>
+            Enable
+          </Button>
+        ) : null}
+        {variant === 'enabled' ? (
+          <HStack gap="3" flexShrink={0} justify={{ base: 'flex-end', sm: 'start' }}>
+            {isDefault ? (
+              <Badge colorPalette="green" variant="subtle" px="3" py="1.5">
+                <CheckCircle2 size={14} />
+                Default
+              </Badge>
+            ) : (
+              <Button type="button" size="sm" variant="outline" onClick={onDefault}>
+                Set as default
+              </Button>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={isDefault}
+              onClick={onDisable}
+            >
+              Disable
+            </Button>
+          </HStack>
+        ) : null}
+      </Flex>
     </Box>
   );
 }
 
-function DefaultChatModelRadioItem({
-  isDefault,
+function DefaultChatModelSelect({
+  enabledModelOptions,
+  onChange,
   value,
 }: {
-  isDefault: boolean;
+  enabledModelOptions: ChatModelOption[];
+  onChange: (model: string) => void;
   value: string;
 }) {
+  const isDisabled = enabledModelOptions.length === 0;
+
   return (
-    <ChakraRadioGroup.Item value={value} display="inline-flex" alignItems="center" gap="2">
-      <ChakraRadioGroup.ItemHiddenInput />
-      <ChakraRadioGroup.ItemControl boxSize="4" flexShrink={0}>
-        <ChakraRadioGroup.ItemIndicator boxSize="2" />
-      </ChakraRadioGroup.ItemControl>
-      <ChakraRadioGroup.ItemText
-        textStyle="xs"
-        color={isDefault ? 'fg' : 'fg.muted'}
-        cursor="pointer"
+    <Stack gap="1.5">
+      <HStack gap="1.5" justify="flex-end" color="fg.muted">
+        <Text textStyle="xs" fontWeight="medium">
+          Default model
+        </Text>
+        <Info size={14} />
+      </HStack>
+      <Select
+        value={value}
+        disabled={isDisabled}
+        onValueChange={(nextValue) => {
+          if (nextValue.length > 0) {
+            onChange(nextValue);
+          }
+        }}
+        positioning={{ sameWidth: true }}
       >
-        {isDefault ? 'Default model' : 'Set as default'}
-      </ChakraRadioGroup.ItemText>
-    </ChakraRadioGroup.Item>
+        <SelectTrigger aria-label="Default chat model" bg="bg.surface">
+          <SelectValue placeholder="Select model" />
+        </SelectTrigger>
+        <SelectContent>
+          {enabledModelOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Stack>
   );
 }
 
-function ModelProviderIcon({ provider }: { provider: ChatModelOption['provider'] }) {
+function ChatModelInfoNotice() {
   return (
-    <Flex
-      w="7"
-      h="7"
-      flexShrink={0}
+    <HStack
+      gap="3"
       align="center"
-      justify="center"
       rounded="md"
       borderWidth="1px"
-      borderColor="border.surface"
-      bg={provider === 'gemini' ? 'teal.subtle' : 'bg.subtle'}
-      color={provider === 'gemini' ? 'teal.fg' : 'fg.muted'}
+      borderColor="blue.muted"
+      bg="bg.surface"
+      px={{ base: '3', md: '4' }}
+      py="4"
+      mt="auto"
+      color="fg.muted"
     >
-      {provider === 'gemini' ? (
-        <chakra.span
-          aria-hidden="true"
-          display="inline-block"
-          h="3.5"
-          w="3.5"
-          lineHeight="0"
-          css={{
-            '& svg': {
-              display: 'block',
-              height: '100%',
-              width: '100%',
-            },
-          }}
-          // eslint-disable-next-line react-dom/no-dangerously-set-innerhtml -- Local provider SVG rendered inline so currentColor follows the surrounding token.
-          dangerouslySetInnerHTML={{ __html: googleBrandSvg }}
-        />
-      ) : (
-        <Text as="span" textStyle="xs" fontWeight="bold" lineHeight="1">
-          Ol
-        </Text>
-      )}
-    </Flex>
+      <Box color="blue.fg" flexShrink={0}>
+        <Info size={24} />
+      </Box>
+      <Stack gap="1">
+        <Text textStyle="sm">Users will be able to choose any of the enabled models in chat.</Text>
+        <Text textStyle="sm">The default model will be used for new conversations.</Text>
+      </Stack>
+    </HStack>
   );
 }
 
@@ -537,12 +570,6 @@ function EmptyChatModelState({ message }: { message: string }) {
       </Text>
     </Box>
   );
-}
-
-function getProviderBadgeColor(provider: ChatModelOption['provider']) {
-  if (provider === 'gemini') return 'teal';
-
-  return 'gray';
 }
 
 function getChatModelLabel(options: ChatModelOption[], value: string) {
@@ -574,108 +601,119 @@ export function EmbeddingModelDialog({
   onOpenChange: (open: boolean) => void;
   onSelectedModelKeyChange: (key: string) => void;
 }) {
+  const { accentColor } = useAccentColor();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [providerFilter, setProviderFilter] = useState('all');
+  const [visibilityFilter, setVisibilityFilter] = useState('all');
   const hasConfiguredSearchEngine =
     aiDraft.embedding.provider !== null &&
     aiDraft.embedding.model !== null;
+  const providerOptions = useModelProviderOptions(embeddingModelOptions);
+  const filteredEmbeddingModelOptions = useMemo(
+    () =>
+      embeddingModelOptions.filter((option) =>
+        matchesModelFilters({
+          baseUrl: option.baseUrl,
+          isSelected: option.key === selectedEmbeddingModelKey,
+          model: option.model,
+          provider: option.provider,
+          providerFilter,
+          providerLabel: option.providerLabel,
+          searchQuery,
+          visibilityFilter,
+        }),
+      ),
+    [embeddingModelOptions, providerFilter, searchQuery, selectedEmbeddingModelKey, visibilityFilter],
+  );
+  const currentModelSummary = selectedEmbeddingModel
+    ? `${selectedEmbeddingModel.model} · ${formatDimensions(selectedEmbeddingModel.dimensions)}`
+    : 'No embedding model selected';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent maxW="38rem" w="calc(100vw - 2rem)">
-        <DialogHeader px="5" pt="5" pb="3">
-          <DialogTitle>Choose Embedding Model</DialogTitle>
+      <DialogContent maxW="96rem" w="calc(100vw - 2rem)" maxH="calc(100vh - 2rem)">
+        <DialogHeader px={{ base: '5', md: '7' }} pt="6" pb="4">
+          <HStack gap="3" align="center" pe="10">
+            <Box color={`${accentColor}.solid`} flexShrink={0}>
+              <Layers3 size={24} />
+            </Box>
+            <DialogTitle>Configure Embedding Model</DialogTitle>
+          </HStack>
           <DialogDescription>
-            Select the embedding model Arkivra will use for its AI features.
+            Choose the model used to generate embeddings for semantic search. Only one embedding model can be active.
           </DialogDescription>
         </DialogHeader>
-        <DialogBody px="5" pb="4">
-          <Stack gap="4">
-            <Box
-              rounded="md"
-              borderWidth="1px"
-              borderColor="border.surface"
-              bg="bg.surface"
-              overflow="hidden"
-            >
-              <Box px="3" py="2" borderBottomWidth="1px" borderColor="border.surface">
-                <Text textStyle="sm" fontWeight="semibold" color="fg">
-                  Available Embedding Models
-                </Text>
-              </Box>
-              {embeddingModelOptions.length > 0 ? (
-                <RadioGroup
-                  name="embedding-model"
-                  value={selectedEmbeddingModelKey}
-                  onValueChange={onSelectedModelKeyChange}
-                  gap="0"
-                  divideY="1px"
-                  divideColor="border.surface"
-                >
-                  {embeddingModelOptions.map((option) => (
-                    <Flex
-                      key={option.key}
-                      as="label"
-                      align="center"
-                      justify="space-between"
+        <DialogBody px={{ base: '5', md: '7' }} pb="5" overflowY="auto">
+          <Stack gap="5">
+            <ModelSelectionFilters
+              providerFilter={providerFilter}
+              providerOptions={providerOptions}
+              searchQuery={searchQuery}
+              visibilityFilter={visibilityFilter}
+              onProviderFilterChange={setProviderFilter}
+              onSearchQueryChange={setSearchQuery}
+              onVisibilityFilterChange={setVisibilityFilter}
+            />
+            <SimpleGrid columns={{ base: 1, xl: 2 }} gap="5" alignItems="start">
+              <ModelSelectionPanel
+                title={`Available Models (${filteredEmbeddingModelOptions.length.toLocaleString()})`}
+                description="Select a model to use for embeddings."
+              >
+                {embeddingModelOptions.length === 0 ? (
+                  <EmptyChatModelState
+                    message={
+                      isFetchingModels
+                        ? 'Loading available models and provider status...'
+                        : 'No embedding models are selectable from a configured provider.'
+                    }
+                  />
+                ) : filteredEmbeddingModelOptions.length === 0 ? (
+                  <EmptyChatModelState message="No models match the current filters." />
+                ) : (
+                  <ModelSelectionList shouldScroll={filteredEmbeddingModelOptions.length > 5}>
+                    <RadioGroup
+                      name="embedding-model"
+                      value={selectedEmbeddingModelKey}
+                      onValueChange={onSelectedModelKeyChange}
                       gap="3"
-                      px="3"
-                      py="2.5"
-                      cursor="pointer"
-                      _hover={{ bg: 'bg.subtle' }}
                     >
-                      <HStack gap="2.5" minW="0" align="center">
-                        <RadioGroupItem value={option.key} />
-                        <Stack gap="0" minW="0">
-                          <Text textStyle="sm" fontWeight="semibold" color="fg" truncate>
-                            {option.model}
-                          </Text>
-                          <Text textStyle="xs" color="fg.muted" truncate>
-                            {option.providerLabel}
-                            {option.baseUrl ? ` · ${option.baseUrl}` : ''}
-                          </Text>
-                        </Stack>
-                      </HStack>
-                      <HStack gap="1.5" flexShrink={0}>
-                        {option.isConfigured ? (
-                          <Badge variant="secondary" colorPalette="teal">
-                            Selected
-                          </Badge>
-                        ) : null}
-                        {option.isActive && !option.isConfigured ? (
-                          <Badge variant="outline">Live index</Badge>
-                        ) : null}
-                        {!option.isDiscovered ? (
-                          <Badge variant="outline" colorPalette="gray">
-                            Unavailable
-                          </Badge>
-                        ) : null}
-                      </HStack>
-                    </Flex>
-                  ))}
-                </RadioGroup>
-              ) : (
-                <Text px="3" py="3" textStyle="sm" color="fg.muted">
-                  {isFetchingModels
-                    ? 'Loading available models and provider status...'
-                    : 'No embedding models are selectable from a configured provider.'}
-                </Text>
-              )}
-            </Box>
-            <ChakraAlert.Root status="warning" alignItems="flex-start">
-              <ChakraAlert.Indicator />
-              <ChakraAlert.Content>
-                <ChakraAlert.Title>Confirm before enabling AI</ChakraAlert.Title>
-                <ChakraAlert.Description>
-                  <Stack gap="1" mt="2">
-                    <Text>This model will be used to index your documents for AI search.</Text>
-                    <Text>A background indexing job will start after AI is enabled.</Text>
-                    <Text>Indexing time depends on the size of your document library.</Text>
-                  </Stack>
-                </ChakraAlert.Description>
-              </ChakraAlert.Content>
-            </ChakraAlert.Root>
+                      {filteredEmbeddingModelOptions.map((option) => (
+                        <EmbeddingModelSelectionCard
+                          key={option.key}
+                          option={option}
+                          isSelected={option.key === selectedEmbeddingModelKey}
+                        />
+                      ))}
+                    </RadioGroup>
+                  </ModelSelectionList>
+                )}
+              </ModelSelectionPanel>
+              <ModelSelectionPanel
+                title="Selected Model"
+                description="This model will be used for generating embeddings."
+                tone="selected"
+              >
+                <SelectedEmbeddingModelCard
+                  option={selectedEmbeddingModel}
+                  selectedModelChanged={selectedEmbeddingModelChanged}
+                />
+                <ModelSelectionNotice>
+                  Changing the embedding model requires re-indexing your documents to maintain search quality.
+                </ModelSelectionNotice>
+              </ModelSelectionPanel>
+            </SimpleGrid>
           </Stack>
         </DialogBody>
-        <DialogFooter px="5" pb="5" pt="0">
+        <DialogFooter
+          px={{ base: '5', md: '7' }}
+          py="4"
+          borderTopWidth="1px"
+          borderColor="border.surface"
+        >
+          <HStack gap="2" me="auto" color="fg.muted">
+            <Layers3 size={16} />
+            <Text textStyle="sm">Current model: {currentModelSummary}</Text>
+          </HStack>
           <Button type="button" size="sm" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
@@ -690,7 +728,11 @@ export function EmbeddingModelDialog({
             }
             onClick={onConfirm}
           >
-            {isSaving ? 'Saving...' : hasConfiguredSearchEngine ? 'Confirm and rebuild' : 'Confirm'}
+            {isSaving
+              ? 'Saving...'
+              : hasConfiguredSearchEngine
+                ? 'Save and rebuild index'
+                : 'Save embedding model'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -721,111 +763,114 @@ export function TranslationModelDialog({
   onOpenChange: (open: boolean) => void;
   onSelectedModelKeyChange: (key: string) => void;
 }) {
+  const { accentColor } = useAccentColor();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [providerFilter, setProviderFilter] = useState('all');
+  const [visibilityFilter, setVisibilityFilter] = useState('all');
+  const providerOptions = useModelProviderOptions(translationModelOptions);
+  const filteredTranslationModelOptions = useMemo(
+    () =>
+      translationModelOptions.filter((option) =>
+        matchesModelFilters({
+          baseUrl: option.baseUrl,
+          isSelected: option.key === selectedTranslationModelKey,
+          model: option.label,
+          provider: option.provider,
+          providerFilter,
+          providerLabel: option.providerLabel,
+          searchQuery,
+          visibilityFilter,
+        }),
+      ),
+    [providerFilter, searchQuery, selectedTranslationModelKey, translationModelOptions, visibilityFilter],
+  );
+  const currentModelSummary = selectedTranslationModel?.label ?? 'No translation model selected';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent maxW="38rem" w="calc(100vw - 2rem)">
-        <DialogHeader px="5" pt="5" pb="3">
-          <DialogTitle>Change translation model</DialogTitle>
+      <DialogContent maxW="96rem" w="calc(100vw - 2rem)" maxH="calc(100vh - 2rem)">
+        <DialogHeader px={{ base: '5', md: '7' }} pt="6" pb="4">
+          <HStack gap="3" align="center" pe="10">
+            <Box color={`${accentColor}.solid`} flexShrink={0}>
+              <Languages size={24} />
+            </Box>
+            <DialogTitle>Configure Translation Model</DialogTitle>
+          </HStack>
           <DialogDescription>
-            Select one model for document translation from the configured providers.
+            Choose the multimodal model used for document translation. Only one translation model can be active.
           </DialogDescription>
         </DialogHeader>
-        <DialogBody px="5" pb="4">
-          <Stack gap="4">
-            <Alert
-              status="warning"
-              colorPalette="orange"
-              borderColor="orange.muted"
-              bg="orange.subtle"
-              alignItems="flex-start"
-            >
-              <AlertTriangle size={16} />
-              <AlertDescription>
-                <Stack gap="1">
-                  <Text fontWeight="semibold">
-                    Translation requires a multimodal model that accepts image input.
-                  </Text>
-                  <Text>
-                    Arkivra can send rendered PDF pages and selected visual regions as images when
-                    translating scanned or image-only documents.
-                  </Text>
-                </Stack>
-              </AlertDescription>
-            </Alert>
-            <Box
-              rounded="md"
-              borderWidth="1px"
-              borderColor="border.surface"
-              bg="bg.surface"
-              overflow="hidden"
-            >
-              <Box px="3" py="2" borderBottomWidth="1px" borderColor="border.surface">
-                <Text textStyle="sm" fontWeight="semibold" color="fg">
-                  Available translation models
-                </Text>
-              </Box>
-              {translationModelOptions.length > 0 ? (
-                <RadioGroup
-                  name="translation-model"
-                  value={selectedTranslationModelKey}
-                  onValueChange={onSelectedModelKeyChange}
-                  gap="0"
-                  divideY="1px"
-                  divideColor="border.surface"
-                >
-                  {translationModelOptions.map((option) => (
-                    <Flex
-                      key={option.key}
-                      as="label"
-                      align="center"
-                      justify="space-between"
+        <DialogBody px={{ base: '5', md: '7' }} pb="5" overflowY="auto">
+          <Stack gap="5">
+            <ModelSelectionFilters
+              providerFilter={providerFilter}
+              providerOptions={providerOptions}
+              searchQuery={searchQuery}
+              visibilityFilter={visibilityFilter}
+              onProviderFilterChange={setProviderFilter}
+              onSearchQueryChange={setSearchQuery}
+              onVisibilityFilterChange={setVisibilityFilter}
+            />
+            <SimpleGrid columns={{ base: 1, xl: 2 }} gap="5" alignItems="start">
+              <ModelSelectionPanel
+                title={`Available Models (${filteredTranslationModelOptions.length.toLocaleString()})`}
+                description="Select a model to use for translation."
+              >
+                {translationModelOptions.length === 0 ? (
+                  <EmptyChatModelState
+                    message={
+                      isFetchingModels
+                        ? 'Loading available models and provider status...'
+                        : 'No translation models are selectable from healthy providers.'
+                    }
+                  />
+                ) : filteredTranslationModelOptions.length === 0 ? (
+                  <EmptyChatModelState message="No models match the current filters." />
+                ) : (
+                  <ModelSelectionList shouldScroll={filteredTranslationModelOptions.length > 5}>
+                    <RadioGroup
+                      name="translation-model"
+                      value={selectedTranslationModelKey}
+                      onValueChange={onSelectedModelKeyChange}
                       gap="3"
-                      px="3"
-                      py="2.5"
-                      cursor="pointer"
-                      _hover={{ bg: 'bg.subtle' }}
                     >
-                      <HStack gap="2.5" minW="0" align="center">
-                        <RadioGroupItem value={option.key} />
-                        <Stack gap="0" minW="0">
-                          <Text textStyle="sm" fontWeight="semibold" color="fg" truncate>
-                            {option.label}
-                          </Text>
-                          <Text textStyle="xs" color="fg.muted" truncate>
-                            {option.providerLabel}
-                            {option.baseUrl ? ` · ${option.baseUrl}` : ''}
-                          </Text>
-                          {option.description ? (
-                            <Text textStyle="xs" color="fg.muted" truncate>
-                              {option.description}
-                            </Text>
-                          ) : null}
-                        </Stack>
-                      </HStack>
-                      <HStack gap="1.5" flexShrink={0}>
-                        {option.isConfigured ? (
-                          <Badge variant="secondary" colorPalette="teal">
-                            Selected
-                          </Badge>
-                        ) : null}
-                        <Badge variant="outline" colorPalette={getProviderBadgeColor(option.provider)}>
-                          {option.providerLabel}
-                        </Badge>
-                      </HStack>
-                    </Flex>
-                  ))}
-                </RadioGroup>
-              ) : (
-                <Text px="3" py="3" textStyle="sm" color="fg.muted">
-                  {isFetchingModels
-                    ? 'Loading available models and provider status...'
-                    : 'No translation models are selectable from healthy providers.'}
-                </Text>
-              )}
-            </Box>
+                      {filteredTranslationModelOptions.map((option) => (
+                        <TranslationModelSelectionCard
+                          key={option.key}
+                          option={option}
+                          isSelected={option.key === selectedTranslationModelKey}
+                        />
+                      ))}
+                    </RadioGroup>
+                  </ModelSelectionList>
+                )}
+              </ModelSelectionPanel>
+              <ModelSelectionPanel
+                title="Selected Model"
+                description="This model will be used for document translation."
+                tone="selected"
+              >
+                <SelectedTranslationModelCard
+                  option={selectedTranslationModel}
+                  selectedModelChanged={selectedTranslationModelChanged}
+                />
+                <ModelSelectionNotice>
+                  Translation uses a multimodal model so Arkivra can process rendered pages and selected visual regions.
+                </ModelSelectionNotice>
+              </ModelSelectionPanel>
+            </SimpleGrid>
           </Stack>
         </DialogBody>
-        <DialogFooter px="5" pb="5" pt="0">
+        <DialogFooter
+          px={{ base: '5', md: '7' }}
+          py="4"
+          borderTopWidth="1px"
+          borderColor="border.surface"
+        >
+          <HStack gap="2" me="auto" color="fg.muted">
+            <Languages size={16} />
+            <Text textStyle="sm">Current model: {currentModelSummary}</Text>
+          </HStack>
           <Button type="button" size="sm" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
@@ -841,4 +886,505 @@ export function TranslationModelDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function useModelProviderOptions<TOption extends { provider: string; providerLabel: string }>(
+  options: TOption[],
+) {
+  return useMemo(
+    () =>
+      Array.from(
+        options.reduce((providers, option) => {
+          providers.set(option.provider, option.providerLabel);
+          return providers;
+        }, new Map<string, string>()),
+      ).sort((left, right) => left[1].localeCompare(right[1])),
+    [options],
+  );
+}
+
+function matchesModelFilters({
+  baseUrl,
+  isSelected,
+  model,
+  provider,
+  providerFilter,
+  providerLabel,
+  searchQuery,
+  visibilityFilter,
+}: {
+  baseUrl: string;
+  isSelected: boolean;
+  model: string;
+  provider: string;
+  providerFilter: string;
+  providerLabel: string;
+  searchQuery: string;
+  visibilityFilter: string;
+}) {
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const matchesSearch =
+    normalizedSearch.length === 0 ||
+    model.toLowerCase().includes(normalizedSearch) ||
+    providerLabel.toLowerCase().includes(normalizedSearch) ||
+    baseUrl.toLowerCase().includes(normalizedSearch);
+  const matchesProvider = providerFilter === 'all' || provider === providerFilter;
+  const matchesVisibility = visibilityFilter === 'all' || isSelected;
+
+  return matchesSearch && matchesProvider && matchesVisibility;
+}
+
+function ModelSelectionFilters({
+  onProviderFilterChange,
+  onSearchQueryChange,
+  onVisibilityFilterChange,
+  providerFilter,
+  providerOptions,
+  searchQuery,
+  visibilityFilter,
+}: {
+  onProviderFilterChange: (value: string) => void;
+  onSearchQueryChange: (value: string) => void;
+  onVisibilityFilterChange: (value: string) => void;
+  providerFilter: string;
+  providerOptions: Array<[string, string]>;
+  searchQuery: string;
+  visibilityFilter: string;
+}) {
+  return (
+    <SimpleGrid columns={{ base: 1, md: 3 }} gap="5" alignItems="end">
+      <Stack gap="1.5">
+        <Text textStyle="xs" fontWeight="semibold" color="fg.muted">
+          Search
+        </Text>
+        <Box position="relative">
+          <Box
+            position="absolute"
+            insetStart="3"
+            top="50%"
+            transform="translateY(-50%)"
+            color="fg.muted"
+            pointerEvents="none"
+          >
+            <Search size={16} />
+          </Box>
+          <Input
+            aria-label="Search models"
+            value={searchQuery}
+            ps="9"
+            h="12"
+            bg="bg.surface"
+            placeholder="Search models..."
+            onChange={(event) => onSearchQueryChange(event.currentTarget.value)}
+          />
+        </Box>
+      </Stack>
+      <Stack gap="1.5">
+        <Text textStyle="xs" fontWeight="semibold" color="fg.muted">
+          Provider
+        </Text>
+        <Select
+          value={providerFilter}
+          onValueChange={onProviderFilterChange}
+          positioning={{ sameWidth: true }}
+        >
+          <SelectTrigger aria-label="Provider filter" bg="bg.surface">
+            <SelectValue placeholder="All Providers" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Providers</SelectItem>
+            {providerOptions.map(([provider, label]) => (
+              <SelectItem key={provider} value={provider}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Stack>
+      <Stack gap="1.5">
+        <Text textStyle="xs" fontWeight="semibold" color="fg.muted">
+          Show
+        </Text>
+        <Select
+          value={visibilityFilter}
+          onValueChange={onVisibilityFilterChange}
+          positioning={{ sameWidth: true }}
+        >
+          <SelectTrigger aria-label="Model visibility filter" bg="bg.surface">
+            <SelectValue placeholder="All models" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All models</SelectItem>
+            <SelectItem value="selected">Selected model</SelectItem>
+          </SelectContent>
+        </Select>
+      </Stack>
+    </SimpleGrid>
+  );
+}
+
+function ModelSelectionPanel({
+  children,
+  description,
+  title,
+  tone,
+}: {
+  children: ReactNode;
+  description: string;
+  title: string;
+  tone?: 'selected';
+}) {
+  return (
+    <Stack
+      gap="4"
+      h={{ base: 'auto', xl: chatModelPanelH }}
+      rounded="md"
+      borderWidth="1px"
+      borderColor={tone === 'selected' ? 'blue.muted' : 'border.surface'}
+      bg={tone === 'selected' ? 'blue.subtle' : 'bg.subtle'}
+      p={{ base: '3', md: '4' }}
+    >
+      <Stack gap="1" minW="0">
+        <Text textStyle="md" fontWeight="semibold" color={tone === 'selected' ? 'blue.fg' : 'fg'}>
+          {title}
+        </Text>
+        <Text textStyle="sm" color="fg.muted">
+          {description}
+        </Text>
+      </Stack>
+      {children}
+    </Stack>
+  );
+}
+
+function ModelSelectionList({
+  children,
+  shouldScroll,
+}: {
+  children: ReactNode;
+  shouldScroll: boolean;
+}) {
+  return (
+    <Box
+      h={shouldScroll ? chatModelListMaxH : undefined}
+      maxH={shouldScroll ? chatModelListMaxH : undefined}
+      minH="0"
+      overflowY={shouldScroll ? 'scroll' : 'visible'}
+      pe={shouldScroll ? '1' : undefined}
+      css={shouldScroll ? { scrollbarGutter: 'stable' } : undefined}
+    >
+      {children}
+    </Box>
+  );
+}
+
+function EmbeddingModelSelectionCard({
+  isSelected,
+  option,
+}: {
+  isSelected: boolean;
+  option: EmbeddingModelOption;
+}) {
+  return (
+    <Flex
+      as="label"
+      align="center"
+      justify="space-between"
+      gap="3"
+      minH={chatModelCardMinH}
+      rounded="lg"
+      borderWidth="1px"
+      borderColor={isSelected ? 'blue.solid' : 'border.surface'}
+      bg="bg.surface"
+      px={{ base: '3', md: '4' }}
+      py="3"
+      shadow={isSelected ? 'sm' : 'xs'}
+      cursor="pointer"
+      _hover={{ borderColor: isSelected ? 'blue.solid' : 'border.strong' }}
+    >
+      <HStack gap="3" minW="0" align="center">
+        <RadioGroupItem value={option.key} />
+        <Stack gap="0.5" minW="0">
+          <Text textStyle="sm" fontWeight="semibold" color="fg" truncate>
+            {option.model}
+          </Text>
+          <Text textStyle="sm" color="fg.muted" truncate>
+            {option.providerLabel}
+          </Text>
+        </Stack>
+      </HStack>
+      <HStack gap="2" flexShrink={0}>
+        {option.dimensions !== null ? (
+          <Badge variant="outline">{formatDimensions(option.dimensions)}</Badge>
+        ) : null}
+        {!option.isDiscovered ? (
+          <Badge variant="outline" colorPalette="gray">
+            Unavailable
+          </Badge>
+        ) : null}
+      </HStack>
+    </Flex>
+  );
+}
+
+function TranslationModelSelectionCard({
+  isSelected,
+  option,
+}: {
+  isSelected: boolean;
+  option: TranslationModelOption;
+}) {
+  return (
+    <Flex
+      as="label"
+      align="center"
+      justify="space-between"
+      gap="3"
+      minH={chatModelCardMinH}
+      rounded="lg"
+      borderWidth="1px"
+      borderColor={isSelected ? 'blue.solid' : 'border.surface'}
+      bg="bg.surface"
+      px={{ base: '3', md: '4' }}
+      py="3"
+      shadow={isSelected ? 'sm' : 'xs'}
+      cursor="pointer"
+      _hover={{ borderColor: isSelected ? 'blue.solid' : 'border.strong' }}
+    >
+      <HStack gap="3" minW="0" align="center">
+        <RadioGroupItem value={option.key} />
+        <Stack gap="0.5" minW="0">
+          <Text textStyle="sm" fontWeight="semibold" color="fg" truncate>
+            {option.label}
+          </Text>
+          <Text textStyle="sm" color="fg.muted" truncate>
+            {option.providerLabel}
+          </Text>
+        </Stack>
+      </HStack>
+      <Badge variant="outline" flexShrink={0}>
+        Multimodal
+      </Badge>
+    </Flex>
+  );
+}
+
+function SelectedEmbeddingModelCard({
+  option,
+  selectedModelChanged,
+}: {
+  option: EmbeddingModelOption | null;
+  selectedModelChanged: boolean;
+}) {
+  if (option === null) {
+    return <EmptySelectedModelCard message="No embedding model selected." />;
+  }
+
+  return (
+    <SelectedModelCard
+      capabilityLabel="Dimensions"
+      capabilityValue={formatDimensionValue(option.dimensions)}
+      isUnavailable={!option.isDiscovered}
+      model={option.model}
+      provider={option.provider}
+      providerLabel={option.providerLabel}
+      selectedModelChanged={selectedModelChanged}
+      statusLabel={option.isActive ? 'Active index' : option.isConfigured ? 'Configured' : 'Available'}
+    />
+  );
+}
+
+function SelectedTranslationModelCard({
+  option,
+  selectedModelChanged,
+}: {
+  option: TranslationModelOption | null;
+  selectedModelChanged: boolean;
+}) {
+  if (option === null) {
+    return <EmptySelectedModelCard message="No translation model selected." />;
+  }
+
+  return (
+    <SelectedModelCard
+      capabilityLabel="Capability"
+      capabilityValue="Multimodal"
+      model={option.label}
+      provider={option.provider}
+      providerLabel={option.providerLabel}
+      selectedModelChanged={selectedModelChanged}
+      statusLabel={option.isConfigured ? 'Configured' : 'Available'}
+    />
+  );
+}
+
+function SelectedModelCard({
+  capabilityLabel,
+  capabilityValue,
+  isUnavailable = false,
+  model,
+  provider,
+  providerLabel,
+  selectedModelChanged,
+  statusLabel,
+}: {
+  capabilityLabel: string;
+  capabilityValue: string;
+  isUnavailable?: boolean;
+  model: string;
+  provider: AdminAiSettings['chat']['provider'];
+  providerLabel: string;
+  selectedModelChanged: boolean;
+  statusLabel: string;
+}) {
+  return (
+    <Stack
+      gap="5"
+      rounded="lg"
+      borderWidth="1px"
+      borderColor="blue.muted"
+      bg="bg.surface"
+      px={{ base: '4', md: '5' }}
+      py="5"
+    >
+      <HStack gap="4" align="center">
+        <ProviderGlyph provider={provider} providerLabel={providerLabel} />
+        <Stack gap="2" minW="0">
+          <Text textStyle="2xl" fontWeight="semibold" color="fg" wordBreak="break-word">
+            {model}
+          </Text>
+          <Text textStyle="md" color="fg.muted">
+            {providerLabel}
+          </Text>
+        </Stack>
+      </HStack>
+      <SimpleGrid columns={{ base: 1, md: 3 }} gap="4">
+        <SelectedModelMetric icon={<Sparkles size={18} />} label={capabilityLabel} value={capabilityValue} />
+        <SelectedModelMetric icon={<Server size={18} />} label="Provider" value={providerLabel} />
+        <SelectedModelMetric icon={<Database size={18} />} label="Status" value={statusLabel} />
+      </SimpleGrid>
+      <HStack
+        justify="center"
+        rounded="md"
+        borderWidth="1px"
+        borderColor={isUnavailable ? 'orange.muted' : selectedModelChanged ? 'blue.muted' : 'green.muted'}
+        bg={isUnavailable ? 'orange.subtle' : selectedModelChanged ? 'blue.subtle' : 'green.subtle'}
+        color={isUnavailable ? 'orange.fg' : selectedModelChanged ? 'blue.fg' : 'green.fg'}
+        px="3"
+        py="2.5"
+      >
+        <CheckCircle2 size={16} />
+        <Text textStyle="sm" fontWeight="semibold">
+          {isUnavailable
+            ? 'Unavailable'
+            : selectedModelChanged
+              ? 'Selected for save'
+              : 'Currently selected'}
+        </Text>
+      </HStack>
+    </Stack>
+  );
+}
+
+function ProviderGlyph({
+  provider,
+  providerLabel,
+}: {
+  provider: AdminAiSettings['chat']['provider'];
+  providerLabel: string;
+}) {
+  return (
+    <Flex
+      boxSize="6.5rem"
+      flexShrink={0}
+      align="center"
+      justify="center"
+      rounded="lg"
+      borderWidth="1px"
+      borderColor="blue.muted"
+      bg="blue.subtle"
+      color="fg"
+    >
+      <Text textStyle="3xl" fontWeight="semibold">
+        {provider === 'ollama' ? 'Ol' : providerLabel.slice(0, 1)}
+      </Text>
+    </Flex>
+  );
+}
+
+function SelectedModelMetric({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <HStack gap="3" minW="0">
+      <Box color="fg.muted" flexShrink={0}>
+        {icon}
+      </Box>
+      <Stack gap="0" minW="0">
+        <Text textStyle="sm" color="fg.muted">
+          {label}
+        </Text>
+        <Text textStyle="sm" fontWeight="semibold" color="fg" truncate>
+          {value}
+        </Text>
+      </Stack>
+    </HStack>
+  );
+}
+
+function ModelSelectionNotice({ children }: { children: ReactNode }) {
+  return (
+    <HStack
+      gap="3"
+      align="center"
+      rounded="md"
+      borderWidth="1px"
+      borderColor="blue.muted"
+      bg="bg.surface"
+      px={{ base: '3', md: '4' }}
+      py="4"
+      mt="auto"
+      color="fg.muted"
+    >
+      <Box color="blue.fg" flexShrink={0}>
+        <Info size={24} />
+      </Box>
+      <Text textStyle="sm">{children}</Text>
+    </HStack>
+  );
+}
+
+function EmptySelectedModelCard({ message }: { message: string }) {
+  return (
+    <Box
+      rounded="lg"
+      borderWidth="1px"
+      borderColor="border.surface"
+      bg="bg.surface"
+      px="4"
+      py="6"
+    >
+      <Text textStyle="sm" color="fg.muted">
+        {message}
+      </Text>
+    </Box>
+  );
+}
+
+function formatDimensions(dimensions: number | null | undefined) {
+  return dimensions === null || dimensions === undefined
+    ? 'Unknown dims'
+    : `${dimensions.toLocaleString()} dims`;
+}
+
+function formatDimensionValue(dimensions: number | null | undefined) {
+  return dimensions === null || dimensions === undefined
+    ? 'Unknown'
+    : dimensions.toLocaleString();
 }

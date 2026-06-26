@@ -1175,7 +1175,7 @@ describe('admin and about pages', () => {
     const dialog = await screen.findByRole('dialog', { name: /configure chat models/i });
     expect(within(dialog).getByText('Enabled Models (0)')).toBeInTheDocument();
     expect(within(dialog).getByText('0 models enabled · select an enabled default model')).toBeInTheDocument();
-    expect(within(dialog).queryByText('Default model')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/^Default$/)).not.toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: /save chat models/i })).toBeDisabled();
   });
 
@@ -1226,7 +1226,7 @@ describe('admin and about pages', () => {
 
     expect(await screen.findByText('AI is ready')).toBeInTheDocument();
     expect(screen.queryByText(/Embedding Model:/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole('dialog', { name: /choose embedding model/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /configure embedding model/i })).not.toBeInTheDocument();
     expect(screen.queryByText('AI needs setup')).not.toBeInTheDocument();
   });
 
@@ -1247,14 +1247,14 @@ describe('admin and about pages', () => {
     await renderWithProviders(<AdminAiSettingsPage />);
 
     expect(await screen.findByText('AI needs setup')).toBeInTheDocument();
-    const dialog = await screen.findByRole('dialog', { name: /choose embedding model/i });
-    expect(within(dialog).getByText('bge-m3')).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog', { name: /configure embedding model/i });
+    expect(within(dialog).getAllByText('bge-m3').length).toBeGreaterThan(0);
     expect(fetchMock).not.toHaveBeenCalledWith(
       '/api/admin/ai/settings',
       expect.objectContaining({ method: 'PUT' }),
     );
 
-    await user.click(within(dialog).getByRole('button', { name: /^confirm$/i }));
+    await user.click(within(dialog).getByRole('button', { name: /save embedding model/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -1284,12 +1284,12 @@ describe('admin and about pages', () => {
     await renderWithProviders(<AdminAiSettingsPage />);
 
     expect(await screen.findByText('AI needs setup')).toBeInTheDocument();
-    const dialog = await screen.findByRole('dialog', { name: /choose embedding model/i });
+    const dialog = await screen.findByRole('dialog', { name: /configure embedding model/i });
 
     await user.click(within(dialog).getByRole('button', { name: /cancel/i }));
 
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: /choose embedding model/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: /configure embedding model/i })).not.toBeInTheDocument();
     });
     expect(screen.getByText('AI needs setup')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /choose embedding model/i }).length).toBeGreaterThan(

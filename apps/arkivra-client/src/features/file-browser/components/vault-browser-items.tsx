@@ -451,6 +451,34 @@ export function GridItemName({ density, name }: { density: string; name: string 
   );
 }
 
+export function DocumentProcessingStatusLine({
+  status,
+  errorMessage,
+}: {
+  status: Extract<BrowserItem, { type: 'document' }>['document']['processingStatus'];
+  errorMessage?: string | null;
+}) {
+  if (status !== 'failed') {
+    return null;
+  }
+
+  const message =
+    errorMessage?.trim().length ? `Parsing failed: ${errorMessage.trim()}` : 'Parsing failed';
+
+  return (
+    <Text
+      mt="1"
+      truncate
+      textStyle="xs"
+      fontWeight="medium"
+      color="fg.error"
+      title={message}
+    >
+      {message}
+    </Text>
+  );
+}
+
 
 export function BrowserItemList({
   items,
@@ -760,6 +788,10 @@ export function BrowserItemList({
                               {getFileDisplayName(item.document.originalName)}
                             </Text>
                           ) : null}
+                          <DocumentProcessingStatusLine
+                            status={item.document.processingStatus}
+                            errorMessage={item.document.processingErrorMessage}
+                          />
                         </Box>
                       </Flex>
                     </Link>

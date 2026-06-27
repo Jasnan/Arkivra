@@ -158,6 +158,7 @@ describe('documents page', () => {
       'New folder',
       'Upload files',
       'Upload folder',
+      'Retry failed parsing',
       'Members',
       'Settings',
       'Activity',
@@ -225,7 +226,7 @@ describe('documents page', () => {
       within(menu)
         .getAllByRole('menuitem')
         .map((item) => item.textContent?.trim()),
-    ).toEqual(['New folder', 'Upload files', 'Upload folder']);
+    ).toEqual(['New folder', 'Upload files', 'Upload folder', 'Retry failed parsing']);
     expect(within(menu).queryByRole('menuitem', { name: /^members$/i })).not.toBeInTheDocument();
     expect(within(menu).queryByRole('menuitem', { name: /^activity$/i })).not.toBeInTheDocument();
     expect(within(menu).queryByRole('menuitem', { name: /^settings$/i })).not.toBeInTheDocument();

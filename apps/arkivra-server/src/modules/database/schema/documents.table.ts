@@ -50,6 +50,9 @@ export const documentsTable = pgTable(
       .$type<DocumentVersionProcessingStatus>()
       .notNull()
       .default('pending'),
+    processingErrorCode: text('processing_error_code'),
+    processingErrorMessage: text('processing_error_message'),
+    processingFailedAt: timestamp('processing_failed_at', { mode: 'date', withTimezone: true }),
 
     fileEncryptionKeyWrapped: text('file_encryption_key_wrapped'),
     fileEncryptionKekVersion: text('file_encryption_kek_version'),
@@ -147,6 +150,9 @@ export const documentVersionsTable = pgTable(
       .$type<DocumentVersionProcessingStatus>()
       .notNull()
       .default('pending'),
+    processingErrorCode: text('processing_error_code'),
+    processingErrorMessage: text('processing_error_message'),
+    processingFailedAt: timestamp('processing_failed_at', { mode: 'date', withTimezone: true }),
 
     fileEncryptionKeyWrapped: text('file_encryption_key_wrapped'),
     fileEncryptionKekVersion: text('file_encryption_kek_version'),

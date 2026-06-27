@@ -442,6 +442,9 @@ export async function persistParsedDocument({
         parserEngineVersion: parsed.engineVersion,
         parserWarnings: parsed.warnings,
         processingStatus: 'completed',
+        processingErrorCode: null,
+        processingErrorMessage: null,
+        processingFailedAt: sql`NULL`,
         updatedAt: sql`now()`,
       })
       .where(
@@ -465,6 +468,9 @@ export async function persistParsedDocument({
         parserEngineVersion: parsed.engineVersion,
         parserWarnings: parsed.warnings,
         processingStatus: 'completed',
+        processingErrorCode: null,
+        processingErrorMessage: null,
+        processingFailedAt: sql`NULL`,
         updatedAt: sql`now()`,
       })
       .where(

@@ -277,19 +277,39 @@ export function createDoclingParser({
       }
     }
 
+    const parts = await buildDoclingInputParts({
+      input,
+      splitPdfPageThreshold,
+      splitPdfChunkPages,
+    });
+    const sourceDiagnostics = parts[0]?.sourceDiagnostics;
+    if (sourceDiagnostics === undefined) {
+      throw new ParserValidationError(
+        `Docling adapter could not build source binary diagnostics for ${input.documentId}`,
+        'docling',
+      );
+    }
+    const binaryDiagnostics: DoclingProcessingContext['binaryDiagnostics'] = {
+      source: sourceDiagnostics,
+      parts: parts.map((part) => ({
+        fileName: part.fileName,
+        pageOffset: part.pageOffset,
+        pageCount: part.pageCount,
+        partIndex: part.partIndex,
+        partCount: part.partCount,
+        preprocessing: part.preprocessing,
+        diagnostics: part.diagnostics,
+      })),
+    };
     const processingContext: DoclingProcessingContext = {
       classification,
+      binaryDiagnostics,
       doclingOcrEnabled: convertOptions.doOcr,
       ocrPreset: convertOptions.ocrPreset,
       pipeline: convertOptions.pipeline,
       vlmPipelinePreset: convertOptions.vlmPipelinePreset,
       vlmPipelineCustomConfig: convertOptions.vlmPipelineCustomConfig,
     };
-    const parts = await buildDoclingInputParts({
-      input,
-      splitPdfPageThreshold,
-      splitPdfChunkPages,
-    });
 
     if (parts.length > 1) {
       console.info(
@@ -301,6 +321,9 @@ export function createDoclingParser({
     let chunkStartIndex = 0;
 
     for (const part of parts) {
+      console.info(
+        `[docling-parser] submitting original_file document=${input.documentId} version=${input.documentVersionId ?? 'unknown'} part=${part.partIndex + 1}/${part.partCount} file="${part.fileName}" bytes=${part.fileData.length} sha256=${part.diagnostics.sha256} pdfPages=${part.diagnostics.pdfPageCount ?? 'n/a'} preprocessing=${part.preprocessing}`,
+      );
       const hybridResponse = await doclingClient.chunkFile({
         fileName: part.fileName,
         mimeType: input.mimeType,
@@ -330,6 +353,9 @@ export function createDoclingParser({
           vlmPipelineCustomConfig: undefined,
           fallbackReason: 'vlm_layout_sidecar',
         };
+        console.info(
+          `[docling-parser] submitting ocr_layout_sidecar document=${input.documentId} version=${input.documentVersionId ?? 'unknown'} part=${part.partIndex + 1}/${part.partCount} file="${part.fileName}" bytes=${part.fileData.length} sha256=${part.diagnostics.sha256} pdfPages=${part.diagnostics.pdfPageCount ?? 'n/a'} preprocessing=${part.preprocessing}`,
+        );
         const sidecarResponse = await doclingClient.chunkFile({
           fileName: part.fileName,
           mimeType: input.mimeType,

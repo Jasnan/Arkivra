@@ -21,6 +21,7 @@ import {
   getDocumentVersionDownloadUrl,
   getDocumentDuplicateConflict,
   renameDocument,
+  retryDocumentProcessing,
   restoreDocument,
   restoreDocumentVersion,
   softDeleteDocument,
@@ -54,6 +55,7 @@ import type { VaultBreadcrumbEntry } from '@/features/file-browser/components/va
 import { useFolderTreeQuery } from '@/features/file-browser/file-browser.queries';
 import { useMeQuery } from '@/features/me/me.queries';
 import { useVaultQuery } from '@/features/vaults/vaults.queries';
+import { canMutateVaultDocuments } from '@/features/vaults/vault-permissions';
 
 import {
   getActiveDocumentDetail,
@@ -387,6 +389,19 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
     },
   });
 
+  const retryProcessingMutation = useMutation({
+    mutationFn: retryDocumentProcessing,
+    onSuccess: async (result) => {
+      toast.success(
+        result.queued === 1 ? 'Document processing queued.' : `${result.queued} documents queued.`,
+      );
+      await invalidateDocument();
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not retry document processing.');
+    },
+  });
+
   const assignTagMutation = useMutation({
     mutationFn: assignTagToDocument,
     onSuccess: async () => {
@@ -503,13 +518,20 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
   const extractedTextMessage = getDocumentProcessingStageDescription(
     activeDocument.processingStatus,
     displayContent,
+    activeDocument.processingErrorMessage,
   );
   const extractionStatusDescription = getDocumentProcessingStageDescription(
     activeDocument.processingStatus,
     '',
+    activeDocument.processingErrorMessage,
   );
   const isExtractionActive = isDocumentProcessingActive(activeDocument.processingStatus);
   const showExtractionStatus = isExtractionActive || activeDocument.processingStatus === 'failed';
+  const canRetryProcessing =
+    !isHistoricalVersionSelected &&
+    !isTrashDocumentRoute &&
+    activeDocument.processingStatus === 'failed' &&
+    canMutateVaultDocuments(vaultQuery.data?.vault);
   const activeChunksQuery = isHistoricalVersionSelected
     ? documentVersionChunksQuery
     : documentChunksQuery;
@@ -623,12 +645,20 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
       sectionMenuItems={documentSectionMenuItems}
       isRestorePending={restoreMutation.isPending}
       isDeletePending={deleteMutation.isPending}
+      isRetryProcessingPending={retryProcessingMutation.isPending}
+      canRetryProcessing={canRetryProcessing}
       onNavigateToSection={(route) => navigate({ to: route, search: documentSectionSearch })}
       onPrint={handlePrintClick}
       onOpenVersionsDialog={() => setIsVersionsDialogOpen(true)}
       onRestore={() => {
         restoreMutation.mutate({ vaultId, documentId });
       }}
+      onRetryProcessing={() =>
+        retryProcessingMutation.mutate({
+          vaultId,
+          documentIds: [documentId],
+        })
+      }
       onOpenDeleteDialog={() => setIsDeleteDialogOpen(true)}
     />
   );

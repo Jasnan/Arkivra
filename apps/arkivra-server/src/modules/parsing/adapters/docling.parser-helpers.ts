@@ -3,7 +3,13 @@ import type { ImageCaptioner } from '../image-captioner.js';
 import type { ParseInput } from '../parser.types.js';
 import type { ParsedChunk, ParserOutput } from '../parsed-document.schema.js';
 import type { PdfScanClassification } from '../pdf-ocr-decider.js';
+import type { BinaryDiagnostic } from '../binary-diagnostics.js';
 import { PDFDocument } from 'pdf-lib';
+import {
+  buildBinaryDiagnostic,
+  sha256Hex,
+  toExactUint8Array,
+} from '../binary-diagnostics.js';
 
 type JsonObject = Record<string, unknown>;
 
@@ -26,6 +32,9 @@ export type DoclingInputPart = {
   pageCount: number;
   partIndex: number;
   partCount: number;
+  preprocessing: 'none' | 'pdf_split';
+  diagnostics: BinaryDiagnostic;
+  sourceDiagnostics: BinaryDiagnostic;
 };
 
 export type DoclingParsedPart = {
@@ -44,6 +53,18 @@ export type DoclingChunkInput = 'original_file' | 'ocr_layout_sidecar';
 
 export type DoclingProcessingContext = {
   classification: PdfScanClassification;
+  binaryDiagnostics?: {
+    source: BinaryDiagnostic;
+    parts: Array<{
+      fileName: string;
+      pageOffset: number;
+      pageCount: number;
+      partIndex: number;
+      partCount: number;
+      preprocessing: DoclingInputPart['preprocessing'];
+      diagnostics: BinaryDiagnostic;
+    }>;
+  };
   doclingOcrEnabled?: boolean;
   ocrPreset?: string;
   pipeline?: DoclingConvertOptions['pipeline'];
@@ -127,29 +148,47 @@ export async function buildDoclingInputParts({
   splitPdfPageThreshold: number;
   splitPdfChunkPages: number;
 }): Promise<DoclingInputPart[]> {
+  const sourceDiagnostics = await buildBinaryDiagnostic({
+    fileData: input.fileData,
+    fileName: input.fileName,
+    mimeType: input.mimeType,
+  });
   const singlePart: DoclingInputPart = {
     fileName: input.fileName,
     fileData: input.fileData,
     pageOffset: 0,
-    pageCount: 0,
+    pageCount: sourceDiagnostics.pdfPageCount ?? 0,
     partIndex: 0,
     partCount: 1,
+    preprocessing: 'none',
+    diagnostics: sourceDiagnostics,
+    sourceDiagnostics,
   };
 
   if (!isPdfMimeType(input.mimeType) || splitPdfPageThreshold <= 0 || splitPdfChunkPages <= 0) {
+    console.info(
+      `[docling-parser] prepared input document=${input.documentId} version=${input.documentVersionId ?? 'unknown'} part=1/1 preprocessing=none file="${singlePart.fileName}" bytes=${singlePart.diagnostics.byteLength} sha256=${singlePart.diagnostics.sha256} pdfPages=${singlePart.diagnostics.pdfPageCount ?? 'n/a'}`,
+    );
     return [singlePart];
   }
 
   let sourcePdf: PDFDocument;
   try {
-    sourcePdf = await PDFDocument.load(input.fileData, { ignoreEncryption: true });
+    sourcePdf = await PDFDocument.load(toExactUint8Array(input.fileData), { ignoreEncryption: true });
   } catch {
+    console.info(
+      `[docling-parser] prepared input document=${input.documentId} version=${input.documentVersionId ?? 'unknown'} part=1/1 preprocessing=none pdfLoad=failed file="${singlePart.fileName}" bytes=${singlePart.diagnostics.byteLength} sha256=${singlePart.diagnostics.sha256} pdfPages=${singlePart.diagnostics.pdfPageCount ?? 'n/a'}`,
+    );
     return [singlePart];
   }
 
   const totalPages = sourcePdf.getPageCount();
   if (totalPages <= splitPdfPageThreshold) {
-    return [{ ...singlePart, pageCount: totalPages }];
+    const part = { ...singlePart, pageCount: totalPages };
+    console.info(
+      `[docling-parser] prepared input document=${input.documentId} version=${input.documentVersionId ?? 'unknown'} part=1/1 preprocessing=none file="${part.fileName}" bytes=${part.diagnostics.byteLength} sha256=${part.diagnostics.sha256} pdfPages=${totalPages} splitThreshold=${splitPdfPageThreshold}`,
+    );
+    return [part];
   }
 
   const ranges: Array<{ start: number; end: number }> = [];
@@ -170,14 +209,33 @@ export async function buildDoclingInputParts({
     }
 
     const bytes = await splitPdf.save();
+    const fileData = Buffer.from(bytes);
+    const fileName = splitFileName(input.fileName, partIndex, ranges.length);
+    const diagnostics = await buildBinaryDiagnostic({
+      fileData,
+      fileName,
+      mimeType: input.mimeType,
+    });
     parts.push({
-      fileName: splitFileName(input.fileName, partIndex, ranges.length),
-      fileData: Buffer.from(bytes),
+      fileName,
+      fileData,
       pageOffset: range.start,
       pageCount: range.end - range.start,
       partIndex,
       partCount: ranges.length,
+      preprocessing: 'pdf_split',
+      diagnostics,
+      sourceDiagnostics,
     });
+  }
+
+  console.info(
+    `[docling-parser] split input document=${input.documentId} version=${input.documentVersionId ?? 'unknown'} sourceFile="${input.fileName}" sourceBytes=${input.fileData.length} sourceSha256=${sha256Hex(input.fileData)} sourcePdfPages=${totalPages} parts=${parts.length} pagesPerPart=${splitPdfChunkPages}`,
+  );
+  for (const part of parts) {
+    console.info(
+      `[docling-parser] prepared input document=${input.documentId} version=${input.documentVersionId ?? 'unknown'} part=${part.partIndex + 1}/${part.partCount} preprocessing=pdf_split file="${part.fileName}" bytes=${part.diagnostics.byteLength} sha256=${part.diagnostics.sha256} pdfPages=${part.diagnostics.pdfPageCount ?? 'n/a'} pageOffset=${part.pageOffset} pageCount=${part.pageCount}`,
+    );
   }
 
   return parts;
@@ -309,6 +367,7 @@ function buildProcessingMetadata({
   vlmPipelinePreset,
   vlmPipelineCustomConfig,
   fallbackReason,
+  binaryDiagnostics,
 }: DoclingProcessingContext) {
   const metadata: Record<string, unknown> = {
     processing_path: classification.path,
@@ -316,6 +375,26 @@ function buildProcessingMetadata({
     docling_ocr_enabled: doclingOcrEnabled ?? classification.doclingDoOcr,
     docling_ocr_preset: ocrPreset ?? null,
     fallback_reason: fallbackReason ?? null,
+    binary_diagnostics: binaryDiagnostics === undefined
+      ? undefined
+      : {
+          source: {
+            byte_length: binaryDiagnostics.source.byteLength,
+            sha256: binaryDiagnostics.source.sha256,
+            pdf_page_count: binaryDiagnostics.source.pdfPageCount,
+          },
+          parts: binaryDiagnostics.parts.map((part) => ({
+            file_name: part.fileName,
+            page_offset: part.pageOffset,
+            page_count: part.pageCount,
+            part_index: part.partIndex,
+            part_count: part.partCount,
+            preprocessing: part.preprocessing,
+            byte_length: part.diagnostics.byteLength,
+            sha256: part.diagnostics.sha256,
+            pdf_page_count: part.diagnostics.pdfPageCount,
+          })),
+        },
     scan_classifier: {
       is_pdf: classification.isPdf,
       total_pages: classification.totalPages,

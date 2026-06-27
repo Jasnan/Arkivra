@@ -10,6 +10,7 @@ import {
   isTerminalInternalStatus,
   normalizeDoclingTaskStatus,
 } from '../parsing/adapters/docling.schema.js';
+import { sha256Hex } from '../parsing/binary-diagnostics.js';
 
 export type {
   DoclingChunkResponse,
@@ -250,6 +251,9 @@ export function createDoclingClient({
   }): Promise<DoclingConvertResponse> {
     const formData = new FormData();
     const blob = new Blob([fileData], { type: mimeType });
+    console.info(
+      `${logPrefix} convert request file="${fileName}" mime=${mimeType} bytes=${fileData.length} sha256=${sha256Hex(fileData)} blobSize=${blob.size}`,
+    );
 
     formData.append('files', blob, fileName);
     for (const format of effectiveConvertOptions.toFormats) {
@@ -447,10 +451,13 @@ export function createDoclingClient({
 
     async function submitAndAwaitChunkTask() {
       console.info(
-        `${logPrefix} submitting ${chunker} chunk task file="${fileName}" mime=${mimeType} bytes=${fileData.length} doOcr=${effectiveChunkConvertOptions.doOcr} ocrPreset=${effectiveChunkConvertOptions.ocrPreset ?? 'none'} pipeline=${effectiveChunkConvertOptions.pipeline ?? 'default'} maxTokens=${chunker === 'hybrid' ? effectiveChunkOptions.maxTokens : 'n/a'}`,
+        `${logPrefix} submitting ${chunker} chunk task file="${fileName}" mime=${mimeType} bytes=${fileData.length} sha256=${sha256Hex(fileData)} doOcr=${effectiveChunkConvertOptions.doOcr} ocrPreset=${effectiveChunkConvertOptions.ocrPreset ?? 'none'} pipeline=${effectiveChunkConvertOptions.pipeline ?? 'default'} maxTokens=${chunker === 'hybrid' ? effectiveChunkOptions.maxTokens : 'n/a'}`,
       );
       const formData = new FormData();
       const blob = new Blob([fileData], { type: mimeType });
+      console.info(
+        `${logPrefix} multipart payload file="${fileName}" mime=${mimeType} bytes=${fileData.length} sha256=${sha256Hex(fileData)} blobSize=${blob.size}`,
+      );
 
       formData.append('files', blob, fileName);
       formData.append('include_converted_doc', 'true');

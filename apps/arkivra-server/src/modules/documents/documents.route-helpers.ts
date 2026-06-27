@@ -166,6 +166,9 @@ export function serializeDocumentVersion(
     parserEngineVersion: version.parserEngineVersion,
     parserWarnings: version.parserWarnings,
     processingStatus: version.processingStatus,
+    processingErrorCode: version.processingErrorCode,
+    processingErrorMessage: version.processingErrorMessage,
+    processingFailedAt: version.processingFailedAt?.toISOString() ?? null,
     restoredFromVersionId: version.restoredFromVersionId,
     deletedAt: version.deletedAt?.toISOString() ?? null,
     createdAt: version.createdAt.toISOString(),
@@ -206,6 +209,7 @@ export function getDocumentVersionAuditMetadata(
     mime_type: version.mimeType,
     original_sha256_hash: version.originalSha256Hash,
     processing_status: version.processingStatus,
+    processing_error_code: version.processingErrorCode,
     restored_from_version_id: version.restoredFromVersionId,
     ...extra,
   };
@@ -245,4 +249,3 @@ export async function getFolderPathLabel({
 
   return path.length > 0 ? path.join(' / ') : 'Unknown location';
 }
-

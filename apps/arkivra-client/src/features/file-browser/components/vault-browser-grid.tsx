@@ -10,6 +10,7 @@ import {
   FileBrowserIcon,
   GRID_ITEM_HEIGHT,
   GRID_ITEM_PADDING,
+  DocumentProcessingStatusLine,
   GridItemActions,
   GridItemName,
   SelectionCheckbox,
@@ -237,6 +238,10 @@ export function BrowserItemGrid({
                         </Box>
                       </Link>
                       {renderDocumentGridMeta?.(item)}
+                      <DocumentProcessingStatusLine
+                        status={item.document.processingStatus}
+                        errorMessage={item.document.processingErrorMessage}
+                      />
                     </Stack>
                   </Stack>
                 </Stack>

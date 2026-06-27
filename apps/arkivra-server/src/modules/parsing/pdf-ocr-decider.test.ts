@@ -92,6 +92,29 @@ describe('pdf OCR classifier', () => {
     expect(classification.pageStats).toHaveLength(3);
   });
 
+  test('returns the same classification for identical bytes and configuration', async () => {
+    const fileData = await createPdf({
+      pages: 4,
+      textPages: [1, 2, 3],
+    });
+    const input = {
+      documentId: 'doc_repeatable',
+      fileName: 'repeatable.pdf',
+      mimeType: 'application/pdf',
+      fileData,
+    };
+    const config = {
+      maxSampledPages: 4,
+      mixedScannedPageRatio: 0.2,
+      scanHeavyScannedPageRatio: 0.7,
+    };
+
+    const first = await classifyPdfForProcessing(input, config);
+    const second = await classifyPdfForProcessing(input, config);
+
+    expect(second).toEqual(first);
+  });
+
   test('keeps the legacy do-OCR wrapper available for unknown PDFs', async () => {
     const doOcr = await decidePdfDoOcr({
       documentId: 'doc_bad',

@@ -826,6 +826,303 @@ describe('chat service helpers', () => {
     });
   });
 
+  test('narrows VLM page-level citation candidates using the assistant answer value', () => {
+    const surnameBox = {
+      pageNumber: 1,
+      x0: 224,
+      y0: 112,
+      x1: 340,
+      y1: 125,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const passportNumberBox = {
+      pageNumber: 1,
+      x0: 430,
+      y0: 86,
+      x1: 525,
+      y1: 100,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const motherNameBox = {
+      pageNumber: 1,
+      x0: 220,
+      y0: 292,
+      x1: 390,
+      y1: 306,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const broadCitation: Citation = {
+      ...citation,
+      chunkId: 'chk_passport_vlm',
+      retrievalRepresentation: 'docling_hybrid',
+      pageStart: 1,
+      pageEnd: 1,
+      sourceElementIds: ['#/texts/0', '#/texts/1', '#/texts/2'],
+      snippet:
+        'Passport No. R3919512 Surname KAKKAMOOLAKKAL Name of Mother KADEEJATHUL KUBRA PARI',
+      boundingBoxes: [surnameBox, passportNumberBox, motherNameBox],
+      citationPrecision: 'box',
+      score: 0.95,
+    };
+    const contextChunk = {
+      chunkId: broadCitation.chunkId,
+      chunkIndex: 0,
+      retrievalRepresentation: 'docling_hybrid',
+      pageStart: 1,
+      pageEnd: 1,
+      section: null,
+      sourceElementIds: broadCitation.sourceElementIds,
+      boundingBoxes: broadCitation.boundingBoxes,
+      citationPrecision: 'box' as const,
+      citationCandidateScope: 'page' as const,
+      snippet: broadCitation.snippet,
+      retrievalScore: broadCitation.score,
+      retrievalRank: 0,
+      provenanceElements: [
+        {
+          elementId: '#/texts/5',
+          text: 'KAKKAMOOLAKKAL',
+          pageNumber: 1,
+          bbox: surnameBox,
+          sortIndex: 5,
+        },
+        {
+          elementId: '#/texts/18',
+          text: 'R3919512',
+          pageNumber: 1,
+          bbox: passportNumberBox,
+          sortIndex: 18,
+        },
+        {
+          elementId: '#/texts/29',
+          text: 'KADEEJATHUL KUBRA PARI',
+          pageNumber: 1,
+          bbox: motherNameBox,
+          sortIndex: 29,
+        },
+      ],
+    };
+
+    const [passportCitation] = buildChunkLevelCitationsForChat({
+      question: 'what is the passport number?',
+      answerText: 'The passport number is R3919512.',
+      citations: [broadCitation],
+      contextChunks: [contextChunk],
+    });
+    const [motherCitation] = buildChunkLevelCitationsForChat({
+      question: "what is the mother's name?",
+      answerText: "The mother's name is KADEEJATHUL KUBRA PARI.",
+      citations: [broadCitation],
+      contextChunks: [contextChunk],
+    });
+
+    expect(passportCitation).toMatchObject({
+      citationPrecision: 'box',
+      boundingBoxes: [passportNumberBox],
+      sourceElementIds: ['#/texts/18'],
+    });
+    expect(motherCitation).toMatchObject({
+      citationPrecision: 'box',
+      boundingBoxes: [motherNameBox],
+      sourceElementIds: ['#/texts/29'],
+    });
+  });
+
+  test('keeps multiple exact answer value boxes for combined VLM citations', () => {
+    const dobLabelBox = {
+      pageNumber: 1,
+      x0: 65,
+      y0: 180,
+      x1: 145,
+      y1: 194,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const dobBox = {
+      pageNumber: 1,
+      x0: 160,
+      y0: 180,
+      x1: 240,
+      y1: 194,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const expiryLabelBox = {
+      pageNumber: 1,
+      x0: 325,
+      y0: 180,
+      x1: 405,
+      y1: 194,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const expiryBox = {
+      pageNumber: 1,
+      x0: 420,
+      y0: 180,
+      x1: 500,
+      y1: 194,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const broadCitation: Citation = {
+      ...citation,
+      chunkId: 'chk_passport_dates',
+      retrievalRepresentation: 'docling_hybrid',
+      pageStart: 1,
+      pageEnd: 1,
+      sourceElementIds: ['#/texts/0', '#/texts/1'],
+      snippet: 'Date of Birth 20/09/1994 Date of Expiry 26/10/2027',
+      boundingBoxes: [dobLabelBox, dobBox, expiryLabelBox, expiryBox],
+      citationPrecision: 'box',
+      score: 0.95,
+    };
+
+    const [dateCitation] = buildChunkLevelCitationsForChat({
+      question: 'what is the date of birth and passport expiry date?',
+      answerText:
+        'The date of birth is 20/09/1994. The passport expiry date is 26/10/2027.',
+      citations: [broadCitation],
+      contextChunks: [
+        {
+          chunkId: broadCitation.chunkId,
+          chunkIndex: 0,
+          retrievalRepresentation: 'docling_hybrid',
+          pageStart: 1,
+          pageEnd: 1,
+          section: null,
+          sourceElementIds: broadCitation.sourceElementIds,
+          boundingBoxes: broadCitation.boundingBoxes,
+          citationPrecision: 'box',
+          citationCandidateScope: 'page',
+          snippet: broadCitation.snippet,
+          retrievalScore: broadCitation.score,
+          retrievalRank: 0,
+          provenanceElements: [
+            {
+              elementId: '#/texts/20',
+              text: 'Date of Birth',
+              pageNumber: 1,
+              bbox: dobLabelBox,
+              sortIndex: 20,
+            },
+            {
+              elementId: '#/texts/21',
+              text: '20/09/1994',
+              pageNumber: 1,
+              bbox: dobBox,
+              sortIndex: 21,
+            },
+            {
+              elementId: '#/texts/22',
+              text: 'Date of Expiry',
+              pageNumber: 1,
+              bbox: expiryLabelBox,
+              sortIndex: 22,
+            },
+            {
+              elementId: '#/texts/23',
+              text: '26/10/2027',
+              pageNumber: 1,
+              bbox: expiryBox,
+              sortIndex: 23,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(dateCitation).toMatchObject({
+      citationPrecision: 'box',
+      boundingBoxes: [dobBox, expiryBox],
+      sourceElementIds: ['#/texts/21', '#/texts/23'],
+    });
+  });
+
+  test('falls back to page highlighting for low-confidence VLM page candidates', () => {
+    const firstBox = {
+      pageNumber: 1,
+      x0: 100,
+      y0: 100,
+      x1: 180,
+      y1: 115,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const secondBox = {
+      pageNumber: 1,
+      x0: 100,
+      y0: 140,
+      x1: 180,
+      y1: 155,
+      layoutWidth: 600,
+      layoutHeight: 800,
+      system: 'PixelSpace',
+    };
+    const broadCitation: Citation = {
+      ...citation,
+      chunkId: 'chk_vlm_ambiguous',
+      retrievalRepresentation: 'docling_hybrid',
+      pageStart: 1,
+      pageEnd: 1,
+      sourceElementIds: ['#/texts/1'],
+      snippet: 'Name John Doe Passport Number P123456',
+      boundingBoxes: [firstBox, secondBox],
+      citationPrecision: 'box',
+      score: 0.95,
+    };
+
+    const [displayCitation] = buildChunkLevelCitationsForChat({
+      question: 'what is the passport number?',
+      answerText: 'The document contains identity details.',
+      citations: [broadCitation],
+      contextChunks: [
+        {
+          chunkId: broadCitation.chunkId,
+          chunkIndex: 0,
+          retrievalRepresentation: 'docling_hybrid',
+          pageStart: 1,
+          pageEnd: 1,
+          section: null,
+          sourceElementIds: broadCitation.sourceElementIds,
+          boundingBoxes: broadCitation.boundingBoxes,
+          citationPrecision: 'box',
+          citationCandidateScope: 'page',
+          snippet: broadCitation.snippet,
+          retrievalScore: broadCitation.score,
+          retrievalRank: 0,
+          provenanceElements: [
+            { elementId: '#/texts/1', text: 'John Doe', pageNumber: 1, bbox: firstBox, sortIndex: 1 },
+            {
+              elementId: '#/texts/2',
+              text: 'P123456',
+              pageNumber: 1,
+              bbox: secondBox,
+              sortIndex: 2,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(displayCitation).toMatchObject({
+      citationPrecision: 'page',
+      boundingBoxes: [],
+      sourceElementIds: broadCitation.sourceElementIds,
+    });
+  });
+
   test('keeps narrow hybrid box citations for display', () => {
     const valueBox = {
       pageNumber: 1,

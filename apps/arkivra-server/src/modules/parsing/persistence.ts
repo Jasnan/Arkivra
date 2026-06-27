@@ -301,6 +301,8 @@ export async function persistParsedDocument({
   documentVersionId,
   vaultId,
   parsed,
+  expectedOriginalSha256Hash,
+  expectedProcessingRun,
 }: {
   db: Database;
   storage: StorageDriver;
@@ -309,10 +311,19 @@ export async function persistParsedDocument({
   documentVersionId: string;
   vaultId: string;
   parsed: ParsedDocument;
+  expectedOriginalSha256Hash?: string;
+  expectedProcessingRun?: {
+    jobId: string;
+    queueName: string;
+    processingRunId: string;
+  };
 }) {
   await db.transaction(async (tx) => {
     const [version] = await tx
-      .select({ id: documentVersionsTable.id })
+      .select({
+        id: documentVersionsTable.id,
+        originalSha256Hash: documentVersionsTable.originalSha256Hash,
+      })
       .from(documentVersionsTable)
       .where(
         and(
@@ -326,6 +337,36 @@ export async function persistParsedDocument({
 
     if (version === undefined) {
       throw new Error(`Document version ${documentVersionId} not found for document ${documentId}`);
+    }
+    if (
+      expectedOriginalSha256Hash !== undefined &&
+      version.originalSha256Hash !== expectedOriginalSha256Hash
+    ) {
+      throw new Error(
+        `Document version ${documentVersionId} source hash changed before persistence: expected ${expectedOriginalSha256Hash}, got ${version.originalSha256Hash}`,
+      );
+    }
+
+    if (expectedProcessingRun !== undefined) {
+      const rows = await tx.execute<{
+        status: string;
+        payload: { processingRunId?: unknown } | null;
+      }>(sql`
+        SELECT status, payload
+        FROM background_jobs
+        WHERE id = ${expectedProcessingRun.jobId}
+          AND queue_name = ${expectedProcessingRun.queueName}
+        FOR UPDATE
+      `);
+      const row = rows.rows[0];
+      if (
+        row?.status !== 'running' ||
+        row.payload?.processingRunId !== expectedProcessingRun.processingRunId
+      ) {
+        throw new Error(
+          `Document processing run ${expectedProcessingRun.processingRunId} for ${documentId}/${documentVersionId} was superseded before persistence`,
+        );
+      }
     }
 
     // Replace all existing chunks + assets for idempotent re-processing.

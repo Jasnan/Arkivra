@@ -59,6 +59,7 @@ const nullableStringToEmpty = z
   .transform((value) => value ?? '');
 
 export const doclingConvertResponseSchema = z.object({
+  task_id: z.string().min(1).optional(),
   document: z
     .object({
       md_content: nullableStringToEmpty,
@@ -110,6 +111,7 @@ export function isTerminalInternalStatus(status: InternalTaskStatus): boolean {
 }
 
 export const doclingChunkResponseSchema = z.object({
+  task_id: z.string().min(1).optional(),
   chunks: z.array(
     z.object({
       filename: z.string(),

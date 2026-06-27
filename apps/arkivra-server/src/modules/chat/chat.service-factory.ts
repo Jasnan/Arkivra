@@ -737,6 +737,31 @@ export function createChatServices({
             generatedContent = '';
             throw new Error('The model stopped after a partial answer. Please try again.');
           }
+          if (result.citations.length > 0) {
+            const answerExpandedCitations = await expandRetrievedCitationsForChat({
+              db,
+              question: content,
+              answerText: generatedContent,
+              citations: result.citations,
+            });
+            const answerRankedCitations = rankCitationsForQuestion({
+              question: content,
+              citations: answerExpandedCitations,
+            });
+            citations = normalizeCitationsForDisplay(answerRankedCitations.slice(0, citationLimit));
+            retrievalDiagnostics = buildRetrievalDiagnostics({
+              mode: result.mode,
+              retrievedCitations: result.citations,
+              expandedCitations: answerExpandedCitations,
+              finalCitations: citations,
+              requestedContextLimit: citationLimit,
+              retrievalLimit,
+              candidatePoolLimit: CHAT_RETRIEVAL_CANDIDATE_POOL_LIMIT,
+            });
+            citationsForPersistence = includeInlineCitations
+              ? sanitizeCitationsForMessagePersistence(citations)
+              : [];
+          }
           writeStatus(writer, 'saving');
           if (citationsForPersistence.length > 0) {
             writer.write({ type: 'data-citations', data: citationsForPersistence });

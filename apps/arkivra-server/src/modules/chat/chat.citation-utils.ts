@@ -16,6 +16,7 @@ export type ChatContextChunkRow = {
   source_element_ids: unknown;
   bounding_boxes: unknown;
   citation_precision: string | null;
+  citation_candidate_scope: string | null;
   provenance_elements: unknown;
   text_locator: unknown;
   snippet: string | null;
@@ -39,6 +40,7 @@ export type ChatContextExpansionChunk = {
   sourceElementIds?: string[];
   boundingBoxes?: CitationBoundingBox[];
   citationPrecision?: Citation['citationPrecision'];
+  citationCandidateScope?: 'source' | 'page';
   provenanceElements?: CitationProvenanceElement[];
   textLocator?: Citation['textLocator'];
   snippet: string;
@@ -134,6 +136,10 @@ export function parseCitationPrecision(value: string | null): Citation['citation
   }
 
   return 'document';
+}
+
+export function parseCitationCandidateScope(value: string | null): 'source' | 'page' {
+  return value === 'page' ? 'page' : 'source';
 }
 
 export function parseBoundingBoxes(value: unknown): CitationBoundingBox[] {

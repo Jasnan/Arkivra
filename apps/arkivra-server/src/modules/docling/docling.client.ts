@@ -130,6 +130,22 @@ function collectTaskErrors(payload: DoclingTaskErrorPayload) {
   ].filter((value): value is string => value !== null && value.trim().length > 0);
 }
 
+function assertTaskIdMatches({
+  expectedTaskId,
+  actualTaskId,
+  operation,
+}: {
+  expectedTaskId: string;
+  actualTaskId: string | undefined;
+  operation: string;
+}) {
+  if (actualTaskId !== undefined && actualTaskId !== expectedTaskId) {
+    throw new Error(
+      `Docling ${operation} returned task_id "${actualTaskId}" while awaiting task "${expectedTaskId}"`,
+    );
+  }
+}
+
 export function createDoclingClient({
   baseUrl,
   pollIntervalMs = 2_000,
@@ -357,6 +373,11 @@ export function createDoclingClient({
           `Docling async status poll returned an unrecognized payload for task ${taskId}: ${statusParsed.error.message}`,
         );
       }
+      assertTaskIdMatches({
+        expectedTaskId: taskId,
+        actualTaskId: statusParsed.data.task_id,
+        operation: 'async status poll',
+      });
 
       latestRawStatus = statusParsed.data.task_status;
       latestStatusPayload = {
@@ -405,6 +426,11 @@ export function createDoclingClient({
         `Docling returned an unrecognized result payload for task ${taskId}: ${resultParsed.error.message}`,
       );
     }
+    assertTaskIdMatches({
+      expectedTaskId: taskId,
+      actualTaskId: resultParsed.data.task_id,
+      operation: 'async result fetch',
+    });
 
     const data = resultParsed.data;
     const resultInternalStatus = normalizeDoclingTaskStatus(data.status);
@@ -576,6 +602,11 @@ export function createDoclingClient({
             `Docling chunk async status poll returned an unrecognized payload for task ${taskId}: ${statusParsed.error.message}`,
           );
         }
+        assertTaskIdMatches({
+          expectedTaskId: taskId,
+          actualTaskId: statusParsed.data.task_id,
+          operation: 'chunk async status poll',
+        });
 
         latestRawStatus = statusParsed.data.task_status;
         latestStatusPayload = {
@@ -635,6 +666,11 @@ export function createDoclingClient({
           `Docling chunk returned an unrecognized result payload for task ${taskId}: ${resultParsed.error.message}`,
         );
       }
+      assertTaskIdMatches({
+        expectedTaskId: taskId,
+        actualTaskId: resultParsed.data.task_id,
+        operation: 'chunk async result fetch',
+      });
 
       const data = resultParsed.data;
       const firstDoc = data.documents[0];

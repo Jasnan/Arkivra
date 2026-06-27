@@ -7,7 +7,11 @@ import type { createActivityServices } from '../activity/activity.services.js';
 import type { EmbeddingIndexQueue } from '../ai/indexing/index.js';
 import { createDocumentsServices } from '../documents/documents.services.js';
 import { and, eq, isNull, sql } from 'drizzle-orm';
-import { documentsTable, documentVersionsTable, uploadSessionsTable } from '../database/schema/index.js';
+import {
+  documentsTable,
+  documentVersionsTable,
+  uploadSessionsTable,
+} from '../database/schema/index.js';
 import { createEmbeddingIndexServices } from '../ai/indexing/index.js';
 import { persistParsedDocument } from '../parsing/persistence.js';
 import { getPdfPageCount, sha256Hex } from '../parsing/binary-diagnostics.js';
@@ -55,6 +59,57 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
   } = deps;
   const documentsServices = createDocumentsServices({ db, storage, encryption });
   const logPrefix = '[document-worker]';
+  const queueName = getScopedQueueName(PROCESS_DOCUMENT_QUEUE, appInstance);
+
+  class DocumentProcessingRunSupersededError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = 'DocumentProcessingRunSupersededError';
+    }
+  }
+
+  function isSupersededProcessingRunError(error: unknown) {
+    return (
+      error instanceof DocumentProcessingRunSupersededError ||
+      (error instanceof Error && /was superseded before/.test(error.message))
+    );
+  }
+
+  async function assertCurrentProcessingRun({
+    job,
+    documentId,
+    documentVersionId,
+    stage,
+  }: {
+    job: AsyncJob<ProcessDocumentJobData>;
+    documentId: string;
+    documentVersionId: string;
+    stage: string;
+  }) {
+    const processingRunId = job.data.processingRunId;
+    if (processingRunId === undefined) {
+      return;
+    }
+
+    const rows = await db.execute<{
+      status: string;
+      payload: { processingRunId?: unknown } | null;
+    }>(sql`
+      SELECT status, payload
+      FROM background_jobs
+      WHERE id = ${job.id}
+        AND queue_name = ${queueName}
+      LIMIT 1
+    `);
+    const row = rows.rows[0];
+    const currentRunId = row?.payload?.processingRunId;
+
+    if (row?.status !== 'running' || currentRunId !== processingRunId) {
+      throw new DocumentProcessingRunSupersededError(
+        `Document processing run ${processingRunId} for ${documentId}/${documentVersionId} was superseded before ${stage}`,
+      );
+    }
+  }
 
   async function setProcessingStage({
     documentId,
@@ -71,6 +126,12 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
     progress: number;
     job: AsyncJob<ProcessDocumentJobData>;
   }) {
+    await assertCurrentProcessingRun({
+      job,
+      documentId,
+      documentVersionId,
+      stage: `status:${processingStatus}`,
+    });
     console.info(`${logPrefix} ${documentId} -> stage=${processingStatus} progress=${progress}%`);
     await documentsServices.updateDocumentVersionProcessingStatus({
       documentId,
@@ -158,22 +219,23 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
 
   async function processDocument(job: AsyncJob<ProcessDocumentJobData>) {
     const { documentId, documentVersionId, vaultId } = job.data;
-    console.info(`${logPrefix} starting job=${job.id} document=${documentId} version=${documentVersionId} vault=${vaultId}`);
-    await setProcessingStage({
-      documentId,
-      documentVersionId,
-      vaultId,
-      processingStatus: 'partitioning',
-      progress: WORKER_PROGRESS.partitioning,
-      job,
-    });
-    await updateRelatedUploadSession({
-      documentId,
-      documentVersionId,
-      status: 'processing',
-    });
+    console.info(`${logPrefix} starting job=${job.id} document=${documentId} version=${documentVersionId} vault=${vaultId} run=${job.data.processingRunId ?? 'legacy'}`);
 
     try {
+      await setProcessingStage({
+        documentId,
+        documentVersionId,
+        vaultId,
+        processingStatus: 'partitioning',
+        progress: WORKER_PROGRESS.partitioning,
+        job,
+      });
+      await updateRelatedUploadSession({
+        documentId,
+        documentVersionId,
+        status: 'processing',
+      });
+
       // 1. Fetch document record
       const [doc] = await db
         .select({
@@ -278,6 +340,13 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         );
       }
 
+      await assertCurrentProcessingRun({
+        job,
+        documentId,
+        documentVersionId,
+        stage: 'parse',
+      });
+
       // 4. Parse → select canonical text → chunk via the engine-agnostic
       //    pipeline. Fresh ingestion and reprocessing both rerun the same
       //    source-file path.
@@ -296,6 +365,13 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         `${logPrefix} parsing finished for ${documentId} engine=${parsed.engine}@${parsed.engineVersion} chunks=${parsed.chunks.length} textChars=${parsed.text.length}`,
       );
 
+      await assertCurrentProcessingRun({
+        job,
+        documentId,
+        documentVersionId,
+        stage: 'persistence',
+      });
+
       // 5. Persist raw parser text, canonical text, and chunks via the parsing-module writer.
       //    `storage` and `encryption` are forwarded so the writer can persist
       //    chunk-level image / table assets through the same KEK family as
@@ -309,8 +385,24 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         documentVersionId,
         vaultId,
         parsed,
+        expectedOriginalSha256Hash: doc.originalSha256Hash,
+        expectedProcessingRun:
+          job.data.processingRunId === undefined
+            ? undefined
+            : {
+                jobId: job.id,
+                queueName,
+                processingRunId: job.data.processingRunId,
+              },
       });
       console.info(`${logPrefix} persistence finished for ${documentId}`);
+
+      await assertCurrentProcessingRun({
+        job,
+        documentId,
+        documentVersionId,
+        stage: 'completion',
+      });
 
       await updateRelatedUploadSession({
         documentId,
@@ -336,6 +428,11 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         console.info(`Document ${documentId} parser warnings: ${parsed.warnings.join(', ')}`);
       }
     } catch (error) {
+      if (isSupersededProcessingRunError(error)) {
+        console.warn(`${logPrefix} ${error instanceof Error ? error.message : 'processing run superseded'}`);
+        return;
+      }
+
       console.error(
         `${logPrefix} processing failed for ${documentId}: ${error instanceof Error ? error.message : 'Document processing failed'}`,
       );
@@ -374,7 +471,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
 
   const worker = createPostgresWorker<ProcessDocumentJobData>({
     db,
-    queueName: getScopedQueueName(PROCESS_DOCUMENT_QUEUE, appInstance),
+    queueName,
     concurrency,
     autorun: startPolling,
     pauseWhen,

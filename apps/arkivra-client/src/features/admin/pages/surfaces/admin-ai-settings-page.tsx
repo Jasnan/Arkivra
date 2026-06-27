@@ -72,7 +72,16 @@ export interface ChatModelOption {
   capabilities: string[];
 }
 
-type AiSetupState = 'no_providers' | 'no_search_engines' | 'needs_search_engine' | 'ready' | 'enabled';
+type AiSetupState = 'no_providers' | 'needs_configuration' | 'ready' | 'enabled';
+
+type AiHealthIssueSeverity = 'critical' | 'warning' | 'info';
+
+interface AiHealthIssue {
+  id: string;
+  severity: AiHealthIssueSeverity;
+  title: string;
+  description: string;
+}
 
 interface SearchEngine {
   provider: NonNullable<AdminAiSettings['embedding']['provider']>;
@@ -110,12 +119,10 @@ function getAiSetupStatus({
   aiEnabled,
   providers,
   selectedSearchEngine,
-  searchEngineCount,
 }: {
   aiEnabled: boolean;
   providers: AiProviderSummary[];
   selectedSearchEngine?: SearchEngine;
-  searchEngineCount: number;
 }): AiSetupStatus {
   const configuredProviders = providers.filter((provider) => provider.isConfigured).length;
   const healthyProviders = providers.filter((provider) => provider.isHealthy).length;
@@ -131,7 +138,7 @@ function getAiSetupStatus({
 
   if (selectedSearchEngine === undefined) {
     return {
-      state: searchEngineCount > 0 ? 'needs_search_engine' : 'no_search_engines',
+      state: 'needs_configuration',
       configuredProviders,
       healthyProviders,
       aiEnabled,
@@ -356,7 +363,9 @@ export function AdminAiSettingsPage() {
     enabled: isEnabled && isGeminiConfigured && firstGeminiChatModel.length > 0,
   });
   const geminiAvailability = geminiAvailabilityQuery.data?.availability;
-  const isGeminiProviderHealthy = geminiAvailability?.modelAvailable === true;
+  const isGeminiProviderReachable =
+    geminiModelsQuery.isSuccess || geminiAvailability?.reachable === true;
+  const isGeminiProviderHealthy = isGeminiProviderReachable;
   const ollamaAvailabilityQuery = useAdminAiAvailabilityQuery({
     host: effectiveOllamaBaseUrl,
     provider: 'ollama',
@@ -541,9 +550,9 @@ export function AdminAiSettingsPage() {
         : 'warning';
   const geminiProviderStatus = !isGeminiConfigured
     ? 'Not configured'
-    : geminiAvailabilityQuery.isFetching
+    : geminiModelsQuery.isFetching || geminiAvailabilityQuery.isFetching
       ? 'Checking'
-      : geminiAvailability?.modelAvailable
+      : isGeminiProviderReachable
         ? 'Healthy'
         : 'Unavailable';
   const geminiProviderTone =
@@ -591,7 +600,7 @@ export function AdminAiSettingsPage() {
     aiDraft.embedding.baseUrl.trim().length > 0 &&
     (aiDraft.embedding.model?.trim().length ?? 0) > 0;
   const selectedSearchEngine =
-    isEmbeddingSelectionConfigured && !isSelectedEmbeddingModelConfirmedMissing
+    isEmbeddingSelectionConfigured
       ? {
           provider: aiDraft.embedding.provider!,
           baseUrl: aiDraft.embedding.baseUrl,
@@ -599,7 +608,16 @@ export function AdminAiSettingsPage() {
           dimensions: aiDraft.embedding.dimensions ?? null,
         }
       : undefined;
-  const isEmbeddingConfigValid = selectedSearchEngine !== undefined;
+  const isSelectedEmbeddingProviderHealthy =
+    aiDraft.embedding.provider === 'ollama'
+      ? isOllamaProviderHealthy
+      : aiDraft.embedding.provider === 'gemini'
+        ? isGeminiProviderHealthy
+        : false;
+  const isEmbeddingOperational =
+    selectedSearchEngine !== undefined &&
+    isSelectedEmbeddingProviderHealthy &&
+    !isSelectedEmbeddingModelConfirmedMissing;
   const indexProgress = currentIndex
     ? getIndexProgress(currentIndex)
     : chunkCoverage.totalChunkCount > 0
@@ -616,8 +634,10 @@ export function AdminAiSettingsPage() {
     (currentIndex !== null || chunkCoverage.totalChunkCount > 0);
   const semanticStatus = !aiDraft.aiFeaturesEnabled
     ? 'Paused'
-    : !isEmbeddingConfigValid
+    : selectedSearchEngine === undefined
       ? 'Needs configuration'
+      : !isEmbeddingOperational
+        ? 'Unavailable'
       : !hasIndexableChunks
         ? 'No documents'
         : isSemanticIndexIncomplete
@@ -627,7 +647,7 @@ export function AdminAiSettingsPage() {
             : 'Ready to index';
   const semanticProgressStatus: ChunkProgressVisualStatus = !aiDraft.aiFeaturesEnabled
     ? 'paused'
-    : !hasIndexableChunks || !isEmbeddingConfigValid
+    : !hasIndexableChunks || selectedSearchEngine === undefined || !isEmbeddingOperational
       ? 'idle'
       : currentIndex?.status === 'failed'
         ? 'failed'
@@ -713,11 +733,112 @@ export function AdminAiSettingsPage() {
       },
     },
   ];
+  const configuredChatProviderReachable =
+    effectiveDefaultChatSelection.provider === 'ollama'
+      ? isOllamaProviderReachable
+      : isGeminiProviderReachable;
+  const configuredTranslationProviderReachable =
+    aiDraft.translation.provider === 'ollama'
+      ? isOllamaProviderReachable
+      : isGeminiProviderReachable;
+  const isConfiguredChatModelMissing =
+    configuredChatModel.length > 0 &&
+    configuredChatProviderReachable &&
+    !isConfiguredChatModelAvailable;
+  const isConfiguredTranslationModelMissing =
+    configuredTranslationModel.length > 0 &&
+    configuredTranslationProviderReachable &&
+    !isConfiguredTranslationModelAvailable;
+  const providerHealthIssues: AiHealthIssue[] = providerSummaries
+    .filter((provider) => provider.isConfigured && !provider.isChecking && !provider.isHealthy)
+    .map((provider) => ({
+      id: `provider-unavailable-${provider.id}`,
+      severity: 'warning',
+      title: `${provider.name} is unavailable`,
+      description:
+        provider.error ??
+        'A configured AI provider cannot currently be reached. Features that depend on it are temporarily unavailable.',
+    }));
+  const embeddingHealthIssue: AiHealthIssue | null =
+    selectedSearchEngine !== undefined && isSelectedEmbeddingModelConfirmedMissing
+      ? {
+          id: 'embedding-model-unavailable',
+          severity: 'critical',
+          title: 'Configured embedding model is unavailable',
+          description:
+            'The selected embedding model is no longer returned by its provider. Indexing is paused, and AI Search and AI Chat are unavailable until an administrator chooses a replacement.',
+        }
+      : selectedSearchEngine !== undefined && !isSelectedEmbeddingProviderHealthy
+        ? {
+            id: 'embedding-provider-unavailable',
+            severity: 'warning',
+            title: 'Embedding provider is unavailable',
+            description:
+              'The configured embedding provider cannot currently be reached. Indexing and embedding-dependent features will recover when the provider is healthy again.',
+          }
+        : null;
+  const chatHealthIssue: AiHealthIssue | null =
+    embeddingHealthIssue !== null
+      ? {
+          id: 'chat-embedding-dependency',
+          severity: embeddingHealthIssue.severity,
+          title: 'AI Chat is unavailable',
+          description:
+            'Document chat depends on the configured embedding platform for retrieval.',
+        }
+      : isConfiguredChatModelMissing
+        ? {
+            id: 'default-chat-model-unavailable',
+            severity: 'warning',
+            title: 'Default chat model is unavailable',
+            description:
+              'The configured default chat model is no longer returned by its provider. Choose another default model to restore chat.',
+          }
+        : null;
+  const translationHealthIssue: AiHealthIssue | null =
+    embeddingHealthIssue !== null
+      ? {
+          id: 'translation-embedding-dependency',
+          severity: embeddingHealthIssue.severity,
+          title: 'Translation is unavailable',
+          description:
+            'Translation depends on the configured AI platform and is unavailable until embedding health recovers.',
+        }
+      : isConfiguredTranslationModelMissing
+        ? {
+            id: 'default-translation-model-unavailable',
+            severity: 'warning',
+            title: 'Default translation model is unavailable',
+            description:
+              'The configured translation model is no longer returned by its provider. Choose another model to restore translation.',
+          }
+        : null;
+  const missingAllowedChatModels = savedAllowedChatModelValues.filter(
+    (model) => model !== configuredChatModel && !chatModelValues.includes(model),
+  );
+  const enabledModelsHealthIssue: AiHealthIssue | null =
+    savedAllowedChatModelValues.length > 0 &&
+    chatModelValues.length > 0 &&
+    missingAllowedChatModels.length > 0
+      ? {
+          id: 'enabled-chat-models-unavailable',
+          severity: 'info',
+          title: 'Some enabled chat models are no longer available',
+          description:
+            'Unavailable non-default chat models have been removed from the available model list. No action is required unless users still need those models.',
+        }
+      : null;
+  const healthIssues = [
+    ...providerHealthIssues,
+    embeddingHealthIssue,
+    isConfiguredChatModelMissing ? chatHealthIssue : null,
+    isConfiguredTranslationModelMissing ? translationHealthIssue : null,
+    enabledModelsHealthIssue,
+  ].filter((issue): issue is AiHealthIssue => issue !== null);
   const aiSetupStatus = getAiSetupStatus({
     aiEnabled: aiDraft.aiFeaturesEnabled,
     providers: providerSummaries,
     selectedSearchEngine,
-    searchEngineCount: selectableEmbeddingModelOptions.length,
   });
   const visibleProviderSummaries = providerSummaries.filter((provider) => provider.isConfigured);
   const isAiReady = aiSetupStatus.state === 'ready' || aiSetupStatus.state === 'enabled';
@@ -1058,6 +1179,7 @@ export function AdminAiSettingsPage() {
                 state={aiSetupStatus.state}
                 healthyProviderCount={aiSetupStatus.healthyProviders}
                 isSaving={aiSettingsMutation.isPending}
+                searchEngineCount={selectableEmbeddingModelOptions.length}
                 onChooseSearchEngine={openSearchEngineDialog}
                 onDisableAi={() => persistAiDraft({ aiFeaturesEnabled: false })}
                 onEnableAi={() => {
@@ -1076,18 +1198,18 @@ export function AdminAiSettingsPage() {
               <AiUnconfiguredState />
             ) : (
               <>
+                {healthIssues.length > 0 ? <AiHealthIssuesSection issues={healthIssues} /> : null}
+
                 <AiCapabilitySection
                   state={aiSetupStatus.state}
                   chatModelCount={chatModelOptions.length}
+                  chatHealthIssue={chatHealthIssue}
                   defaultChatModel={
-                    isChatConfigValid
-                      ? (effectiveDefaultChatOption?.label ?? effectiveDefaultChatSelection.model)
-                      : ''
+                    effectiveDefaultChatOption?.label ?? effectiveDefaultChatSelection.model
                   }
+                  embeddingHealthIssue={embeddingHealthIssue}
                   effectiveTranslationModel={
-                    isTranslationConfigValid && isTranslationModelMultimodal
-                      ? effectiveTranslationModel
-                      : ''
+                    effectiveTranslationOption?.label ?? effectiveTranslationModel
                   }
                   indexedChunks={indexedChunks}
                   indexProgress={indexProgress}
@@ -1096,6 +1218,7 @@ export function AdminAiSettingsPage() {
                   isTranslationConfigValid={
                     isTranslationConfigValid && isTranslationModelMultimodal
                   }
+                  translationHealthIssue={translationHealthIssue}
                   searchEngineModel={aiSetupStatus.selectedSearchEngine?.model ?? ''}
                   searchEngineProvider={
                     aiSetupStatus.selectedSearchEngine?.provider ?? configuredEmbeddingProvider
@@ -1292,11 +1415,13 @@ function AiStateHero({
   onDisableAi,
   onEnableAi,
   onToggleProviderDetails,
+  searchEngineCount,
   state,
 }: {
   state: AiSetupState;
   healthyProviderCount: number;
   isSaving: boolean;
+  searchEngineCount: number;
   onChooseSearchEngine: () => void;
   onDisableAi: () => void;
   onEnableAi: () => void;
@@ -1341,13 +1466,13 @@ function AiStateHero({
               {content.description}
             </Text>
             <HStack gap="2" flexWrap="wrap">
-              {state === 'needs_search_engine' ? (
+              {state === 'needs_configuration' && searchEngineCount > 0 ? (
                 <Button type="button" size="sm" onClick={onChooseSearchEngine}>
                   <Search size={16} />
                   Choose Embedding Model
                 </Button>
               ) : null}
-              {state === 'no_search_engines' ? (
+              {state === 'needs_configuration' && searchEngineCount === 0 ? (
                 <Text textStyle="sm" fontWeight="medium" color="fg.muted">
                   No embedding models available
                 </Text>
@@ -1516,9 +1641,67 @@ function ProviderChip({
   );
 }
 
+function AiHealthIssuesSection({ issues }: { issues: AiHealthIssue[] }) {
+  return (
+    <Card p={{ base: '4', lg: '5' }} shadow="xs" borderColor="orange.muted">
+      <Stack gap="3">
+        <HStack gap="2" align="center">
+          <Box color="orange.solid" aria-hidden="true">
+            <TriangleAlert size={18} />
+          </Box>
+          <Text fontSize="md" fontWeight="semibold" color="fg">
+            Health issues
+          </Text>
+        </HStack>
+        <Stack gap="2">
+          {issues.map((issue) => (
+            <Box
+              key={issue.id}
+              rounded="md"
+              borderWidth="1px"
+              borderColor={`${getHealthIssuePalette(issue.severity)}.muted`}
+              bg={`${getHealthIssuePalette(issue.severity)}.subtle`}
+              px="3"
+              py="2.5"
+            >
+              <HStack gap="3" align="flex-start">
+                <Box color={`${getHealthIssuePalette(issue.severity)}.solid`} pt="0.5">
+                  {issue.severity === 'info' ? <Info size={16} /> : <TriangleAlert size={16} />}
+                </Box>
+                <Stack gap="1" minW="0">
+                  <HStack gap="2" flexWrap="wrap">
+                    <Text textStyle="sm" fontWeight="semibold" color="fg">
+                      {issue.title}
+                    </Text>
+                    <Badge
+                      colorPalette={getHealthIssuePalette(issue.severity)}
+                      variant="subtle"
+                    >
+                      {issue.severity === 'critical'
+                        ? 'Critical'
+                        : issue.severity === 'warning'
+                          ? 'Warning'
+                          : 'Info'}
+                    </Badge>
+                  </HStack>
+                  <Text textStyle="sm" color="fg.muted">
+                    {issue.description}
+                  </Text>
+                </Stack>
+              </HStack>
+            </Box>
+          ))}
+        </Stack>
+      </Stack>
+    </Card>
+  );
+}
+
 function AiCapabilitySection({
   chatModelCount,
+  chatHealthIssue,
   defaultChatModel,
+  embeddingHealthIssue,
   effectiveTranslationModel,
   indexedChunks,
   indexProgress,
@@ -1535,10 +1718,13 @@ function AiCapabilitySection({
   state,
   totalChunks,
   translationModelCount,
+  translationHealthIssue,
 }: {
   state: AiSetupState;
   chatModelCount: number;
+  chatHealthIssue: AiHealthIssue | null;
   defaultChatModel: string;
+  embeddingHealthIssue: AiHealthIssue | null;
   effectiveTranslationModel: string;
   indexedChunks: number;
   indexProgress: number;
@@ -1551,13 +1737,17 @@ function AiCapabilitySection({
   semanticStatus: string;
   totalChunks: number;
   translationModelCount: number;
+  translationHealthIssue: AiHealthIssue | null;
   onConfigureChatModels: () => void;
   onConfigureSearchEngine: () => void;
   onConfigureTranslation: () => void;
 }) {
   const isEnabled = state === 'enabled';
-  const blocked = state === 'needs_search_engine' || state === 'no_search_engines';
+  const blocked = state === 'needs_configuration';
   const previewOnly = state === 'ready';
+  const semanticHealthText = isEnabled ? embeddingHealthIssue?.description : undefined;
+  const chatHealthText = isEnabled ? chatHealthIssue?.description : undefined;
+  const translationHealthText = isEnabled ? translationHealthIssue?.description : undefined;
 
   return (
     <Card p={{ base: '4', lg: '5' }} shadow="xs">
@@ -1582,13 +1772,21 @@ function AiCapabilitySection({
             icon={<Search size={22} />}
             iconBg="green.subtle"
             iconColor="green.solid"
-            status={blocked ? 'Unavailable' : isEnabled ? 'Enabled' : undefined}
-            statusTone={blocked ? 'inactive' : 'enabled'}
+            status={
+              blocked
+                ? 'Unavailable'
+                : isEnabled
+                  ? semanticHealthText
+                    ? 'Unavailable'
+                    : 'Enabled'
+                  : undefined
+            }
+            statusTone={blocked ? 'inactive' : semanticHealthText ? 'warning' : 'enabled'}
             footer={
               blocked
                 ? 'Requires an embedding model'
                 : isEnabled
-                  ? semanticStatus
+                  ? (semanticHealthText ?? semanticStatus)
                   : 'Will become available after AI is enabled.'
             }
             previewOnly={previewOnly}
@@ -1642,17 +1840,19 @@ function AiCapabilitySection({
               blocked
                 ? 'Unavailable'
                 : isEnabled
-                  ? isChatConfigValid
+                  ? chatHealthText
+                    ? 'Unavailable'
+                    : isChatConfigValid
                     ? 'Available'
                     : 'Needs configuration'
                   : undefined
             }
-            statusTone={blocked ? 'inactive' : isChatConfigValid ? 'enabled' : 'warning'}
+            statusTone={blocked ? 'inactive' : chatHealthText || !isChatConfigValid ? 'warning' : 'enabled'}
             footer={
               blocked
                 ? 'Requires an embedding model'
                 : isEnabled
-                  ? `${chatModelCount.toLocaleString()} models available`
+                  ? (chatHealthText ?? `${chatModelCount.toLocaleString()} models available`)
                   : 'Will become available after AI is enabled.'
             }
             previewOnly={previewOnly}
@@ -1679,7 +1879,9 @@ function AiCapabilitySection({
                   detail={
                     isChatConfigValid
                       ? 'Uses the configured embedding model.'
-                      : 'No default chat model selected.'
+                      : chatHealthText
+                        ? 'Administrator action required.'
+                        : 'No default chat model selected.'
                   }
                 />
               </Stack>
@@ -1696,17 +1898,21 @@ function AiCapabilitySection({
               blocked
                 ? 'Unavailable'
                 : isEnabled
-                  ? isTranslationConfigValid
+                  ? translationHealthText
+                    ? 'Unavailable'
+                    : isTranslationConfigValid
                     ? 'Available'
                     : 'Needs configuration'
                   : undefined
             }
-            statusTone={blocked ? 'inactive' : isTranslationConfigValid ? 'enabled' : 'warning'}
+            statusTone={
+              blocked ? 'inactive' : translationHealthText || !isTranslationConfigValid ? 'warning' : 'enabled'
+            }
             footer={
               blocked
-                ? 'Requires AI to be enabled'
+                ? 'Requires an embedding model'
                 : isEnabled
-                  ? `${translationModelCount.toLocaleString()} models available`
+                  ? (translationHealthText ?? `${translationModelCount.toLocaleString()} models available`)
                   : 'Will become available after AI is enabled.'
             }
             previewOnly={previewOnly}
@@ -1732,7 +1938,9 @@ function AiCapabilitySection({
                 detail={
                   isTranslationConfigValid
                     ? 'Vision / multimodal'
-                    : 'No translation model selected.'
+                    : translationHealthText
+                      ? 'Administrator action required.'
+                      : 'No translation model selected.'
                 }
               />
             ) : null}
@@ -2096,7 +2304,7 @@ function DetailTile({
 }
 
 function HeroVisual({ compact = false, state }: { state: AiSetupState; compact?: boolean }) {
-  const isWarning = state === 'needs_search_engine' || state === 'no_search_engines';
+  const isWarning = state === 'needs_configuration';
   const colorPalette =
     state === 'enabled' ? 'green' : state === 'ready' ? 'blue' : isWarning ? 'orange' : 'gray';
   const color = `${colorPalette}.solid`;
@@ -2114,7 +2322,7 @@ function HeroVisual({ compact = false, state }: { state: AiSetupState; compact?:
       borderColor={`${colorPalette}.muted`}
       aria-hidden="true"
     >
-      {state === 'needs_search_engine' || state === 'no_search_engines' ? (
+      {state === 'needs_configuration' ? (
         <TriangleAlert size={compact ? 44 : 64} />
       ) : state === 'no_providers' ? (
         <Package size={compact ? 44 : 64} />
@@ -2144,22 +2352,11 @@ function getHeroContent(state: AiSetupState) {
     };
   }
 
-  if (state === 'needs_search_engine') {
+  if (state === 'needs_configuration') {
     return {
       title: 'AI needs setup',
       badge: 'Needs setup',
       description: 'Choose an embedding model that powers AI search before enabling AI.',
-      badgePalette: 'orange',
-      borderColor: 'orange.muted',
-      bg: 'orange.subtle',
-    };
-  }
-
-  if (state === 'no_search_engines') {
-    return {
-      title: 'No embedding models available',
-      badge: 'Needs setup',
-      description: 'Connect a provider with an embedding model before enabling AI.',
       badgePalette: 'orange',
       borderColor: 'orange.muted',
       bg: 'orange.subtle',
@@ -2192,6 +2389,12 @@ function getStatusPalette(tone: 'enabled' | 'inactive' | 'warning') {
   if (tone === 'enabled') return 'green';
   if (tone === 'warning') return 'orange';
   return 'gray';
+}
+
+function getHealthIssuePalette(severity: AiHealthIssueSeverity) {
+  if (severity === 'critical') return 'red';
+  if (severity === 'warning') return 'orange';
+  return 'blue';
 }
 
 function formatRelativeTime(timestamp: number) {

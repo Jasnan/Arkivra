@@ -676,7 +676,8 @@ describe('admin and about pages', () => {
     view.unmount();
 
     await renderWithProviders(<AdminAiSettingsPage />);
-    expect((await screen.findAllByText('No embedding models available')).length).toBeGreaterThan(0);
+    expect(await screen.findByText('AI is enabled')).toBeInTheDocument();
+    expect(screen.getByText('Configured embedding model is unavailable')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /choose embedding model/i })).not.toBeInTheDocument();
   });
 
@@ -1049,7 +1050,7 @@ describe('admin and about pages', () => {
     expect(screen.queryByText('AI is enabled')).not.toBeInTheDocument();
   });
 
-  it('returns to no Embedding Models available when the selected Embedding Model disappears and no alternatives exist', async () => {
+  it('keeps AI enabled when the configured Embedding Model disappears and no alternatives exist', async () => {
     const settings = createAiSettingsFixture({ aiFeaturesEnabled: true });
     installAiSettingsFetchMock({
       settings,
@@ -1062,13 +1063,17 @@ describe('admin and about pages', () => {
 
     await renderWithProviders(<AdminAiSettingsPage />);
 
-    expect((await screen.findAllByText('No embedding models available')).length).toBeGreaterThan(0);
+    expect(await screen.findByText('AI is enabled')).toBeInTheDocument();
+    expect(screen.getByText('Configured embedding model is unavailable')).toBeInTheDocument();
+    expect(screen.getAllByText(/The selected embedding model is no longer returned/i).length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.getByText('bge-m3')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /choose embedding model/i })).not.toBeInTheDocument();
-    expect(screen.queryByText('AI is enabled')).not.toBeInTheDocument();
     expect(screen.queryByText('AI is ready')).not.toBeInTheDocument();
   });
 
-  it('returns to choose embedding model when the saved Embedding Model disappears and alternatives exist', async () => {
+  it('keeps AI enabled when the saved Embedding Model disappears and alternatives exist', async () => {
     const settings = createAiSettingsFixture({ aiFeaturesEnabled: true });
     installAiSettingsFetchMock({
       settings,
@@ -1091,13 +1096,11 @@ describe('admin and about pages', () => {
 
     await renderWithProviders(<AdminAiSettingsPage />);
 
-    expect(await screen.findByText('AI needs setup')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /choose embedding model/i }).length).toBeGreaterThan(
-      0,
-    );
-    expect(screen.queryByText('AI is enabled')).not.toBeInTheDocument();
+    expect(await screen.findByText('AI is enabled')).toBeInTheDocument();
+    expect(screen.getByText('Configured embedding model is unavailable')).toBeInTheDocument();
+    expect(screen.getByText('bge-m3')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /choose embedding model/i })).not.toBeInTheDocument();
     expect(screen.queryByText('AI is ready')).not.toBeInTheDocument();
-    expect(screen.queryByText(/Embedding Model:/i)).not.toBeInTheDocument();
   });
 
   it('keeps AI enabled when only the translation model disappears', async () => {
@@ -1120,8 +1123,9 @@ describe('admin and about pages', () => {
     await renderWithProviders(<AdminAiSettingsPage />);
 
     expect(await screen.findByText('AI is enabled')).toBeInTheDocument();
-    expect(screen.getAllByText('Needs configuration').length).toBeGreaterThan(0);
-    expect(screen.getByText('No translation model selected.')).toBeInTheDocument();
+    expect(screen.getByText('Default translation model is unavailable')).toBeInTheDocument();
+    expect(screen.getByText('granite4.1:3b')).toBeInTheDocument();
+    expect(screen.getAllByText('Administrator action required.').length).toBeGreaterThan(0);
     expect(screen.getByText('AI Search')).toBeInTheDocument();
     expect(screen.getByText('AI Chat')).toBeInTheDocument();
   });
@@ -1143,8 +1147,9 @@ describe('admin and about pages', () => {
     await renderWithProviders(<AdminAiSettingsPage />);
 
     expect(await screen.findByText('AI is enabled')).toBeInTheDocument();
-    expect(screen.getAllByText('Needs configuration').length).toBeGreaterThan(0);
-    expect(screen.getByText('No default chat model selected.')).toBeInTheDocument();
+    expect(screen.getByText('Default chat model is unavailable')).toBeInTheDocument();
+    expect(screen.getByText('granite4.1:3b')).toBeInTheDocument();
+    expect(screen.getAllByText('Administrator action required.').length).toBeGreaterThan(0);
     expect(screen.getByText('AI Search')).toBeInTheDocument();
   });
 

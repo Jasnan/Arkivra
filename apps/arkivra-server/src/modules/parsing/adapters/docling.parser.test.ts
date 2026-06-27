@@ -181,7 +181,7 @@ describe('docling parser adapter', () => {
     expect(elementChunks).toEqual([]);
   });
 
-  test('adds OCR layout sidecar chunks when VLM citations have unusable boxes', async () => {
+  test('stores OCR layout sidecar geometry without adding duplicate retrieval chunks', async () => {
     const vlmResponse = makeChunkResponse({
       chunks: [
         {
@@ -277,17 +277,24 @@ describe('docling parser adapter', () => {
     );
     expect(output.text).toBe('VLM extracted the passport number H5536221');
     expect(output.warnings).toContain('docling.vlm_layout_sidecar:ocr');
+    expect(output.warnings).toContain('docling.vlm_layout_sidecar:geometry_only');
+    expect(output.chunks).toHaveLength(1);
     expect(
       output.chunks?.every(
         (chunk) => chunk.metadata.retrievalRepresentation === 'docling_hybrid',
       ),
     ).toBe(true);
-    expect(output.structuredElements?.some(element => element.elementId === '#/texts/20')).toBe(
-      true,
+    expect(
+      output.chunks?.some((chunk) => chunk.metadata.doclingChunkInput === 'ocr_layout_sidecar'),
+    ).toBe(false);
+    const sidecarElement20 = output.structuredElements?.find(
+      element => element.elementId === '#/texts/20',
     );
-    expect(output.structuredElements?.some(element => element.elementId === '#/texts/21')).toBe(
-      true,
+    const sidecarElement21 = output.structuredElements?.find(
+      element => element.elementId === '#/texts/21',
     );
+    expect(sidecarElement20?.bbox).not.toBeNull();
+    expect(sidecarElement21?.bbox).not.toBeNull();
   });
 
   test('preserves dense OCR elements without expanding the retrieval chunk set', async () => {

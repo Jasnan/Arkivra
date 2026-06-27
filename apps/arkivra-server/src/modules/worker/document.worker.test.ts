@@ -76,7 +76,7 @@ function createDb(docOverrides: Partial<{
   parserStructuredOutput: Record<string, unknown> | null;
   parserWarnings: string[] | null;
   originalSha256Hash: string;
-}> = {}) {
+}> = {}, executeImpl?: () => Promise<{ rows: Array<{ status: string; payload: Record<string, unknown> }> }>) {
   const docRow = {
     id: 'doc_1',
     vaultId: 'vlt_1',
@@ -117,6 +117,14 @@ function createDb(docOverrides: Partial<{
     db: {
       select,
       update,
+      execute: vi.fn(executeImpl ?? (async () => ({
+        rows: [
+          {
+            status: 'running',
+            payload: { processingRunId: 'dpr_current' },
+          },
+        ],
+      }))),
     } as never,
     docRow,
     uploadSessionSet,
@@ -126,6 +134,7 @@ function createDb(docOverrides: Partial<{
 function createDeps({
   docOverrides,
   parseImplementation,
+  executeImpl,
 }: {
   docOverrides?: Partial<{
     fileEncryptionKeyWrapped: string | null;
@@ -143,8 +152,9 @@ function createDeps({
     input: ParseInput,
     hooks?: { onStageChange?: (stage: 'chunking' | 'summarising') => void | Promise<void> },
   ) => Promise<ParsedDocument>;
+  executeImpl?: () => Promise<{ rows: Array<{ status: string; payload: Record<string, unknown> }> }>;
 } = {}) {
-  const { db } = createDb(docOverrides);
+  const { db } = createDb(docOverrides, executeImpl);
   const storage = {
     read: vi.fn(async () => Buffer.from('file-bytes')),
     write: vi.fn(),
@@ -167,6 +177,7 @@ function createDeps({
     ),
   };
   const job = {
+    id: 'process-doc-version-dvr_1',
     data: { documentId: 'doc_1', documentVersionId: 'dvr_1', vaultId: 'vlt_1' } as ProcessDocumentJobData,
     updateProgress: vi.fn(async () => undefined),
   };
@@ -297,6 +308,53 @@ describe('document worker', () => {
         processingErrorMessage: expect.stringContaining('Document source integrity check failed'),
       }),
     );
+  });
+
+  test('does not persist or mark failed when the processing run is superseded before persistence', async () => {
+    let guardCallCount = 0;
+    const deps = createDeps({
+      executeImpl: async () => {
+        guardCallCount += 1;
+        return {
+          rows: [
+            guardCallCount >= 5
+              ? {
+                  status: 'running',
+                  payload: { processingRunId: 'dpr_newer' },
+                }
+              : {
+                  status: 'running',
+                  payload: { processingRunId: 'dpr_current' },
+                },
+          ],
+        };
+      },
+    });
+    deps.job.data = {
+      ...deps.job.data,
+      processingRunId: 'dpr_current',
+    };
+    const { createDocumentWorker } = await import('./document.worker.js');
+
+    const worker = createDocumentWorker({
+      db: deps.db,
+      storage: deps.storage as never,
+      encryption: deps.encryption,
+      parsePipeline: deps.parsePipeline as never,
+      startPolling: false,
+    });
+
+    await worker.processDocument(deps.job as never);
+
+    expect(persistParsedDocument).not.toHaveBeenCalled();
+    expect(updateDocumentVersionProcessingStatus.mock.calls.map(call => call[0]?.processingStatus)).toEqual([
+      'partitioning',
+      'chunking',
+      'summarising',
+    ]);
+    expect(updateDocumentVersionProcessingStatus.mock.calls).not.toContainEqual([
+      expect.objectContaining({ processingStatus: 'failed' }),
+    ]);
   });
 
   test('marks the document as failed when processing throws', async () => {

@@ -87,8 +87,35 @@ function stubCitationPreviewFetch({
   );
 }
 
+const originalPrototypeDescriptors = {
+  clientHeight: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight'),
+  clientWidth: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth'),
+  scrollLeft: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollLeft'),
+  scrollTo: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTo'),
+  scrollTop: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTop'),
+};
+
+function restorePrototypeProperty(
+  property: keyof typeof originalPrototypeDescriptors,
+  descriptor: PropertyDescriptor | undefined,
+) {
+  if (descriptor === undefined) {
+    Reflect.deleteProperty(HTMLElement.prototype, property);
+    return;
+  }
+
+  Object.defineProperty(HTMLElement.prototype, property, descriptor);
+}
+
 describe('sources accordion', () => {
   afterEach(() => {
+    vi.restoreAllMocks();
+    for (const [property, descriptor] of Object.entries(originalPrototypeDescriptors)) {
+      restorePrototypeProperty(
+        property as keyof typeof originalPrototypeDescriptors,
+        descriptor,
+      );
+    }
     vi.unstubAllGlobals();
   });
 
@@ -222,13 +249,141 @@ describe('sources accordion', () => {
     Object.defineProperty(image, 'clientHeight', { configurable: true, value: 700 });
     fireEvent.load(image);
 
-    expect(await screen.findAllByTestId('citation-bounding-box')).toHaveLength(1);
-    expect(await screen.findByTestId('citation-bounding-box')).toHaveStyle({
+    const boundingBoxes = await screen.findAllByTestId('citation-bounding-box');
+    expect(boundingBoxes).toHaveLength(2);
+    expect(boundingBoxes[0]).toHaveStyle({
       left: '50px',
       top: '140px',
-      width: '200px',
+      width: '100px',
+      height: '210px',
+    });
+    expect(boundingBoxes[1]).toHaveStyle({
+      left: '160px',
+      top: '140px',
+      width: '90px',
       height: '280px',
     });
+  });
+
+  it('scrolls to and pulses the first citation bounding box after render', async () => {
+    const user = userEvent.setup();
+    const scrollTo = vi.fn();
+    const getBoundingClientRectSpy = vi
+      .spyOn(Element.prototype, 'getBoundingClientRect')
+      .mockImplementation(function getBoundingClientRect(this: Element) {
+        const testId = this.getAttribute('data-testid');
+
+        if (testId === 'citation-preview-scroll-container') {
+          return {
+            x: 0,
+            y: 0,
+            top: 0,
+            right: 500,
+            bottom: 400,
+            left: 0,
+            width: 500,
+            height: 400,
+            toJSON: () => ({}),
+          };
+        }
+
+        if (testId === 'citation-bounding-box') {
+          return {
+            x: 100,
+            y: 900,
+            top: 900,
+            right: 220,
+            bottom: 940,
+            left: 100,
+            width: 120,
+            height: 40,
+            toJSON: () => ({}),
+          };
+        }
+
+        return {
+          x: 0,
+          y: 0,
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          width: 0,
+          height: 0,
+          toJSON: () => ({}),
+        };
+      });
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+      configurable: true,
+      value: scrollTo,
+    });
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+      configurable: true,
+      get() {
+        return this.getAttribute('data-testid') === 'citation-preview-scroll-container' ? 400 : 0;
+      },
+    });
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+      configurable: true,
+      get() {
+        return this.getAttribute('data-testid') === 'citation-preview-scroll-container' ? 500 : 0;
+      },
+    });
+    Object.defineProperty(HTMLElement.prototype, 'scrollTop', {
+      configurable: true,
+      get() {
+        return 0;
+      },
+    });
+    Object.defineProperty(HTMLElement.prototype, 'scrollLeft', {
+      configurable: true,
+      get() {
+        return 0;
+      },
+    });
+
+    await renderWithProviders(
+      <SourcesAccordion
+        currentVaultId="vlt_1"
+        citations={[
+          citation({
+            boundingBoxes: [
+              {
+                pageNumber: 1,
+                x0: 10,
+                y0: 86,
+                x1: 30,
+                y1: 90,
+                layoutWidth: 100,
+                layoutHeight: 100,
+                system: 'PixelSpace',
+              },
+            ],
+            citationPrecision: 'box',
+          }),
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /cited passages/i }));
+    await user.click(screen.getByRole('button', { name: /page 1/i }));
+
+    const image = await screen.findByRole('img', { name: /policy\.pdf page 1/i });
+    Object.defineProperty(image, 'clientWidth', { configurable: true, value: 500 });
+    Object.defineProperty(image, 'clientHeight', { configurable: true, value: 1000 });
+    fireEvent.load(image);
+
+    const boundingBox = await screen.findByTestId('citation-bounding-box');
+    await waitFor(() => {
+      expect(scrollTo).toHaveBeenCalledWith(
+        expect.objectContaining({
+          behavior: 'smooth',
+          top: 720,
+        }),
+      );
+      expect(boundingBox).toHaveAttribute('data-citation-pulsing', 'true');
+    });
+    expect(getBoundingClientRectSpy).toHaveBeenCalled();
   });
 
   it('does not render a page-wide outline for legacy zero-area citation boxes', async () => {

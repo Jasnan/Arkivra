@@ -5,18 +5,17 @@ import { MAX_EXPANDED_CONTEXT_CHUNKS } from './chat.constants.js';
 import { compactWhitespace } from './chat.core.js';
 import { buildChunkLevelCitationsForChat } from './chat.citation-ranking.js';
 import {
-  
-  
   getCitationRetrievalRankMap,
   getExpandedPageWindow,
   groupCitationsByDocument,
   parseBoundingBoxes,
+  parseCitationCandidateScope,
   parseCitationPrecision,
   parseProvenanceElements,
   parseStringArray,
-  parseTextLocator
+  parseTextLocator,
 } from './chat.citation-utils.js';
-import type {ChatContextChunkRow, ChatContextExpansionChunk} from './chat.citation-utils.js';
+import type { ChatContextChunkRow, ChatContextExpansionChunk } from './chat.citation-utils.js';
 
 export async function loadContextChunksForCitationGroup({
   db,
@@ -52,6 +51,7 @@ export async function loadContextChunksForCitationGroup({
           THEN 'box'
         ELSE dc.citation_precision
       END AS citation_precision,
+      provenance.candidate_scope AS citation_candidate_scope,
       COALESCE(provenance.elements, '[]'::jsonb) AS provenance_elements,
       dc.metadata->'textLocator' AS text_locator,
       COALESCE(NULLIF(dc.original_text, ''), dc.content) AS snippet
@@ -78,13 +78,31 @@ export async function loadContextChunksForCitationGroup({
           ORDER BY dep.sort_index
         ) FILTER (WHERE dep.element_id IS NOT NULL),
         '[]'::jsonb
-      ) AS elements
+      ) AS elements,
+      CASE
+        WHEN dc.metadata->>'retrievalRepresentation' = 'docling_hybrid'
+          AND dc.metadata->>'doclingPipeline' = 'vlm'
+          AND dc.citation_precision = 'page'
+          AND COALESCE(dc.page_start, dc.page_number, dc.page_end) IS NOT NULL
+          THEN 'page'
+        ELSE 'source'
+      END AS candidate_scope
       FROM document_element_provenance AS dep
       WHERE dep.document_version_id = dc.document_version_id
-        AND dep.element_id IN (
-          SELECT source_element_id
-          FROM jsonb_array_elements_text(COALESCE(dc.source_element_ids, '[]'::jsonb))
-            AS source(source_element_id)
+        AND (
+          (
+            dc.metadata->>'retrievalRepresentation' = 'docling_hybrid'
+            AND dc.metadata->>'doclingPipeline' = 'vlm'
+            AND dc.citation_precision = 'page'
+            AND dep.page_number IS NOT NULL
+            AND dep.page_number >= COALESCE(dc.page_start, dc.page_number, dc.page_end)
+            AND dep.page_number <= COALESCE(dc.page_end, dc.page_start, dc.page_number)
+          )
+          OR dep.element_id IN (
+            SELECT source_element_id
+            FROM jsonb_array_elements_text(COALESCE(dc.source_element_ids, '[]'::jsonb))
+              AS source(source_element_id)
+          )
         )
     ) AS provenance ON true
     WHERE dc.vault_id = ${base.vaultId}
@@ -119,6 +137,7 @@ export async function loadContextChunksForCitationGroup({
         sourceElementIds: parseStringArray(row.source_element_ids),
         boundingBoxes: parseBoundingBoxes(row.bounding_boxes),
         citationPrecision: parseCitationPrecision(row.citation_precision),
+        citationCandidateScope: parseCitationCandidateScope(row.citation_candidate_scope),
         provenanceElements: parseProvenanceElements(row.provenance_elements),
         textLocator: parseTextLocator(row.text_locator),
         snippet,
@@ -132,10 +151,12 @@ export async function loadContextChunksForCitationGroup({
 export async function expandRetrievedCitationsForChat({
   db,
   question,
+  answerText,
   citations,
 }: {
   db: Database;
   question: string;
+  answerText?: string;
   citations: Citation[];
 }) {
   const groups = groupCitationsByDocument(citations);
@@ -145,6 +166,7 @@ export async function expandRetrievedCitationsForChat({
     const contextChunks = await loadContextChunksForCitationGroup({ db, citations: group });
     const chunkLevelCitations = buildChunkLevelCitationsForChat({
       question,
+      answerText,
       citations: group,
       contextChunks,
     });

@@ -493,43 +493,6 @@ export function shouldBuildVlmLayoutSidecar({
   );
 }
 
-export function selectLayoutSidecarChunks(chunks: ParsedChunk[]) {
-  const fineGrainedChunks = chunks.filter(
-    (chunk) =>
-      (chunk.metadata.retrievalRepresentation === 'docling_element' ||
-        chunk.metadata.retrievalRepresentation === 'docling_element_pair') &&
-      chunk.citationPrecision === 'box' &&
-      chunk.boundingBoxes.length > 0,
-  );
-
-  return fineGrainedChunks.length > 0
-    ? fineGrainedChunks
-    : chunks.filter((chunk) => chunk.citationPrecision === 'box' && chunk.boundingBoxes.length > 0);
-}
-
-export function reindexChunks({
-  chunks,
-  documentId,
-  startIndex,
-}: {
-  chunks: ParsedChunk[];
-  documentId: string;
-  startIndex: number;
-}) {
-  return chunks.map((chunk, index) => {
-    const nextIndex = startIndex + index;
-
-    return {
-      ...chunk,
-      id: `${documentId}:${nextIndex}`,
-      metadata: {
-        ...chunk.metadata,
-        index: nextIndex,
-      },
-    };
-  });
-}
-
 function hasStructuredElementBbox(
   element: NonNullable<ParserOutput['structuredElements']>[number],
 ) {

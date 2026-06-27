@@ -73,6 +73,31 @@ describe('docling client', () => {
     expect(result.document.text_content).toBe('Title');
   });
 
+  test('rejects a status payload for a different task id', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_expected', task_status: 'queued' }))
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_other', task_status: 'success' }));
+
+    const client = createDoclingClient({
+      baseUrl: 'http://docling.local',
+      pollIntervalMs: 1,
+      maxWaitMs: 10_000,
+      fetchImpl: fetchMock as typeof fetch,
+      sleepImpl: async () => undefined,
+    });
+
+    await expect(
+      client.convertFile({
+        fileName: 'test.pdf',
+        mimeType: 'application/pdf',
+        fileData: Buffer.from('pdf-bytes'),
+      }),
+    ).rejects.toThrow(
+      'Docling async status poll returned task_id "task_other" while awaiting task "task_expected"',
+    );
+  });
+
   test('allows overriding OCR languages', async () => {
     const fetchMock = vi
       .fn()
@@ -837,5 +862,50 @@ describe('docling client', () => {
       expect.objectContaining({ method: 'GET' }),
     );
     expect(fetchMock).toHaveBeenCalledTimes(6);
+  });
+
+  test('rejects a chunk result payload for a different task id when echoed', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ task_id: 'task_expected', task_status: 'success' }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          task_id: 'task_other',
+          chunks: [],
+          documents: [
+            {
+              kind: 'ExportResult',
+              content: {
+                md_content: '',
+                text_content: '',
+                json_content: null,
+                html_content: '',
+                doctags_content: '',
+              },
+              status: 'success',
+              errors: [],
+            },
+          ],
+          processing_time: 0.1,
+        }),
+      );
+
+    const client = createDoclingClient({
+      baseUrl: 'http://docling.local',
+      pollIntervalMs: 1,
+      maxWaitMs: 10_000,
+      fetchImpl: fetchMock as typeof fetch,
+      sleepImpl: async () => undefined,
+    });
+
+    await expect(
+      client.chunkFile({
+        fileName: 'test.pdf',
+        mimeType: 'application/pdf',
+        fileData: Buffer.from('pdf-bytes'),
+      }),
+    ).rejects.toThrow(
+      'Docling chunk async result fetch returned task_id "task_other" while awaiting task "task_expected"',
+    );
   });
 });

@@ -35,8 +35,6 @@ import {
   mergeStructuredElementsForLayoutSidecar,
   offsetChunks,
   offsetStructuredElements,
-  reindexChunks,
-  selectLayoutSidecarChunks,
   shouldBuildVlmLayoutSidecar,
 } from './docling.parser-helpers.js';
 
@@ -375,11 +373,6 @@ export function createDoclingParser({
           processingContext: sidecarProcessingContext,
           chunkInput: 'ocr_layout_sidecar',
         });
-        const sidecarChunks = reindexChunks({
-          chunks: selectLayoutSidecarChunks(sidecarPart.chunks),
-          documentId: input.documentId,
-          startIndex: chunkStartIndex + parsedPart.chunks.length,
-        });
 
         effectivePart = {
           ...parsedPart,
@@ -389,10 +382,10 @@ export function createDoclingParser({
           }),
           embeddedImages:
             parsedPart.embeddedImages ?? sidecarPart.embeddedImages,
-          chunks: [...parsedPart.chunks, ...sidecarChunks],
           warnings: [
             ...parsedPart.warnings,
             'docling.vlm_layout_sidecar:ocr',
+            'docling.vlm_layout_sidecar:geometry_only',
             ...sidecarPart.warnings,
           ],
         };

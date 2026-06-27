@@ -64,52 +64,20 @@ function getCitationTextPreviewKind(citation: Citation): 'markdown' | 'text' | n
   return null;
 }
 
-function getBoundingBoxGroupKey(boundingBox: Citation['boundingBoxes'][number]) {
-  return [
-    boundingBox.pageNumber,
-    boundingBox.layoutWidth,
-    boundingBox.layoutHeight,
-    boundingBox.system,
-  ].join(':');
-}
-
-function mergeBoundingBoxes(boundingBoxes: Citation['boundingBoxes']) {
-  const groups = new Map<string, Citation['boundingBoxes'][number]>();
-
-  for (const boundingBox of boundingBoxes) {
-    if (!isRenderableBoundingBox(boundingBox)) {
-      continue;
-    }
-
-    const key = getBoundingBoxGroupKey(boundingBox);
-    const existing = groups.get(key);
-
-    if (!existing) {
-      groups.set(key, { ...boundingBox });
-      continue;
-    }
-
-    groups.set(key, {
-      ...existing,
-      x0: Math.min(existing.x0, boundingBox.x0),
-      y0: Math.min(existing.y0, boundingBox.y0),
-      x1: Math.max(existing.x1, boundingBox.x1),
-      y1: Math.max(existing.y1, boundingBox.y1),
-    });
-  }
-
-  return [...groups.values()].sort(
-    (left, right) => left.pageNumber - right.pageNumber || left.y0 - right.y0 || left.x0 - right.x0,
-  );
-}
-
 function groupBoundingBoxesByPage(citation: Citation) {
   const grouped = new Map<number, Citation['boundingBoxes']>();
   if (citation.citationPrecision !== 'box') {
     return grouped;
   }
 
-  for (const boundingBox of mergeBoundingBoxes(citation.boundingBoxes)) {
+  const renderableBoxes = citation.boundingBoxes
+    .filter(isRenderableBoundingBox)
+    .sort(
+      (left, right) =>
+        left.pageNumber - right.pageNumber || left.y0 - right.y0 || left.x0 - right.x0,
+    );
+
+  for (const boundingBox of renderableBoxes) {
     const current = grouped.get(boundingBox.pageNumber) ?? [];
     current.push(boundingBox);
     grouped.set(boundingBox.pageNumber, current);
@@ -139,6 +107,63 @@ function initialCitationPreviewPage(citation: Citation) {
   const groupedBoxes = groupBoundingBoxesByPage(citation);
   const firstBoxPage = [...groupedBoxes.keys()].sort((a, b) => a - b)[0];
   return firstBoxPage ?? citationPreviewPages(citation, groupedBoxes)[0] ?? null;
+}
+
+function getBoundingBoxKey(boundingBox: Citation['boundingBoxes'][number]) {
+  return `${boundingBox.pageNumber}-${boundingBox.x0}-${boundingBox.y0}-${boundingBox.x1}-${boundingBox.y1}`;
+}
+
+function getPageBoxesKey(pageBoxes: Citation['boundingBoxes']) {
+  return pageBoxes.map(getBoundingBoxKey).join('|');
+}
+
+function isElementFullyVisible({
+  container,
+  element,
+}: {
+  container: HTMLElement;
+  element: HTMLElement;
+}) {
+  const containerRect = container.getBoundingClientRect();
+  const elementRect = element.getBoundingClientRect();
+
+  return (
+    elementRect.top >= containerRect.top &&
+    elementRect.bottom <= containerRect.bottom &&
+    elementRect.left >= containerRect.left &&
+    elementRect.right <= containerRect.right
+  );
+}
+
+function scrollElementIntoContainerCenter({
+  container,
+  element,
+}: {
+  container: HTMLElement;
+  element: HTMLElement;
+}) {
+  if (isElementFullyVisible({ container, element })) {
+    return;
+  }
+
+  const containerRect = container.getBoundingClientRect();
+  const elementRect = element.getBoundingClientRect();
+  const top =
+    container.scrollTop +
+    elementRect.top -
+    containerRect.top -
+    (container.clientHeight / 2 - elementRect.height / 2);
+  const left =
+    container.scrollLeft +
+    elementRect.left -
+    containerRect.left -
+    (container.clientWidth / 2 - elementRect.width / 2);
+
+  container.scrollTo({
+    top: Math.max(0, top),
+    left: Math.max(0, left),
+    behavior: 'smooth',
+  });
 }
 
 function getValidatedTextLocator(
@@ -313,6 +338,8 @@ export function CitationPreviewModal({
   const [selectedPage, setSelectedPage] = useState<number | null>(null);
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
   const [imageError, setImageError] = useState(false);
+  const [pulseHighlightKey, setPulseHighlightKey] = useState<string | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textPreviewKind = citation ? getCitationTextPreviewKind(citation) : null;
 
   useEffect(() => {
@@ -320,6 +347,7 @@ export function CitationPreviewModal({
       setSelectedPage(initialCitationPreviewPage(citation));
       setImageSize(null);
       setImageError(false);
+      setPulseHighlightKey(null);
     }
   }, [citation]);
 
@@ -339,6 +367,59 @@ export function CitationPreviewModal({
             pageNumber: activePage,
           });
   const canRenderOverlay = pageBoxes.length > 0 && imageSize !== null;
+  const pageBoxesKey = getPageBoxesKey(pageBoxes);
+
+  useEffect(() => {
+    if (
+      !open ||
+      textPreviewKind !== null ||
+      !canRenderOverlay ||
+      activePreviewUrl === null ||
+      pageBoxes.length === 0
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    let timeoutId: number | undefined;
+    const animationFrames: number[] = [];
+
+    const runAfterRender = () => {
+      const container = scrollContainerRef.current;
+      const firstHighlight = container?.querySelector<HTMLElement>(
+        '[data-citation-highlight="true"]',
+      );
+
+      if (cancelled || container == null || firstHighlight == null) {
+        return;
+      }
+
+      scrollElementIntoContainerCenter({ container, element: firstHighlight });
+      const highlightKey = firstHighlight.dataset.citationHighlightKey ?? null;
+      setPulseHighlightKey(highlightKey);
+      timeoutId = window.setTimeout(() => {
+        if (!cancelled) {
+          setPulseHighlightKey(null);
+        }
+      }, 1000);
+    };
+
+    animationFrames.push(
+      window.requestAnimationFrame(() => {
+        animationFrames.push(window.requestAnimationFrame(runAfterRender));
+      }),
+    );
+
+    return () => {
+      cancelled = true;
+      for (const animationFrame of animationFrames) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [activePreviewUrl, canRenderOverlay, open, pageBoxes.length, pageBoxesKey, textPreviewKind]);
 
   return (
     <Dialog open={open} onExitComplete={onExitComplete} onOpenChange={onOpenChange}>
@@ -361,7 +442,14 @@ export function CitationPreviewModal({
                   </DialogDescription>
                 </Box>
 
-                <Box minH="0" flex="1" overflow="auto" p="6">
+                <Box
+                  ref={scrollContainerRef}
+                  data-testid="citation-preview-scroll-container"
+                  minH="0"
+                  flex="1"
+                  overflow="auto"
+                  p="6"
+                >
                   {textPreviewKind !== null ? (
                     <CitationTextPreview citation={citation} previewKind={textPreviewKind} />
                   ) : activePreviewUrl === null ? (
@@ -415,8 +503,30 @@ export function CitationPreviewModal({
                         />
 
                         {canRenderOverlay ? (
-                          <Box position="absolute" inset="0" pointerEvents="none">
+                          <Box
+                            position="absolute"
+                            inset="0"
+                            pointerEvents="none"
+                            css={{
+                              '@keyframes citationPreviewHighlightPulse': {
+                                '0%': {
+                                  transform: 'scale(1)',
+                                  boxShadow: '0 0 0 1px rgba(255,255,255,0.25)',
+                                },
+                                '35%': {
+                                  transform: 'scale(1.08)',
+                                  boxShadow:
+                                    '0 0 0 2px rgba(255,255,255,0.85), 0 0 0 8px color-mix(in srgb, var(--chakra-colors-teal-solid) 28%, transparent)',
+                                },
+                                '100%': {
+                                  transform: 'scale(1)',
+                                  boxShadow: '0 0 0 1px rgba(255,255,255,0.25)',
+                                },
+                              },
+                            }}
+                          >
                             {pageBoxes.map((boundingBox) => {
+                              const highlightKey = getBoundingBoxKey(boundingBox);
                               const left =
                                 (boundingBox.x0 / boundingBox.layoutWidth) * imageSize.width;
                               const top =
@@ -430,7 +540,12 @@ export function CitationPreviewModal({
 
                               return (
                                 <Box
-                                  key={`${boundingBox.pageNumber}-${boundingBox.x0}-${boundingBox.y0}-${boundingBox.x1}-${boundingBox.y1}`}
+                                  key={highlightKey}
+                                  data-citation-highlight="true"
+                                  data-citation-highlight-key={highlightKey}
+                                  data-citation-pulsing={
+                                    pulseHighlightKey === highlightKey ? 'true' : undefined
+                                  }
                                   data-testid="citation-bounding-box"
                                   position="absolute"
                                   rounded="md"
@@ -438,7 +553,17 @@ export function CitationPreviewModal({
                                   borderColor="teal.solid"
                                   bg="teal.solid/15"
                                   boxShadow="0 0 0 1px rgba(255,255,255,0.25)"
-                                  style={{ left, top, width, height }}
+                                  transformOrigin="center"
+                                  style={{
+                                    left,
+                                    top,
+                                    width,
+                                    height,
+                                    animation:
+                                      pulseHighlightKey === highlightKey
+                                        ? 'citationPreviewHighlightPulse 900ms ease-out 1'
+                                        : undefined,
+                                  }}
                                 />
                               );
                             })}

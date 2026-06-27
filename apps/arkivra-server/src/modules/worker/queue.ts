@@ -1,4 +1,5 @@
 import type { Database } from '../database/database.js';
+import { generateId } from '../database/schema/helpers.js';
 import { createPostgresQueue, getScopedQueueName } from './postgres-jobs.js';
 import type { ProcessDocumentJobData } from './worker.types.js';
 
@@ -47,6 +48,7 @@ export function createDocumentQueue({ db, appInstance }: { db: Database; appInst
         documentId,
         documentVersionId,
         vaultId,
+        processingRunId: generateId({ prefix: 'dpr' }),
       },
       { jobId },
     );

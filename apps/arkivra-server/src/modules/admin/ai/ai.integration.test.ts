@@ -219,6 +219,63 @@ describe('admin ai routes integration', () => {
     }
   });
 
+  test('preserves stored enabled state when a configured provider becomes unusable', async () => {
+    const aiServices = createAdminAiServices({
+      db: {
+        select: () => ({
+          from: () => ({
+            where: () => ({
+              limit: async () => [
+                {
+                  aiFeaturesEnabled: true,
+                  chatProvider: 'ollama',
+                  chatBaseUrl: 'http://stored-ollama.invalid:11434',
+                  chatApiKeySecretRef: null,
+                  chatModel: 'gemma4:e4b',
+                  chatAllowedModels: ['ollama:gemma4:e4b'],
+                  geminiApiKeySecretRef: null,
+                  ollamaHost: 'http://stored-ollama.invalid:11434',
+                  ollamaModel: 'gemma4:e4b',
+                  ollamaTranslationModel: 'gemma4:e4b',
+                  translationProvider: 'ollama',
+                  translationBaseUrl: 'http://stored-ollama.invalid:11434',
+                  translationApiKeySecretRef: null,
+                  embeddingProvider: 'ollama',
+                  embeddingBaseUrl: 'http://stored-ollama.invalid:11434',
+                  embeddingApiKeySecretRef: null,
+                  embeddingModel: 'bge-m3',
+                  embeddingDimensions: 1024,
+                  ollamaEmbeddingEnabled: true,
+                  ollamaEmbeddingHost: 'http://stored-ollama.invalid:11434',
+                  ollamaEmbeddingModel: 'bge-m3',
+                  ollamaEmbeddingDimensions: 1024,
+                },
+              ],
+            }),
+          }),
+        }),
+      } as any,
+      config: {
+        ollama: {
+          host: 'http://127.0.0.1:11434',
+          configured: false,
+          imageCaptioningEnabled: false,
+          imageCaptioningModel: '',
+          logRequests: false,
+        },
+      } as any,
+    });
+
+    const settings = await aiServices.getSettings();
+    const ingestionSettings = await aiServices.getIngestionSettings();
+
+    expect(settings.aiFeaturesEnabled).toBe(true);
+    expect(settings.embedding.provider).toBe('ollama');
+    expect(settings.embedding.model).toBe('bge-m3');
+    expect(settings.embedding.baseUrl).toBe('');
+    expect(ingestionSettings.embeddingEnabled).toBe(false);
+  });
+
   test('resolves Ollama connection settings from server config instead of stored admin values', async () => {
     const aiServices = createAdminAiServices({
       db: {
@@ -887,7 +944,7 @@ describe('admin ai routes integration', () => {
           input: ['dimension probe'],
         });
         return Response.json({
-          data: [{ index: 0, embedding: Array.from({ length: 3072 }, () => 0.1) }],
+          data: [{ index: 0, embedding: Array.from({length: 3072}).fill(0.1) }],
         });
       }
 
@@ -1184,7 +1241,7 @@ describe('admin ai routes integration', () => {
           input: ['dimension probe'],
         });
         return Response.json({
-          data: [{ index: 0, embedding: Array.from({ length: 3072 }, () => 0.1) }],
+          data: [{ index: 0, embedding: Array.from({length: 3072}).fill(0.1) }],
         });
       }
 

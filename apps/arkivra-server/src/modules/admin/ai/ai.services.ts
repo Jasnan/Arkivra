@@ -249,9 +249,6 @@ export function createAdminAiServices({
 
     return {
       ...settings,
-      aiFeaturesEnabled:
-        settings.aiFeaturesEnabled &&
-        embeddingSelectionIsUsable({ settings, hasConfiguredOllamaProvider }),
       chat: {
         ...settings.chat,
         baseUrl: settings.chat.provider === 'ollama' ? configuredOllamaHost : settings.chat.baseUrl,
@@ -572,6 +569,7 @@ export function createAdminAiServices({
     return {
       embeddingEnabled:
         settings.aiFeaturesEnabled &&
+        embeddingSelectionIsUsable({ settings, hasConfiguredOllamaProvider }) &&
         settings.embedding.provider !== null &&
         settings.embedding.model !== null &&
         settings.embedding.dimensions !== null,

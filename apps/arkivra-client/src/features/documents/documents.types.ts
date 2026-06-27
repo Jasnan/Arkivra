@@ -21,6 +21,9 @@ export interface DocumentSummary {
     | 'completed'
     | 'failed'
     | 'processing';
+  processingErrorCode?: string | null;
+  processingErrorMessage?: string | null;
+  processingFailedAt?: string | null;
   language?: DocumentLanguageMetadata | null;
   createdAt: string;
   updatedAt: string;
@@ -75,6 +78,9 @@ export interface DocumentVersionSummary {
   parserEngineVersion: string | null;
   parserWarnings: string[] | null;
   processingStatus: DocumentSummary['processingStatus'];
+  processingErrorCode?: string | null;
+  processingErrorMessage?: string | null;
+  processingFailedAt?: string | null;
   restoredFromVersionId: string | null;
   deletedAt: string | null;
   createdAt: string;

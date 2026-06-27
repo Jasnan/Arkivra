@@ -238,6 +238,70 @@ describe('documents integration', () => {
     });
   });
 
+  test('queues retry processing jobs for failed documents without re-uploading', async () => {
+    const docServices = createMockDocumentsServices();
+    const documentQueue = { enqueueProcessDocument: vi.fn(async () => undefined) };
+    const activityServices = createMockActivityServices();
+    const auditServices = createMockAuditServices();
+    const app = createTestApp({ docServices, documentQueue, activityServices, auditServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/retry-processing', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_1',
+      },
+      body: JSON.stringify({ documentIds: ['doc_failed_1'] }),
+    });
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toMatchObject({
+      queued: 1,
+      skipped: 0,
+      matched: 1,
+      requested: 1,
+      documents: [
+        {
+          documentId: 'doc_failed_1',
+          documentVersionId: 'dvr_failed_1',
+          processingStatus: 'queued',
+        },
+      ],
+    });
+    expect(docServices.listDocumentProcessingRetryCandidates).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      documentIds: ['doc_failed_1'],
+      folderId: undefined,
+      includeSubfolders: true,
+      force: false,
+    });
+    expect(documentQueue.enqueueProcessDocument).toHaveBeenCalledWith({
+      documentId: 'doc_failed_1',
+      documentVersionId: 'dvr_failed_1',
+      vaultId: 'vlt_1',
+      replaceExisting: true,
+    });
+    expect(docServices.updateDocumentVersionProcessingStatus).toHaveBeenCalledWith({
+      documentId: 'doc_failed_1',
+      documentVersionId: 'dvr_failed_1',
+      vaultId: 'vlt_1',
+      processingStatus: 'queued',
+    });
+    expect(activityServices.emitActivityEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activityType: 'document.processing_status_changed',
+        documentId: 'doc_failed_1',
+        metadata: expect.objectContaining({ processing_status: 'queued', retry: true }),
+      }),
+    );
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'document.processing_retry_queued',
+        metadata: expect.objectContaining({ queued_count: 1 }),
+      }),
+    );
+  });
+
   test('uploads a document', async () => {
     const docServices = createMockDocumentsServices();
     const auditServices = createMockAuditServices();

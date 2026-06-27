@@ -115,6 +115,9 @@ export type DocumentVersionSummary = {
   parserEngineVersion: string | null;
   parserWarnings: string[] | null;
   processingStatus: DocumentProcessingStatus;
+  processingErrorCode: string | null;
+  processingErrorMessage: string | null;
+  processingFailedAt: Date | null;
   fileEncryptionKeyWrapped: string | null;
   fileEncryptionKekVersion: string | null;
   fileEncryptionAlgorithm: string | null;

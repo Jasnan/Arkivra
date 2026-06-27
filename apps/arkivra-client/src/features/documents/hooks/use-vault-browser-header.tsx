@@ -1,7 +1,7 @@
 import type { Dispatch, DragEvent, MouseEvent, SetStateAction } from 'react';
 import { useMemo } from 'react';
 import { Box, Flex, HStack, Menu, Portal } from '@chakra-ui/react';
-import { ChevronDown, FileUp, FolderUp, Upload } from 'lucide-react';
+import { ChevronDown, FileUp, FolderUp, RotateCw, Upload } from 'lucide-react';
 import { ROUTES } from '@/app/routes';
 import { useWorkspaceHeader } from '@/components/layout/workspace-context';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,9 @@ export function useVaultBrowserHeader({
   setBrowserView,
   dropTarget,
   onClearSelection,
+  selectedFailedDocumentCount = 0,
+  isRetryProcessingPending = false,
+  onRetrySelectedFailedProcessing,
   onNavigateFolder,
   onOpenRootContextMenu,
   onOpenUploadFiles,
@@ -55,6 +58,9 @@ export function useVaultBrowserHeader({
   setBrowserView: Dispatch<SetStateAction<FileBrowserView>>;
   dropTarget: BrowserDropTarget | null;
   onClearSelection: () => void;
+  selectedFailedDocumentCount?: number;
+  isRetryProcessingPending?: boolean;
+  onRetrySelectedFailedProcessing?: () => void;
   onNavigateFolder: (folderId: string | null) => void;
   onOpenRootContextMenu: (event: MouseEvent<HTMLElement>) => void;
   onOpenUploadFiles: () => void;
@@ -96,6 +102,18 @@ export function useVaultBrowserHeader({
           {selectedCount > 0 ? (
             <Button type="button" size="sm" variant="outline" onClick={onClearSelection}>
               Clear
+            </Button>
+          ) : null}
+          {selectedFailedDocumentCount > 0 && onRetrySelectedFailedProcessing ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={isRetryProcessingPending}
+              onClick={onRetrySelectedFailedProcessing}
+            >
+              <RotateCw size={15} />
+              Retry parsing
             </Button>
           ) : null}
           <Menu.Root
@@ -162,9 +180,12 @@ export function useVaultBrowserHeader({
       onClearSelection,
       onOpenUploadDirectory,
       onOpenUploadFiles,
+      onRetrySelectedFailedProcessing,
       selectedCount,
+      selectedFailedDocumentCount,
       setBrowserView,
       showBrowserActions,
+      isRetryProcessingPending,
     ],
   );
 

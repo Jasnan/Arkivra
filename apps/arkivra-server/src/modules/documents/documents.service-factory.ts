@@ -1,7 +1,7 @@
 import type { Database } from '../database/database.js';
 import type { StorageDriver } from '../storage/storage.types.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
-import { and, asc, desc, eq, exists, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, exists, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import {
   documentChunkAssetsTable,
   documentEmbeddingIndexStatusTable,
@@ -38,6 +38,14 @@ import { createDocumentVersionServices } from './documents.version-services.js';
 
 export type DocumentsServices = ReturnType<typeof createDocumentsServices>;
 export { normalizeDocumentFileName } from './documents.naming.js';
+
+const activeProcessingStatuses: DocumentProcessingStatus[] = [
+  'pending',
+  'queued',
+  'partitioning',
+  'chunking',
+  'summarising',
+];
 
 export function createDocumentsServices({
   db,
@@ -313,6 +321,9 @@ export function createDocumentsServices({
         originalSize: documentsTable.originalSize,
         mimeType: documentsTable.mimeType,
         processingStatus: documentsTable.processingStatus,
+        processingErrorCode: documentsTable.processingErrorCode,
+        processingErrorMessage: documentsTable.processingErrorMessage,
+        processingFailedAt: documentsTable.processingFailedAt,
         language: documentsTable.language,
         createdAt: documentsTable.createdAt,
         updatedAt: documentsTable.updatedAt,
@@ -336,6 +347,9 @@ export function createDocumentsServices({
         mimeType: documentsTable.mimeType,
         content: documentsTable.content,
         processingStatus: documentsTable.processingStatus,
+        processingErrorCode: documentsTable.processingErrorCode,
+        processingErrorMessage: documentsTable.processingErrorMessage,
+        processingFailedAt: documentsTable.processingFailedAt,
         language: documentsTable.language,
         createdAt: documentsTable.createdAt,
         updatedAt: documentsTable.updatedAt,
@@ -438,6 +452,10 @@ export function createDocumentsServices({
         originalSize: documentsTable.originalSize,
         mimeType: documentsTable.mimeType,
         language: documentsTable.language,
+        processingStatus: documentsTable.processingStatus,
+        processingErrorCode: documentsTable.processingErrorCode,
+        processingErrorMessage: documentsTable.processingErrorMessage,
+        processingFailedAt: documentsTable.processingFailedAt,
         createdAt: documentsTable.createdAt,
         updatedAt: documentsTable.updatedAt,
         isDeleted: documentsTable.isDeleted,
@@ -729,25 +747,186 @@ export function createDocumentsServices({
   });
   const { deleteDocumentVersion, restoreDocumentVersion } = versionLifecycleServices;
 
+  async function getFolderScopeIds({
+    vaultId,
+    folderId,
+    includeSubfolders,
+  }: {
+    vaultId: string;
+    folderId: string | null;
+    includeSubfolders: boolean;
+  }) {
+    if (!includeSubfolders) {
+      return [folderId];
+    }
+
+    const folders = await db
+      .select({
+        id: vaultFoldersTable.id,
+        parentId: vaultFoldersTable.parentId,
+      })
+      .from(vaultFoldersTable)
+      .where(and(eq(vaultFoldersTable.vaultId, vaultId), eq(vaultFoldersTable.isDeleted, false)));
+
+    const scoped = new Set<string | null>([folderId]);
+    let changed = true;
+
+    while (changed) {
+      changed = false;
+      for (const folder of folders) {
+        if (!scoped.has(folder.id) && scoped.has(folder.parentId)) {
+          scoped.add(folder.id);
+          changed = true;
+        }
+      }
+    }
+
+    return [...scoped];
+  }
+
+  async function listDocumentProcessingRetryCandidates({
+    vaultId,
+    documentIds,
+    folderId,
+    includeSubfolders = true,
+    force = false,
+  }: {
+    vaultId: string;
+    documentIds?: string[];
+    folderId?: string | null;
+    includeSubfolders?: boolean;
+    force?: boolean;
+  }) {
+    const uniqueDocumentIds =
+      documentIds === undefined
+        ? undefined
+        : [...new Set(documentIds.map((id) => id.trim()).filter((id) => id.length > 0))];
+    const conditions = [
+      eq(documentsTable.vaultId, vaultId),
+      eq(documentsTable.isDeleted, false),
+      eq(documentVersionsTable.vaultId, vaultId),
+      isNull(documentVersionsTable.deletedAt),
+      eq(documentsTable.currentVersionId, documentVersionsTable.id),
+    ];
+
+    if (uniqueDocumentIds !== undefined) {
+      if (uniqueDocumentIds.length === 0) {
+        return {
+          candidates: [],
+          skipped: [],
+          requestedCount: 0,
+          matchedCount: 0,
+        };
+      }
+
+      conditions.push(inArray(documentsTable.id, uniqueDocumentIds));
+    }
+
+    if (folderId !== undefined) {
+      const folderIds = await getFolderScopeIds({ vaultId, folderId, includeSubfolders });
+      const concreteFolderIds = folderIds.filter((id): id is string => id !== null);
+      const folderConditions = [
+        folderIds.includes(null) ? isNull(documentsTable.folderId) : undefined,
+        concreteFolderIds.length > 0 ? inArray(documentsTable.folderId, concreteFolderIds) : undefined,
+      ].filter((condition): condition is NonNullable<typeof condition> => condition !== undefined);
+
+      if (folderConditions.length === 0) {
+        return {
+          candidates: [],
+          skipped: [],
+          requestedCount: uniqueDocumentIds?.length ?? 0,
+          matchedCount: 0,
+        };
+      }
+
+      conditions.push(or(...folderConditions)!);
+    }
+
+    const rows = await db
+      .select({
+        documentId: documentsTable.id,
+        documentVersionId: documentVersionsTable.id,
+        vaultId: documentsTable.vaultId,
+        name: documentsTable.name,
+        processingStatus: documentVersionsTable.processingStatus,
+      })
+      .from(documentsTable)
+      .innerJoin(
+        documentVersionsTable,
+        and(
+          eq(documentVersionsTable.documentId, documentsTable.id),
+          eq(documentVersionsTable.vaultId, documentsTable.vaultId),
+        ),
+      )
+      .where(and(...conditions))
+      .orderBy(asc(documentsTable.name));
+
+    const candidates = [];
+    const skipped = [];
+
+    for (const row of rows) {
+      if (activeProcessingStatuses.includes(row.processingStatus)) {
+        skipped.push({
+          documentId: row.documentId,
+          documentVersionId: row.documentVersionId,
+          reason: 'already_processing' as const,
+          processingStatus: row.processingStatus,
+        });
+        continue;
+      }
+
+      if (!force && row.processingStatus !== 'failed') {
+        skipped.push({
+          documentId: row.documentId,
+          documentVersionId: row.documentVersionId,
+          reason: 'not_failed' as const,
+          processingStatus: row.processingStatus,
+        });
+        continue;
+      }
+
+      candidates.push(row);
+    }
+
+    return {
+      candidates,
+      skipped,
+      requestedCount: uniqueDocumentIds?.length ?? rows.length,
+      matchedCount: rows.length,
+    };
+  }
+
   async function updateDocumentProcessingStatus({
     documentId,
     vaultId,
     processingStatus,
+    processingErrorCode,
+    processingErrorMessage,
   }: {
     documentId: string;
     vaultId: string;
     processingStatus: DocumentProcessingStatus;
+    processingErrorCode?: string | null;
+    processingErrorMessage?: string | null;
   }) {
+    const processingFailedAt = processingStatus === 'failed' ? sql`now()` : sql`NULL`;
     const [doc] = await db
       .update(documentsTable)
       .set({
         processingStatus,
+        processingErrorCode: processingStatus === 'failed' ? (processingErrorCode ?? null) : null,
+        processingErrorMessage:
+          processingStatus === 'failed' ? (processingErrorMessage ?? null) : null,
+        processingFailedAt,
         updatedAt: sql`now()`,
       })
       .where(and(eq(documentsTable.id, documentId), eq(documentsTable.vaultId, vaultId)))
       .returning({
         id: documentsTable.id,
         processingStatus: documentsTable.processingStatus,
+        processingErrorCode: documentsTable.processingErrorCode,
+        processingErrorMessage: documentsTable.processingErrorMessage,
+        processingFailedAt: documentsTable.processingFailedAt,
       });
 
     return doc ?? null;
@@ -758,16 +937,25 @@ export function createDocumentsServices({
     documentVersionId,
     vaultId,
     processingStatus,
+    processingErrorCode,
+    processingErrorMessage,
   }: {
     documentId: string;
     documentVersionId: string;
     vaultId: string;
     processingStatus: DocumentProcessingStatus;
+    processingErrorCode?: string | null;
+    processingErrorMessage?: string | null;
   }) {
+    const processingFailedAt = processingStatus === 'failed' ? sql`now()` : sql`NULL`;
     const [version] = await db
       .update(documentVersionsTable)
       .set({
         processingStatus,
+        processingErrorCode: processingStatus === 'failed' ? (processingErrorCode ?? null) : null,
+        processingErrorMessage:
+          processingStatus === 'failed' ? (processingErrorMessage ?? null) : null,
+        processingFailedAt,
         updatedAt: sql`now()`,
       })
       .where(
@@ -781,6 +969,9 @@ export function createDocumentsServices({
       .returning({
         id: documentVersionsTable.id,
         processingStatus: documentVersionsTable.processingStatus,
+        processingErrorCode: documentVersionsTable.processingErrorCode,
+        processingErrorMessage: documentVersionsTable.processingErrorMessage,
+        processingFailedAt: documentVersionsTable.processingFailedAt,
       });
 
     if (version === undefined) {
@@ -791,6 +982,10 @@ export function createDocumentsServices({
       .update(documentsTable)
       .set({
         processingStatus,
+        processingErrorCode: processingStatus === 'failed' ? (processingErrorCode ?? null) : null,
+        processingErrorMessage:
+          processingStatus === 'failed' ? (processingErrorMessage ?? null) : null,
+        processingFailedAt,
         updatedAt: sql`now()`,
       })
       .where(
@@ -817,6 +1012,7 @@ export function createDocumentsServices({
     getDocument,
     getChunkAsset,
     hardDeleteDocument,
+    listDocumentProcessingRetryCandidates,
     listDeletedDocuments,
     listDocumentChunks,
     listDocumentVersionChunks,

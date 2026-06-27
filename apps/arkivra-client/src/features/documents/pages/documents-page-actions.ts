@@ -11,6 +11,7 @@ import {
   MessageSquare,
   MoveRight,
   Pencil,
+  RotateCw,
   Settings2,
   Tags,
   Trash2,
@@ -34,6 +35,7 @@ interface DocumentsPageActionOptions {
   canUpdateItems: boolean;
   currentFolderId: string | null;
   isDeletePending: boolean;
+  vaultId: string;
   vault: VaultDetail | undefined;
   downloadDocument: (documentId: string) => void;
   navigateToDocument: (documentId: string) => void;
@@ -46,6 +48,7 @@ interface DocumentsPageActionOptions {
   onOpenMembers: () => void;
   onOpenMoveDialog: (item: BrowserItem) => void;
   onOpenRenameDialog: (item: BrowserItem) => void;
+  onRetryProcessing: (item: BrowserContextItem) => void;
   onOpenSettings: () => void;
   onOpenUploadDirectoryPicker: (folderId: string | null) => void;
   onOpenUploadFilesPicker: (folderId: string | null) => void;
@@ -55,12 +58,15 @@ interface DocumentsPageActionOptions {
 function getDocumentsPageBackgroundContextMenuEntries({
   aiFeaturesEnabled,
   canCreateItems,
+  canUpdateItems,
   currentFolderId,
   vault,
+  vaultId,
   onOpenActivity,
   onOpenChat,
   onOpenCreateFolderDialog,
   onOpenMembers,
+  onRetryProcessing,
   onOpenSettings,
   onOpenUploadDirectoryPicker,
   onOpenUploadFilesPicker,
@@ -126,11 +132,34 @@ function getDocumentsPageBackgroundContextMenuEntries({
         ]
       : [];
   const workspaceEntries = [...adminSectionEntries, ...chatEntry];
+  const retryEntries: BrowserAction[] = canUpdateItems
+    ? [
+        {
+          key: 'retry-processing',
+          label: 'Retry failed parsing',
+          icon: RotateCw,
+          onSelect: () =>
+            onRetryProcessing({
+              type: 'background',
+              vaultId,
+              folderId: currentFolderId,
+              name: currentFolderId === null ? 'Vault root' : 'Folder',
+            }),
+        },
+      ]
+    : [];
 
   entries.push(...uploadEntries);
 
-  if (workspaceEntries.length > 0) {
+  if (retryEntries.length > 0) {
     if (uploadEntries.length > 0) {
+      entries.push({ key: 'after-retry-upload', type: 'separator' });
+    }
+    entries.push(...retryEntries);
+  }
+
+  if (workspaceEntries.length > 0) {
+    if (uploadEntries.length > 0 || retryEntries.length > 0) {
       entries.push({ key: 'after-upload', type: 'separator' });
     }
     entries.push(...workspaceEntries);
@@ -159,6 +188,7 @@ function getDocumentsPageItemActions(
     onOpenItem,
     onOpenMoveDialog,
     onOpenRenameDialog,
+    onRetryProcessing,
     onOpenUploadDirectoryPicker,
     onOpenUploadFilesPicker,
     onOpenVersionsDialog,
@@ -193,6 +223,13 @@ function getDocumentsPageItemActions(
         icon: FolderUp,
         disabled: !canCreateItems,
         onSelect: () => onOpenUploadDirectoryPicker(null),
+      },
+      {
+        key: 'retry-processing',
+        label: 'Retry failed parsing',
+        icon: RotateCw,
+        disabled: !canUpdateItems,
+        onSelect: () => onRetryProcessing(item),
       },
       { key: 'info', label: 'Info', icon: Info, onSelect: () => onOpenInfoDialog(item) },
     ];
@@ -241,6 +278,13 @@ function getDocumentsPageItemActions(
         disabled: !canUpdateItems,
         onSelect: () => onOpenMoveDialog(item),
       },
+      {
+        key: 'retry-processing',
+        label: 'Retry failed parsing',
+        icon: RotateCw,
+        disabled: !canUpdateItems,
+        onSelect: () => onRetryProcessing(item),
+      },
       { key: 'info', label: 'Info', icon: Info, onSelect: () => onOpenInfoDialog(item) },
       {
         key: 'trash',
@@ -267,6 +311,13 @@ function getDocumentsPageItemActions(
       label: 'Versions',
       icon: History,
       onSelect: () => onOpenVersionsDialog(item),
+    },
+    {
+      key: 'retry-processing',
+      label: 'Retry parsing',
+      icon: RotateCw,
+      disabled: !canUpdateItems || item.document.processingStatus !== 'failed',
+      onSelect: () => onRetryProcessing(item),
     },
     {
       key: 'rename',

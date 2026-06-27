@@ -10,6 +10,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import { documentsTable, documentVersionsTable, uploadSessionsTable } from '../database/schema/index.js';
 import { createEmbeddingIndexServices } from '../ai/indexing/index.js';
 import { persistParsedDocument } from '../parsing/persistence.js';
+import { getPdfPageCount, sha256Hex } from '../parsing/binary-diagnostics.js';
 import { PROCESS_DOCUMENT_QUEUE } from './queue.js';
 import type { AsyncJob } from './postgres-jobs.js';
 import { createPostgresWorker, getScopedQueueName } from './postgres-jobs.js';
@@ -182,6 +183,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
           versionId: documentVersionsTable.id,
           originalName: documentVersionsTable.originalName,
           originalStorageKey: documentVersionsTable.originalStorageKey,
+          originalSha256Hash: documentVersionsTable.originalSha256Hash,
           mimeType: documentVersionsTable.mimeType,
           fileEncryptionKeyWrapped: documentVersionsTable.fileEncryptionKeyWrapped,
           fileEncryptionKekVersion: documentVersionsTable.fileEncryptionKekVersion,
@@ -248,7 +250,9 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
       // 2. Read encrypted file from storage
       console.info(`${logPrefix} reading source file for ${documentId}`);
       const rawData = await storage.read(doc.originalStorageKey);
-      console.info(`${logPrefix} read ${rawData.length} bytes for ${documentId}`);
+      console.info(
+        `${logPrefix} source encrypted document=${documentId} version=${documentVersionId} storageKey=${doc.originalStorageKey} bytes=${rawData.length} sha256=${sha256Hex(rawData)}`,
+      );
 
       // 3. Decrypt if encrypted
       let fileData: Buffer;
@@ -264,8 +268,15 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         fileData = rawData;
       }
       console.info(
-        `${logPrefix} source file ready for parsing ${documentId} bytes=${fileData.length}`,
+        `${logPrefix} source decrypted document=${documentId} version=${documentVersionId} bytes=${fileData.length} sha256=${sha256Hex(fileData)} expectedSha256=${doc.originalSha256Hash} pdfPages=${await getPdfPageCount({ fileData, fileName: doc.originalName, mimeType: doc.mimeType }) ?? 'n/a'} tempFiles=none`,
       );
+
+      const actualSha256Hash = sha256Hex(fileData);
+      if (actualSha256Hash !== doc.originalSha256Hash) {
+        throw new Error(
+          `Document source integrity check failed for version ${documentVersionId}: expected ${doc.originalSha256Hash}, got ${actualSha256Hash}`,
+        );
+      }
 
       // 4. Parse → select canonical text → chunk via the engine-agnostic
       //    pipeline. Fresh ingestion and reprocessing both rerun the same
@@ -333,6 +344,8 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         documentVersionId,
         vaultId,
         processingStatus: 'failed',
+        processingErrorCode: 'document.processing_failed',
+        processingErrorMessage: error instanceof Error ? error.message : 'Document processing failed',
       });
       await activityServices?.emitActivityEvent({
         activityType: ACTIVITY_EVENT_TYPES.documentProcessingStatusChanged,

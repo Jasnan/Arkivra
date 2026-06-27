@@ -100,6 +100,24 @@ interface BulkDocumentDeletionImpactResponse {
   impact: BulkDocumentDeletionImpactPreview;
 }
 
+export interface RetryDocumentProcessingResponse {
+  queued: number;
+  skipped: number;
+  matched: number;
+  requested: number;
+  documents: Array<{
+    documentId: string;
+    documentVersionId: string;
+    processingStatus: 'queued';
+  }>;
+  skippedDocuments: Array<{
+    documentId: string;
+    documentVersionId: string;
+    reason: 'already_processing' | 'not_failed';
+    processingStatus: DocumentSummary['processingStatus'];
+  }>;
+}
+
 export async function listDocuments({
   vaultId,
   includeDeleted = false,
@@ -304,6 +322,34 @@ export async function updateDocumentLanguage({
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ language }),
   });
+}
+
+export async function retryDocumentProcessing({
+  vaultId,
+  documentIds,
+  folderId,
+  includeSubfolders,
+  force,
+}: {
+  vaultId: string;
+  documentIds?: string[];
+  folderId?: string | null;
+  includeSubfolders?: boolean;
+  force?: boolean;
+}) {
+  return fetchJson<RetryDocumentProcessingResponse>(
+    `/api/vaults/${vaultId}/documents/retry-processing`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        ...(documentIds === undefined ? {} : { documentIds }),
+        ...(folderId === undefined ? {} : { folderId }),
+        ...(includeSubfolders === undefined ? {} : { includeSubfolders }),
+        ...(force === undefined ? {} : { force }),
+      }),
+    },
+  );
 }
 
 export async function softDeleteDocument({

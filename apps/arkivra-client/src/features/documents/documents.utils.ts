@@ -73,6 +73,7 @@ export function getDocumentProcessingStageLabel(
 export function getDocumentProcessingStageDescription(
   status: DocumentSummary['processingStatus'],
   content: string,
+  errorMessage?: string | null,
 ) {
   if (content.trim().length > 0) {
     return content;
@@ -91,7 +92,9 @@ export function getDocumentProcessingStageDescription(
     case 'summarising':
       return 'Arkivra is generating searchable summaries for multimodal chunks.';
     case 'failed':
-      return 'Document processing failed for this file.';
+      return errorMessage?.trim().length
+        ? `Document processing failed: ${errorMessage.trim()}`
+        : 'Document processing failed for this file.';
     case 'completed':
       return 'Processing completed, but no extracted text was found.';
     default:

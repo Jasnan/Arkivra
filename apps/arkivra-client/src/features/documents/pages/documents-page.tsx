@@ -45,7 +45,11 @@ import {
   useFolderItemsQuery,
   useFolderTreeQuery,
 } from '@/features/file-browser/file-browser.queries';
-import { deleteDocumentVersion, restoreDocumentVersion } from '@/features/documents/documents.api';
+import {
+  deleteDocumentVersion,
+  retryDocumentProcessing,
+  restoreDocumentVersion,
+} from '@/features/documents/documents.api';
 import type { DocumentVersionSummary } from '@/features/documents/documents.types';
 import { useMeQuery } from '@/features/me/me.queries';
 import { joinVaultAsAdmin } from '@/features/vaults/vaults.api';
@@ -241,6 +245,22 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
       toast.error(error instanceof Error ? error.message : 'Could not delete version.');
     },
   });
+  const retryProcessingMutation = useMutation({
+    mutationFn: retryDocumentProcessing,
+    onSuccess: async (result) => {
+      toast.success(
+        result.queued === 1 ? 'Document processing queued.' : `${result.queued} documents queued.`,
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: documentQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: fileBrowserQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: adminQueryKeys.aiStatus() }),
+      ]);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Could not retry document processing.');
+    },
+  });
   const isJoinVaultFormDirty = joinRole !== 'owner' || joinAiAccessLevel !== 'full';
   const canDismissJoinVaultDialog = !isJoinVaultFormDirty && !joinVaultMutation.isPending;
   const isCreateFolderFormDirty = folderName.trim().length > 0;
@@ -277,6 +297,9 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
   );
   const allItemsSelected = browserItems.length > 0 && selectedCount === browserItems.length;
   const someItemsSelected = selectedCount > 0 && !allItemsSelected;
+  const selectedFailedDocumentCount = selectedItems.filter(
+    (item) => item.type === 'document' && item.document.processingStatus === 'failed',
+  ).length;
   const infoFolderPath = useMemo(() => {
     if (infoTarget === null) {
       return 'Vault root';
@@ -409,6 +432,51 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
     setPendingTrashItems(items);
   }
 
+  function retryProcessingForItem(item: BrowserContextItem) {
+    setContextMenu(null);
+
+    if (item.type === 'document') {
+      retryProcessingMutation.mutate({
+        vaultId,
+        documentIds: [item.document.id],
+      });
+      return;
+    }
+
+    if (item.type === 'folder') {
+      retryProcessingMutation.mutate({
+        vaultId,
+        folderId: item.folder.id,
+        includeSubfolders: true,
+      });
+      return;
+    }
+
+    retryProcessingMutation.mutate({
+      vaultId,
+      folderId: item.type === 'background' ? item.folderId : undefined,
+      includeSubfolders: true,
+    });
+  }
+
+  function retrySelectedFailedProcessing() {
+    const failedDocumentIds = selectedItems
+      .filter(
+        (item): item is Extract<BrowserItem, { type: 'document' }> =>
+          item.type === 'document' && item.document.processingStatus === 'failed',
+      )
+      .map((item) => item.document.id);
+
+    if (failedDocumentIds.length === 0) {
+      return;
+    }
+
+    retryProcessingMutation.mutate({
+      vaultId,
+      documentIds: failedDocumentIds,
+    });
+  }
+
   function confirmPendingDelete() {
     if (pendingTrashItems.length === 0) {
       return;
@@ -447,6 +515,7 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
       canUpdateItems,
       currentFolderId,
       isDeletePending: deleteItemsMutation.isPending,
+      vaultId,
       vault: vaultQuery.data?.vault,
       downloadDocument: (documentId) => downloadDocuments([{ vaultId, documentId }]),
       navigateToDocument,
@@ -459,6 +528,7 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
       onOpenMembers: () => navigate({ to: ROUTES.vaultMembers(vaultId) }),
       onOpenMoveDialog: openMoveDialog,
       onOpenRenameDialog: openRenameDialog,
+      onRetryProcessing: retryProcessingForItem,
       onOpenSettings: () => navigate({ to: ROUTES.vaultSettings(vaultId) }),
       onOpenUploadDirectoryPicker: openUploadDirectoryPicker,
       onOpenUploadFilesPicker: openUploadFilesPicker,
@@ -518,6 +588,9 @@ export function DocumentsPage({ section = 'contents' }: { section?: VaultSection
     setBrowserView,
     dropTarget,
     onClearSelection: clearSelection,
+    selectedFailedDocumentCount,
+    isRetryProcessingPending: retryProcessingMutation.isPending,
+    onRetrySelectedFailedProcessing: retrySelectedFailedProcessing,
     onNavigateFolder: navigateToFolder,
     onOpenRootContextMenu: (event) => openContextMenu(event, { type: 'root', vaultId }),
     onOpenUploadFiles: () => openUploadFilesPicker(currentFolderId),

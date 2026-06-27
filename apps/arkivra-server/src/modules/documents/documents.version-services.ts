@@ -32,6 +32,9 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
     parserEngineVersion: string | null;
     parserWarnings: string[] | null;
     processingStatus: DocumentProcessingStatus;
+    processingErrorCode: string | null;
+    processingErrorMessage: string | null;
+    processingFailedAt: Date | null;
     fileEncryptionKeyWrapped: string | null;
     fileEncryptionKekVersion: string | null;
     fileEncryptionAlgorithm: string | null;
@@ -67,6 +70,9 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
       parserEngineVersion: row.parserEngineVersion,
       parserWarnings: row.parserWarnings,
       processingStatus: row.processingStatus,
+      processingErrorCode: row.processingErrorCode,
+      processingErrorMessage: row.processingErrorMessage,
+      processingFailedAt: row.processingFailedAt,
       fileEncryptionKeyWrapped: row.fileEncryptionKeyWrapped,
       fileEncryptionKekVersion: row.fileEncryptionKekVersion,
       fileEncryptionAlgorithm: row.fileEncryptionAlgorithm,
@@ -110,6 +116,9 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
       parserEngineVersion: documentVersionsTable.parserEngineVersion,
       parserWarnings: documentVersionsTable.parserWarnings,
       processingStatus: documentVersionsTable.processingStatus,
+      processingErrorCode: documentVersionsTable.processingErrorCode,
+      processingErrorMessage: documentVersionsTable.processingErrorMessage,
+      processingFailedAt: documentVersionsTable.processingFailedAt,
       fileEncryptionKeyWrapped: documentVersionsTable.fileEncryptionKeyWrapped,
       fileEncryptionKekVersion: documentVersionsTable.fileEncryptionKekVersion,
       fileEncryptionAlgorithm: documentVersionsTable.fileEncryptionAlgorithm,

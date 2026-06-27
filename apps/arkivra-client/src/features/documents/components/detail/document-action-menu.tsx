@@ -1,6 +1,6 @@
 import type { ComponentType, ReactNode } from 'react';
 import { useState } from 'react';
-import { Download, History, Printer, RotateCcw, Trash2 } from 'lucide-react';
+import { Download, History, Printer, RotateCcw, RotateCw, Trash2 } from 'lucide-react';
 import { ActionMenuItemIcon, ActionMenuTriggerButton } from '@/components/ui/action-menu';
 import {
   DropdownMenu,
@@ -90,10 +90,13 @@ export function DocumentActionMenu({
   sectionMenuItems,
   isRestorePending,
   isDeletePending,
+  isRetryProcessingPending,
+  canRetryProcessing,
   onNavigateToSection,
   onPrint,
   onOpenVersionsDialog,
   onRestore,
+  onRetryProcessing,
   onOpenDeleteDialog,
 }: {
   documentName: string;
@@ -105,10 +108,13 @@ export function DocumentActionMenu({
   sectionMenuItems: DocumentSectionMenuItem[];
   isRestorePending: boolean;
   isDeletePending: boolean;
+  isRetryProcessingPending: boolean;
+  canRetryProcessing: boolean;
   onNavigateToSection: (route: string) => void;
   onPrint: () => void;
   onOpenVersionsDialog: () => void;
   onRestore: () => void;
+  onRetryProcessing: () => void;
   onOpenDeleteDialog: () => void;
 }) {
   return (
@@ -149,6 +155,16 @@ export function DocumentActionMenu({
           <DocumentActionMenuItem value="print" onSelect={onPrint}>
             <ActionMenuItemIcon icon={Printer} />
             Print
+          </DocumentActionMenuItem>
+        ) : null}
+        {canRetryProcessing ? (
+          <DocumentActionMenuItem
+            value="retry-processing"
+            disabled={isRetryProcessingPending}
+            onSelect={onRetryProcessing}
+          >
+            <ActionMenuItemIcon icon={RotateCw} />
+            {isRetryProcessingPending ? 'Retrying...' : 'Retry parsing'}
           </DocumentActionMenuItem>
         ) : null}
         {!isTrashDocumentRoute || isDeleted ? <DropdownMenuSeparator /> : null}

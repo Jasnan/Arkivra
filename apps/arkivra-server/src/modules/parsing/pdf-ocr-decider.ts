@@ -1,5 +1,6 @@
 import { getDocument, OPS } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { ParseInput } from './parser.types.js';
+import { sha256Hex, toExactUint8Array } from './binary-diagnostics.js';
 
 export type PdfProcessingPath = 'digital' | 'mixed' | 'scan-heavy' | 'unknown';
 
@@ -173,7 +174,7 @@ export async function classifyPdfForProcessing(
 
   try {
     const loadingTask = getDocument({
-      data: new Uint8Array(input.fileData),
+      data: toExactUint8Array(input.fileData),
     });
     const document = await loadingTask.promise;
 
@@ -224,7 +225,7 @@ export async function classifyPdfForProcessing(
           ? 'mixed'
           : 'digital';
 
-      return {
+      const result = {
         isPdf: true,
         path,
         doclingDoOcr: path === 'mixed',
@@ -239,10 +240,19 @@ export async function classifyPdfForProcessing(
         thresholds,
         reason: `sampled_pages:${sampledPages.length};scanned_ratio:${scannedPageRatio.toFixed(3)}`,
       };
+
+      console.info(
+        `[pdf-scan-classifier] document=${input.documentId} version=${input.documentVersionId ?? 'unknown'} file="${input.fileName}" bytes=${input.fileData.length} sha256=${sha256Hex(input.fileData)} pdfPages=${document.numPages} sampledPages=${sampledPages.join(',')} path=${path} reason=${result.reason}`,
+      );
+
+      return result;
     } finally {
       await document.destroy();
     }
   } catch (error) {
+    console.info(
+      `[pdf-scan-classifier] document=${input.documentId} version=${input.documentVersionId ?? 'unknown'} file="${input.fileName}" bytes=${input.fileData.length} sha256=${sha256Hex(input.fileData)} pdfPages=unknown path=unknown reason=${error instanceof Error ? `classification_failed:${error.message}` : 'classification_failed'}`,
+    );
     return emptyClassification({
       isPdf: true,
       path: 'unknown',

@@ -22,10 +22,13 @@ describe('document action menu', () => {
         ]}
         isRestorePending={false}
         isDeletePending={false}
+        isRetryProcessingPending={false}
+        canRetryProcessing={false}
         onNavigateToSection={vi.fn()}
         onPrint={vi.fn()}
         onOpenVersionsDialog={vi.fn()}
         onRestore={vi.fn()}
+        onRetryProcessing={vi.fn()}
         onOpenDeleteDialog={vi.fn()}
       />,
     );

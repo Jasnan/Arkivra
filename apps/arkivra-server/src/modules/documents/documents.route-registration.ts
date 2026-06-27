@@ -27,6 +27,7 @@ import {
   getDocumentVersionAuditMetadata,
   getFolderDestinationErrorResponse,
   matchesEtag,
+  parseJsonObject,
   parseNullableFolderId,
   parsePageNumber,
   parseSortBy,
@@ -338,6 +339,165 @@ export function registerDocumentRoutes({
           skipped: false,
         },
         201,
+      );
+    },
+  );
+
+  app.post(
+    '/api/vaults/:vaultId/documents/retry-processing',
+    requireCanMutateVaultDocuments({ auditServices }),
+    async (context) => {
+      const vaultId = context.get('vaultId');
+
+      if (vaultId === null) {
+        return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
+      }
+
+      if (documentQueue === undefined) {
+        return context.json(
+          {
+            error: {
+              code: 'document.retry_processing_unavailable',
+              message: 'Document processing retry is not available in this environment',
+            },
+          },
+          503,
+        );
+      }
+
+      const body = await parseJsonObject(context);
+      if (body === null) {
+        return context.json(
+          { error: { code: 'document.invalid_payload', message: 'Invalid retry payload' } },
+          400,
+        );
+      }
+
+      const rawDocumentIds = body.documentIds;
+      if (
+        rawDocumentIds !== undefined &&
+        (!Array.isArray(rawDocumentIds) || rawDocumentIds.some((id) => typeof id !== 'string'))
+      ) {
+        return context.json(
+          { error: { code: 'document.invalid_ids', message: 'documentIds must be strings' } },
+          400,
+        );
+      }
+      const documentIds = Array.isArray(rawDocumentIds) ? rawDocumentIds : undefined;
+
+      const parsedFolderId =
+        body.folderId === undefined
+          ? { valid: true as const, folderId: undefined }
+          : parseNullableFolderId(body.folderId);
+      if (!parsedFolderId.valid) {
+        return context.json(
+          { error: { code: 'folder.invalid_id', message: 'Invalid folder id' } },
+          400,
+        );
+      }
+
+      const includeSubfolders =
+        body.includeSubfolders === undefined ? true : body.includeSubfolders === true;
+      if (
+        body.includeSubfolders !== undefined &&
+        typeof body.includeSubfolders !== 'boolean'
+      ) {
+        return context.json(
+          {
+            error: {
+              code: 'document.invalid_retry_options',
+              message: 'includeSubfolders must be a boolean',
+            },
+          },
+          400,
+        );
+      }
+
+      const force = body.force === undefined ? false : body.force === true;
+      if (body.force !== undefined && typeof body.force !== 'boolean') {
+        return context.json(
+          {
+            error: {
+              code: 'document.invalid_retry_options',
+              message: 'force must be a boolean',
+            },
+          },
+          400,
+        );
+      }
+
+      const retryPlan = await documentsServices.listDocumentProcessingRetryCandidates({
+        vaultId,
+        documentIds,
+        folderId: parsedFolderId.folderId,
+        includeSubfolders,
+        force,
+      });
+      const actor = getAuditActorFromContext(context);
+
+      for (const candidate of retryPlan.candidates) {
+        await documentQueue.enqueueProcessDocument({
+          documentId: candidate.documentId,
+          documentVersionId: candidate.documentVersionId,
+          vaultId,
+          replaceExisting: true,
+        });
+        await documentsServices.updateDocumentVersionProcessingStatus({
+          documentId: candidate.documentId,
+          documentVersionId: candidate.documentVersionId,
+          vaultId,
+          processingStatus: 'queued',
+        });
+        await activityServices?.emitActivityEvent({
+          activityType: ACTIVITY_EVENT_TYPES.documentProcessingStatusChanged,
+          entityType: 'document',
+          entityId: candidate.documentId,
+          actor,
+          vaultId,
+          documentId: candidate.documentId,
+          target: { type: 'document', id: candidate.documentId, displayName: candidate.name },
+          source: 'web',
+          metadata: {
+            processing_status: 'queued',
+            retry: true,
+            force,
+          },
+        });
+      }
+
+      await auditServices?.emitAuditEvent({
+        eventType: 'document.processing_retry_queued',
+        eventCategory: 'document',
+        outcome: 'success',
+        actor,
+        vaultId,
+        target: { type: 'vault', id: vaultId },
+        source: 'web',
+        requestContext: getAuditRequestContext(context),
+        metadata: {
+          queued_count: retryPlan.candidates.length,
+          skipped_count: retryPlan.skipped.length,
+          matched_count: retryPlan.matchedCount,
+          requested_count: retryPlan.requestedCount,
+          force,
+          include_subfolders: includeSubfolders,
+        },
+      });
+
+      return context.json(
+        {
+          queued: retryPlan.candidates.length,
+          skipped: retryPlan.skipped.length,
+          matched: retryPlan.matchedCount,
+          requested: retryPlan.requestedCount,
+          documents: retryPlan.candidates.map((candidate) => ({
+            documentId: candidate.documentId,
+            documentVersionId: candidate.documentVersionId,
+            processingStatus: 'queued',
+          })),
+          skippedDocuments: retryPlan.skipped,
+        },
+        202,
       );
     },
   );

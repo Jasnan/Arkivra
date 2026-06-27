@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { ParseInput } from '../parsing/parser.types.js';
 import type { ParsedDocument } from '../parsing/parsed-document.schema.js';
 import type { EncryptionServices } from '../encryption/encryption.services.js';
@@ -8,6 +9,10 @@ const persistParsedDocument = vi.fn();
 const updateDocumentProcessingStatus = vi.fn();
 const updateDocumentVersionProcessingStatus = vi.fn();
 const getActiveEmbeddingIndex = vi.fn();
+
+function sha256Hex(data: Buffer | string): string {
+  return createHash('sha256').update(data).digest('hex');
+}
 
 vi.mock('../documents/documents.services.js', () => ({
   createDocumentsServices: () => ({
@@ -70,12 +75,14 @@ function createDb(docOverrides: Partial<{
   rawMarkdown: string;
   parserStructuredOutput: Record<string, unknown> | null;
   parserWarnings: string[] | null;
+  originalSha256Hash: string;
 }> = {}) {
   const docRow = {
     id: 'doc_1',
     vaultId: 'vlt_1',
     originalName: 'test.pdf',
     originalStorageKey: 'vlt_1/doc_1',
+    originalSha256Hash: sha256Hex('file-bytes'),
     mimeType: 'application/pdf',
     isDeleted: false,
     fileEncryptionKeyWrapped: null as string | null,
@@ -130,6 +137,7 @@ function createDeps({
     rawMarkdown: string;
     parserStructuredOutput: Record<string, unknown> | null;
     parserWarnings: string[] | null;
+    originalSha256Hash: string;
   }>;
   parseImplementation?: (
     input: ParseInput,
@@ -228,6 +236,7 @@ describe('document worker', () => {
       docOverrides: {
         fileEncryptionKeyWrapped: 'wrapped-key',
         fileEncryptionKekVersion: '1',
+        originalSha256Hash: sha256Hex('decrypted-file'),
       },
     });
     const { createDocumentWorker } = await import('./document.worker.js');
@@ -254,6 +263,39 @@ describe('document worker', () => {
         fileData: Buffer.from('decrypted-file'),
       }),
       expect.any(Object),
+    );
+  });
+
+  test('fails before parsing when stored source bytes do not match the version hash', async () => {
+    const deps = createDeps({
+      docOverrides: {
+        originalSha256Hash: sha256Hex('different-document-bytes'),
+      },
+    });
+    const { createDocumentWorker } = await import('./document.worker.js');
+
+    const worker = createDocumentWorker({
+      db: deps.db,
+      storage: deps.storage as never,
+      encryption: deps.encryption,
+      parsePipeline: deps.parsePipeline as never,
+      startPolling: false,
+    });
+
+    await expect(worker.processDocument(deps.job as never)).rejects.toThrow(
+      'Document source integrity check failed for version dvr_1',
+    );
+    expect(deps.parsePipeline.run).not.toHaveBeenCalled();
+    expect(persistParsedDocument).not.toHaveBeenCalled();
+    expect(updateDocumentVersionProcessingStatus.mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({
+        documentId: 'doc_1',
+        documentVersionId: 'dvr_1',
+        vaultId: 'vlt_1',
+        processingStatus: 'failed',
+        processingErrorCode: 'document.processing_failed',
+        processingErrorMessage: expect.stringContaining('Document source integrity check failed'),
+      }),
     );
   });
 

@@ -102,6 +102,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
     documentQuery.data?.document.name ?? '',
     documentQuery.data?.document.originalName ?? '',
     documentQuery.data?.document.hasPreviewPdf === true,
+    documentQuery.data?.document.derivedPreviewStatus,
   );
   const markdownSourceQuery = useDocumentFileTextQuery({
     vaultId,
@@ -464,6 +465,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
     activeDocument.name,
     activeDocument.originalName,
     activeDocument.hasPreviewPdf === true && !isHistoricalVersionSelected,
+    !isHistoricalVersionSelected ? activeDocument.derivedPreviewStatus : undefined,
   );
   const assignedTags = documentTagsQuery.data?.tags ?? [];
   const availableTags = (tagsQuery.data?.tags ?? []).filter(
@@ -493,7 +495,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
     !isHistoricalVersionSelected &&
     !document.isDeleted &&
     canPreview &&
-    activePreviewKind !== 'markdown';
+    (activePreviewKind === 'pdf' || activePreviewKind === 'image' || activePreviewKind === 'text');
   const currentName = renameValue ?? document.name;
   const currentLanguage = languageValue ?? document.language?.code ?? 'unknown';
   const hasNameChanged = currentName.trim() !== document.name;

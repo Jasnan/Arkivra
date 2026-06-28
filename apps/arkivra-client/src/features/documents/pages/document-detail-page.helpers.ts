@@ -4,6 +4,7 @@ import type { DocumentPreviewKind } from '@/features/documents/components/detail
 import type { UploadConflictStrategy } from '@/features/documents/documents.api';
 import type {
   DocumentDetail,
+  DerivedPreviewStatus,
   DocumentLanguageMetadata,
   DocumentVersionDetail,
 } from '@/features/documents/documents.types';
@@ -129,8 +130,9 @@ export function getPreviewKind(
   name: string,
   originalName: string,
   hasPreviewPdf = false,
+  derivedPreviewStatus?: DerivedPreviewStatus,
 ): PreviewKind {
-  if (hasPreviewPdf) {
+  if (hasPreviewPdf || derivedPreviewStatus === 'ready') {
     return 'pdf';
   }
 
@@ -148,6 +150,14 @@ export function getPreviewKind(
 
   if (mimeType.startsWith('text/')) {
     return 'text';
+  }
+
+  if (derivedPreviewStatus === 'pending') {
+    return 'pending';
+  }
+
+  if (derivedPreviewStatus === 'failed') {
+    return 'failed';
   }
 
   return 'unsupported';

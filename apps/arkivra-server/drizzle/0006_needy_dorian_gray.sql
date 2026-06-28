@@ -1,0 +1,1 @@
+ALTER TABLE "instance_settings" ADD COLUMN "office_document_conversion_enabled" boolean;

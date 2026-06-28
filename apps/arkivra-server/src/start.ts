@@ -21,6 +21,7 @@ import { createBackupQueue } from './modules/worker/backup.queue.js';
 import { createBackupWorker } from './modules/worker/backup.worker.js';
 import { createBackupServices } from './modules/admin/backups/backups.services.js';
 import { createAdminAiServices } from './modules/admin/ai/ai.services.js';
+import { createOfficeDocumentConversionSettingsServices } from './modules/admin/maintenance/office-conversion-settings.js';
 import { createActivityServices } from './modules/activity/activity.services.js';
 import {
   createEmbeddingIndexServices,
@@ -59,6 +60,12 @@ export async function startApp() {
     config.gotenberg.configured && config.gotenberg.url !== undefined
       ? createGotenbergDocumentConverter({ baseUrl: config.gotenberg.url })
       : undefined;
+  const officeConversionSettingsServices = createOfficeDocumentConversionSettingsServices({
+    db,
+    defaultEnabled: documentConverter !== undefined,
+  });
+  const resolveOfficeDocumentConversionEnabled = async () =>
+    (await officeConversionSettingsServices.getSettings()).enabled;
 
   if (isWebMode) {
     const { app } = createServer({
@@ -140,6 +147,7 @@ export async function startApp() {
       adminAiServices,
       embeddingIndexQueue,
       documentConverter,
+      resolveOfficeDocumentConversionEnabled,
     });
     const maintenanceWorker = createMaintenanceWorker({
       db,
@@ -150,6 +158,7 @@ export async function startApp() {
       appInstance: config.app.instance,
       pauseWhen: backupServices.isMaintenanceModeEnabled,
       documentConverter,
+      resolveOfficeDocumentConversionEnabled,
       adminAiServices,
       embeddingIndexQueue,
     });

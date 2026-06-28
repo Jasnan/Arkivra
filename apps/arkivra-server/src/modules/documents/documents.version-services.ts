@@ -5,10 +5,12 @@ import { documentVersionsTable, documentsTable } from '../database/schema/index.
 import type {
   CreateDocumentVersionInput,
   CreateLogicalDocumentWithInitialVersionInput,
+  DerivedPreviewStatus,
   DocumentLanguageMetadata,
   DocumentProcessingStatus,
   DocumentVersionSummary,
 } from './documents.service-types.js';
+import { isOfficeDocumentConvertible } from '../document-conversion/index.js';
 
 export function createDocumentVersionServices({ db }: { db: Database }) {
   function toDocumentVersionSummary(row: {
@@ -32,6 +34,10 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
     previewPdfEncryptionKeyWrapped: string | null;
     previewPdfEncryptionKekVersion: string | null;
     previewPdfEncryptionAlgorithm: string | null;
+    derivedPreviewStatus: DerivedPreviewStatus;
+    derivedPreviewErrorCode: string | null;
+    derivedPreviewErrorMessage: string | null;
+    derivedPreviewFailedAt: Date | null;
     content: string;
     rawText: string;
     rawMarkdown: string;
@@ -79,6 +85,10 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
       previewPdfEncryptionKeyWrapped: row.previewPdfEncryptionKeyWrapped,
       previewPdfEncryptionKekVersion: row.previewPdfEncryptionKekVersion,
       previewPdfEncryptionAlgorithm: row.previewPdfEncryptionAlgorithm,
+      derivedPreviewStatus: row.derivedPreviewStatus,
+      derivedPreviewErrorCode: row.derivedPreviewErrorCode,
+      derivedPreviewErrorMessage: row.derivedPreviewErrorMessage,
+      derivedPreviewFailedAt: row.derivedPreviewFailedAt,
       content: row.content,
       rawText: row.rawText,
       rawMarkdown: row.rawMarkdown,
@@ -134,6 +144,10 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
       previewPdfEncryptionKeyWrapped: documentVersionsTable.previewPdfEncryptionKeyWrapped,
       previewPdfEncryptionKekVersion: documentVersionsTable.previewPdfEncryptionKekVersion,
       previewPdfEncryptionAlgorithm: documentVersionsTable.previewPdfEncryptionAlgorithm,
+      derivedPreviewStatus: documentVersionsTable.derivedPreviewStatus,
+      derivedPreviewErrorCode: documentVersionsTable.derivedPreviewErrorCode,
+      derivedPreviewErrorMessage: documentVersionsTable.derivedPreviewErrorMessage,
+      derivedPreviewFailedAt: documentVersionsTable.derivedPreviewFailedAt,
       content: documentVersionsTable.content,
       rawText: documentVersionsTable.rawText,
       rawMarkdown: documentVersionsTable.rawMarkdown,
@@ -160,6 +174,18 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
       documentIsDeleted: documentsTable.isDeleted,
       documentDeletedAt: documentsTable.deletedAt,
     };
+  }
+
+  function initialDerivedPreviewStatus({
+    originalName,
+    mimeType,
+  }: {
+    originalName: string;
+    mimeType: string;
+  }): DerivedPreviewStatus {
+    return isOfficeDocumentConvertible({ fileName: originalName, mimeType })
+      ? 'pending'
+      : 'unavailable';
   }
 
   async function resolveDocumentVersion({
@@ -326,6 +352,7 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
     fileEncryptionKekVersion = null,
     fileEncryptionAlgorithm = null,
     processingStatus = 'pending',
+    derivedPreviewStatus: providedDerivedPreviewStatus,
     restoredFromVersionId = null,
     makeCurrent = true,
   }: CreateDocumentVersionInput): Promise<DocumentVersionSummary | null> {
@@ -382,6 +409,8 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
 
       const versionId = providedVersionId ?? generateId({ prefix: 'dvr' });
       const versionNumber = (latestVersion?.versionNumber ?? 0) + 1;
+      const derivedPreviewStatus =
+        providedDerivedPreviewStatus ?? initialDerivedPreviewStatus({ originalName, mimeType });
       const [version] = await tx
         .insert(documentVersionsTable)
         .values({
@@ -396,6 +425,10 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
           originalStorageKey,
           originalSha256Hash,
           mimeType,
+          derivedPreviewStatus,
+          derivedPreviewErrorCode: null,
+          derivedPreviewErrorMessage: null,
+          derivedPreviewFailedAt: null,
           processingStatus,
           fileEncryptionKeyWrapped,
           fileEncryptionKekVersion,
@@ -427,6 +460,10 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
             previewPdfEncryptionKeyWrapped: null,
             previewPdfEncryptionKekVersion: null,
             previewPdfEncryptionAlgorithm: null,
+            derivedPreviewStatus,
+            derivedPreviewErrorCode: null,
+            derivedPreviewErrorMessage: null,
+            derivedPreviewFailedAt: null,
             content: '',
             rawText: '',
             rawMarkdown: '',
@@ -481,6 +518,7 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
     fileEncryptionKekVersion = null,
     fileEncryptionAlgorithm = null,
     processingStatus = 'pending',
+    derivedPreviewStatus: providedDerivedPreviewStatus,
     folderId = null,
     logicalOriginalName,
     name,
@@ -490,6 +528,8 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
       const versionId = providedVersionId ?? generateId({ prefix: 'dvr' });
       const logicalName = name ?? originalName;
       const documentOriginalName = logicalOriginalName ?? originalName;
+      const derivedPreviewStatus =
+        providedDerivedPreviewStatus ?? initialDerivedPreviewStatus({ originalName, mimeType });
       const [document] = await tx
         .insert(documentsTable)
         .values({
@@ -503,6 +543,10 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
           originalSha256Hash,
           name: logicalName,
           mimeType,
+          derivedPreviewStatus,
+          derivedPreviewErrorCode: null,
+          derivedPreviewErrorMessage: null,
+          derivedPreviewFailedAt: null,
           processingStatus,
           fileEncryptionKeyWrapped,
           fileEncryptionKekVersion,
@@ -537,6 +581,10 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
           previewPdfEncryptionKeyWrapped: null,
           previewPdfEncryptionKekVersion: null,
           previewPdfEncryptionAlgorithm: null,
+          derivedPreviewStatus,
+          derivedPreviewErrorCode: null,
+          derivedPreviewErrorMessage: null,
+          derivedPreviewFailedAt: null,
           processingStatus,
           fileEncryptionKeyWrapped,
           fileEncryptionKekVersion,

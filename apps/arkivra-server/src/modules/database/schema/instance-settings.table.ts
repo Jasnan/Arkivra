@@ -34,4 +34,6 @@ export const instanceSettingsTable = pgTable('instance_settings', {
   ollamaEmbeddingHost: text('ollama_embedding_host').notNull().default('http://127.0.0.1:11434'),
   ollamaEmbeddingModel: text('ollama_embedding_model'),
   ollamaEmbeddingDimensions: integer('ollama_embedding_dimensions'),
+
+  officeDocumentConversionEnabled: boolean('office_document_conversion_enabled'),
 });

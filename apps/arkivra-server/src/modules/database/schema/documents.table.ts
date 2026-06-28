@@ -45,6 +45,16 @@ export const documentsTable = pgTable(
     previewPdfEncryptionKeyWrapped: text('preview_pdf_encryption_key_wrapped'),
     previewPdfEncryptionKekVersion: text('preview_pdf_encryption_kek_version'),
     previewPdfEncryptionAlgorithm: text('preview_pdf_encryption_algorithm'),
+    derivedPreviewStatus: text('derived_preview_status')
+      .$type<DocumentDerivedPreviewStatus>()
+      .notNull()
+      .default('unavailable'),
+    derivedPreviewErrorCode: text('derived_preview_error_code'),
+    derivedPreviewErrorMessage: text('derived_preview_error_message'),
+    derivedPreviewFailedAt: timestamp('derived_preview_failed_at', {
+      mode: 'date',
+      withTimezone: true,
+    }),
 
     name: text('name').notNull(),
     mimeType: text('mime_type').notNull(),
@@ -123,6 +133,8 @@ export type DocumentVersionProcessingStatus =
   | 'completed'
   | 'failed';
 
+export type DocumentDerivedPreviewStatus = 'pending' | 'ready' | 'unavailable' | 'failed';
+
 export const documentVersionsTable = pgTable(
   'document_versions',
   {
@@ -157,6 +169,16 @@ export const documentVersionsTable = pgTable(
     previewPdfEncryptionKeyWrapped: text('preview_pdf_encryption_key_wrapped'),
     previewPdfEncryptionKekVersion: text('preview_pdf_encryption_kek_version'),
     previewPdfEncryptionAlgorithm: text('preview_pdf_encryption_algorithm'),
+    derivedPreviewStatus: text('derived_preview_status')
+      .$type<DocumentDerivedPreviewStatus>()
+      .notNull()
+      .default('unavailable'),
+    derivedPreviewErrorCode: text('derived_preview_error_code'),
+    derivedPreviewErrorMessage: text('derived_preview_error_message'),
+    derivedPreviewFailedAt: timestamp('derived_preview_failed_at', {
+      mode: 'date',
+      withTimezone: true,
+    }),
 
     content: text('content').notNull().default(''),
     rawText: text('raw_text').notNull().default(''),

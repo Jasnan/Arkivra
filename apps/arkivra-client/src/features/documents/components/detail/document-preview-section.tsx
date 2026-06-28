@@ -1,12 +1,52 @@
+import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { Box, Flex, Text, chakra } from '@chakra-ui/react';
-import { Download, Image as ImageIcon } from 'lucide-react';
+import { Download, Image as ImageIcon, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { AppEmptyState } from '@/components/ui/empty-state';
 import { DocumentMarkdownPreview } from '@/features/documents/components/document-markdown-preview';
 import { PdfPreviewFrame } from '@/features/documents/components/detail/pdf-preview-frame';
 import type { DocumentDetail } from '@/features/documents/documents.types';
 
-export type DocumentPreviewKind = 'pdf' | 'image' | 'markdown' | 'text' | 'unsupported';
+export type DocumentPreviewKind =
+  | 'pdf'
+  | 'image'
+  | 'markdown'
+  | 'text'
+  | 'pending'
+  | 'failed'
+  | 'unsupported';
+
+function PreviewEmptyState({
+  icon,
+  title,
+  description,
+  children,
+}: {
+  icon: ReactNode;
+  title: ReactNode;
+  description: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <Box h="full" minH={{ base: '720px', md: '0' }} rounded="lg" bg="bg.subtle" p="6">
+      <Flex
+        h="full"
+        align="center"
+        justify="center"
+        rounded="lg"
+        borderWidth="1px"
+        borderColor="border.surface"
+        bg="bg.surface"
+        px="6"
+      >
+        <AppEmptyState icon={icon} title={title} description={description}>
+          {children}
+        </AppEmptyState>
+      </Flex>
+    </Box>
+  );
+}
 
 export function DocumentPreviewSection({
   previewKind,
@@ -81,41 +121,20 @@ export function DocumentPreviewSection({
     }
 
     return (
-      <Box h="full" minH={{ base: '720px', md: '0' }} rounded="lg" bg="bg.subtle" p="6">
-        <Flex
-          h="full"
-          direction="column"
-          align="center"
-          justify="center"
-          gap="4"
-          rounded="lg"
-          borderWidth="1px"
-          borderStyle="dashed"
-          borderColor="border.surface"
-          bg="bg.surface"
-          px="6"
-          textAlign="center"
-        >
-          <ImageIcon size={40} />
-          <Box>
-            <Text fontSize="sm" fontWeight="semibold" color="fg">
-              Historical preview is limited
-            </Text>
-            <Text maxW="xl" fontSize="sm" lineHeight="6" color="fg.muted">
-              This read-only version can be reviewed through extracted text, chunks, metadata, or by
-              downloading the original source file.
-            </Text>
-          </Box>
-          {historicalDownloadUrl ? (
-            <a href={historicalDownloadUrl}>
-              <Button as="span" variant="outline" size="sm">
-                <Download size={16} />
-                Download version
-              </Button>
-            </a>
-          ) : null}
-        </Flex>
-      </Box>
+      <PreviewEmptyState
+        icon={<ImageIcon size={34} />}
+        title="Historical preview is limited"
+        description="This read-only version can be reviewed through extracted text, chunks, metadata, or by downloading the original source file."
+      >
+        {historicalDownloadUrl ? (
+          <a href={historicalDownloadUrl}>
+            <Button as="span" variant="outline" size="sm">
+              <Download size={16} />
+              Download version
+            </Button>
+          </a>
+        ) : null}
+      </PreviewEmptyState>
     );
   }
 
@@ -145,25 +164,11 @@ export function DocumentPreviewSection({
       >
         <Flex h="full" align="center" justify="center" rounded="lg" bg="white" p="8">
           {imagePreviewFailed ? (
-            <Flex
-              direction="column"
-              align="center"
-              justify="center"
-              gap="3"
-              color="fg.muted"
-              textAlign="center"
-            >
-              <ImageIcon size={40} />
-              <Box>
-                <Text fontSize="sm" fontWeight="semibold" color="fg">
-                  Image preview unavailable
-                </Text>
-                <Text maxW="lg" fontSize="sm" lineHeight="6">
-                  Arkivra could not render this image in the browser. Download the file to inspect
-                  it.
-                </Text>
-              </Box>
-            </Flex>
+            <AppEmptyState
+              icon={<ImageIcon size={34} />}
+              title="Image preview unavailable"
+              description="Arkivra could not render this image in the browser. Download the file to inspect it."
+            />
           ) : (
             <chakra.img
               key={inlineFileUrl}
@@ -249,36 +254,43 @@ export function DocumentPreviewSection({
     );
   }
 
+  if (previewKind === 'pending') {
+    return (
+      <PreviewEmptyState
+        icon={<LoaderCircle size={34} aria-hidden="true" />}
+        title="Preparing preview..."
+        description="Arkivra is generating a preview for this document. This usually takes only a few seconds."
+      >
+        <Flex direction="column" gap="2" w="full" maxW="md" aria-hidden="true">
+          <Box h="3" rounded="full" bg="bg.muted" />
+          <Box h="3" w="82%" alignSelf="center" rounded="full" bg="bg.muted" />
+          <Box h="3" w="64%" alignSelf="center" rounded="full" bg="bg.muted" />
+        </Flex>
+      </PreviewEmptyState>
+    );
+  }
+
+  if (previewKind === 'failed') {
+    return (
+      <PreviewEmptyState
+        icon={<ImageIcon size={34} />}
+        title="Preview couldn't be generated."
+        description="The original document is still available for download and AI features continue to work."
+      />
+    );
+  }
+
   if (previewKind === 'unsupported' || (document.isDeleted && !isTrashDocumentRoute)) {
     return (
-      <Box h="full" minH={{ base: '720px', md: '0' }} rounded="lg" bg="bg.subtle" p="6">
-        <Flex
-          h="full"
-          direction="column"
-          align="center"
-          justify="center"
-          gap="4"
-          rounded="lg"
-          borderWidth="1px"
-          borderStyle="dashed"
-          borderColor="border.surface"
-          bg="bg.surface"
-          px="6"
-          textAlign="center"
-        >
-          <ImageIcon size={40} />
-          <Box>
-            <Text fontSize="sm" fontWeight="semibold" color="fg">
-              Preview unavailable
-            </Text>
-            <Text maxW="xl" fontSize="sm" lineHeight="6" color="fg.muted">
-              {document.isDeleted
-                ? 'Preview is disabled for documents in trash. Restore the document to preview or print it again.'
-                : 'This file type is supported for storage and extraction, but Arkivra does not render a faithful in-browser preview for it yet.'}
-            </Text>
-          </Box>
-        </Flex>
-      </Box>
+      <PreviewEmptyState
+        icon={<ImageIcon size={34} />}
+        title="Preview unavailable"
+        description={
+          document.isDeleted
+            ? 'Preview is disabled for documents in trash. Restore the document to preview or print it again.'
+            : 'This file type is supported for storage and extraction, but Arkivra does not render a faithful in-browser preview for it yet.'
+        }
+      />
     );
   }
 

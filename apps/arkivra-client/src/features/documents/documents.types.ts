@@ -5,6 +5,8 @@ export interface DocumentLanguageMetadata {
   source: 'docling' | 'heuristic' | 'user';
 }
 
+export type DerivedPreviewStatus = 'pending' | 'ready' | 'unavailable' | 'failed';
+
 export interface DocumentSummary {
   id: string;
   name: string;
@@ -25,6 +27,10 @@ export interface DocumentSummary {
   processingErrorMessage?: string | null;
   processingFailedAt?: string | null;
   hasPreviewPdf?: boolean;
+  derivedPreviewStatus?: DerivedPreviewStatus;
+  derivedPreviewErrorCode?: string | null;
+  derivedPreviewErrorMessage?: string | null;
+  derivedPreviewFailedAt?: string | null;
   language?: DocumentLanguageMetadata | null;
   createdAt: string;
   updatedAt: string;
@@ -82,6 +88,11 @@ export interface DocumentVersionSummary {
   processingErrorCode?: string | null;
   processingErrorMessage?: string | null;
   processingFailedAt?: string | null;
+  hasPreviewPdf?: boolean;
+  derivedPreviewStatus?: DerivedPreviewStatus;
+  derivedPreviewErrorCode?: string | null;
+  derivedPreviewErrorMessage?: string | null;
+  derivedPreviewFailedAt?: string | null;
   restoredFromVersionId: string | null;
   deletedAt: string | null;
   createdAt: string;

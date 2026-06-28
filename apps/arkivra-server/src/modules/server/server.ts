@@ -45,6 +45,7 @@ import { registerAdminUserRoutes } from '../admin/users/users.routes.js';
 import { registerAdminVaultRoutes } from '../admin/vaults/vaults.routes.js';
 import { registerAdminAiRoutes } from '../admin/ai/ai.routes.js';
 import { registerAdminMaintenanceRoutes } from '../admin/maintenance/maintenance.routes.js';
+import { createOfficeDocumentConversionSettingsServices } from '../admin/maintenance/office-conversion-settings.js';
 import { createAdminAiServices } from '../admin/ai/ai.services.js';
 import { createSensitiveActionServices } from '../security/sensitive-actions.services.js';
 import { registerSensitiveActionRoutes } from '../security/sensitive-actions.routes.js';
@@ -107,8 +108,18 @@ export function createServer({
   const backupServices = createBackupServices({ config });
   const authzServices = authorizationServices ?? createAuthorizationServices({ db });
   const aiServices = adminAiServices ?? createAdminAiServices({ db, config });
+  const officeConversionSettingsServices = createOfficeDocumentConversionSettingsServices({
+    db,
+    defaultEnabled: documentConverter !== undefined,
+  });
   const sensitiveActionServices = createSensitiveActionServices({ auth, db });
-  const documentsServices = createDocumentsServices({ db, storage, encryption });
+  const documentsServices = createDocumentsServices({
+    db,
+    storage,
+    encryption,
+    resolveOfficeDocumentConversionEnabled: async () =>
+      (await officeConversionSettingsServices.getSettings()).enabled,
+  });
   const embeddingProviders = createEmbeddingProviderRegistry({
     ollamaBatchSize: config.ollama.embeddingBatchSize,
   });
@@ -379,7 +390,7 @@ export function createServer({
   registerAdminUserRoutes({ app, authorizationServices: authzServices });
   registerAdminVaultRoutes({ app, db });
   registerAdminAiRoutes({ app, aiServices, auditServices });
-  registerAdminMaintenanceRoutes({ app, documentConverter, maintenanceQueue });
+  registerAdminMaintenanceRoutes({ app, db, documentConverter, maintenanceQueue });
   registerSensitiveActionRoutes({ app, auditServices, services: sensitiveActionServices });
   registerUserPreferencesRoutes({ app, services: userPreferencesServices });
 

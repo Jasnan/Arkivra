@@ -7,6 +7,7 @@ export type {
   DeleteDocumentVersionResult,
   DeletionImpactConversation,
   DeletionImpactPreview,
+  DerivedPreviewStatus,
   DocumentChunkSummary,
   DocumentDeletionImpactPreview,
   DocumentDeletionImpactResult,

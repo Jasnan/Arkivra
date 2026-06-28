@@ -9,6 +9,8 @@ export type DocumentProcessingStatus =
   | 'completed'
   | 'failed';
 
+export type DerivedPreviewStatus = 'pending' | 'ready' | 'unavailable' | 'failed';
+
 export type HardDeleteDocumentResult =
   | { success: true; id: string }
   | { success: false; reason: 'not_found' | 'retention_window_active' };
@@ -115,6 +117,10 @@ export type DocumentVersionSummary = {
   previewPdfEncryptionKeyWrapped: string | null;
   previewPdfEncryptionKekVersion: string | null;
   previewPdfEncryptionAlgorithm: string | null;
+  derivedPreviewStatus: DerivedPreviewStatus;
+  derivedPreviewErrorCode: string | null;
+  derivedPreviewErrorMessage: string | null;
+  derivedPreviewFailedAt: Date | null;
   content: string;
   rawText: string;
   rawMarkdown: string;
@@ -161,6 +167,7 @@ export type CreateDocumentVersionInput = {
   fileEncryptionKekVersion?: string | null;
   fileEncryptionAlgorithm?: string | null;
   processingStatus?: DocumentProcessingStatus;
+  derivedPreviewStatus?: DerivedPreviewStatus;
   restoredFromVersionId?: string | null;
   makeCurrent?: boolean;
 };

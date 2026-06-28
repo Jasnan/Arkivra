@@ -408,6 +408,40 @@ describe('documents page', () => {
     expect(screen.queryByText(/preview unavailable/i)).not.toBeInTheDocument();
   });
 
+  it('shows pending preview generation for Office documents before the derived PDF is ready', async () => {
+    installDocumentDetailFetchMock({
+      documentName: 'Resume.docx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      derivedPreviewStatus: 'pending',
+    });
+
+    await renderWithProviders(<DocumentDetailPage />, {
+      initialEntries: ['/vaults/vlt_1/doc_1'],
+      routePath: '/vaults/:vaultId/:documentId',
+    });
+
+    expect(await screen.findByText(/preparing preview/i)).toBeInTheDocument();
+    expect(screen.getByText(/generating a preview for this document/i)).toBeInTheDocument();
+    expect(screen.queryByText(/preview unavailable/i)).not.toBeInTheDocument();
+  });
+
+  it('shows failed preview generation without hiding document availability', async () => {
+    installDocumentDetailFetchMock({
+      documentName: 'Resume.docx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      derivedPreviewStatus: 'failed',
+    });
+
+    await renderWithProviders(<DocumentDetailPage />, {
+      initialEntries: ['/vaults/vlt_1/doc_1'],
+      routePath: '/vaults/:vaultId/:documentId',
+    });
+
+    expect(await screen.findByText(/preview couldn't be generated/i)).toBeInTheDocument();
+    expect(screen.getByText(/original document is still available/i)).toBeInTheDocument();
+    expect(screen.queryByText(/preview unavailable/i)).not.toBeInTheDocument();
+  });
+
   it('shows the full document filename in the workspace breadcrumb when space allows', async () => {
     const documentName = 'Home Insurance Renewal Documents 2026.pdf';
     installDocumentDetailFetchMock({ documentName });
@@ -701,11 +735,13 @@ function installDocumentDetailFetchMock({
   documentName = 'Policy.txt',
   mimeType = 'text/plain',
   hasPreviewPdf = false,
+  derivedPreviewStatus = 'unavailable',
   chunks = [],
 }: {
   documentName?: string;
   mimeType?: string;
   hasPreviewPdf?: boolean;
+  derivedPreviewStatus?: 'pending' | 'ready' | 'unavailable' | 'failed';
   chunks?: unknown[];
 } = {}) {
   vi.stubGlobal(
@@ -737,6 +773,10 @@ function installDocumentDetailFetchMock({
             mimeType,
             processingStatus: 'completed',
             hasPreviewPdf,
+            derivedPreviewStatus,
+            derivedPreviewErrorCode: null,
+            derivedPreviewErrorMessage: null,
+            derivedPreviewFailedAt: null,
             language: null,
             content: 'Extracted policy text',
             displayContent: 'Extracted policy text',

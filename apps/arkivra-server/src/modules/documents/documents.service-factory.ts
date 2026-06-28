@@ -35,6 +35,7 @@ import { createDocumentRestoreServices } from './documents.restore-services.js';
 import { createDocumentUploadServices } from './documents.upload-services.js';
 import { createDocumentVersionLifecycleServices } from './documents.version-lifecycle-services.js';
 import { createDocumentVersionServices } from './documents.version-services.js';
+import { isOfficeDocumentConvertible } from '../document-conversion/index.js';
 
 export type DocumentsServices = ReturnType<typeof createDocumentsServices>;
 export { normalizeDocumentFileName } from './documents.naming.js';
@@ -51,10 +52,12 @@ export function createDocumentsServices({
   db,
   storage,
   encryption,
+  resolveOfficeDocumentConversionEnabled,
 }: {
   db: Database;
   storage: StorageDriver;
   encryption: EncryptionServices;
+  resolveOfficeDocumentConversionEnabled?: () => Promise<boolean>;
 }) {
   function getFolderCondition(folderId: string | null) {
     return folderId === null
@@ -244,6 +247,7 @@ export function createDocumentsServices({
     encryption,
     versionServices,
     findActiveDocumentFileNameCollision,
+    resolveOfficeDocumentConversionEnabled,
   });
   const { finalizeUploadedDocument, uploadDocument } = uploadServices;
 
@@ -326,6 +330,10 @@ export function createDocumentsServices({
         processingErrorMessage: documentsTable.processingErrorMessage,
         processingFailedAt: documentsTable.processingFailedAt,
         hasPreviewPdf: sql<boolean>`${documentsTable.previewPdfStorageKey} IS NOT NULL`,
+        derivedPreviewStatus: documentsTable.derivedPreviewStatus,
+        derivedPreviewErrorCode: documentsTable.derivedPreviewErrorCode,
+        derivedPreviewErrorMessage: documentsTable.derivedPreviewErrorMessage,
+        derivedPreviewFailedAt: documentsTable.derivedPreviewFailedAt,
         language: documentsTable.language,
         createdAt: documentsTable.createdAt,
         updatedAt: documentsTable.updatedAt,
@@ -353,6 +361,10 @@ export function createDocumentsServices({
         processingErrorMessage: documentsTable.processingErrorMessage,
         processingFailedAt: documentsTable.processingFailedAt,
         hasPreviewPdf: sql<boolean>`${documentsTable.previewPdfStorageKey} IS NOT NULL`,
+        derivedPreviewStatus: documentsTable.derivedPreviewStatus,
+        derivedPreviewErrorCode: documentsTable.derivedPreviewErrorCode,
+        derivedPreviewErrorMessage: documentsTable.derivedPreviewErrorMessage,
+        derivedPreviewFailedAt: documentsTable.derivedPreviewFailedAt,
         language: documentsTable.language,
         createdAt: documentsTable.createdAt,
         updatedAt: documentsTable.updatedAt,
@@ -460,6 +472,10 @@ export function createDocumentsServices({
         processingErrorMessage: documentsTable.processingErrorMessage,
         processingFailedAt: documentsTable.processingFailedAt,
         hasPreviewPdf: sql<boolean>`${documentsTable.previewPdfStorageKey} IS NOT NULL`,
+        derivedPreviewStatus: documentsTable.derivedPreviewStatus,
+        derivedPreviewErrorCode: documentsTable.derivedPreviewErrorCode,
+        derivedPreviewErrorMessage: documentsTable.derivedPreviewErrorMessage,
+        derivedPreviewFailedAt: documentsTable.derivedPreviewFailedAt,
         createdAt: documentsTable.createdAt,
         updatedAt: documentsTable.updatedAt,
         isDeleted: documentsTable.isDeleted,
@@ -952,6 +968,39 @@ export function createDocumentsServices({
     processingErrorMessage?: string | null;
   }) {
     const processingFailedAt = processingStatus === 'failed' ? sql`now()` : sql`NULL`;
+    const [previewContext] = await db
+      .select({
+        originalName: documentVersionsTable.originalName,
+        mimeType: documentVersionsTable.mimeType,
+        previewPdfStorageKey: documentVersionsTable.previewPdfStorageKey,
+      })
+      .from(documentVersionsTable)
+      .where(
+        and(
+          eq(documentVersionsTable.id, documentVersionId),
+          eq(documentVersionsTable.documentId, documentId),
+          eq(documentVersionsTable.vaultId, vaultId),
+          isNull(documentVersionsTable.deletedAt),
+        ),
+      )
+      .limit(1);
+    const resetDerivedPreviewLifecycle =
+      processingStatus !== 'failed' &&
+      previewContext?.previewPdfStorageKey === null &&
+      isOfficeDocumentConvertible({
+        fileName: previewContext.originalName,
+        mimeType: previewContext.mimeType,
+      }) &&
+      (resolveOfficeDocumentConversionEnabled === undefined ||
+        (await resolveOfficeDocumentConversionEnabled()));
+    const derivedPreviewFields = resetDerivedPreviewLifecycle
+      ? {
+          derivedPreviewStatus: 'pending' as const,
+          derivedPreviewErrorCode: null,
+          derivedPreviewErrorMessage: null,
+          derivedPreviewFailedAt: null,
+        }
+      : {};
     const [version] = await db
       .update(documentVersionsTable)
       .set({
@@ -960,6 +1009,7 @@ export function createDocumentsServices({
         processingErrorMessage:
           processingStatus === 'failed' ? (processingErrorMessage ?? null) : null,
         processingFailedAt,
+        ...derivedPreviewFields,
         updatedAt: sql`now()`,
       })
       .where(
@@ -990,6 +1040,7 @@ export function createDocumentsServices({
         processingErrorMessage:
           processingStatus === 'failed' ? (processingErrorMessage ?? null) : null,
         processingFailedAt,
+        ...derivedPreviewFields,
         updatedAt: sql`now()`,
       })
       .where(

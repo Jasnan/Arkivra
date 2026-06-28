@@ -28,6 +28,7 @@ import {
   createEmbeddingIndexWorker,
 } from './modules/ai/indexing/index.js';
 import { createEmbeddingProviderRegistry } from './modules/ai/providers/index.js';
+import { createGotenbergDocumentConverter } from './modules/document-conversion/index.js';
 
 export async function startApp() {
   loadApiEnvFiles();
@@ -54,6 +55,10 @@ export async function startApp() {
   const backupServices = createBackupServices({ config });
   const adminAiServices = createAdminAiServices({ db, config, embeddingIndexQueue });
   const activityServices = createActivityServices({ db });
+  const documentConverter =
+    config.gotenberg.configured && config.gotenberg.url !== undefined
+      ? createGotenbergDocumentConverter({ baseUrl: config.gotenberg.url })
+      : undefined;
 
   if (isWebMode) {
     const { app } = createServer({
@@ -63,9 +68,11 @@ export async function startApp() {
       storage,
       encryption,
       documentQueue,
+      maintenanceQueue,
       backupQueue,
       adminAiServices,
       embeddingIndexQueue,
+      documentConverter,
     });
 
     serve(
@@ -132,13 +139,19 @@ export async function startApp() {
       activityServices,
       adminAiServices,
       embeddingIndexQueue,
+      documentConverter,
     });
     const maintenanceWorker = createMaintenanceWorker({
       db,
       defaultRetentionDays: config.backgroundJobs.documentRetentionDays,
+      encryption,
+      parsePipeline,
       storage,
       appInstance: config.app.instance,
       pauseWhen: backupServices.isMaintenanceModeEnabled,
+      documentConverter,
+      adminAiServices,
+      embeddingIndexQueue,
     });
     const backupWorker = createBackupWorker({
       backupDirectory: backupServices.backupDirectory,
@@ -184,6 +197,9 @@ export async function startApp() {
     console.info('Document processing worker started');
     console.info('Embedding indexing worker started');
     console.info(`Document parser: Docling ${config.docling.url}`);
+    if (documentConverter !== undefined) {
+      console.info(`Office document converter: ${documentConverter.provider} ${documentConverter.baseUrl}`);
+    }
     console.info(
       `Scheduled hard-delete-expired-documents cron (${config.backgroundJobs.hardDeleteExpiredDocumentsCron}) with ${config.backgroundJobs.documentRetentionDays} day retention`,
     );

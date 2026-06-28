@@ -216,6 +216,14 @@ export const configDefinition = {
       env: 'ARKIVRA_DOCLING_VLM_MODEL',
     },
   },
+  gotenberg: {
+    url: {
+      doc: 'Optional Gotenberg base URL used to convert Office/OpenDocument files into derived PDF previews during ingestion.',
+      schema: optionalUrlSchema,
+      default: undefined,
+      env: 'ARKIVRA_GOTENBERG_URL',
+    },
+  },
   parsers: {
     pdfScanDetection: {
       maxSampledPages: {
@@ -550,6 +558,13 @@ export function parseConfig({ env }: { env: Record<string, string | undefined> }
     ollama: {
       ...config.ollama,
       configured: hasEnvValue(env, 'ARKIVRA_OLLAMA_HOST'),
+    },
+    gotenberg: {
+      ...config.gotenberg,
+      configured: hasEnvValue(env, 'ARKIVRA_GOTENBERG_URL'),
+      url: hasEnvValue(env, 'ARKIVRA_GOTENBERG_URL')
+        ? normalizeBaseUrl(config.gotenberg.url!)
+        : undefined,
     },
     server: {
       ...config.server,

@@ -210,3 +210,14 @@ export interface AdminAiStatus {
     semanticSearchAvailable: boolean;
   };
 }
+
+export interface AdminOfficeConverterStatus {
+  supported: boolean;
+  configured: boolean;
+  healthy: boolean;
+  provider: string | null;
+  url: string | null;
+  lastHealthCheck: string | null;
+  error: string | null;
+  supportedFormats: string[];
+}

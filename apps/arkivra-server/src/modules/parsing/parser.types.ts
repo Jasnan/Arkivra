@@ -6,6 +6,7 @@ export type ParseInput = {
   documentId: string;
   documentVersionId?: string;
   fileName: string;
+  displayFileName?: string;
   mimeType: string;
   fileData: Buffer;
 };

@@ -46,6 +46,14 @@ export function documentVersionPagePreviewStoragePrefix(documentVersionId: strin
   return `previews/${documentVersionId}`;
 }
 
+export function documentVersionPreviewPdfStorageKey({
+  documentVersionId,
+}: {
+  documentVersionId: string;
+}): string {
+  return `previews/${documentVersionId}/document.preview.pdf`;
+}
+
 export function documentVersionChunkAssetStoragePrefix(documentVersionId: string): string {
   return `chunks/${documentVersionId}`;
 }

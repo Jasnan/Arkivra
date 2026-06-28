@@ -24,6 +24,7 @@ export interface DocumentSummary {
   processingErrorCode?: string | null;
   processingErrorMessage?: string | null;
   processingFailedAt?: string | null;
+  hasPreviewPdf?: boolean;
   language?: DocumentLanguageMetadata | null;
   createdAt: string;
   updatedAt: string;

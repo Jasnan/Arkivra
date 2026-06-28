@@ -100,6 +100,47 @@ export function createDocumentFileServices({
     });
   }
 
+  async function readDocumentVersionPreviewPdfPayload(version: DocumentVersionSummary) {
+    if (version.previewPdfStorageKey === null) {
+      return null;
+    }
+
+    const rawData = await storage.read(version.previewPdfStorageKey);
+
+    if (
+      version.previewPdfEncryptionKeyWrapped !== null &&
+      version.previewPdfEncryptionKekVersion !== null
+    ) {
+      return encryption.decrypt({
+        encryptedData: rawData,
+        wrappedDek: version.previewPdfEncryptionKeyWrapped,
+        kekVersion: version.previewPdfEncryptionKekVersion,
+      });
+    }
+
+    return rawData;
+  }
+
+  async function readRenderablePdfPayload(version: DocumentVersionSummary) {
+    const previewPdf = await readDocumentVersionPreviewPdfPayload(version);
+
+    if (previewPdf !== null) {
+      return {
+        fileData: previewPdf,
+        fileName: `${version.originalName}.preview.pdf`,
+        mimeType: 'application/pdf',
+        sourceSha256Hash: version.previewPdfSha256Hash ?? version.originalSha256Hash,
+      };
+    }
+
+    return {
+      fileData: await readDocumentVersionPayload(version),
+      fileName: version.originalName,
+      mimeType: version.mimeType,
+      sourceSha256Hash: version.originalSha256Hash,
+    };
+  }
+
   async function downloadDocument({
     documentId,
     vaultId,
@@ -121,6 +162,45 @@ export function createDocumentFileServices({
       fileName: doc.originalName,
       mimeType: doc.mimeType,
       size: doc.originalSize,
+    };
+  }
+
+  async function previewDocumentFile({
+    documentId,
+    vaultId,
+    includeDeleted = false,
+  }: {
+    documentId: string;
+    vaultId: string;
+    includeDeleted?: boolean;
+  }) {
+    const version = await resolveLatestDocumentVersion({
+      documentId,
+      vaultId,
+      includeDeletedDocument: includeDeleted,
+    });
+    if (version === null) {
+      return null;
+    }
+
+    const previewPdf = await readDocumentVersionPreviewPdfPayload(version);
+
+    if (previewPdf !== null) {
+      return {
+        fileData: previewPdf,
+        fileName: version.originalName,
+        mimeType: 'application/pdf',
+        size: previewPdf.length,
+      };
+    }
+
+    const fileData = await readDocumentVersionPayload(version);
+
+    return {
+      fileData,
+      fileName: version.originalName,
+      mimeType: version.mimeType,
+      size: version.originalSize,
     };
   }
 
@@ -184,7 +264,8 @@ export function createDocumentFileServices({
       documentVersionId: version.id,
       pageNumber,
     });
-    const etag = `"doc-page-${version.originalSha256Hash}-${version.id}-${pageNumber}"`;
+    const renderable = await readRenderablePdfPayload(version);
+    const etag = `"doc-page-${renderable.sourceSha256Hash}-${version.id}-${pageNumber}"`;
 
     if (await storage.exists(storageKey)) {
       return {
@@ -195,21 +276,10 @@ export function createDocumentFileServices({
       };
     }
 
-    const sourceFile = await readDocumentPayload({
-      id: documentId,
-      vaultId,
-      originalName: version.originalName,
-      originalSize: version.originalSize,
-      originalStorageKey: version.originalStorageKey,
-      originalSha256Hash: version.originalSha256Hash,
-      mimeType: version.mimeType,
-      fileEncryptionKeyWrapped: version.fileEncryptionKeyWrapped,
-      fileEncryptionKekVersion: version.fileEncryptionKekVersion,
-    });
     const image = await renderPdfPageToImage({
-      fileData: sourceFile,
-      fileName: version.originalName,
-      mimeType: version.mimeType,
+      fileData: renderable.fileData,
+      fileName: renderable.fileName,
+      mimeType: renderable.mimeType,
       pageNumber,
     });
 
@@ -258,7 +328,8 @@ export function createDocumentFileServices({
       documentVersionId: version.id,
       pageNumber,
     });
-    const etag = `"doc-page-${version.originalSha256Hash}-${version.id}-${pageNumber}"`;
+    const renderable = await readRenderablePdfPayload(version);
+    const etag = `"doc-page-${renderable.sourceSha256Hash}-${version.id}-${pageNumber}"`;
 
     if (await storage.exists(storageKey)) {
       return {
@@ -269,11 +340,10 @@ export function createDocumentFileServices({
       };
     }
 
-    const sourceFile = await readDocumentVersionPayload(version);
     const image = await renderPdfPageToImage({
-      fileData: sourceFile,
-      fileName: version.originalName,
-      mimeType: version.mimeType,
+      fileData: renderable.fileData,
+      fileName: renderable.fileName,
+      mimeType: renderable.mimeType,
       pageNumber,
     });
 
@@ -497,8 +567,10 @@ export function createDocumentFileServices({
     getChunkAsset,
     listDocumentChunks,
     listDocumentVersionChunks,
+    previewDocumentFile,
     readDocumentPayload,
     readDocumentVersionPayload,
+    readDocumentVersionPreviewPdfPayload,
     renderDocumentPagePreview,
     renderDocumentVersionPagePreview,
   };

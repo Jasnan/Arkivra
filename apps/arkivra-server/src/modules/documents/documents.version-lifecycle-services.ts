@@ -15,6 +15,7 @@ import {
   documentVersionChunkAssetStorageKey,
   documentVersionChunkAssetStoragePrefix,
   documentVersionPagePreviewStoragePrefix,
+  documentVersionPreviewPdfStorageKey,
   documentVersionSourceStorageKey,
 } from './document-storage-keys.js';
 import type {
@@ -165,6 +166,10 @@ export function createDocumentVersionLifecycleServices({
       vaultId,
       documentVersionId: targetDocumentVersionId,
     });
+    const targetPreviewPdfStorageKey =
+      sourceVersion.previewPdfStorageKey === null
+        ? null
+        : documentVersionPreviewPdfStorageKey({ documentVersionId: targetDocumentVersionId });
     const restoredStorageKeys: string[] = [];
 
     const chunkIdBySourceId = new Map<string, string>();
@@ -204,6 +209,14 @@ export function createDocumentVersionLifecycleServices({
       await storage.write(targetSourceStorageKey, sourceBytes);
       restoredStorageKeys.push(targetSourceStorageKey);
 
+      if (sourceVersion.previewPdfStorageKey !== null && targetPreviewPdfStorageKey !== null) {
+        await storage.write(
+          targetPreviewPdfStorageKey,
+          await storage.read(sourceVersion.previewPdfStorageKey),
+        );
+        restoredStorageKeys.push(targetPreviewPdfStorageKey);
+      }
+
       for (const copy of assetCopies) {
         await storage.write(copy.targetStorageKey, await storage.read(copy.sourceStorageKey));
         restoredStorageKeys.push(copy.targetStorageKey);
@@ -235,6 +248,15 @@ export function createDocumentVersionLifecycleServices({
             originalStorageKey: targetSourceStorageKey,
             originalSha256Hash: sourceVersion.originalSha256Hash,
             mimeType: sourceVersion.mimeType,
+            previewPdfStorageKey: targetPreviewPdfStorageKey,
+            previewPdfSize: sourceVersion.previewPdfSize,
+            previewPdfSha256Hash: sourceVersion.previewPdfSha256Hash,
+            previewPdfConverter: sourceVersion.previewPdfConverter,
+            previewPdfConverterVersion: sourceVersion.previewPdfConverterVersion,
+            previewPdfCreatedAt: sourceVersion.previewPdfCreatedAt,
+            previewPdfEncryptionKeyWrapped: sourceVersion.previewPdfEncryptionKeyWrapped,
+            previewPdfEncryptionKekVersion: sourceVersion.previewPdfEncryptionKekVersion,
+            previewPdfEncryptionAlgorithm: sourceVersion.previewPdfEncryptionAlgorithm,
             content: sourceVersion.content,
             rawText: sourceVersion.rawText,
             rawMarkdown: sourceVersion.rawMarkdown,
@@ -317,6 +339,15 @@ export function createDocumentVersionLifecycleServices({
             originalStorageKey: targetSourceStorageKey,
             originalSha256Hash: sourceVersion.originalSha256Hash,
             mimeType: sourceVersion.mimeType,
+            previewPdfStorageKey: targetPreviewPdfStorageKey,
+            previewPdfSize: sourceVersion.previewPdfSize,
+            previewPdfSha256Hash: sourceVersion.previewPdfSha256Hash,
+            previewPdfConverter: sourceVersion.previewPdfConverter,
+            previewPdfConverterVersion: sourceVersion.previewPdfConverterVersion,
+            previewPdfCreatedAt: sourceVersion.previewPdfCreatedAt,
+            previewPdfEncryptionKeyWrapped: sourceVersion.previewPdfEncryptionKeyWrapped,
+            previewPdfEncryptionKekVersion: sourceVersion.previewPdfEncryptionKekVersion,
+            previewPdfEncryptionAlgorithm: sourceVersion.previewPdfEncryptionAlgorithm,
             content: sourceVersion.content,
             rawText: sourceVersion.rawText,
             rawMarkdown: sourceVersion.rawMarkdown,

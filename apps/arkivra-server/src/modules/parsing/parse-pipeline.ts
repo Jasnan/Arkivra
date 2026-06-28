@@ -434,6 +434,7 @@ export function createParsePipeline({
     raw: ParserOutput,
     documentId: string,
     fileName: string,
+    displayFileName: string | undefined,
     persistedRaw?: {
       text: string;
       markdown: string;
@@ -458,7 +459,7 @@ export function createParsePipeline({
       );
     }
 
-    const chunkFileName = basename(fileName.replaceAll('\\', '/'));
+    const chunkFileName = basename((displayFileName ?? fileName).replaceAll('\\', '/'));
     const chunks: ParsedChunk[] = parserChunks.map(
       (chunk): ParsedChunk => ({
         ...chunk,
@@ -538,6 +539,7 @@ export function createParsePipeline({
       raw,
       input.documentId,
       input.fileName,
+      input.displayFileName,
       {
         text: raw.text,
         markdown: raw.markdown,

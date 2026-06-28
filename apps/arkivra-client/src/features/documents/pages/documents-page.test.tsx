@@ -392,6 +392,22 @@ describe('documents page', () => {
     expect(screen.queryByTitle(/text preview/i)).not.toBeInTheDocument();
   });
 
+  it('renders generated PDF previews for Office documents without changing the stored MIME type', async () => {
+    installDocumentDetailFetchMock({
+      documentName: 'Resume.docx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      hasPreviewPdf: true,
+    });
+
+    await renderWithProviders(<DocumentDetailPage />, {
+      initialEntries: ['/vaults/vlt_1/doc_1'],
+      routePath: '/vaults/:vaultId/:documentId',
+    });
+
+    expect(await screen.findByRole('button', { name: /print/i })).toBeInTheDocument();
+    expect(screen.queryByText(/preview unavailable/i)).not.toBeInTheDocument();
+  });
+
   it('shows the full document filename in the workspace breadcrumb when space allows', async () => {
     const documentName = 'Home Insurance Renewal Documents 2026.pdf';
     installDocumentDetailFetchMock({ documentName });
@@ -684,10 +700,12 @@ function installVaultContentsFetchMock({
 function installDocumentDetailFetchMock({
   documentName = 'Policy.txt',
   mimeType = 'text/plain',
+  hasPreviewPdf = false,
   chunks = [],
 }: {
   documentName?: string;
   mimeType?: string;
+  hasPreviewPdf?: boolean;
   chunks?: unknown[];
 } = {}) {
   vi.stubGlobal(
@@ -718,6 +736,7 @@ function installDocumentDetailFetchMock({
             originalSha256Hash: 'abc123',
             mimeType,
             processingStatus: 'completed',
+            hasPreviewPdf,
             language: null,
             content: 'Extracted policy text',
             displayContent: 'Extracted policy text',

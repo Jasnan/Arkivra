@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ChevronRight,
   DatabaseBackup,
+  FileText,
   Info,
   LayoutDashboard,
   LogOut,
@@ -119,6 +120,12 @@ export const adminNavItems = [
     label: 'AI',
     description: 'Ollama defaults',
     icon: BrainCircuit,
+  },
+  {
+    to: ROUTES.adminOfficeConverter,
+    label: 'Office Converter',
+    description: 'Document previews',
+    icon: FileText,
   },
 ] satisfies readonly SecondaryRouteNavItem[];
 

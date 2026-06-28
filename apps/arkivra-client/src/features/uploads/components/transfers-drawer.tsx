@@ -76,10 +76,32 @@ function getTransferIconMeta(item: DisplayTransfer): { icon: LucideIcon; bg: str
   if (
     extension === 'doc'
     || extension === 'docx'
+    || extension === 'odt'
     || mimeType.includes('word')
+    || mimeType.includes('opendocument.text')
     || mimeType.includes('officedocument.wordprocessingml')
   ) {
     return { icon: FileType, bg: 'teal.subtle', color: 'purple.fg' };
+  }
+
+  if (
+    extension === 'xls'
+    || extension === 'xlsx'
+    || extension === 'ods'
+    || mimeType.includes('excel')
+    || mimeType.includes('spreadsheet')
+  ) {
+    return { icon: FileType, bg: 'bg.warning', color: 'yellow.fg' };
+  }
+
+  if (
+    extension === 'ppt'
+    || extension === 'pptx'
+    || extension === 'odp'
+    || mimeType.includes('powerpoint')
+    || mimeType.includes('presentation')
+  ) {
+    return { icon: FileType, bg: 'orange.subtle', color: 'orange.fg' };
   }
 
   if (mimeType === 'application/json' || extension === 'json') {

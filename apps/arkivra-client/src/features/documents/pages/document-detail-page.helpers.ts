@@ -124,7 +124,16 @@ function isImageDocument({
   );
 }
 
-export function getPreviewKind(mimeType: string, name: string, originalName: string): PreviewKind {
+export function getPreviewKind(
+  mimeType: string,
+  name: string,
+  originalName: string,
+  hasPreviewPdf = false,
+): PreviewKind {
+  if (hasPreviewPdf) {
+    return 'pdf';
+  }
+
   if (mimeType === 'application/pdf') {
     return 'pdf';
   }

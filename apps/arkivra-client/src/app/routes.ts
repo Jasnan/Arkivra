@@ -66,6 +66,7 @@ export const ROUTES = {
   adminAuditLog: '/admin/audit-log',
   adminBackups: '/admin/backups',
   adminAiSettings: '/admin/ai-settings',
+  adminOfficeConverter: '/admin/office-converter',
 
   // Root
   root: '/',

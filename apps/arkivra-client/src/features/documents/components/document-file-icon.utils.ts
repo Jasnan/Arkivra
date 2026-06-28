@@ -74,7 +74,9 @@ export function getDocumentFileIconMeta({ name, mimeType }: { name: string; mime
   if (
     extension === 'doc'
     || extension === 'docx'
+    || extension === 'odt'
     || normalizedMimeType.includes('word')
+    || normalizedMimeType.includes('opendocument.text')
     || normalizedMimeType.includes('officedocument.wordprocessingml')
   ) {
     return {
@@ -83,7 +85,7 @@ export function getDocumentFileIconMeta({ name, mimeType }: { name: string; mime
       color: 'blue.500',
       iconKind: 'svg',
       iconSvg: wordFileIconSvg,
-      label: extension === 'doc' ? 'DOC' : 'DOCX',
+      label: extension ? extension.toUpperCase() : 'DOC',
       type: 'word',
     };
   }
@@ -115,6 +117,7 @@ export function getDocumentFileIconMeta({ name, mimeType }: { name: string; mime
   if (
     extension === 'xls'
     || extension === 'xlsx'
+    || extension === 'ods'
     || normalizedMimeType.includes('spreadsheet')
     || normalizedMimeType.includes('excel')
   ) {
@@ -124,8 +127,26 @@ export function getDocumentFileIconMeta({ name, mimeType }: { name: string; mime
       color: 'green.500',
       icon: FileSpreadsheet,
       iconKind: 'lucide',
-      label: extension === 'xls' ? 'XLS' : 'XLSX',
+      label: extension ? extension.toUpperCase() : 'XLS',
       type: 'spreadsheet',
+    };
+  }
+
+  if (
+    extension === 'ppt'
+    || extension === 'pptx'
+    || extension === 'odp'
+    || normalizedMimeType.includes('powerpoint')
+    || normalizedMimeType.includes('presentation')
+  ) {
+    return {
+      badgeBg: 'orange.subtle',
+      badgeColor: 'orange.fg',
+      color: 'orange.500',
+      icon: FileText,
+      iconKind: 'lucide',
+      label: extension ? extension.toUpperCase() : 'PPT',
+      type: 'file',
     };
   }
 

@@ -101,6 +101,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
     documentQuery.data?.document.mimeType ?? '',
     documentQuery.data?.document.name ?? '',
     documentQuery.data?.document.originalName ?? '',
+    documentQuery.data?.document.hasPreviewPdf === true,
   );
   const markdownSourceQuery = useDocumentFileTextQuery({
     vaultId,
@@ -462,6 +463,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
     activeDocument.mimeType,
     activeDocument.name,
     activeDocument.originalName,
+    activeDocument.hasPreviewPdf === true && !isHistoricalVersionSelected,
   );
   const assignedTags = documentTagsQuery.data?.tags ?? [];
   const availableTags = (tagsQuery.data?.tags ?? []).filter(

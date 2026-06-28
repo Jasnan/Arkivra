@@ -26,6 +26,7 @@ import {
   AdminAiSettingsPage,
   AdminAuditLogPage,
   AdminBackupsPage,
+  AdminOfficeConverterPage,
   AdminOverviewPage,
   AdminUserAccessPage,
   AdminUsersPage,
@@ -383,6 +384,12 @@ const adminAiSettingsRoute = createRoute({
   component: AdminAiSettingsPage,
 });
 
+const adminOfficeConverterRoute = createRoute({
+  getParentRoute: () => protectedLayoutRoute,
+  path: '/admin/office-converter',
+  component: AdminOfficeConverterPage,
+});
+
 const catchAllRoute = createRoute({
   getParentRoute: () => protectedLayoutRoute,
   path: '$',
@@ -439,6 +446,7 @@ const routeTree = rootRoute.addChildren([
     adminBackupsRoute,
     legacyAdminVaultRedirectRoute,
     adminAiSettingsRoute,
+    adminOfficeConverterRoute,
     catchAllRoute,
   ]),
 ]);

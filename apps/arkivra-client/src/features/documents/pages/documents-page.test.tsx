@@ -420,7 +420,7 @@ describe('documents page', () => {
       routePath: '/vaults/:vaultId/:documentId',
     });
 
-    expect(await screen.findByText(/preparing preview/i)).toBeInTheDocument();
+    expect(await screen.findByText(/generating preview/i)).toBeInTheDocument();
     expect(screen.getByText(/generating a preview for this document/i)).toBeInTheDocument();
     expect(screen.queryByText(/preview unavailable/i)).not.toBeInTheDocument();
   });
@@ -440,6 +440,43 @@ describe('documents page', () => {
     expect(await screen.findByText(/preview couldn't be generated/i)).toBeInTheDocument();
     expect(screen.getByText(/original document is still available/i)).toBeInTheDocument();
     expect(screen.queryByText(/preview unavailable/i)).not.toBeInTheDocument();
+  });
+
+  it('shows unavailable copy when Office conversion runtime is unreachable', async () => {
+    installDocumentDetailFetchMock({
+      documentName: 'Resume.docx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      derivedPreviewStatus: 'unavailable',
+      derivedPreviewErrorCode: 'document.preview_conversion_unavailable',
+    });
+
+    await renderWithProviders(<DocumentDetailPage />, {
+      initialEntries: ['/vaults/vlt_1/doc_1'],
+      routePath: '/vaults/:vaultId/:documentId',
+    });
+
+    expect(await screen.findByText(/preview unavailable/i)).toBeInTheDocument();
+    expect(screen.getByText(/office document conversion is currently unavailable/i)).toBeInTheDocument();
+    expect(screen.getByText(/stored safely and can still be downloaded/i)).toBeInTheDocument();
+    expect(screen.queryByText(/generating preview/i)).not.toBeInTheDocument();
+  });
+
+  it('shows administrator-disabled copy when Office conversion is paused', async () => {
+    installDocumentDetailFetchMock({
+      documentName: 'Resume.docx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      derivedPreviewStatus: 'unavailable',
+      derivedPreviewErrorCode: 'document.preview_conversion_disabled',
+    });
+
+    await renderWithProviders(<DocumentDetailPage />, {
+      initialEntries: ['/vaults/vlt_1/doc_1'],
+      routePath: '/vaults/:vaultId/:documentId',
+    });
+
+    expect(await screen.findByText(/preview unavailable/i)).toBeInTheDocument();
+    expect(screen.getByText(/disabled by your administrator/i)).toBeInTheDocument();
+    expect(screen.queryByText(/generating preview/i)).not.toBeInTheDocument();
   });
 
   it('shows the full document filename in the workspace breadcrumb when space allows', async () => {
@@ -736,12 +773,14 @@ function installDocumentDetailFetchMock({
   mimeType = 'text/plain',
   hasPreviewPdf = false,
   derivedPreviewStatus = 'unavailable',
+  derivedPreviewErrorCode = null,
   chunks = [],
 }: {
   documentName?: string;
   mimeType?: string;
   hasPreviewPdf?: boolean;
   derivedPreviewStatus?: 'pending' | 'ready' | 'unavailable' | 'failed';
+  derivedPreviewErrorCode?: string | null;
   chunks?: unknown[];
 } = {}) {
   vi.stubGlobal(
@@ -774,7 +813,7 @@ function installDocumentDetailFetchMock({
             processingStatus: 'completed',
             hasPreviewPdf,
             derivedPreviewStatus,
-            derivedPreviewErrorCode: null,
+            derivedPreviewErrorCode,
             derivedPreviewErrorMessage: null,
             derivedPreviewFailedAt: null,
             language: null,

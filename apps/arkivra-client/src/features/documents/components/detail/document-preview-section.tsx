@@ -258,7 +258,7 @@ export function DocumentPreviewSection({
     return (
       <PreviewEmptyState
         icon={<LoaderCircle size={34} aria-hidden="true" />}
-        title="Preparing preview..."
+        title="Generating preview..."
         description="Arkivra is generating a preview for this document. This usually takes only a few seconds."
       >
         <Flex direction="column" gap="2" w="full" maxW="md" aria-hidden="true">
@@ -285,14 +285,36 @@ export function DocumentPreviewSection({
       <PreviewEmptyState
         icon={<ImageIcon size={34} />}
         title="Preview unavailable"
-        description={
-          document.isDeleted
-            ? 'Preview is disabled for documents in trash. Restore the document to preview or print it again.'
-            : 'This file type is supported for storage and extraction, but Arkivra does not render a faithful in-browser preview for it yet.'
-        }
+        description={getPreviewUnavailableDescription({ document, isTrashDocumentRoute })}
       />
     );
   }
 
   return null;
+}
+
+function getPreviewUnavailableDescription({
+  document,
+  isTrashDocumentRoute,
+}: {
+  document: DocumentDetail;
+  isTrashDocumentRoute: boolean;
+}) {
+  if (document.isDeleted && !isTrashDocumentRoute) {
+    return 'Preview is disabled for documents in trash. Restore the document to preview or print it again.';
+  }
+
+  if (document.derivedPreviewErrorCode === 'document.preview_conversion_unavailable') {
+    return 'Office document conversion is currently unavailable. The original document has been stored safely and can still be downloaded.';
+  }
+
+  if (document.derivedPreviewErrorCode === 'document.preview_conversion_disabled') {
+    return 'Office document conversion has been disabled by your administrator.';
+  }
+
+  if (document.derivedPreviewErrorCode === 'document.preview_conversion_not_configured') {
+    return 'Office document conversion has not been configured. The original document has been stored safely and can still be downloaded.';
+  }
+
+  return 'This file type is supported for storage and extraction, but Arkivra does not render a faithful in-browser preview for it yet.';
 }

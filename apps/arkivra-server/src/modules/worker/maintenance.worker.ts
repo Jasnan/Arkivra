@@ -21,6 +21,7 @@ import {
 } from './maintenance.queue.js';
 import type { AsyncJob } from './postgres-jobs.js';
 import { createPostgresWorker, getScopedQueueName } from './postgres-jobs.js';
+import type { OfficeDocumentConversionRuntimeStatus } from '../admin/maintenance/office-conversion-settings.js';
 
 type ExpiredDocumentRow = {
   id: string;
@@ -47,7 +48,7 @@ export type MaintenanceWorkerDeps = {
   startPolling?: boolean;
   pauseWhen?: () => Promise<boolean>;
   documentConverter?: DocumentConverter;
-  resolveOfficeDocumentConversionEnabled?: () => Promise<boolean>;
+  resolveOfficeDocumentConversionRuntimeStatus?: () => Promise<OfficeDocumentConversionRuntimeStatus>;
   adminAiServices?: {
     getSettings: () => Promise<{ aiFeaturesEnabled: boolean }>;
   };
@@ -191,7 +192,7 @@ export async function generateOfficePreviewPdfs({
   encryption,
   parsePipeline,
   documentConverter,
-  resolveOfficeDocumentConversionEnabled,
+  resolveOfficeDocumentConversionRuntimeStatus,
   adminAiServices,
   embeddingIndexQueue,
   limit = 100,
@@ -201,30 +202,29 @@ export async function generateOfficePreviewPdfs({
   encryption: EncryptionServices;
   parsePipeline: ParsePipeline;
   documentConverter?: DocumentConverter;
-  resolveOfficeDocumentConversionEnabled?: () => Promise<boolean>;
+  resolveOfficeDocumentConversionRuntimeStatus?: () => Promise<OfficeDocumentConversionRuntimeStatus>;
   adminAiServices?: { getSettings: () => Promise<{ aiFeaturesEnabled: boolean }> };
   embeddingIndexQueue?: EmbeddingIndexQueue;
   limit?: number;
 }) {
-  if (
-    resolveOfficeDocumentConversionEnabled !== undefined &&
-    !(await resolveOfficeDocumentConversionEnabled())
-  ) {
-    return { convertedCount: 0, skippedCount: 0, failedCount: 0, reason: 'disabled' as const };
-  }
-
   if (documentConverter === undefined) {
     return { convertedCount: 0, skippedCount: 0, failedCount: 0, reason: 'not_configured' as const };
   }
 
-  const health = await documentConverter.checkHealth();
-  if (!health.healthy) {
+  const runtimeStatus =
+    resolveOfficeDocumentConversionRuntimeStatus === undefined
+      ? ({ canScheduleConversion: true, effectiveState: 'active', error: null } as Pick<
+          OfficeDocumentConversionRuntimeStatus,
+          'canScheduleConversion' | 'effectiveState' | 'error'
+        >)
+      : await resolveOfficeDocumentConversionRuntimeStatus();
+  if (!runtimeStatus.canScheduleConversion) {
     return {
       convertedCount: 0,
       skippedCount: 0,
       failedCount: 0,
-      reason: 'unhealthy' as const,
-      error: health.error,
+      reason: runtimeStatus.effectiveState,
+      error: runtimeStatus.error,
     };
   }
 
@@ -463,7 +463,7 @@ export function createMaintenanceWorker({
   startPolling = true,
   pauseWhen,
   documentConverter,
-  resolveOfficeDocumentConversionEnabled,
+  resolveOfficeDocumentConversionRuntimeStatus,
   adminAiServices,
   embeddingIndexQueue,
 }: MaintenanceWorkerDeps) {
@@ -495,7 +495,7 @@ export function createMaintenanceWorker({
         encryption,
         parsePipeline,
         documentConverter,
-        resolveOfficeDocumentConversionEnabled,
+        resolveOfficeDocumentConversionRuntimeStatus,
         adminAiServices,
         embeddingIndexQueue,
         limit: job.data.type === 'generate-office-preview-pdfs' ? job.data.limit : undefined,

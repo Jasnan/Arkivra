@@ -75,14 +75,27 @@ describe('maintenance worker cleanup', () => {
       encryption: {} as never,
       parsePipeline: {} as never,
       documentConverter: documentConverter as never,
-      resolveOfficeDocumentConversionEnabled: async () => false,
+      resolveOfficeDocumentConversionRuntimeStatus: async () => ({
+        supported: true,
+        enabled: false,
+        settingSource: 'stored',
+        configured: true,
+        healthy: true,
+        effectiveState: 'paused',
+        canScheduleConversion: false,
+        provider: 'gotenberg',
+        url: 'http://gotenberg:3000',
+        lastHealthCheck: '2026-06-28T12:00:00.000Z',
+        error: null,
+      }),
     });
 
     expect(result).toEqual({
       convertedCount: 0,
       skippedCount: 0,
       failedCount: 0,
-      reason: 'disabled',
+      reason: 'paused',
+      error: null,
     });
     expect(documentConverter.checkHealth).not.toHaveBeenCalled();
   });

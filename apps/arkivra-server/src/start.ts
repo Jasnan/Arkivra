@@ -63,9 +63,10 @@ export async function startApp() {
   const officeConversionSettingsServices = createOfficeDocumentConversionSettingsServices({
     db,
     defaultEnabled: documentConverter !== undefined,
+    documentConverter,
   });
-  const resolveOfficeDocumentConversionEnabled = async () =>
-    (await officeConversionSettingsServices.getSettings()).enabled;
+  const resolveOfficeDocumentConversionRuntimeStatus = async () =>
+    officeConversionSettingsServices.getRuntimeStatus();
 
   if (isWebMode) {
     const { app } = createServer({
@@ -147,7 +148,7 @@ export async function startApp() {
       adminAiServices,
       embeddingIndexQueue,
       documentConverter,
-      resolveOfficeDocumentConversionEnabled,
+      resolveOfficeDocumentConversionRuntimeStatus,
     });
     const maintenanceWorker = createMaintenanceWorker({
       db,
@@ -158,7 +159,7 @@ export async function startApp() {
       appInstance: config.app.instance,
       pauseWhen: backupServices.isMaintenanceModeEnabled,
       documentConverter,
-      resolveOfficeDocumentConversionEnabled,
+      resolveOfficeDocumentConversionRuntimeStatus,
       adminAiServices,
       embeddingIndexQueue,
     });

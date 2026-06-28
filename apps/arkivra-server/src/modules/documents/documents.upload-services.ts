@@ -10,6 +10,10 @@ import { normalizeDocumentFileName } from './documents.naming.js';
 import type { DerivedPreviewStatus, UploadConflictStrategy } from './documents.service-types.js';
 import type { createDocumentVersionServices } from './documents.version-services.js';
 import { isOfficeDocumentConvertible } from '../document-conversion/index.js';
+import type {
+  OfficeDocumentConversionRuntimeState,
+  OfficeDocumentConversionRuntimeStatus,
+} from '../admin/maintenance/office-conversion-settings.js';
 
 type VersionServices = Pick<
   ReturnType<typeof createDocumentVersionServices>,
@@ -22,7 +26,7 @@ export function createDocumentUploadServices({
   encryption,
   versionServices,
   findActiveDocumentFileNameCollision,
-  resolveOfficeDocumentConversionEnabled,
+  resolveOfficeDocumentConversionRuntimeStatus,
 }: {
   db: Database;
   storage: StorageDriver;
@@ -34,7 +38,7 @@ export function createDocumentUploadServices({
     fileName: string;
     excludeDocumentId?: string;
   }) => Promise<{ id: string } | null>;
-  resolveOfficeDocumentConversionEnabled?: () => Promise<boolean>;
+  resolveOfficeDocumentConversionRuntimeStatus?: () => Promise<OfficeDocumentConversionRuntimeStatus>;
 }) {
   const { createDocumentVersion, createLogicalDocumentWithInitialVersion } = versionServices;
   function computeSha256(data: Buffer): string {
@@ -94,13 +98,10 @@ export function createDocumentUploadServices({
     const sha256Hash = computeSha256(fileData);
     const fileSize = fileData.length;
     const normalizedFileName = normalizeDocumentFileName(fileName);
-    const conversionEnabled = resolveOfficeDocumentConversionEnabled === undefined
-      ? true
-      : await resolveOfficeDocumentConversionEnabled();
-    const derivedPreviewStatus: DerivedPreviewStatus =
-      conversionEnabled && isOfficeDocumentConvertible({ fileName: normalizedFileName, mimeType })
-        ? 'pending'
-        : 'unavailable';
+    const previewLifecycle = await getInitialPreviewLifecycle({
+      fileName: normalizedFileName,
+      mimeType,
+    });
 
     const existingName = await findActiveDocumentFileNameCollision({
       vaultId,
@@ -216,7 +217,9 @@ export function createDocumentUploadServices({
         originalSha256Hash: sha256Hash,
         mimeType,
         processingStatus: 'pending',
-        derivedPreviewStatus,
+        derivedPreviewStatus: previewLifecycle.status,
+        derivedPreviewErrorCode: previewLifecycle.errorCode,
+        derivedPreviewErrorMessage: previewLifecycle.errorMessage,
         fileEncryptionKeyWrapped: wrappedDek,
         fileEncryptionKekVersion: kekVersion,
         fileEncryptionAlgorithm: algorithm,
@@ -266,7 +269,9 @@ export function createDocumentUploadServices({
       originalSha256Hash: sha256Hash,
       mimeType,
       processingStatus: 'pending',
-      derivedPreviewStatus,
+      derivedPreviewStatus: previewLifecycle.status,
+      derivedPreviewErrorCode: previewLifecycle.errorCode,
+      derivedPreviewErrorMessage: previewLifecycle.errorMessage,
       fileEncryptionKeyWrapped: wrappedDek,
       fileEncryptionKekVersion: kekVersion,
       fileEncryptionAlgorithm: algorithm,
@@ -283,6 +288,43 @@ export function createDocumentUploadServices({
       existingId: null,
       duplicateScope: null,
       conflictType: null,
+    };
+  }
+
+  async function getInitialPreviewLifecycle({
+    fileName,
+    mimeType,
+  }: {
+    fileName: string;
+    mimeType: string;
+  }): Promise<{
+    status: DerivedPreviewStatus;
+    errorCode: string | null;
+    errorMessage: string | null;
+  }> {
+    if (!isOfficeDocumentConvertible({ fileName, mimeType })) {
+      return { status: 'unavailable', errorCode: null, errorMessage: null };
+    }
+
+    const runtimeStatus =
+      resolveOfficeDocumentConversionRuntimeStatus === undefined
+        ? ({
+            effectiveState: 'active',
+            canScheduleConversion: true,
+          } as Pick<
+            OfficeDocumentConversionRuntimeStatus,
+            'effectiveState' | 'canScheduleConversion'
+          >)
+        : await resolveOfficeDocumentConversionRuntimeStatus();
+
+    if (runtimeStatus.canScheduleConversion) {
+      return { status: 'pending', errorCode: null, errorMessage: null };
+    }
+
+    return {
+      status: 'unavailable',
+      errorCode: previewUnavailableCode(runtimeStatus.effectiveState),
+      errorMessage: null,
     };
   }
 
@@ -320,4 +362,17 @@ export function createDocumentUploadServices({
     finalizeUploadedDocument,
     uploadDocument,
   };
+}
+
+function previewUnavailableCode(state: OfficeDocumentConversionRuntimeState) {
+  switch (state) {
+    case 'not_configured':
+      return 'document.preview_conversion_not_configured';
+    case 'paused':
+      return 'document.preview_conversion_disabled';
+    case 'unavailable':
+      return 'document.preview_conversion_unavailable';
+    case 'active':
+      return null;
+  }
 }

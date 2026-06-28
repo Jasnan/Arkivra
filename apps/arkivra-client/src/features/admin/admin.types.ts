@@ -213,6 +213,8 @@ export interface AdminAiStatus {
 
 export interface AdminOfficeConverterStatus {
   supported: boolean;
+  enabled: boolean;
+  settingSource: 'stored' | 'environment_default';
   configured: boolean;
   healthy: boolean;
   provider: string | null;

@@ -253,6 +253,17 @@ export async function getAdminOfficeConverterStatus() {
   );
 }
 
+export async function updateAdminOfficeConverterSettings({ enabled }: { enabled: boolean }) {
+  return fetchJson<{ settings: { enabled: boolean; settingSource: 'stored' } }>(
+    '/api/admin/maintenance/office-converter/settings',
+    {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    },
+  );
+}
+
 export async function scheduleMissingOfficePreviews() {
   return fetchJson<{ job: { type: 'generate-office-preview-pdfs'; status: 'queued' } }>(
     '/api/admin/maintenance/office-preview-pdfs',

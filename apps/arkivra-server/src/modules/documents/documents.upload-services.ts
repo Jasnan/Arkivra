@@ -7,8 +7,9 @@ import type { EncryptionServices } from '../encryption/encryption.services.js';
 import type { StorageDriver } from '../storage/storage.types.js';
 import { documentVersionSourceStorageKey } from './document-storage-keys.js';
 import { normalizeDocumentFileName } from './documents.naming.js';
-import type { UploadConflictStrategy } from './documents.service-types.js';
+import type { DerivedPreviewStatus, UploadConflictStrategy } from './documents.service-types.js';
 import type { createDocumentVersionServices } from './documents.version-services.js';
+import { isOfficeDocumentConvertible } from '../document-conversion/index.js';
 
 type VersionServices = Pick<
   ReturnType<typeof createDocumentVersionServices>,
@@ -21,6 +22,7 @@ export function createDocumentUploadServices({
   encryption,
   versionServices,
   findActiveDocumentFileNameCollision,
+  resolveOfficeDocumentConversionEnabled,
 }: {
   db: Database;
   storage: StorageDriver;
@@ -32,6 +34,7 @@ export function createDocumentUploadServices({
     fileName: string;
     excludeDocumentId?: string;
   }) => Promise<{ id: string } | null>;
+  resolveOfficeDocumentConversionEnabled?: () => Promise<boolean>;
 }) {
   const { createDocumentVersion, createLogicalDocumentWithInitialVersion } = versionServices;
   function computeSha256(data: Buffer): string {
@@ -91,6 +94,13 @@ export function createDocumentUploadServices({
     const sha256Hash = computeSha256(fileData);
     const fileSize = fileData.length;
     const normalizedFileName = normalizeDocumentFileName(fileName);
+    const conversionEnabled = resolveOfficeDocumentConversionEnabled === undefined
+      ? true
+      : await resolveOfficeDocumentConversionEnabled();
+    const derivedPreviewStatus: DerivedPreviewStatus =
+      conversionEnabled && isOfficeDocumentConvertible({ fileName: normalizedFileName, mimeType })
+        ? 'pending'
+        : 'unavailable';
 
     const existingName = await findActiveDocumentFileNameCollision({
       vaultId,
@@ -206,6 +216,7 @@ export function createDocumentUploadServices({
         originalSha256Hash: sha256Hash,
         mimeType,
         processingStatus: 'pending',
+        derivedPreviewStatus,
         fileEncryptionKeyWrapped: wrappedDek,
         fileEncryptionKekVersion: kekVersion,
         fileEncryptionAlgorithm: algorithm,
@@ -255,6 +266,7 @@ export function createDocumentUploadServices({
       originalSha256Hash: sha256Hash,
       mimeType,
       processingStatus: 'pending',
+      derivedPreviewStatus,
       fileEncryptionKeyWrapped: wrappedDek,
       fileEncryptionKekVersion: kekVersion,
       fileEncryptionAlgorithm: algorithm,

@@ -257,6 +257,13 @@ export function createDocumentVersionLifecycleServices({
             previewPdfEncryptionKeyWrapped: sourceVersion.previewPdfEncryptionKeyWrapped,
             previewPdfEncryptionKekVersion: sourceVersion.previewPdfEncryptionKekVersion,
             previewPdfEncryptionAlgorithm: sourceVersion.previewPdfEncryptionAlgorithm,
+            derivedPreviewStatus:
+              targetPreviewPdfStorageKey === null && sourceVersion.derivedPreviewStatus === 'ready'
+                ? 'failed'
+                : sourceVersion.derivedPreviewStatus,
+            derivedPreviewErrorCode: sourceVersion.derivedPreviewErrorCode,
+            derivedPreviewErrorMessage: sourceVersion.derivedPreviewErrorMessage,
+            derivedPreviewFailedAt: sourceVersion.derivedPreviewFailedAt,
             content: sourceVersion.content,
             rawText: sourceVersion.rawText,
             rawMarkdown: sourceVersion.rawMarkdown,
@@ -348,6 +355,13 @@ export function createDocumentVersionLifecycleServices({
             previewPdfEncryptionKeyWrapped: sourceVersion.previewPdfEncryptionKeyWrapped,
             previewPdfEncryptionKekVersion: sourceVersion.previewPdfEncryptionKekVersion,
             previewPdfEncryptionAlgorithm: sourceVersion.previewPdfEncryptionAlgorithm,
+            derivedPreviewStatus:
+              targetPreviewPdfStorageKey === null && sourceVersion.derivedPreviewStatus === 'ready'
+                ? 'failed'
+                : sourceVersion.derivedPreviewStatus,
+            derivedPreviewErrorCode: sourceVersion.derivedPreviewErrorCode,
+            derivedPreviewErrorMessage: sourceVersion.derivedPreviewErrorMessage,
+            derivedPreviewFailedAt: sourceVersion.derivedPreviewFailedAt,
             content: sourceVersion.content,
             rawText: sourceVersion.rawText,
             rawMarkdown: sourceVersion.rawMarkdown,

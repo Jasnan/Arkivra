@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { hardDeleteExpiredDocuments } from './maintenance.worker.js';
+import { generateOfficePreviewPdfs, hardDeleteExpiredDocuments } from './maintenance.worker.js';
 
 describe('maintenance worker cleanup', () => {
   test('hard deletes expired soft-deleted documents from storage and database', async () => {
@@ -62,5 +62,28 @@ describe('maintenance worker cleanup', () => {
     expect(storage.remove).not.toHaveBeenCalled();
     expect(storage.removePrefix).not.toHaveBeenCalled();
     expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  test('skips office preview generation when conversion is disabled', async () => {
+    const documentConverter = {
+      checkHealth: vi.fn(),
+    };
+
+    const result = await generateOfficePreviewPdfs({
+      db: { execute: vi.fn() } as never,
+      storage: {} as never,
+      encryption: {} as never,
+      parsePipeline: {} as never,
+      documentConverter: documentConverter as never,
+      resolveOfficeDocumentConversionEnabled: async () => false,
+    });
+
+    expect(result).toEqual({
+      convertedCount: 0,
+      skippedCount: 0,
+      failedCount: 0,
+      reason: 'disabled',
+    });
+    expect(documentConverter.checkHealth).not.toHaveBeenCalled();
   });
 });

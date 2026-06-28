@@ -115,12 +115,18 @@ function createDb(docOverrides: Partial<{
 
   const uploadSessionWhere = vi.fn(async () => []);
   const uploadSessionSet = vi.fn(() => ({ where: uploadSessionWhere }));
+  const updateSetCalls: unknown[] = [];
   const update = vi.fn((table) => {
     if (table === 'upload_sessions') {
       return { set: uploadSessionSet };
     }
 
-    return { set: vi.fn(() => ({ where: vi.fn(async () => []) })) };
+    return {
+      set: vi.fn((values) => {
+        updateSetCalls.push(values);
+        return { where: vi.fn(async () => []) };
+      }),
+    };
   });
   const transaction = vi.fn(async (callback) => callback({ update }));
 
@@ -141,6 +147,7 @@ function createDb(docOverrides: Partial<{
     docRow,
     transaction,
     uploadSessionSet,
+    updateSetCalls,
   };
 }
 
@@ -173,7 +180,7 @@ function createDeps({
   ) => Promise<ParsedDocument>;
   executeImpl?: () => Promise<{ rows: Array<{ status: string; payload: Record<string, unknown> }> }>;
 } = {}) {
-  const { db } = createDb(docOverrides, executeImpl);
+  const { db, updateSetCalls } = createDb(docOverrides, executeImpl);
   const storage = {
     read: vi.fn(async () => Buffer.from('file-bytes')),
     write: vi.fn(),
@@ -211,6 +218,7 @@ function createDeps({
     adminAiServices,
     db,
     embeddingIndexQueue,
+    updateSetCalls,
     storage,
     encryption,
     parsePipeline,
@@ -465,6 +473,16 @@ describe('document worker', () => {
       fileData: Buffer.from('file-bytes'),
     });
     expect(deps.storage.write).toHaveBeenCalledWith('previews/dvr_1/document.preview.pdf', pdfData);
+    expect(deps.updateSetCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          derivedPreviewStatus: 'ready',
+          derivedPreviewErrorCode: null,
+          derivedPreviewErrorMessage: null,
+          derivedPreviewFailedAt: null,
+        }),
+      ]),
+    );
     expect(deps.parsePipeline.run).toHaveBeenCalledWith(
       expect.objectContaining({
         fileName: 'Contract.preview.pdf',
@@ -509,9 +527,71 @@ describe('document worker', () => {
     await worker.processDocument(deps.job as never);
 
     expect(documentConverter.convertToPdf).not.toHaveBeenCalled();
+    expect(deps.updateSetCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          derivedPreviewStatus: 'failed',
+          derivedPreviewErrorCode: 'document.preview_converter_unavailable',
+          derivedPreviewErrorMessage: 'Preview generation failed.',
+        }),
+      ]),
+    );
     expect(deps.storage.write).not.toHaveBeenCalledWith(
       'previews/dvr_1/document.preview.pdf',
       expect.any(Buffer),
+    );
+    expect(deps.parsePipeline.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileName: 'Contract.docx',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        fileData: Buffer.from('file-bytes'),
+      }),
+      expect.any(Object),
+    );
+  });
+
+  test('skips Office conversion when the platform setting is disabled', async () => {
+    const deps = createDeps({
+      docOverrides: {
+        originalName: 'Contract.docx',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      },
+    });
+    const documentConverter = {
+      provider: 'gotenberg',
+      baseUrl: 'http://gotenberg:3000',
+      checkHealth: vi.fn(),
+      convertToPdf: vi.fn(),
+    };
+    const { createDocumentWorker } = await import('./document.worker.js');
+
+    const worker = createDocumentWorker({
+      db: deps.db,
+      storage: deps.storage as never,
+      encryption: deps.encryption,
+      parsePipeline: deps.parsePipeline as never,
+      startPolling: false,
+      documentConverter: documentConverter as never,
+      resolveOfficeDocumentConversionEnabled: async () => false,
+    });
+
+    await worker.processDocument(deps.job as never);
+
+    expect(documentConverter.checkHealth).not.toHaveBeenCalled();
+    expect(documentConverter.convertToPdf).not.toHaveBeenCalled();
+    expect(deps.storage.write).not.toHaveBeenCalledWith(
+      'previews/dvr_1/document.preview.pdf',
+      expect.any(Buffer),
+    );
+    expect(deps.updateSetCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          derivedPreviewStatus: 'unavailable',
+          derivedPreviewErrorCode: null,
+          derivedPreviewErrorMessage: null,
+          derivedPreviewFailedAt: null,
+        }),
+      ]),
     );
     expect(deps.parsePipeline.run).toHaveBeenCalledWith(
       expect.objectContaining({

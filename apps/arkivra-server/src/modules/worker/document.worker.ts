@@ -45,6 +45,7 @@ export type DocumentWorkerDeps = {
   };
   embeddingIndexQueue?: EmbeddingIndexQueue;
   documentConverter?: DocumentConverter;
+  resolveOfficeDocumentConversionEnabled?: () => Promise<boolean>;
 };
 
 export function createDocumentWorker(deps: DocumentWorkerDeps) {
@@ -61,8 +62,14 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
     adminAiServices,
     embeddingIndexQueue,
     documentConverter,
+    resolveOfficeDocumentConversionEnabled,
   } = deps;
-  const documentsServices = createDocumentsServices({ db, storage, encryption });
+  const documentsServices = createDocumentsServices({
+    db,
+    storage,
+    encryption,
+    resolveOfficeDocumentConversionEnabled,
+  });
   const logPrefix = '[document-worker]';
   const queueName = getScopedQueueName(PROCESS_DOCUMENT_QUEUE, appInstance);
 
@@ -264,6 +271,10 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
       previewPdfEncryptionKeyWrapped: wrappedDek,
       previewPdfEncryptionKekVersion: kekVersion,
       previewPdfEncryptionAlgorithm: algorithm,
+      derivedPreviewStatus: 'ready' as const,
+      derivedPreviewErrorCode: null,
+      derivedPreviewErrorMessage: null,
+      derivedPreviewFailedAt: null,
       updatedAt: sql`now()`,
     };
 
@@ -297,6 +308,94 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
       encryptionKeyWrapped: wrappedDek,
       encryptionKekVersion: kekVersion,
     };
+  }
+
+  async function markDerivedPreviewFailed({
+    documentId,
+    documentVersionId,
+    vaultId,
+    errorCode,
+    errorMessage = 'Preview generation failed.',
+  }: {
+    documentId: string;
+    documentVersionId: string;
+    vaultId: string;
+    errorCode: string;
+    errorMessage?: string;
+  }) {
+    const previewFields = {
+      derivedPreviewStatus: 'failed' as const,
+      derivedPreviewErrorCode: errorCode,
+      derivedPreviewErrorMessage: errorMessage,
+      derivedPreviewFailedAt: sql`now()`,
+      updatedAt: sql`now()`,
+    };
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(documentVersionsTable)
+        .set(previewFields)
+        .where(
+          and(
+            eq(documentVersionsTable.id, documentVersionId),
+            eq(documentVersionsTable.documentId, documentId),
+            eq(documentVersionsTable.vaultId, vaultId),
+          ),
+        );
+
+      await tx
+        .update(documentsTable)
+        .set(previewFields)
+        .where(
+          and(
+            eq(documentsTable.id, documentId),
+            eq(documentsTable.vaultId, vaultId),
+            eq(documentsTable.currentVersionId, documentVersionId),
+          ),
+        );
+    });
+  }
+
+  async function markDerivedPreviewUnavailable({
+    documentId,
+    documentVersionId,
+    vaultId,
+  }: {
+    documentId: string;
+    documentVersionId: string;
+    vaultId: string;
+  }) {
+    const previewFields = {
+      derivedPreviewStatus: 'unavailable' as const,
+      derivedPreviewErrorCode: null,
+      derivedPreviewErrorMessage: null,
+      derivedPreviewFailedAt: null,
+      updatedAt: sql`now()`,
+    };
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(documentVersionsTable)
+        .set(previewFields)
+        .where(
+          and(
+            eq(documentVersionsTable.id, documentVersionId),
+            eq(documentVersionsTable.documentId, documentId),
+            eq(documentVersionsTable.vaultId, vaultId),
+          ),
+        );
+
+      await tx
+        .update(documentsTable)
+        .set(previewFields)
+        .where(
+          and(
+            eq(documentsTable.id, documentId),
+            eq(documentsTable.vaultId, vaultId),
+            eq(documentsTable.currentVersionId, documentVersionId),
+          ),
+        );
+    });
   }
 
   async function readStoredPreviewPdf({
@@ -467,44 +566,76 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
           kekVersion: doc.previewPdfEncryptionKekVersion,
         });
       } else if (
-        documentConverter !== undefined &&
         isOfficeDocumentConvertible({ fileName: doc.originalName, mimeType: doc.mimeType })
       ) {
-        const health = await documentConverter.checkHealth();
+        const conversionEnabled =
+          resolveOfficeDocumentConversionEnabled === undefined ||
+          (await resolveOfficeDocumentConversionEnabled());
 
-        if (health.healthy) {
-          try {
-            console.info(
-              `${logPrefix} converting Office document=${documentId} version=${documentVersionId} with ${documentConverter.provider}`,
+        if (!conversionEnabled) {
+          console.info(
+            `${logPrefix} Office conversion disabled for document=${documentId} version=${documentVersionId}; continuing with original`,
+          );
+          await markDerivedPreviewUnavailable({ documentId, documentVersionId, vaultId });
+        } else if (documentConverter === undefined) {
+          console.warn(
+            `${logPrefix} Office converter is not configured for document=${documentId} version=${documentVersionId}; continuing with original`,
+          );
+          await markDerivedPreviewFailed({
+            documentId,
+            documentVersionId,
+            vaultId,
+            errorCode: 'document.preview_converter_unavailable',
+          });
+        } else {
+          const health = await documentConverter.checkHealth();
+
+          if (health.healthy) {
+            try {
+              console.info(
+                `${logPrefix} converting Office document=${documentId} version=${documentVersionId} with ${documentConverter.provider}`,
+              );
+              const converted = await documentConverter.convertToPdf({
+                fileName: doc.originalName,
+                mimeType: doc.mimeType,
+                fileData,
+              });
+              const stored = await storePreviewPdf({
+                documentId,
+                documentVersionId,
+                vaultId,
+                pdfData: converted.fileData,
+                converter: converted.converter,
+                converterVersion: converted.converterVersion,
+              });
+              parseFileName = converted.fileName;
+              parseMimeType = converted.mimeType;
+              parseFileData = converted.fileData;
+              console.info(
+                `${logPrefix} stored preview PDF for document=${documentId} version=${documentVersionId} bytes=${converted.fileData.length} sha256=${stored.sha256Hash}`,
+              );
+            } catch (error) {
+              console.error(
+                `${logPrefix} Office conversion failed for ${documentId}; continuing with original: ${error instanceof Error ? error.message : error}`,
+              );
+              await markDerivedPreviewFailed({
+                documentId,
+                documentVersionId,
+                vaultId,
+                errorCode: 'document.preview_generation_failed',
+              });
+            }
+          } else {
+            console.warn(
+              `${logPrefix} Office converter unavailable for ${documentId}; continuing with original${health.error === null ? '' : `: ${health.error}`}`,
             );
-            const converted = await documentConverter.convertToPdf({
-              fileName: doc.originalName,
-              mimeType: doc.mimeType,
-              fileData,
-            });
-            const stored = await storePreviewPdf({
+            await markDerivedPreviewFailed({
               documentId,
               documentVersionId,
               vaultId,
-              pdfData: converted.fileData,
-              converter: converted.converter,
-              converterVersion: converted.converterVersion,
+              errorCode: 'document.preview_converter_unavailable',
             });
-            parseFileName = converted.fileName;
-            parseMimeType = converted.mimeType;
-            parseFileData = converted.fileData;
-            console.info(
-              `${logPrefix} stored preview PDF for document=${documentId} version=${documentVersionId} bytes=${converted.fileData.length} sha256=${stored.sha256Hash}`,
-            );
-          } catch (error) {
-            console.error(
-              `${logPrefix} Office conversion failed for ${documentId}; continuing with original: ${error instanceof Error ? error.message : error}`,
-            );
           }
-        } else {
-          console.warn(
-            `${logPrefix} Office converter unavailable for ${documentId}; continuing with original${health.error === null ? '' : `: ${health.error}`}`,
-          );
         }
       }
 

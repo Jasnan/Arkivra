@@ -231,6 +231,8 @@ function installAiSettingsFetchMock({
   ollamaAvailability = createOllamaAvailability(),
   officeConverterStatus = {
     supported: true,
+    enabled: true,
+    settingSource: 'environment_default',
     configured: true,
     healthy: true,
     provider: 'gotenberg',
@@ -269,6 +271,15 @@ function installAiSettingsFetchMock({
 
     if (url === '/api/admin/maintenance/office-converter/status') {
       return jsonResponse({ officeConverter: officeConverterStatus });
+    }
+
+    if (url === '/api/admin/maintenance/office-converter/settings' && init?.method === 'PUT') {
+      return jsonResponse({
+        settings: {
+          enabled: JSON.parse(String(init.body)).enabled,
+          settingSource: 'stored',
+        },
+      });
     }
 
     if (url === '/api/admin/maintenance/office-preview-pdfs' && init?.method === 'POST') {
@@ -906,8 +917,11 @@ describe('admin and about pages', () => {
 
     await renderWithProviders(<AdminOfficeConverterPage />, { includeToaster: true });
 
-    expect(await screen.findByText('Office Document Converter')).toBeInTheDocument();
+    expect(await screen.findByText('Office Document Conversion')).toBeInTheDocument();
     expect(await screen.findByText('Healthy')).toBeInTheDocument();
+    expect(
+      screen.getByRole('checkbox', { name: /enable office document conversion/i }),
+    ).toBeChecked();
     expect(screen.getByText(/gotenberg/i)).toBeInTheDocument();
     expect(screen.getByText('DOCX')).toBeInTheDocument();
 
@@ -916,7 +930,7 @@ describe('admin and about pages', () => {
     expect(
       await screen.findByRole('dialog', { name: 'Generate Missing Office Previews?' }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/original uploaded documents will not be modified/i)).toBeInTheDocument();
+    expect(screen.getByText(/original files stay unchanged/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Generate' }));
 
@@ -926,6 +940,44 @@ describe('admin and about pages', () => {
         expect.objectContaining({
           credentials: 'include',
           method: 'POST',
+        }),
+      );
+    });
+  });
+
+  it('persists Office document conversion toggle changes and disables maintenance actions', async () => {
+    const user = userEvent.setup();
+    const settings = createAiSettingsFixture();
+    const fetchMock = installAiSettingsFetchMock({
+      settings,
+      officeConverterStatus: {
+        supported: true,
+        enabled: false,
+        settingSource: 'stored',
+        configured: true,
+        healthy: true,
+        provider: 'gotenberg',
+        url: 'http://gotenberg:3000',
+        lastHealthCheck: '2026-06-28T12:00:00.000Z',
+        error: null,
+        supportedFormats: ['DOC', 'DOCX', 'XLS', 'XLSX', 'PPT', 'PPTX', 'ODT', 'ODS', 'ODP'],
+      },
+    });
+
+    await renderWithProviders(<AdminOfficeConverterPage />, { includeToaster: true });
+
+    expect(await screen.findByText('Disabled')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Generate Missing Previews' })).toBeDisabled();
+
+    await user.click(screen.getByRole('checkbox', { name: /enable office document conversion/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/admin/maintenance/office-converter/settings',
+        expect.objectContaining({
+          credentials: 'include',
+          method: 'PUT',
+          body: JSON.stringify({ enabled: true }),
         }),
       );
     });

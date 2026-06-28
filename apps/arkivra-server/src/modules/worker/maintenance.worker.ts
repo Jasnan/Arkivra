@@ -47,6 +47,7 @@ export type MaintenanceWorkerDeps = {
   startPolling?: boolean;
   pauseWhen?: () => Promise<boolean>;
   documentConverter?: DocumentConverter;
+  resolveOfficeDocumentConversionEnabled?: () => Promise<boolean>;
   adminAiServices?: {
     getSettings: () => Promise<{ aiFeaturesEnabled: boolean }>;
   };
@@ -190,6 +191,7 @@ export async function generateOfficePreviewPdfs({
   encryption,
   parsePipeline,
   documentConverter,
+  resolveOfficeDocumentConversionEnabled,
   adminAiServices,
   embeddingIndexQueue,
   limit = 100,
@@ -199,10 +201,18 @@ export async function generateOfficePreviewPdfs({
   encryption: EncryptionServices;
   parsePipeline: ParsePipeline;
   documentConverter?: DocumentConverter;
+  resolveOfficeDocumentConversionEnabled?: () => Promise<boolean>;
   adminAiServices?: { getSettings: () => Promise<{ aiFeaturesEnabled: boolean }> };
   embeddingIndexQueue?: EmbeddingIndexQueue;
   limit?: number;
 }) {
+  if (
+    resolveOfficeDocumentConversionEnabled !== undefined &&
+    !(await resolveOfficeDocumentConversionEnabled())
+  ) {
+    return { convertedCount: 0, skippedCount: 0, failedCount: 0, reason: 'disabled' as const };
+  }
+
   if (documentConverter === undefined) {
     return { convertedCount: 0, skippedCount: 0, failedCount: 0, reason: 'not_configured' as const };
   }
@@ -343,6 +353,10 @@ export async function generateOfficePreviewPdfs({
         previewPdfEncryptionKeyWrapped: wrappedDek,
         previewPdfEncryptionKekVersion: kekVersion,
         previewPdfEncryptionAlgorithm: algorithm,
+        derivedPreviewStatus: 'ready',
+        derivedPreviewErrorCode: null,
+        derivedPreviewErrorMessage: null,
+        derivedPreviewFailedAt: null,
         updatedAt: sql`now()`,
       };
 
@@ -358,6 +372,10 @@ export async function generateOfficePreviewPdfs({
           preview_pdf_encryption_key_wrapped = ${previewFields.previewPdfEncryptionKeyWrapped},
           preview_pdf_encryption_kek_version = ${previewFields.previewPdfEncryptionKekVersion},
           preview_pdf_encryption_algorithm = ${previewFields.previewPdfEncryptionAlgorithm},
+          derived_preview_status = ${previewFields.derivedPreviewStatus},
+          derived_preview_error_code = ${previewFields.derivedPreviewErrorCode},
+          derived_preview_error_message = ${previewFields.derivedPreviewErrorMessage},
+          derived_preview_failed_at = ${previewFields.derivedPreviewFailedAt},
           updated_at = now()
         WHERE id = ${row.document_version_id}
           AND document_id = ${row.document_id}
@@ -375,6 +393,10 @@ export async function generateOfficePreviewPdfs({
           preview_pdf_encryption_key_wrapped = ${previewFields.previewPdfEncryptionKeyWrapped},
           preview_pdf_encryption_kek_version = ${previewFields.previewPdfEncryptionKekVersion},
           preview_pdf_encryption_algorithm = ${previewFields.previewPdfEncryptionAlgorithm},
+          derived_preview_status = ${previewFields.derivedPreviewStatus},
+          derived_preview_error_code = ${previewFields.derivedPreviewErrorCode},
+          derived_preview_error_message = ${previewFields.derivedPreviewErrorMessage},
+          derived_preview_failed_at = ${previewFields.derivedPreviewFailedAt},
           updated_at = now()
         WHERE id = ${row.document_id}
           AND vault_id = ${row.vault_id}
@@ -401,6 +423,30 @@ export async function generateOfficePreviewPdfs({
         `Office preview conversion failed for ${row.document_id}/${row.document_version_id}:`,
         error instanceof Error ? error.message : error,
       );
+      await db.execute(sql`
+        UPDATE document_versions
+        SET
+          derived_preview_status = 'failed',
+          derived_preview_error_code = 'document.preview_generation_failed',
+          derived_preview_error_message = 'Preview generation failed.',
+          derived_preview_failed_at = now(),
+          updated_at = now()
+        WHERE id = ${row.document_version_id}
+          AND document_id = ${row.document_id}
+          AND vault_id = ${row.vault_id}
+      `);
+      await db.execute(sql`
+        UPDATE documents
+        SET
+          derived_preview_status = 'failed',
+          derived_preview_error_code = 'document.preview_generation_failed',
+          derived_preview_error_message = 'Preview generation failed.',
+          derived_preview_failed_at = now(),
+          updated_at = now()
+        WHERE id = ${row.document_id}
+          AND vault_id = ${row.vault_id}
+          AND current_version_id = ${row.document_version_id}
+      `);
     }
   }
 
@@ -417,6 +463,7 @@ export function createMaintenanceWorker({
   startPolling = true,
   pauseWhen,
   documentConverter,
+  resolveOfficeDocumentConversionEnabled,
   adminAiServices,
   embeddingIndexQueue,
 }: MaintenanceWorkerDeps) {
@@ -448,6 +495,7 @@ export function createMaintenanceWorker({
         encryption,
         parsePipeline,
         documentConverter,
+        resolveOfficeDocumentConversionEnabled,
         adminAiServices,
         embeddingIndexQueue,
         limit: job.data.type === 'generate-office-preview-pdfs' ? job.data.limit : undefined,

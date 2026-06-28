@@ -135,7 +135,8 @@ function OfficeDocumentConversionSection({
 }) {
   const health = getOfficeConverterHealth(status);
   const providerLabel = formatConverterProvider(status.provider);
-  const canGenerateMissingPreviews = status.enabled && status.configured && status.healthy;
+  const canGenerateMissingPreviews = status.canScheduleConversion;
+  const canEditPreference = status.effectiveState === 'active' || status.effectiveState === 'paused';
 
   return (
     <Card p={{ base: '4', lg: '5' }} shadow="xs">
@@ -154,7 +155,7 @@ function OfficeDocumentConversionSection({
               aria-label="Enable Office Document Conversion"
               checked={status.enabled}
               colorPalette="blue"
-              disabled={isSaving}
+              disabled={isSaving || !canEditPreference}
               onCheckedChange={onToggleEnabled}
             />
             <Text
@@ -190,9 +191,7 @@ function OfficeDocumentConversionSection({
                 {health.description}
               </Text>
               <Text textStyle="sm" color="fg.muted">
-                {status.enabled
-                  ? 'New uploads will receive PDF previews when the service is healthy.'
-                  : 'New uploads will skip PDF preview generation.'}
+                {getOfficeConverterRuntimeDescription(status)}
               </Text>
             </Stack>
 
@@ -372,29 +371,45 @@ function MaintenanceNote({ icon, children }: { icon: ReactNode; children: ReactN
 }
 
 function getOfficeConverterHealth(status: AdminOfficeConverterStatus) {
-  if (!status.configured) {
-    return {
-      label: 'Not configured',
-      palette: 'gray' as const,
-      description: 'No converter service is configured.',
-    };
+  switch (status.effectiveState) {
+    case 'not_configured':
+      return {
+        label: 'Not Configured',
+        palette: 'gray' as const,
+        description: 'Office Document Conversion has not been configured.',
+      };
+    case 'active':
+      return {
+        label: 'Active',
+        palette: 'green' as const,
+        description: 'The converter service is connected and conversion is enabled.',
+      };
+    case 'paused':
+      return {
+        label: 'Paused',
+        palette: 'gray' as const,
+        description: 'The converter service is connected. Conversion is disabled by an administrator.',
+      };
+    case 'unavailable':
+      return {
+        label: 'Unavailable',
+        palette: 'orange' as const,
+        description: 'The converter service is configured but cannot be reached.',
+      };
   }
+}
 
-  if (status.healthy) {
-    return {
-      label: 'Healthy',
-      palette: 'green' as const,
-      description: status.enabled
-        ? 'The converter service is connected and ready.'
-        : 'The converter service is connected. Conversion is disabled.',
-    };
+function getOfficeConverterRuntimeDescription(status: AdminOfficeConverterStatus) {
+  switch (status.effectiveState) {
+    case 'not_configured':
+      return 'Configure a converter service in the environment before Office previews can be generated.';
+    case 'active':
+      return 'New supported uploads will receive PDF previews.';
+    case 'paused':
+      return 'New supported uploads will skip PDF preview generation until conversion is enabled.';
+    case 'unavailable':
+      return 'New supported uploads will skip PDF preview generation until the configured service is reachable.';
   }
-
-  return {
-    label: 'Unavailable',
-    palette: 'orange' as const,
-    description: 'The converter service is configured but cannot be reached.',
-  };
 }
 
 function formatOfficeConverterDate(value: string | null) {

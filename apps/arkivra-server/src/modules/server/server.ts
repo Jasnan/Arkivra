@@ -111,14 +111,15 @@ export function createServer({
   const officeConversionSettingsServices = createOfficeDocumentConversionSettingsServices({
     db,
     defaultEnabled: documentConverter !== undefined,
+    documentConverter,
   });
   const sensitiveActionServices = createSensitiveActionServices({ auth, db });
   const documentsServices = createDocumentsServices({
     db,
     storage,
     encryption,
-    resolveOfficeDocumentConversionEnabled: async () =>
-      (await officeConversionSettingsServices.getSettings()).enabled,
+    resolveOfficeDocumentConversionRuntimeStatus: async () =>
+      officeConversionSettingsServices.getRuntimeStatus(),
   });
   const embeddingProviders = createEmbeddingProviderRegistry({
     ollamaBatchSize: config.ollama.embeddingBatchSize,

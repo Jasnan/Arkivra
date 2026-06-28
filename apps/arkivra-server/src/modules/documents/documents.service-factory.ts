@@ -36,6 +36,7 @@ import { createDocumentUploadServices } from './documents.upload-services.js';
 import { createDocumentVersionLifecycleServices } from './documents.version-lifecycle-services.js';
 import { createDocumentVersionServices } from './documents.version-services.js';
 import { isOfficeDocumentConvertible } from '../document-conversion/index.js';
+import type { OfficeDocumentConversionRuntimeStatus } from '../admin/maintenance/office-conversion-settings.js';
 
 export type DocumentsServices = ReturnType<typeof createDocumentsServices>;
 export { normalizeDocumentFileName } from './documents.naming.js';
@@ -52,12 +53,12 @@ export function createDocumentsServices({
   db,
   storage,
   encryption,
-  resolveOfficeDocumentConversionEnabled,
+  resolveOfficeDocumentConversionRuntimeStatus,
 }: {
   db: Database;
   storage: StorageDriver;
   encryption: EncryptionServices;
-  resolveOfficeDocumentConversionEnabled?: () => Promise<boolean>;
+  resolveOfficeDocumentConversionRuntimeStatus?: () => Promise<OfficeDocumentConversionRuntimeStatus>;
 }) {
   function getFolderCondition(folderId: string | null) {
     return folderId === null
@@ -247,7 +248,7 @@ export function createDocumentsServices({
     encryption,
     versionServices,
     findActiveDocumentFileNameCollision,
-    resolveOfficeDocumentConversionEnabled,
+    resolveOfficeDocumentConversionRuntimeStatus,
   });
   const { finalizeUploadedDocument, uploadDocument } = uploadServices;
 
@@ -991,8 +992,8 @@ export function createDocumentsServices({
         fileName: previewContext.originalName,
         mimeType: previewContext.mimeType,
       }) &&
-      (resolveOfficeDocumentConversionEnabled === undefined ||
-        (await resolveOfficeDocumentConversionEnabled()));
+      (resolveOfficeDocumentConversionRuntimeStatus === undefined ||
+        (await resolveOfficeDocumentConversionRuntimeStatus()).canScheduleConversion);
     const derivedPreviewFields = resetDerivedPreviewLifecycle
       ? {
           derivedPreviewStatus: 'pending' as const,

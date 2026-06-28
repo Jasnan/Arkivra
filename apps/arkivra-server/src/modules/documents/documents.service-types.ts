@@ -168,6 +168,8 @@ export type CreateDocumentVersionInput = {
   fileEncryptionAlgorithm?: string | null;
   processingStatus?: DocumentProcessingStatus;
   derivedPreviewStatus?: DerivedPreviewStatus;
+  derivedPreviewErrorCode?: string | null;
+  derivedPreviewErrorMessage?: string | null;
   restoredFromVersionId?: string | null;
   makeCurrent?: boolean;
 };

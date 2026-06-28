@@ -49,41 +49,14 @@ export function registerAdminMaintenanceRoutes({
   const settingsServices = createOfficeDocumentConversionSettingsServices({
     db,
     defaultEnabled: documentConverter !== undefined,
+    documentConverter,
   });
 
   app.get('/api/admin/maintenance/office-converter/status', async (context) => {
-    const settings = await settingsServices.getSettings();
-
-    if (documentConverter === undefined) {
-      return context.json({
-        officeConverter: {
-          supported: true,
-          enabled: settings.enabled,
-          settingSource: settings.explicit ? 'stored' : 'environment_default',
-          configured: false,
-          healthy: false,
-          provider: null,
-          url: null,
-          lastHealthCheck: null,
-          error: null,
-          supportedFormats: SUPPORTED_OFFICE_CONVERTER_FORMATS,
-        },
-      });
-    }
-
-    const health = await documentConverter.checkHealth();
-
+    const status = await settingsServices.getRuntimeStatus();
     return context.json({
       officeConverter: {
-        supported: true,
-        enabled: settings.enabled,
-        settingSource: settings.explicit ? 'stored' : 'environment_default',
-        configured: health.configured,
-        healthy: health.healthy,
-        provider: health.provider,
-        url: health.url,
-        lastHealthCheck: health.checkedAt,
-        error: health.error,
+        ...status,
         supportedFormats: SUPPORTED_OFFICE_CONVERTER_FORMATS,
       },
     });
@@ -116,13 +89,13 @@ export function registerAdminMaintenanceRoutes({
   });
 
   app.post('/api/admin/maintenance/office-preview-pdfs', async (context) => {
-    const settings = await settingsServices.getSettings();
-    if (!settings.enabled) {
+    const status = await settingsServices.getRuntimeStatus();
+    if (!status.canScheduleConversion) {
       return context.json(
         {
           error: {
-            code: 'admin.office_conversion_disabled',
-            message: 'Office document conversion is disabled.',
+            code: `admin.office_conversion_${status.effectiveState}`,
+            message: 'Office document conversion is not active.',
           },
         },
         409,

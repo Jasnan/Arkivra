@@ -217,6 +217,8 @@ export interface AdminOfficeConverterStatus {
   settingSource: 'stored' | 'environment_default';
   configured: boolean;
   healthy: boolean;
+  effectiveState: 'not_configured' | 'active' | 'paused' | 'unavailable';
+  canScheduleConversion: boolean;
   provider: string | null;
   url: string | null;
   lastHealthCheck: string | null;

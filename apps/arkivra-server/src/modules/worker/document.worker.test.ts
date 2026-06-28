@@ -466,7 +466,7 @@ describe('document worker', () => {
 
     await worker.processDocument(deps.job as never);
 
-    expect(documentConverter.checkHealth).toHaveBeenCalled();
+    expect(documentConverter.checkHealth).not.toHaveBeenCalled();
     expect(documentConverter.convertToPdf).toHaveBeenCalledWith({
       fileName: 'Contract.docx',
       mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -493,7 +493,7 @@ describe('document worker', () => {
     );
   });
 
-  test('falls back to original Office document when the converter is unhealthy', async () => {
+  test('falls back to original Office document when the runtime status is unavailable', async () => {
     const deps = createDeps({
       docOverrides: {
         originalName: 'Contract.docx',
@@ -522,6 +522,19 @@ describe('document worker', () => {
       parsePipeline: deps.parsePipeline as never,
       startPolling: false,
       documentConverter: documentConverter as never,
+      resolveOfficeDocumentConversionRuntimeStatus: async () => ({
+        supported: true,
+        enabled: true,
+        settingSource: 'stored',
+        configured: true,
+        healthy: false,
+        effectiveState: 'unavailable',
+        canScheduleConversion: false,
+        provider: 'gotenberg',
+        url: 'http://gotenberg:3000',
+        lastHealthCheck: '2026-06-28T12:00:00.000Z',
+        error: '503 Service Unavailable',
+      }),
     });
 
     await worker.processDocument(deps.job as never);
@@ -530,9 +543,9 @@ describe('document worker', () => {
     expect(deps.updateSetCalls).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          derivedPreviewStatus: 'failed',
-          derivedPreviewErrorCode: 'document.preview_converter_unavailable',
-          derivedPreviewErrorMessage: 'Preview generation failed.',
+          derivedPreviewStatus: 'unavailable',
+          derivedPreviewErrorCode: 'document.preview_conversion_unavailable',
+          derivedPreviewErrorMessage: null,
         }),
       ]),
     );
@@ -572,7 +585,19 @@ describe('document worker', () => {
       parsePipeline: deps.parsePipeline as never,
       startPolling: false,
       documentConverter: documentConverter as never,
-      resolveOfficeDocumentConversionEnabled: async () => false,
+      resolveOfficeDocumentConversionRuntimeStatus: async () => ({
+        supported: true,
+        enabled: false,
+        settingSource: 'stored',
+        configured: true,
+        healthy: true,
+        effectiveState: 'paused',
+        canScheduleConversion: false,
+        provider: 'gotenberg',
+        url: 'http://gotenberg:3000',
+        lastHealthCheck: '2026-06-28T12:00:00.000Z',
+        error: null,
+      }),
     });
 
     await worker.processDocument(deps.job as never);
@@ -587,7 +612,7 @@ describe('document worker', () => {
       expect.arrayContaining([
         expect.objectContaining({
           derivedPreviewStatus: 'unavailable',
-          derivedPreviewErrorCode: null,
+          derivedPreviewErrorCode: 'document.preview_conversion_disabled',
           derivedPreviewErrorMessage: null,
           derivedPreviewFailedAt: null,
         }),

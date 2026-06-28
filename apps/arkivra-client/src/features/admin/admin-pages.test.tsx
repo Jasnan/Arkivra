@@ -235,6 +235,8 @@ function installAiSettingsFetchMock({
     settingSource: 'environment_default',
     configured: true,
     healthy: true,
+    effectiveState: 'active',
+    canScheduleConversion: true,
     provider: 'gotenberg',
     url: 'http://gotenberg:3000',
     lastHealthCheck: '2026-06-28T12:00:00.000Z',
@@ -918,7 +920,7 @@ describe('admin and about pages', () => {
     await renderWithProviders(<AdminOfficeConverterPage />, { includeToaster: true });
 
     expect(await screen.findByText('Office Document Conversion')).toBeInTheDocument();
-    expect(await screen.findByText('Healthy')).toBeInTheDocument();
+    expect(await screen.findByText('Active')).toBeInTheDocument();
     expect(
       screen.getByRole('checkbox', { name: /enable office document conversion/i }),
     ).toBeChecked();
@@ -956,6 +958,8 @@ describe('admin and about pages', () => {
         settingSource: 'stored',
         configured: true,
         healthy: true,
+        effectiveState: 'paused',
+        canScheduleConversion: false,
         provider: 'gotenberg',
         url: 'http://gotenberg:3000',
         lastHealthCheck: '2026-06-28T12:00:00.000Z',

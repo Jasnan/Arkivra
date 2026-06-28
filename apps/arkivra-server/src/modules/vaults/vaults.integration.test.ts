@@ -7,7 +7,6 @@ import { registerVaultRoutes } from './vaults.routes.js';
 
 function createMockVaultsServices() {
   const services = {
-    countVaultContents: vi.fn(async () => ({ documentCount: 0, folderCount: 0, totalCount: 0 })),
     createVault: vi.fn(async ({ name, description, userId }) => ({
       id: 'vlt_test_1',
       name,
@@ -22,6 +21,7 @@ function createMockVaultsServices() {
       isAdmin: false,
       userId,
     })),
+    hardDeleteVault: vi.fn(async () => ({ id: 'vlt_test_1' })),
     getMember: vi.fn(async () => null),
     getUserByEmail: vi.fn(async () => null),
     getVaultForUser: vi.fn(async () => null),
@@ -49,7 +49,6 @@ function createMockVaultsServices() {
       payload: payload ?? {},
     })),
     removeMember: vi.fn(async () => ({ userId: 'usr_member_1' })),
-    softDeleteVault: vi.fn(async () => ({ id: 'vlt_test_1' })),
     updateVaultIdentity: vi.fn(async ({ name, description }) => ({ id: 'vlt_test_1', name, description })),
     upsertMember: vi.fn(async ({ role, userId }) => ({ role, userId })),
   };
@@ -522,7 +521,7 @@ describe('vaults integration', () => {
     });
 
     expect(response.status).toBe(202);
-    expect(services.countVaultContents).toHaveBeenCalledWith({ vaultId: 'vlt_1' });
+    expect(services.hardDeleteVault).not.toHaveBeenCalled();
     expect(services.createPermissionRequest).toHaveBeenCalledWith({
       type: 'vault.delete',
       requestedBy: 'usr_owner',
@@ -531,7 +530,7 @@ describe('vaults integration', () => {
     });
   });
 
-  test('rejects vault deletion request when vault has contents', async () => {
+  test('allows vault deletion request when vault has contents', async () => {
     const services = createMockVaultsServices();
     (services as any).getVaultForUser = vi.fn(async () => ({
       id: 'vlt_1',
@@ -545,12 +544,6 @@ describe('vaults integration', () => {
       isMember: true,
       accessMode: 'member',
     }));
-    (services as any).countVaultContents = vi.fn(async () => ({
-      documentCount: 1,
-      folderCount: 0,
-      totalCount: 1,
-    }));
-
     const app = createTestApp({ services });
 
     const response = await app.request('/api/vaults/vlt_1', {
@@ -558,23 +551,17 @@ describe('vaults integration', () => {
       headers: { 'x-test-user-id': 'usr_owner' },
     });
 
-    expect(response.status).toBe(409);
-    expect(services.createPermissionRequest).not.toHaveBeenCalled();
-    expect(services.softDeleteVault).not.toHaveBeenCalled();
-    expect(await response.json()).toEqual({
-      error: {
-        code: 'vault.not_empty',
-        message: 'Empty the vault before deleting it.',
-        details: {
-          documentCount: 1,
-          folderCount: 0,
-          totalCount: 1,
-        },
-      },
+    expect(response.status).toBe(202);
+    expect(services.createPermissionRequest).toHaveBeenCalledWith({
+      type: 'vault.delete',
+      requestedBy: 'usr_owner',
+      vaultId: 'vlt_1',
+      payload: {},
     });
+    expect(services.hardDeleteVault).not.toHaveBeenCalled();
   });
 
-  test('rejects admin vault deletion when vault has folders', async () => {
+  test('allows admin vault deletion when vault has folders', async () => {
     const services = createMockVaultsServices();
     (services as any).getVaultForUser = vi.fn(async () => ({
       id: 'vlt_1',
@@ -588,12 +575,6 @@ describe('vaults integration', () => {
       isMember: true,
       accessMode: 'member',
     }));
-    (services as any).countVaultContents = vi.fn(async () => ({
-      documentCount: 0,
-      folderCount: 1,
-      totalCount: 1,
-    }));
-
     const app = createTestApp({ services });
 
     const response = await app.request('/api/vaults/vlt_1', {
@@ -601,8 +582,10 @@ describe('vaults integration', () => {
       headers: { 'x-test-user-id': 'usr_root' },
     });
 
-    expect(response.status).toBe(409);
-    expect(services.softDeleteVault).not.toHaveBeenCalled();
+    expect(response.status).toBe(204);
+    expect(services.hardDeleteVault).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+    });
   });
 
   test('allows admin vault deletion when vault is empty', async () => {
@@ -628,9 +611,8 @@ describe('vaults integration', () => {
     });
 
     expect(response.status).toBe(204);
-    expect(services.softDeleteVault).toHaveBeenCalledWith({
+    expect(services.hardDeleteVault).toHaveBeenCalledWith({
       vaultId: 'vlt_1',
-      deletedBy: 'usr_root',
     });
   });
 

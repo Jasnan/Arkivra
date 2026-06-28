@@ -314,7 +314,7 @@ describe('vault pages', () => {
     });
   });
 
-  it('shows delete in the vault context menu and surfaces the empty-vault rule', async () => {
+  it('requires exact vault name confirmation before deleting from the vault context menu', async () => {
     const user = userEvent.setup();
     const createToastSpy = vi.spyOn(toaster, 'create');
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -341,12 +341,7 @@ describe('vault pages', () => {
       }
 
       if (url === '/api/vaults/vlt_1' && init?.method === 'DELETE') {
-        return jsonResponse({
-          error: {
-            code: 'vault.not_empty',
-            message: 'Empty the vault before deleting it.',
-          },
-        }, 409);
+        return new Response(null, { status: 204 });
       }
 
       throw new Error(`Unhandled request ${url}`);
@@ -359,6 +354,34 @@ describe('vault pages', () => {
     const contextMenu = screen.getByRole('menu', { name: /vault actions for personal/i });
     await user.click(within(contextMenu).getByRole('menuitem', { name: /^delete$/i }));
 
+    const dialog = await screen.findByRole('dialog', { name: /^delete vault$/i });
+    expect(within(dialog).getByText('Personal')).toBeInTheDocument();
+    const deleteButton = within(dialog).getByRole('button', { name: /^delete vault$/i });
+    const confirmationInput = within(dialog).getByLabelText(/type the vault name to confirm/i);
+    expect(deleteButton).toBeDisabled();
+
+    await user.type(confirmationInput, 'personal');
+    expect(deleteButton).toBeDisabled();
+    await user.keyboard('{Enter}');
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/vaults/vlt_1', expect.objectContaining({
+      method: 'DELETE',
+    }));
+
+    await user.click(within(dialog).getByRole('button', { name: /^cancel$/i }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /^delete vault$/i })).not.toBeInTheDocument();
+    });
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/vaults/vlt_1', expect.objectContaining({
+      method: 'DELETE',
+    }));
+
+    fireEvent.contextMenu(await screen.findByRole('link', { name: /personal/i }));
+    const reopenedContextMenu = screen.getByRole('menu', { name: /vault actions for personal/i });
+    await user.click(within(reopenedContextMenu).getByRole('menuitem', { name: /^delete$/i }));
+    const reopenedDialog = await screen.findByRole('dialog', { name: /^delete vault$/i });
+    await user.type(within(reopenedDialog).getByLabelText(/type the vault name to confirm/i), 'Personal');
+    await user.click(within(reopenedDialog).getByRole('button', { name: /^delete vault$/i }));
+
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/vaults/vlt_1', expect.objectContaining({
         credentials: 'include',
@@ -366,9 +389,63 @@ describe('vault pages', () => {
       }));
     });
     expect(createToastSpy).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'Empty the vault before deleting it.',
-      type: 'error',
+      title: 'Vault deleted.',
+      type: 'success',
     }));
+  });
+
+  it('keeps the delete vault dialog open with typed confirmation when deletion fails', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url === '/api/me') {
+        return jsonResponse({
+          userId: 'usr_1',
+          sessionId: 'ses_1',
+          systemRole: 'member',
+          systemCapabilities: ['system.create_vaults'],
+          isAdmin: false,
+          canCreateVault: true,
+          aiFeaturesEnabled: true,
+        });
+      }
+
+      if (url === '/api/vaults' && (!init || init.method === undefined)) {
+        return jsonResponse({
+          vaults: [
+            { id: 'vlt_1', name: 'Personal', description: 'Household records', fileCount: 3, totalSize: 6144, createdAt: '2025-01-01T00:00:00.000Z', role: 'owner', aiAccessLevel: 'full', isAdmin: false },
+          ],
+        });
+      }
+
+      if (url === '/api/vaults/vlt_1' && init?.method === 'DELETE') {
+        return jsonResponse({
+          error: {
+            code: 'vault.delete_failed',
+            message: 'Could not delete vault right now.',
+          },
+        }, 500);
+      }
+
+      throw new Error(`Unhandled request ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWithProviders(<VaultsPage />);
+
+    fireEvent.contextMenu(await screen.findByRole('link', { name: /personal/i }));
+    const contextMenu = screen.getByRole('menu', { name: /vault actions for personal/i });
+    await user.click(within(contextMenu).getByRole('menuitem', { name: /^delete$/i }));
+
+    const dialog = await screen.findByRole('dialog', { name: /^delete vault$/i });
+    const confirmationInput = within(dialog).getByLabelText(/type the vault name to confirm/i);
+    await user.type(confirmationInput, 'Personal');
+    await user.click(within(dialog).getByRole('button', { name: /^delete vault$/i }));
+
+    expect(await within(dialog).findByText('Could not delete vault right now.')).toBeInTheDocument();
+    expect(confirmationInput).toHaveValue('Personal');
+    expect(screen.getByRole('dialog', { name: /^delete vault$/i })).toBeInTheDocument();
   });
 
   it('returns focus to the create vault button after dismissing the dialog', async () => {

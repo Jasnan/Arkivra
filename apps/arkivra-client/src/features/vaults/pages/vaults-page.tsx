@@ -22,6 +22,7 @@ import { FileBrowserViewToggle } from '@/features/file-browser/components/file-b
 import { usePreferredFileBrowserView } from '@/features/file-browser/components/use-preferred-file-browser-view';
 import { useMeQuery } from '@/features/me/me.queries';
 import { CreateVaultDialog } from '@/features/vaults/components/create-vault-dialog';
+import { VaultDeleteConfirmDialog } from '@/features/vaults/components/vault-delete-confirm-dialog';
 import { createVault, deleteVault } from '@/features/vaults/vaults.api';
 import { useVaultsQuery, vaultQueryKeys } from '@/features/vaults/vaults.queries';
 import type { VaultSummary } from '@/features/vaults/vaults.types';
@@ -250,6 +251,8 @@ export function VaultsPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [contextMenu, setContextMenu] = useState<VaultContextMenuState>(null);
+  const [pendingDeleteVault, setPendingDeleteVault] = useState<VaultSummary | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [vaultsView, setVaultsView] = usePreferredFileBrowserView();
   const canCreateVault = meQuery.data?.canCreateVault === true;
   const aiFeaturesEnabled = meQuery.data?.aiFeaturesEnabled !== false;
@@ -291,17 +294,21 @@ export function VaultsPage() {
       if (result && isRequestResponse(result)) {
         toast.success('Vault deletion request queued for admin approval.');
         await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.list() });
+        setPendingDeleteVault(null);
+        setDeleteError(null);
         return;
       }
 
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.list() });
       toast.success('Vault deleted.');
+      setPendingDeleteVault(null);
+      setDeleteError(null);
       if (window.location.pathname.startsWith(ROUTES.vaultRoot(variables.vaultId))) {
         navigate({ to: ROUTES.vaults });
       }
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Could not delete vault.');
+      setDeleteError(error instanceof Error ? error.message : 'Could not delete vault.');
     },
   });
 
@@ -401,11 +408,14 @@ export function VaultsPage() {
         : []),
       {
         key: 'delete',
-        label: deleteMutation.isPending && deleteMutation.variables?.vaultId === vault.id ? 'Deleting...' : 'Delete',
+        label: 'Delete',
         icon: Trash2,
         tone: 'destructive',
         disabled: deleteMutation.isPending,
-        onSelect: () => deleteMutation.mutate({ vaultId: vault.id }),
+        onSelect: () => {
+          setPendingDeleteVault(vault);
+          setDeleteError(null);
+        },
       },
     ];
   }
@@ -718,6 +728,29 @@ export function VaultsPage() {
         onCancel={closeCreateModal}
         onNameChange={setName}
         onDescriptionChange={setDescription}
+      />
+
+      <VaultDeleteConfirmDialog
+        open={pendingDeleteVault !== null}
+        vault={pendingDeleteVault}
+        isPending={deleteMutation.isPending}
+        errorMessage={deleteError}
+        onCancel={() => {
+          if (deleteMutation.isPending) {
+            return;
+          }
+
+          setPendingDeleteVault(null);
+          setDeleteError(null);
+        }}
+        onConfirm={() => {
+          if (pendingDeleteVault === null || deleteMutation.isPending) {
+            return;
+          }
+
+          setDeleteError(null);
+          deleteMutation.mutate({ vaultId: pendingDeleteVault.id });
+        }}
       />
 
       {contextMenu !== null ? (

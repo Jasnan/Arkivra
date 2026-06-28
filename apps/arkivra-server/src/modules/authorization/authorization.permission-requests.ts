@@ -1,10 +1,11 @@
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import type { Database } from '../database/database.js';
 import {
-  documentsTable,
+  activityEventsTable,
+  auditEventsTable,
+  backgroundJobsTable,
   emailInvitationsTable,
   permissionRequestsTable,
-  vaultFoldersTable,
   vaultMembersTable,
   vaultsTable,
 } from '../database/schema/index.js';
@@ -118,46 +119,44 @@ export function createPermissionRequestServices({ db }: { db: Database }) {
           throw new Error('authorization.invalid_permission_request_payload');
         }
 
-        const [documentRow] = await tx
-          .select({ count: sql<number>`count(*)::int`.mapWith(Number) })
-          .from(documentsTable)
-          .where(
-            and(eq(documentsTable.vaultId, request.vaultId), eq(documentsTable.isDeleted, false)),
-          );
+        const [existingVault] = await tx
+          .select({ id: vaultsTable.id })
+          .from(vaultsTable)
+          .where(and(eq(vaultsTable.id, request.vaultId), isNull(vaultsTable.deletedAt)))
+          .limit(1);
 
-        if ((documentRow?.count ?? 0) > 0) {
-          throw new Error('authorization.vault_not_empty');
+        if (existingVault === undefined) {
+          throw new Error('authorization.vault_not_found');
         }
 
-        const [folderRow] = await tx
-          .select({ count: sql<number>`count(*)::int`.mapWith(Number) })
-          .from(vaultFoldersTable)
-          .where(
-            and(
-              eq(vaultFoldersTable.vaultId, request.vaultId),
-              eq(vaultFoldersTable.isDeleted, false),
-            ),
-          );
-
-        if ((folderRow?.count ?? 0) > 0) {
-          throw new Error('authorization.vault_not_empty');
-        }
+        await tx.delete(activityEventsTable).where(eq(activityEventsTable.vaultId, request.vaultId));
+        await tx.delete(auditEventsTable).where(eq(auditEventsTable.vaultId, request.vaultId));
+        await tx.delete(backgroundJobsTable).where(sql`${backgroundJobsTable.payload}->>'vaultId' = ${request.vaultId}`);
+        await tx.execute(sql`
+          delete from tags tag
+          where exists (
+            select 1
+            from document_tags document_tag
+            inner join documents document on document.id = document_tag.document_id
+            where document_tag.tag_id = tag.id
+              and document.vault_id = ${request.vaultId}
+          )
+          and not exists (
+            select 1
+            from document_tags document_tag
+            inner join documents document on document.id = document_tag.document_id
+            where document_tag.tag_id = tag.id
+              and document.vault_id <> ${request.vaultId}
+          )
+        `);
 
         const [deletedVault] = await tx
-          .update(vaultsTable)
-          .set({ deletedAt: sql`now()`, deletedBy: reviewedBy, updatedAt: sql`now()` })
-          .where(
-            and(
-              eq(vaultsTable.id, request.vaultId),
-              isNull(vaultsTable.deletedAt),
-              sql`not exists (select 1 from ${documentsTable} where ${documentsTable.vaultId} = ${request.vaultId} and ${documentsTable.isDeleted} = false)`,
-              sql`not exists (select 1 from ${vaultFoldersTable} where ${vaultFoldersTable.vaultId} = ${request.vaultId} and ${vaultFoldersTable.isDeleted} = false)`,
-            ),
-          )
+          .delete(vaultsTable)
+          .where(and(eq(vaultsTable.id, request.vaultId), isNull(vaultsTable.deletedAt)))
           .returning({ id: vaultsTable.id });
 
         if (deletedVault === undefined) {
-          throw new Error('authorization.vault_not_empty');
+          throw new Error('authorization.vault_not_found');
         }
 
         result.vaultId = request.vaultId;

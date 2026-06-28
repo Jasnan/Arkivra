@@ -21,7 +21,7 @@ function createMockVaultsServices() {
     listMembers: vi.fn(),
     listUserVaults: vi.fn(),
     removeMember: vi.fn(),
-    softDeleteVault: vi.fn(),
+    hardDeleteVault: vi.fn(),
     updateVaultName: vi.fn(),
     upsertMember: vi.fn(),
   } as unknown as VaultsServices;

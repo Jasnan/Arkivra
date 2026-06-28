@@ -34,10 +34,10 @@ function createTestApp({ authorizationServices }: { authorizationServices: Autho
 }
 
 describe('authorization routes', () => {
-  test('returns 409 when approving a vault deletion request for a non-empty vault', async () => {
+  test('returns 404 when approving a vault deletion request for a missing vault', async () => {
     const authorizationServices = {
       approvePermissionRequest: vi.fn(async () => {
-        throw new Error('authorization.vault_not_empty');
+        throw new Error('authorization.vault_not_found');
       }),
     } as unknown as AuthorizationServices;
     const app = createTestApp({ authorizationServices });
@@ -46,15 +46,15 @@ describe('authorization routes', () => {
       method: 'POST',
     });
 
-    expect(response.status).toBe(409);
+    expect(response.status).toBe(404);
     expect(authorizationServices.approvePermissionRequest).toHaveBeenCalledWith({
       requestId: 'perm_1',
       reviewedBy: 'usr_root',
     });
     expect(await response.json()).toEqual({
       error: {
-        code: 'vault.not_empty',
-        message: 'Empty the vault before deleting it.',
+        code: 'vault.not_found',
+        message: 'Vault not found',
       },
     });
   });

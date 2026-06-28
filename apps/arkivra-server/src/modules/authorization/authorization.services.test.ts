@@ -105,7 +105,7 @@ describe('authorization services', () => {
     }));
   });
 
-  test('does not approve vault deletion when the vault still has documents', async () => {
+  test('approves vault deletion by hard-deleting the vault', async () => {
     const request = {
       id: 'perm_1',
       type: 'vault.delete',
@@ -129,18 +129,32 @@ describe('authorization services', () => {
       where: vi.fn(() => requestQuery),
       limit: vi.fn(async () => [request]),
     };
-    const documentCountQuery: {
-      from: ReturnType<typeof vi.fn>;
+    const deleteQuery: {
       where: ReturnType<typeof vi.fn>;
+      returning: ReturnType<typeof vi.fn>;
     } = {
-      from: vi.fn(() => documentCountQuery),
-      where: vi.fn(async () => [{ count: 1 }]),
+      where: vi.fn(() => deleteQuery),
+      returning: vi.fn(async () => [{ id: 'vlt_1' }]),
+    };
+    const updateQuery: {
+      set: ReturnType<typeof vi.fn>;
+      where: ReturnType<typeof vi.fn>;
+      returning: ReturnType<typeof vi.fn>;
+    } = {
+      set: vi.fn(() => updateQuery),
+      where: vi.fn(() => updateQuery),
+      returning: vi.fn(async () => [{
+        ...request,
+        status: 'approved',
+        reviewedBy: 'usr_root',
+        result: { vaultId: 'vlt_1' },
+      }]),
     };
     const tx = {
-      select: vi.fn()
-        .mockReturnValueOnce(requestQuery)
-        .mockReturnValueOnce(documentCountQuery),
-      update: vi.fn(),
+      select: vi.fn(() => requestQuery),
+      delete: vi.fn(() => deleteQuery),
+      execute: vi.fn(async () => []),
+      update: vi.fn(() => updateQuery),
     };
     const db = {
       transaction: vi.fn(async (callback: (transaction: typeof tx) => unknown) => callback(tx)),
@@ -152,7 +166,15 @@ describe('authorization services', () => {
         requestId: 'perm_1',
         reviewedBy: 'usr_root',
       }),
-    ).rejects.toThrow('authorization.vault_not_empty');
-    expect(tx.update).not.toHaveBeenCalled();
+    ).resolves.toEqual(expect.objectContaining({
+      status: 'approved',
+      result: { vaultId: 'vlt_1' },
+    }));
+    expect(tx.delete).toHaveBeenCalled();
+    expect(updateQuery.set).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'approved',
+      reviewedBy: 'usr_root',
+      result: { vaultId: 'vlt_1' },
+    }));
   });
 });

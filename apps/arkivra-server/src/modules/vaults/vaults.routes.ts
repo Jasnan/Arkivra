@@ -262,21 +262,6 @@ export function registerVaultRoutes({
       );
     }
 
-    const contentCounts = await vaultsServices.countVaultContents({ vaultId });
-
-    if (contentCounts.totalCount > 0) {
-      return context.json(
-        {
-          error: {
-            code: 'vault.not_empty',
-            message: 'Empty the vault before deleting it.',
-            details: contentCounts,
-          },
-        },
-        409,
-      );
-    }
-
     if (!context.get('isAdmin')) {
       const request = await vaultsServices.createPermissionRequest({
         type: 'vault.delete',
@@ -300,27 +285,11 @@ export function registerVaultRoutes({
       return context.json({ request }, 202);
     }
 
-    const deletedVault = await vaultsServices.softDeleteVault({
+    const deletedVault = await vaultsServices.hardDeleteVault({
       vaultId,
-      deletedBy: userId,
     });
 
     if (deletedVault === null) {
-      const updatedContentCounts = await vaultsServices.countVaultContents({ vaultId });
-
-      if (updatedContentCounts.totalCount > 0) {
-        return context.json(
-          {
-            error: {
-              code: 'vault.not_empty',
-              message: 'Empty the vault before deleting it.',
-              details: updatedContentCounts,
-            },
-          },
-          409,
-        );
-      }
-
       return context.json(
         {
           error: {
@@ -331,17 +300,6 @@ export function registerVaultRoutes({
         404,
       );
     }
-
-    await activityServices?.emitActivityEvent({
-      activityType: ACTIVITY_EVENT_TYPES.vaultDeleted,
-      entityType: 'vault',
-      entityId: vaultId,
-      actor: getAuditActorFromContext(context),
-      vaultId,
-      target: { type: 'vault', id: vaultId },
-      source: 'web',
-      metadata: { deletion_type: 'soft' },
-    });
 
     return context.body(null, 204);
   });

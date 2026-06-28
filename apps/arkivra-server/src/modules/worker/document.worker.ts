@@ -19,6 +19,9 @@ import { PROCESS_DOCUMENT_QUEUE } from './queue.js';
 import type { AsyncJob } from './postgres-jobs.js';
 import { createPostgresWorker, getScopedQueueName } from './postgres-jobs.js';
 import { ACTIVITY_EVENT_TYPES } from '../activity/activity.types.js';
+import type { DocumentConverter } from '../document-conversion/index.js';
+import { isOfficeDocumentConvertible } from '../document-conversion/index.js';
+import { documentVersionPreviewPdfStorageKey } from '../documents/document-storage-keys.js';
 
 const WORKER_PROGRESS = {
   partitioning: 30,
@@ -41,6 +44,7 @@ export type DocumentWorkerDeps = {
     getSettings: () => Promise<{ aiFeaturesEnabled: boolean }>;
   };
   embeddingIndexQueue?: EmbeddingIndexQueue;
+  documentConverter?: DocumentConverter;
 };
 
 export function createDocumentWorker(deps: DocumentWorkerDeps) {
@@ -56,6 +60,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
     activityServices,
     adminAiServices,
     embeddingIndexQueue,
+    documentConverter,
   } = deps;
   const documentsServices = createDocumentsServices({ db, storage, encryption });
   const logPrefix = '[document-worker]';
@@ -217,6 +222,101 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
     }
   }
 
+  async function storePreviewPdf({
+    documentId,
+    documentVersionId,
+    vaultId,
+    pdfData,
+    converter,
+    converterVersion,
+  }: {
+    documentId: string;
+    documentVersionId: string;
+    vaultId: string;
+    pdfData: Buffer;
+    converter: string;
+    converterVersion: string | null;
+  }) {
+    const storageKey = documentVersionPreviewPdfStorageKey({ documentVersionId });
+    const sha256Hash = sha256Hex(pdfData);
+    let dataToStore = pdfData;
+    let wrappedDek: string | null = null;
+    let kekVersion: string | null = null;
+    let algorithm: string | null = null;
+
+    if (encryption.isEnabled()) {
+      const encrypted = encryption.encrypt(pdfData);
+      dataToStore = encrypted.encryptedData;
+      wrappedDek = encrypted.wrappedDek;
+      kekVersion = encrypted.kekVersion;
+      algorithm = encrypted.algorithm;
+    }
+
+    await storage.write(storageKey, dataToStore);
+
+    const previewFields = {
+      previewPdfStorageKey: storageKey,
+      previewPdfSize: pdfData.length,
+      previewPdfSha256Hash: sha256Hash,
+      previewPdfConverter: converter,
+      previewPdfConverterVersion: converterVersion,
+      previewPdfCreatedAt: sql`now()`,
+      previewPdfEncryptionKeyWrapped: wrappedDek,
+      previewPdfEncryptionKekVersion: kekVersion,
+      previewPdfEncryptionAlgorithm: algorithm,
+      updatedAt: sql`now()`,
+    };
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(documentVersionsTable)
+        .set(previewFields)
+        .where(
+          and(
+            eq(documentVersionsTable.id, documentVersionId),
+            eq(documentVersionsTable.documentId, documentId),
+            eq(documentVersionsTable.vaultId, vaultId),
+          ),
+        );
+
+      await tx
+        .update(documentsTable)
+        .set(previewFields)
+        .where(
+          and(
+            eq(documentsTable.id, documentId),
+            eq(documentsTable.vaultId, vaultId),
+            eq(documentsTable.currentVersionId, documentVersionId),
+          ),
+        );
+    });
+
+    return {
+      storageKey,
+      sha256Hash,
+      encryptionKeyWrapped: wrappedDek,
+      encryptionKekVersion: kekVersion,
+    };
+  }
+
+  async function readStoredPreviewPdf({
+    storageKey,
+    wrappedDek,
+    kekVersion,
+  }: {
+    storageKey: string;
+    wrappedDek: string | null;
+    kekVersion: string | null;
+  }) {
+    const rawData = await storage.read(storageKey);
+
+    if (wrappedDek !== null && kekVersion !== null) {
+      return encryption.decrypt({ encryptedData: rawData, wrappedDek, kekVersion });
+    }
+
+    return rawData;
+  }
+
   async function processDocument(job: AsyncJob<ProcessDocumentJobData>) {
     const { documentId, documentVersionId, vaultId } = job.data;
     console.info(`${logPrefix} starting job=${job.id} document=${documentId} version=${documentVersionId} vault=${vaultId} run=${job.data.processingRunId ?? 'legacy'}`);
@@ -247,6 +347,10 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
           originalStorageKey: documentVersionsTable.originalStorageKey,
           originalSha256Hash: documentVersionsTable.originalSha256Hash,
           mimeType: documentVersionsTable.mimeType,
+          previewPdfStorageKey: documentVersionsTable.previewPdfStorageKey,
+          previewPdfSha256Hash: documentVersionsTable.previewPdfSha256Hash,
+          previewPdfEncryptionKeyWrapped: documentVersionsTable.previewPdfEncryptionKeyWrapped,
+          previewPdfEncryptionKekVersion: documentVersionsTable.previewPdfEncryptionKekVersion,
           fileEncryptionKeyWrapped: documentVersionsTable.fileEncryptionKeyWrapped,
           fileEncryptionKekVersion: documentVersionsTable.fileEncryptionKekVersion,
         })
@@ -347,6 +451,63 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         stage: 'parse',
       });
 
+      let parseFileName = doc.originalName;
+      let parseMimeType = doc.mimeType;
+      let parseFileData = fileData;
+
+      if (doc.previewPdfStorageKey !== null) {
+        console.info(
+          `${logPrefix} using existing preview PDF for document=${documentId} version=${documentVersionId}`,
+        );
+        parseFileName = `${doc.originalName}.preview.pdf`;
+        parseMimeType = 'application/pdf';
+        parseFileData = await readStoredPreviewPdf({
+          storageKey: doc.previewPdfStorageKey,
+          wrappedDek: doc.previewPdfEncryptionKeyWrapped,
+          kekVersion: doc.previewPdfEncryptionKekVersion,
+        });
+      } else if (
+        documentConverter !== undefined &&
+        isOfficeDocumentConvertible({ fileName: doc.originalName, mimeType: doc.mimeType })
+      ) {
+        const health = await documentConverter.checkHealth();
+
+        if (health.healthy) {
+          try {
+            console.info(
+              `${logPrefix} converting Office document=${documentId} version=${documentVersionId} with ${documentConverter.provider}`,
+            );
+            const converted = await documentConverter.convertToPdf({
+              fileName: doc.originalName,
+              mimeType: doc.mimeType,
+              fileData,
+            });
+            const stored = await storePreviewPdf({
+              documentId,
+              documentVersionId,
+              vaultId,
+              pdfData: converted.fileData,
+              converter: converted.converter,
+              converterVersion: converted.converterVersion,
+            });
+            parseFileName = converted.fileName;
+            parseMimeType = converted.mimeType;
+            parseFileData = converted.fileData;
+            console.info(
+              `${logPrefix} stored preview PDF for document=${documentId} version=${documentVersionId} bytes=${converted.fileData.length} sha256=${stored.sha256Hash}`,
+            );
+          } catch (error) {
+            console.error(
+              `${logPrefix} Office conversion failed for ${documentId}; continuing with original: ${error instanceof Error ? error.message : error}`,
+            );
+          }
+        } else {
+          console.warn(
+            `${logPrefix} Office converter unavailable for ${documentId}; continuing with original${health.error === null ? '' : `: ${health.error}`}`,
+          );
+        }
+      }
+
       // 4. Parse → select canonical text → chunk via the engine-agnostic
       //    pipeline. Fresh ingestion and reprocessing both rerun the same
       //    source-file path.
@@ -355,9 +516,10 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
         {
           documentId,
           documentVersionId,
-          fileName: doc.originalName,
-          mimeType: doc.mimeType,
-          fileData,
+          fileName: parseFileName,
+          displayFileName: doc.originalName,
+          mimeType: parseMimeType,
+          fileData: parseFileData,
         },
         stageHooks,
       );

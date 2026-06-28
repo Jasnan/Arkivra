@@ -7,6 +7,10 @@ describe('upload file rules', () => {
       new File(['pdf'], 'statement.pdf', { type: 'application/pdf' }),
       new File(['doc'], 'contract.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
       new File(['sheet'], 'budget.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      new File(['slides'], 'deck.pptx', { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' }),
+      new File(['open'], 'proposal.odt', { type: 'application/vnd.oasis.opendocument.text' }),
+      new File(['open'], 'planning.ods', { type: 'application/vnd.oasis.opendocument.spreadsheet' }),
+      new File(['open'], 'talk.odp', { type: 'application/vnd.oasis.opendocument.presentation' }),
       new File(['csv'], 'export.csv', { type: 'text/csv' }),
       new File(['json'], 'data.json', { type: 'application/json' }),
       new File(['text'], 'notes.md', { type: 'text/markdown' }),
@@ -18,6 +22,10 @@ describe('upload file rules', () => {
       'statement.pdf',
       'contract.docx',
       'budget.xlsx',
+      'deck.pptx',
+      'proposal.odt',
+      'planning.ods',
+      'talk.odp',
       'export.csv',
       'data.json',
       'notes.md',
@@ -39,7 +47,11 @@ describe('upload file rules', () => {
   it('exposes an accept attribute for supported upload pickers', () => {
     expect(UPLOAD_ACCEPT_ATTRIBUTE).toContain('.pdf');
     expect(UPLOAD_ACCEPT_ATTRIBUTE).toContain('.xlsx');
+    expect(UPLOAD_ACCEPT_ATTRIBUTE).toContain('.odt');
+    expect(UPLOAD_ACCEPT_ATTRIBUTE).toContain('.odp');
     expect(UPLOAD_ACCEPT_ATTRIBUTE).toContain('application/pdf');
+    expect(UPLOAD_ACCEPT_ATTRIBUTE).toContain('application/vnd.oasis.opendocument.text');
+    expect(UPLOAD_ACCEPT_ATTRIBUTE).toContain('application/vnd.openxmlformats-officedocument.presentationml.presentation');
     expect(UPLOAD_ACCEPT_ATTRIBUTE).toContain('text/plain');
     expect(UPLOAD_ACCEPT_ATTRIBUTE).not.toContain('image/*');
     expect(UPLOAD_ACCEPT_ATTRIBUTE).not.toContain('text/*');

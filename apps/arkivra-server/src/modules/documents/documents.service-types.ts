@@ -106,6 +106,15 @@ export type DocumentVersionSummary = {
   originalStorageKey: string;
   originalSha256Hash: string;
   mimeType: string;
+  previewPdfStorageKey: string | null;
+  previewPdfSize: number | null;
+  previewPdfSha256Hash: string | null;
+  previewPdfConverter: string | null;
+  previewPdfConverterVersion: string | null;
+  previewPdfCreatedAt: Date | null;
+  previewPdfEncryptionKeyWrapped: string | null;
+  previewPdfEncryptionKekVersion: string | null;
+  previewPdfEncryptionAlgorithm: string | null;
   content: string;
   rawText: string;
   rawMarkdown: string;

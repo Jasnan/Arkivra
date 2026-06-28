@@ -603,7 +603,7 @@ export function registerDocumentRoutes({
 
       const documentId = context.req.param('documentId');
       const includeDeleted = context.req.query('includeDeleted') === 'true';
-      const result = await documentsServices.downloadDocument({
+      const result = await documentsServices.previewDocumentFile({
         documentId,
         vaultId,
         ...(includeDeleted ? { includeDeleted: true } : {}),

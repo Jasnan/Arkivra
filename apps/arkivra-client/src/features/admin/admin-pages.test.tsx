@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   AdminAiSettingsPage,
   AdminBackupsPage,
+  AdminOfficeConverterPage,
   AdminOverviewPage,
   AdminUserAccessPage,
   AdminUsersPage,
@@ -228,11 +229,22 @@ function installAiSettingsFetchMock({
     error: 'Gemini API key environment variable is not configured on the API server.',
   },
   ollamaAvailability = createOllamaAvailability(),
+  officeConverterStatus = {
+    supported: true,
+    configured: true,
+    healthy: true,
+    provider: 'gotenberg',
+    url: 'http://gotenberg:3000',
+    lastHealthCheck: '2026-06-28T12:00:00.000Z',
+    error: null,
+    supportedFormats: ['DOC', 'DOCX', 'XLS', 'XLSX', 'PPT', 'PPTX', 'ODT', 'ODS', 'ODP'],
+  },
   settings,
   status = createAiStatusFixture(settings),
 }: {
   geminiAvailability?: unknown;
   ollamaAvailability?: unknown;
+  officeConverterStatus?: unknown;
   settings: ReturnType<typeof createAiSettingsFixture>;
   status?: ReturnType<typeof createAiStatusFixture>;
 }) {
@@ -253,6 +265,14 @@ function installAiSettingsFetchMock({
 
     if (url === '/api/admin/ai/status') {
       return jsonResponse({ status });
+    }
+
+    if (url === '/api/admin/maintenance/office-converter/status') {
+      return jsonResponse({ officeConverter: officeConverterStatus });
+    }
+
+    if (url === '/api/admin/maintenance/office-preview-pdfs' && init?.method === 'POST') {
+      return jsonResponse({ job: { type: 'generate-office-preview-pdfs', status: 'queued' } }, 202);
     }
 
     if (url === '/api/admin/ai/models' && init?.method === 'POST') {
@@ -877,6 +897,38 @@ describe('admin and about pages', () => {
       ([url, init]) => String(url) === '/api/admin/ai/settings' && init?.method === 'PUT',
     );
     expect(saveCall).toBeUndefined();
+  });
+
+  it('schedules missing Office preview generation from the standalone admin page', async () => {
+    const user = userEvent.setup();
+    const settings = createAiSettingsFixture();
+    const fetchMock = installAiSettingsFetchMock({ settings });
+
+    await renderWithProviders(<AdminOfficeConverterPage />, { includeToaster: true });
+
+    expect(await screen.findByText('Office Document Converter')).toBeInTheDocument();
+    expect(await screen.findByText('Healthy')).toBeInTheDocument();
+    expect(screen.getByText(/gotenberg/i)).toBeInTheDocument();
+    expect(screen.getByText('DOCX')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Generate Missing Previews' }));
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Generate Missing Office Previews?' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/original uploaded documents will not be modified/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/admin/maintenance/office-preview-pdfs',
+        expect.objectContaining({
+          credentials: 'include',
+          method: 'POST',
+        }),
+      );
+    });
   });
 
   it('allows selecting an installed Ollama model when the configured default is unavailable', async () => {

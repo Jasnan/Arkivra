@@ -88,6 +88,12 @@ export function createMockDocumentsServices() {
       mimeType: 'application/pdf',
       size: 12,
     })),
+    previewDocumentFile: vi.fn(async () => ({
+      fileData: Buffer.from('file-content'),
+      fileName: 'test.pdf',
+      mimeType: 'application/pdf',
+      size: 12,
+    })),
     renderDocumentPagePreview: vi.fn(async ({ pageNumber }) => ({
       fileData: Buffer.from(`png-page-${pageNumber}`),
       mimeType: 'image/png',

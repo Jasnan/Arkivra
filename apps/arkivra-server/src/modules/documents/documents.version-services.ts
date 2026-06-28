@@ -23,6 +23,15 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
     originalStorageKey: string;
     originalSha256Hash: string;
     mimeType: string;
+    previewPdfStorageKey: string | null;
+    previewPdfSize: number | null;
+    previewPdfSha256Hash: string | null;
+    previewPdfConverter: string | null;
+    previewPdfConverterVersion: string | null;
+    previewPdfCreatedAt: Date | null;
+    previewPdfEncryptionKeyWrapped: string | null;
+    previewPdfEncryptionKekVersion: string | null;
+    previewPdfEncryptionAlgorithm: string | null;
     content: string;
     rawText: string;
     rawMarkdown: string;
@@ -61,6 +70,15 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
       originalStorageKey: row.originalStorageKey,
       originalSha256Hash: row.originalSha256Hash,
       mimeType: row.mimeType,
+      previewPdfStorageKey: row.previewPdfStorageKey,
+      previewPdfSize: row.previewPdfSize,
+      previewPdfSha256Hash: row.previewPdfSha256Hash,
+      previewPdfConverter: row.previewPdfConverter,
+      previewPdfConverterVersion: row.previewPdfConverterVersion,
+      previewPdfCreatedAt: row.previewPdfCreatedAt,
+      previewPdfEncryptionKeyWrapped: row.previewPdfEncryptionKeyWrapped,
+      previewPdfEncryptionKekVersion: row.previewPdfEncryptionKekVersion,
+      previewPdfEncryptionAlgorithm: row.previewPdfEncryptionAlgorithm,
       content: row.content,
       rawText: row.rawText,
       rawMarkdown: row.rawMarkdown,
@@ -107,6 +125,15 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
       originalStorageKey: documentVersionsTable.originalStorageKey,
       originalSha256Hash: documentVersionsTable.originalSha256Hash,
       mimeType: documentVersionsTable.mimeType,
+      previewPdfStorageKey: documentVersionsTable.previewPdfStorageKey,
+      previewPdfSize: documentVersionsTable.previewPdfSize,
+      previewPdfSha256Hash: documentVersionsTable.previewPdfSha256Hash,
+      previewPdfConverter: documentVersionsTable.previewPdfConverter,
+      previewPdfConverterVersion: documentVersionsTable.previewPdfConverterVersion,
+      previewPdfCreatedAt: documentVersionsTable.previewPdfCreatedAt,
+      previewPdfEncryptionKeyWrapped: documentVersionsTable.previewPdfEncryptionKeyWrapped,
+      previewPdfEncryptionKekVersion: documentVersionsTable.previewPdfEncryptionKekVersion,
+      previewPdfEncryptionAlgorithm: documentVersionsTable.previewPdfEncryptionAlgorithm,
       content: documentVersionsTable.content,
       rawText: documentVersionsTable.rawText,
       rawMarkdown: documentVersionsTable.rawMarkdown,
@@ -391,6 +418,15 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
             originalStorageKey,
             originalSha256Hash,
             mimeType,
+            previewPdfStorageKey: null,
+            previewPdfSize: null,
+            previewPdfSha256Hash: null,
+            previewPdfConverter: null,
+            previewPdfConverterVersion: null,
+            previewPdfCreatedAt: null,
+            previewPdfEncryptionKeyWrapped: null,
+            previewPdfEncryptionKekVersion: null,
+            previewPdfEncryptionAlgorithm: null,
             content: '',
             rawText: '',
             rawMarkdown: '',
@@ -492,6 +528,15 @@ export function createDocumentVersionServices({ db }: { db: Database }) {
           originalStorageKey,
           originalSha256Hash,
           mimeType,
+          previewPdfStorageKey: null,
+          previewPdfSize: null,
+          previewPdfSha256Hash: null,
+          previewPdfConverter: null,
+          previewPdfConverterVersion: null,
+          previewPdfCreatedAt: null,
+          previewPdfEncryptionKeyWrapped: null,
+          previewPdfEncryptionKekVersion: null,
+          previewPdfEncryptionAlgorithm: null,
           processingStatus,
           fileEncryptionKeyWrapped,
           fileEncryptionKekVersion,

@@ -149,6 +149,21 @@ describe('parse pipeline', () => {
     expect(parsed.chunks[0]?.metadata.fileName).toBe('source.pdf');
   });
 
+  test('uses display filename for chunk metadata when parsing a derived source', async () => {
+    const { pipeline } = makePipeline({
+      chunks: [makeChunk()],
+    });
+
+    const parsed = await pipeline.run({
+      ...input,
+      fileName: 'Contract.preview.pdf',
+      displayFileName: 'Contract.docx',
+      mimeType: 'application/pdf',
+    });
+
+    expect(parsed.chunks[0]?.metadata.fileName).toBe('Contract.docx');
+  });
+
   test('adds raw text offsets to plain text chunks', async () => {
     const fileText = [
       'First sentence in the notes.',

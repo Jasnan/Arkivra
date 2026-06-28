@@ -76,6 +76,12 @@ function createDb(docOverrides: Partial<{
   parserStructuredOutput: Record<string, unknown> | null;
   parserWarnings: string[] | null;
   originalSha256Hash: string;
+  originalName: string;
+  mimeType: string;
+  previewPdfStorageKey: string | null;
+  previewPdfSha256Hash: string | null;
+  previewPdfEncryptionKeyWrapped: string | null;
+  previewPdfEncryptionKekVersion: string | null;
 }> = {}, executeImpl?: () => Promise<{ rows: Array<{ status: string; payload: Record<string, unknown> }> }>) {
   const docRow = {
     id: 'doc_1',
@@ -84,6 +90,10 @@ function createDb(docOverrides: Partial<{
     originalStorageKey: 'vlt_1/doc_1',
     originalSha256Hash: sha256Hex('file-bytes'),
     mimeType: 'application/pdf',
+    previewPdfStorageKey: null as string | null,
+    previewPdfSha256Hash: null as string | null,
+    previewPdfEncryptionKeyWrapped: null as string | null,
+    previewPdfEncryptionKekVersion: null as string | null,
     isDeleted: false,
     fileEncryptionKeyWrapped: null as string | null,
     fileEncryptionKekVersion: null as string | null,
@@ -112,11 +122,13 @@ function createDb(docOverrides: Partial<{
 
     return { set: vi.fn(() => ({ where: vi.fn(async () => []) })) };
   });
+  const transaction = vi.fn(async (callback) => callback({ update }));
 
   return {
     db: {
       select,
       update,
+      transaction,
       execute: vi.fn(executeImpl ?? (async () => ({
         rows: [
           {
@@ -127,6 +139,7 @@ function createDb(docOverrides: Partial<{
       }))),
     } as never,
     docRow,
+    transaction,
     uploadSessionSet,
   };
 }
@@ -147,6 +160,12 @@ function createDeps({
     parserStructuredOutput: Record<string, unknown> | null;
     parserWarnings: string[] | null;
     originalSha256Hash: string;
+    originalName: string;
+    mimeType: string;
+    previewPdfStorageKey: string | null;
+    previewPdfSha256Hash: string | null;
+    previewPdfEncryptionKeyWrapped: string | null;
+    previewPdfEncryptionKekVersion: string | null;
   }>;
   parseImplementation?: (
     input: ParseInput,
@@ -397,6 +416,111 @@ describe('document worker', () => {
       embeddingIndexId: 'eix_active',
       documentVersionId: 'dvr_1',
     });
+  });
+
+  test('converts supported Office documents with a healthy converter and parses the preview PDF', async () => {
+    const deps = createDeps({
+      docOverrides: {
+        originalName: 'Contract.docx',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      },
+    });
+    const pdfData = Buffer.from('%PDF-converted');
+    const documentConverter = {
+      provider: 'gotenberg',
+      baseUrl: 'http://gotenberg:3000',
+      checkHealth: vi.fn(async () => ({
+        configured: true as const,
+        healthy: true,
+        provider: 'gotenberg',
+        url: 'http://gotenberg:3000',
+        checkedAt: new Date().toISOString(),
+        error: null,
+      })),
+      convertToPdf: vi.fn(async () => ({
+        fileData: pdfData,
+        fileName: 'Contract.preview.pdf',
+        mimeType: 'application/pdf' as const,
+        converter: 'gotenberg',
+        converterVersion: null,
+      })),
+    };
+    const { createDocumentWorker } = await import('./document.worker.js');
+
+    const worker = createDocumentWorker({
+      db: deps.db,
+      storage: deps.storage as never,
+      encryption: deps.encryption,
+      parsePipeline: deps.parsePipeline as never,
+      startPolling: false,
+      documentConverter,
+    });
+
+    await worker.processDocument(deps.job as never);
+
+    expect(documentConverter.checkHealth).toHaveBeenCalled();
+    expect(documentConverter.convertToPdf).toHaveBeenCalledWith({
+      fileName: 'Contract.docx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      fileData: Buffer.from('file-bytes'),
+    });
+    expect(deps.storage.write).toHaveBeenCalledWith('previews/dvr_1/document.preview.pdf', pdfData);
+    expect(deps.parsePipeline.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileName: 'Contract.preview.pdf',
+        mimeType: 'application/pdf',
+        fileData: pdfData,
+      }),
+      expect.any(Object),
+    );
+  });
+
+  test('falls back to original Office document when the converter is unhealthy', async () => {
+    const deps = createDeps({
+      docOverrides: {
+        originalName: 'Contract.docx',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      },
+    });
+    const documentConverter = {
+      provider: 'gotenberg',
+      baseUrl: 'http://gotenberg:3000',
+      checkHealth: vi.fn(async () => ({
+        configured: true as const,
+        healthy: false,
+        provider: 'gotenberg',
+        url: 'http://gotenberg:3000',
+        checkedAt: new Date().toISOString(),
+        error: '503 Service Unavailable',
+      })),
+      convertToPdf: vi.fn(),
+    };
+    const { createDocumentWorker } = await import('./document.worker.js');
+
+    const worker = createDocumentWorker({
+      db: deps.db,
+      storage: deps.storage as never,
+      encryption: deps.encryption,
+      parsePipeline: deps.parsePipeline as never,
+      startPolling: false,
+      documentConverter: documentConverter as never,
+    });
+
+    await worker.processDocument(deps.job as never);
+
+    expect(documentConverter.convertToPdf).not.toHaveBeenCalled();
+    expect(deps.storage.write).not.toHaveBeenCalledWith(
+      'previews/dvr_1/document.preview.pdf',
+      expect.any(Buffer),
+    );
+    expect(deps.parsePipeline.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileName: 'Contract.docx',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        fileData: Buffer.from('file-bytes'),
+      }),
+      expect.any(Object),
+    );
   });
 
   test('does not enqueue semantic indexing when AI is disabled', async () => {

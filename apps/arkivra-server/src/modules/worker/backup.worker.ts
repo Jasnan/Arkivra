@@ -291,6 +291,10 @@ async function verifyReferencedStorageFiles({
     FROM document_versions
     WHERE original_storage_key IS NOT NULL
     UNION
+    SELECT preview_pdf_storage_key AS storage_key
+    FROM document_versions
+    WHERE preview_pdf_storage_key IS NOT NULL
+    UNION
     SELECT storage_key
     FROM document_chunk_assets
     WHERE storage_key IS NOT NULL

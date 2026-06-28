@@ -36,6 +36,16 @@ export const documentsTable = pgTable(
     originalStorageKey: text('original_storage_key').notNull(),
     originalSha256Hash: text('original_sha256_hash').notNull(),
 
+    previewPdfStorageKey: text('preview_pdf_storage_key'),
+    previewPdfSize: integer('preview_pdf_size'),
+    previewPdfSha256Hash: text('preview_pdf_sha256_hash'),
+    previewPdfConverter: text('preview_pdf_converter'),
+    previewPdfConverterVersion: text('preview_pdf_converter_version'),
+    previewPdfCreatedAt: timestamp('preview_pdf_created_at', { mode: 'date', withTimezone: true }),
+    previewPdfEncryptionKeyWrapped: text('preview_pdf_encryption_key_wrapped'),
+    previewPdfEncryptionKekVersion: text('preview_pdf_encryption_kek_version'),
+    previewPdfEncryptionAlgorithm: text('preview_pdf_encryption_algorithm'),
+
     name: text('name').notNull(),
     mimeType: text('mime_type').notNull(),
     content: text('content').notNull().default(''),
@@ -137,6 +147,16 @@ export const documentVersionsTable = pgTable(
     originalStorageKey: text('original_storage_key').notNull(),
     originalSha256Hash: text('original_sha256_hash').notNull(),
     mimeType: text('mime_type').notNull(),
+
+    previewPdfStorageKey: text('preview_pdf_storage_key'),
+    previewPdfSize: integer('preview_pdf_size'),
+    previewPdfSha256Hash: text('preview_pdf_sha256_hash'),
+    previewPdfConverter: text('preview_pdf_converter'),
+    previewPdfConverterVersion: text('preview_pdf_converter_version'),
+    previewPdfCreatedAt: timestamp('preview_pdf_created_at', { mode: 'date', withTimezone: true }),
+    previewPdfEncryptionKeyWrapped: text('preview_pdf_encryption_key_wrapped'),
+    previewPdfEncryptionKekVersion: text('preview_pdf_encryption_kek_version'),
+    previewPdfEncryptionAlgorithm: text('preview_pdf_encryption_algorithm'),
 
     content: text('content').notNull().default(''),
     rawText: text('raw_text').notNull().default(''),

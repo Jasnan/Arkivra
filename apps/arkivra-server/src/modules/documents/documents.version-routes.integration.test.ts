@@ -222,6 +222,29 @@ describe('document version and lifecycle routes', () => {
     expect(auditServices.emitAuditEvent).not.toHaveBeenCalled();
   });
 
+  test('serves generated preview PDF inline without changing download behavior', async () => {
+    const docServices = createMockDocumentsServices();
+    (docServices as any).previewDocumentFile = vi.fn(async () => ({
+      fileData: Buffer.from('preview-pdf-content'),
+      fileName: 'Resume.docx',
+      mimeType: 'application/pdf',
+      size: 19,
+    }));
+    const app = createTestApp({ docServices });
+
+    const response = await app.request('/api/vaults/vlt_1/documents/doc_1/file', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('application/pdf');
+    expect(response.headers.get('content-disposition')).toContain('inline');
+    expect(response.headers.get('content-disposition')).toContain('Resume.docx');
+    const body = await response.arrayBuffer();
+    expect(Buffer.from(body).toString()).toBe('preview-pdf-content');
+    expect((docServices as any).downloadDocument).not.toHaveBeenCalled();
+  });
+
   test('serves soft-deleted document file inline for trash previews', async () => {
     const docServices = createMockDocumentsServices();
     const app = createTestApp({ docServices });
@@ -236,7 +259,7 @@ describe('document version and lifecycle routes', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('application/pdf');
     expect(response.headers.get('content-disposition')).toContain('inline');
-    expect((docServices as any).downloadDocument).toHaveBeenCalledWith({
+    expect((docServices as any).previewDocumentFile).toHaveBeenCalledWith({
       documentId: 'doc_deleted_1',
       vaultId: 'vlt_1',
       includeDeleted: true,
@@ -245,7 +268,7 @@ describe('document version and lifecycle routes', () => {
 
   test('serves known image extensions with previewable inline content types', async () => {
     const docServices = createMockDocumentsServices();
-    (docServices as any).downloadDocument = vi.fn(async () => ({
+    (docServices as any).previewDocumentFile = vi.fn(async () => ({
       fileData: Buffer.from('webp-content'),
       fileName: 'scan.webp',
       mimeType: 'application/octet-stream',

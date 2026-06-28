@@ -11,6 +11,7 @@ import type {
 import type { AuthorizationServices } from '../authorization/authorization.services.js';
 import type { AdminAiServices } from '../admin/ai/ai.services.js';
 import type { EmbeddingIndexQueue } from '../ai/indexing/index.js';
+import type { DocumentConverter } from '../document-conversion/index.js';
 
 type DocumentQueue = {
   enqueueProcessDocument: (data: ProcessDocumentJobData) => Promise<void>;
@@ -18,6 +19,9 @@ type DocumentQueue = {
 type BackupQueue = {
   enqueueCreateBackup: () => Promise<CreateBackupJobResult>;
   enqueueRestoreBackup: (args: { backupId: string }) => Promise<RestoreBackupJobResult>;
+};
+type MaintenanceQueue = {
+  enqueueGenerateOfficePreviewPdfs: (data?: { limit?: number }) => Promise<void>;
 };
 const DEFAULT_CHAT_MAX_IMAGES_PER_REQUEST = 4;
 import type { ServerContext } from './server.types.js';
@@ -40,6 +44,7 @@ import { registerBackupRoutes } from '../admin/backups/backups.routes.js';
 import { registerAdminUserRoutes } from '../admin/users/users.routes.js';
 import { registerAdminVaultRoutes } from '../admin/vaults/vaults.routes.js';
 import { registerAdminAiRoutes } from '../admin/ai/ai.routes.js';
+import { registerAdminMaintenanceRoutes } from '../admin/maintenance/maintenance.routes.js';
 import { createAdminAiServices } from '../admin/ai/ai.services.js';
 import { createSensitiveActionServices } from '../security/sensitive-actions.services.js';
 import { registerSensitiveActionRoutes } from '../security/sensitive-actions.routes.js';
@@ -78,10 +83,12 @@ export function createServer({
   storage,
   encryption,
   documentQueue,
+  maintenanceQueue,
   backupQueue,
   authorizationServices,
   adminAiServices,
   embeddingIndexQueue,
+  documentConverter,
 }: {
   config: Config;
   auth: Auth;
@@ -89,10 +96,12 @@ export function createServer({
   storage: StorageDriver;
   encryption: EncryptionServices;
   documentQueue?: DocumentQueue;
+  maintenanceQueue?: MaintenanceQueue;
   backupQueue?: BackupQueue;
   authorizationServices?: AuthorizationServices;
   adminAiServices?: AdminAiServices;
   embeddingIndexQueue?: EmbeddingIndexQueue;
+  documentConverter?: DocumentConverter;
 }) {
   const app = new Hono<ServerContext>({ strict: true });
   const backupServices = createBackupServices({ config });
@@ -370,15 +379,24 @@ export function createServer({
   registerAdminUserRoutes({ app, authorizationServices: authzServices });
   registerAdminVaultRoutes({ app, db });
   registerAdminAiRoutes({ app, aiServices, auditServices });
+  registerAdminMaintenanceRoutes({ app, documentConverter, maintenanceQueue });
   registerSensitiveActionRoutes({ app, auditServices, services: sensitiveActionServices });
   registerUserPreferencesRoutes({ app, services: userPreferencesServices });
 
   // Health check endpoint
-  app.get('/api/health', (c) => {
+  app.get('/api/health', async (c) => {
+    const converterHealth =
+      documentConverter === undefined ? undefined : await documentConverter.checkHealth();
+
     return c.json({
       status: 'ok',
       version: config.version,
       timestamp: new Date().toISOString(),
+      ...(converterHealth === undefined
+        ? {}
+        : {
+            documentConverter: converterHealth,
+          }),
     });
   });
 

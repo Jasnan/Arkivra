@@ -4,6 +4,7 @@ import type {
   AdminAiModel,
   AdminAiSettings,
   AdminAiStatus,
+  AdminOfficeConverterStatus,
   AdminUser,
   AdminVault,
   BackupListItem,
@@ -244,6 +245,21 @@ export async function restoreBootstrapBackup({
     },
     body: JSON.stringify({ backupId }),
   });
+}
+
+export async function getAdminOfficeConverterStatus() {
+  return fetchJson<{ officeConverter: AdminOfficeConverterStatus }>(
+    '/api/admin/maintenance/office-converter/status',
+  );
+}
+
+export async function scheduleMissingOfficePreviews() {
+  return fetchJson<{ job: { type: 'generate-office-preview-pdfs'; status: 'queued' } }>(
+    '/api/admin/maintenance/office-preview-pdfs',
+    {
+      method: 'POST',
+    },
+  );
 }
 
 export async function getAdminAiSettings() {

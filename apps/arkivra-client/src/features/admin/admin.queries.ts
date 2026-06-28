@@ -3,6 +3,7 @@ import {
   checkAiModelAvailability,
   getAdminAiSettings,
   getAdminAiStatus,
+  getAdminOfficeConverterStatus,
   listAdminAiProviderModels,
   listPermissionRequests,
   listAdminUsers,
@@ -21,6 +22,8 @@ export const adminQueryKeys = {
     [...adminQueryKeys.all, 'permission-requests', status] as const,
   vaults: () => [...adminQueryKeys.all, 'vaults'] as const,
   backups: () => [...adminQueryKeys.all, 'backups'] as const,
+  officeConverter: () => [...adminQueryKeys.all, 'office-converter'] as const,
+  officeConverterStatus: () => [...adminQueryKeys.officeConverter(), 'status'] as const,
   ai: () => [...adminQueryKeys.all, 'ai'] as const,
   aiSettings: () => [...adminQueryKeys.ai(), 'settings'] as const,
   aiStatus: () => [...adminQueryKeys.ai(), 'status'] as const,
@@ -69,6 +72,14 @@ export function useAdminBackupsQuery({ enabled = true }: { enabled?: boolean } =
   return useQuery({
     queryKey: adminQueryKeys.backups(),
     queryFn: listBackups,
+    enabled,
+  });
+}
+
+export function useAdminOfficeConverterStatusQuery({ enabled = true }: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: adminQueryKeys.officeConverterStatus(),
+    queryFn: getAdminOfficeConverterStatus,
     enabled,
   });
 }

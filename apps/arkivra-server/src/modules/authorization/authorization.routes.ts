@@ -203,7 +203,11 @@ export function registerAuthorizationRoutes({
         severity: 'notice',
         outcome: 'success',
         actor: getAuditActorFromContext(context),
-        vaultId: typeof request.result?.vaultId === 'string' ? request.result.vaultId : request.vaultId,
+        vaultId: request.type === 'vault.delete'
+          ? null
+          : typeof request.result?.vaultId === 'string'
+            ? request.result.vaultId
+            : request.vaultId,
         target: { type: 'permission_request', id: request.id },
         source: 'web',
         requestContext: getAuditRequestContext(context),
@@ -235,7 +239,7 @@ export function registerAuthorizationRoutes({
           source: 'web',
           metadata: { request_id: request.id, request_type: request.type },
         });
-      } else if (request.vaultId !== null) {
+      } else if (request.type !== 'vault.delete' && request.vaultId !== null) {
         await activityServices?.emitActivityEvent({
           activityType: ACTIVITY_EVENT_TYPES.vaultApproved,
           entityType: 'vault',
@@ -257,10 +261,10 @@ export function registerAuthorizationRoutes({
         );
       }
 
-      if (error instanceof Error && error.message === 'authorization.vault_not_empty') {
+      if (error instanceof Error && error.message === 'authorization.vault_not_found') {
         return context.json(
-          { error: { code: 'vault.not_empty', message: 'Empty the vault before deleting it.' } },
-          409,
+          { error: { code: 'vault.not_found', message: 'Vault not found' } },
+          404,
         );
       }
 

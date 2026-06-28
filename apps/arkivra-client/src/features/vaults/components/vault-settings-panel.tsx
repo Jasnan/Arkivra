@@ -17,6 +17,7 @@ import {
   useVaultQuery,
   vaultQueryKeys,
 } from '@/features/vaults/vaults.queries';
+import { VaultDeleteConfirmDialog } from './vault-delete-confirm-dialog';
 
 function isRequestResponse<T extends object>(value: T | { request: unknown }): value is { request: unknown } {
   return 'request' in value;
@@ -32,6 +33,8 @@ export function VaultSettingsPanel({ vaultId }: { vaultId: string }) {
     name: string;
     description: string;
   } | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const draftMatchesVault = detailsDraft?.vaultId === vaultId;
   const name = draftMatchesVault ? detailsDraft.name : vaultQuery.data?.vault.name ?? '';
   const description = draftMatchesVault
@@ -58,14 +61,19 @@ export function VaultSettingsPanel({ vaultId }: { vaultId: string }) {
       if (result && isRequestResponse(result)) {
         toast.success('Vault deletion request queued for admin approval.');
         await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.detail(vaultId) });
+        setIsDeleteDialogOpen(false);
+        setDeleteError(null);
         return;
       }
 
       await queryClient.invalidateQueries({ queryKey: vaultQueryKeys.list() });
+      setIsDeleteDialogOpen(false);
+      setDeleteError(null);
+      toast.success('Vault deleted.');
       navigate({ to: ROUTES.vaults });
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Could not delete vault.');
+      setDeleteError(error instanceof Error ? error.message : 'Could not delete vault.');
     },
   });
 
@@ -241,13 +249,37 @@ export function VaultSettingsPanel({ vaultId }: { vaultId: string }) {
             minW={{ base: 'full', lg: '8.5rem' }}
             disabled={deleteMutation.isPending || !canManageVault}
             onClick={() => {
-              deleteMutation.mutate({ vaultId });
+              setDeleteError(null);
+              setIsDeleteDialogOpen(true);
             }}
           >
-            {deleteMutation.isPending ? 'Deleting...' : 'Delete vault'}
+            Delete vault
           </Button>
         </Grid>
       </Box>
+
+      <VaultDeleteConfirmDialog
+        open={isDeleteDialogOpen}
+        vault={vault}
+        isPending={deleteMutation.isPending}
+        errorMessage={deleteError}
+        onCancel={() => {
+          if (deleteMutation.isPending) {
+            return;
+          }
+
+          setIsDeleteDialogOpen(false);
+          setDeleteError(null);
+        }}
+        onConfirm={() => {
+          if (deleteMutation.isPending) {
+            return;
+          }
+
+          setDeleteError(null);
+          deleteMutation.mutate({ vaultId });
+        }}
+      />
     </Stack>
   );
 }

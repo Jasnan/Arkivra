@@ -3,11 +3,13 @@ import type { AiAccessLevel, VaultAccess, VaultRole } from './vaults.types.js';
 import type { PermissionRequestType } from '../authorization/authorization.types.js';
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import {
+  activityEventsTable,
+  auditEventsTable,
+  backgroundJobsTable,
   documentsTable,
   emailInvitationsTable,
   permissionRequestsTable,
   usersTable,
-  vaultFoldersTable,
   vaultMembersTable,
   vaultsTable,
 } from '../database/schema/index.js';
@@ -206,44 +208,46 @@ export function createVaultsServices({ db }: { db: Database }) {
     return vault ?? null;
   }
 
-  async function countVaultContents({ vaultId }: { vaultId: string }) {
-    const [documentRow] = await db
-      .select({ count: sql<number>`count(*)::int`.mapWith(Number) })
-      .from(documentsTable)
-      .where(and(eq(documentsTable.vaultId, vaultId), eq(documentsTable.isDeleted, false)));
+  async function hardDeleteVault({ vaultId }: { vaultId: string }) {
+    return db.transaction(async (tx) => {
+      const [existingVault] = await tx
+        .select({ id: vaultsTable.id })
+        .from(vaultsTable)
+        .where(and(eq(vaultsTable.id, vaultId), isNull(vaultsTable.deletedAt)))
+        .limit(1);
 
-    const [folderRow] = await db
-      .select({ count: sql<number>`count(*)::int`.mapWith(Number) })
-      .from(vaultFoldersTable)
-      .where(and(eq(vaultFoldersTable.vaultId, vaultId), eq(vaultFoldersTable.isDeleted, false)));
+      if (existingVault === undefined) {
+        return null;
+      }
 
-    const documentCount = documentRow?.count ?? 0;
-    const folderCount = folderRow?.count ?? 0;
+      await tx.delete(activityEventsTable).where(eq(activityEventsTable.vaultId, vaultId));
+      await tx.delete(auditEventsTable).where(eq(auditEventsTable.vaultId, vaultId));
+      await tx.delete(backgroundJobsTable).where(sql`${backgroundJobsTable.payload}->>'vaultId' = ${vaultId}`);
+      await tx.execute(sql`
+        delete from tags tag
+        where exists (
+          select 1
+          from document_tags document_tag
+          inner join documents document on document.id = document_tag.document_id
+          where document_tag.tag_id = tag.id
+            and document.vault_id = ${vaultId}
+        )
+        and not exists (
+          select 1
+          from document_tags document_tag
+          inner join documents document on document.id = document_tag.document_id
+          where document_tag.tag_id = tag.id
+            and document.vault_id <> ${vaultId}
+        )
+      `);
 
-    return {
-      documentCount,
-      folderCount,
-      totalCount: documentCount + folderCount,
-    };
-  }
+      const [vault] = await tx
+        .delete(vaultsTable)
+        .where(and(eq(vaultsTable.id, vaultId), isNull(vaultsTable.deletedAt)))
+        .returning({ id: vaultsTable.id });
 
-  async function softDeleteVault({ vaultId, deletedBy }: { vaultId: string; deletedBy: string }) {
-    const [vault] = await db
-      .update(vaultsTable)
-      .set({
-        deletedAt: sql`now()`,
-        deletedBy,
-        updatedAt: sql`now()`,
-      })
-      .where(and(
-        eq(vaultsTable.id, vaultId),
-        isNull(vaultsTable.deletedAt),
-        sql`not exists (select 1 from ${documentsTable} where ${documentsTable.vaultId} = ${vaultId} and ${documentsTable.isDeleted} = false)`,
-        sql`not exists (select 1 from ${vaultFoldersTable} where ${vaultFoldersTable.vaultId} = ${vaultId} and ${vaultFoldersTable.isDeleted} = false)`,
-      ))
-      .returning({ id: vaultsTable.id });
-
-    return vault ?? null;
+      return vault ?? null;
+    });
   }
 
   async function listMembers({ vaultId }: { vaultId: string }) {
@@ -600,10 +604,10 @@ export function createVaultsServices({ db }: { db: Database }) {
   }
 
   return {
-    countVaultContents,
     createEmailInvitation,
     createVault,
     createPermissionRequest,
+    hardDeleteVault,
     getMember,
     getUserByEmail,
     getVaultForUser,
@@ -612,7 +616,6 @@ export function createVaultsServices({ db }: { db: Database }) {
     listPendingInvitations,
     listUserVaults,
     removeMember,
-    softDeleteVault,
     updateVaultIdentity,
     upsertMember,
   };

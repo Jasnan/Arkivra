@@ -289,7 +289,7 @@ function TranslationMenu({
         <ChakraMenu.Positioner>
           <ChakraMenu.Content zIndex="dropdown" minW="14rem" rounded="lg" borderWidth="1px" borderColor="border.surface" bg="bg.surface" p="1.5" shadow="lg">
             <ChakraMenu.Root positioning={{ placement: 'right-start', gutter: 2 }}>
-              <ChakraMenu.TriggerItem display="flex" alignItems="center" gap="2" rounded="md" px="3" py="2" fontSize="sm" fontWeight="medium" color="fg.muted" _highlighted={{ bg: 'bg.subtle', color: 'fg' }}>
+              <ChakraMenu.TriggerItem display="flex" alignItems="center" gap="2" rounded="md" borderWidth="1px" borderColor="transparent" px="3" py="2" fontSize="sm" fontWeight="medium" color="fg.muted" _highlighted={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}>
                 <Languages size={16} />
                 <Text flex="1">{label}</Text>
                 <ChevronRight size={16} />
@@ -311,7 +311,9 @@ function TranslationMenu({
                         fontSize="sm"
                         fontWeight="medium"
                         color="fg.muted"
-                        _highlighted={{ bg: 'bg.subtle', color: 'fg' }}
+                        borderWidth="1px"
+                        borderColor="transparent"
+                        _highlighted={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
                         onSelect={() => onSelect(language.value)}
                       >
                         <TranslationLanguageMenuLabel language={language} />

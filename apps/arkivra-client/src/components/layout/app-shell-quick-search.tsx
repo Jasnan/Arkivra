@@ -60,17 +60,17 @@ export function QuickSearchTrigger({
       gap="1.5"
       rounded="md"
       borderWidth="1px"
-      borderColor="border.surface"
-      bg="bg.workspace"
-      color="fg.subtle"
-      _hover={{ borderColor: 'border.strong', bg: 'bg.workspace', color: 'fg.muted' }}
+      borderColor="shell.border"
+      bg="shell.sideBar"
+      color="shell.inactiveForeground"
+      _hover={{ borderColor: 'teal.solid', bg: 'shell.hoverBackground', color: 'shell.accentForeground' }}
       _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
     >
       <HStack gap="1" aria-hidden="true">
-        <Kbd size={kbdSize} flexShrink={0} color="fg.muted">
+        <Kbd size={kbdSize} flexShrink={0} color="shell.inactiveForeground">
           {shortcut.modifier}
         </Kbd>
-        <Kbd size={kbdSize} flexShrink={0} color="fg.muted">
+        <Kbd size={kbdSize} flexShrink={0} color="shell.inactiveForeground">
           K
         </Kbd>
       </HStack>

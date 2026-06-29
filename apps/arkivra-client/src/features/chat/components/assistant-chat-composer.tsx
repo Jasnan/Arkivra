@@ -252,10 +252,10 @@ export function AssistantChatComposer({
                                     fontSize="sm"
                                     fontWeight="medium"
                                     color="fg"
-                                    _checked={{ bg: 'teal.subtle', color: 'fg' }}
-                                    _highlighted={{
-                                      bg: selectedModel === item.value ? 'teal.subtle' : 'bg.subtle',
-                                    }}
+                                    borderWidth="1px"
+                                    borderColor={selectedModel === item.value ? 'teal.muted' : 'transparent'}
+                                    _checked={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
+                                    _highlighted={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
                                   >
                                     <Box
                                       position="absolute"

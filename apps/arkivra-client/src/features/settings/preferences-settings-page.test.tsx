@@ -380,7 +380,7 @@ describe('preferences settings page', () => {
     await user.click(await screen.findByRole('button', { name: /^blue$/i }));
 
     await waitFor(() => {
-      expect(document.documentElement.style.getPropertyValue('--chakra-colors-teal-solid')).toBe('#2d6dc3');
+      expect(document.documentElement.style.getPropertyValue('--chakra-colors-teal-solid')).toBe('#1e66f5');
     });
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({

@@ -18,8 +18,14 @@ import type { FolderBreadcrumb } from '@/features/file-browser/file-browser.type
 
 const uploadMenuItemProps = {
   cursor: 'default',
+  minH: 'var(--arkivra-menuItemMinHeight, 2.5rem)',
+  rounded: 'md',
+  px: '3',
+  py: 'var(--arkivra-menuItemPaddingY, 0.5rem)',
   color: 'fg.muted',
-  _highlighted: { bg: 'bg.muted', color: 'fg' },
+  borderWidth: '1px',
+  borderColor: 'transparent',
+  _highlighted: { bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' },
 } as const;
 
 export function useVaultBrowserHeader({

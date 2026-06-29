@@ -199,7 +199,7 @@ export function ChatMobileConversationDrawer({
         <Portal>
           <Drawer.Backdrop bg="blackAlpha.500" />
           <Drawer.Positioner>
-            <Drawer.Content maxH="84vh" roundedTop="xl" bg="bg.sidebar">
+            <Drawer.Content maxH="84vh" roundedTop="xl" bg="shell.secondarySideBar">
               <Drawer.Header borderBottomWidth="1px" borderColor="border.surface" px="5" py="4">
                 <Flex align="center" justify="space-between" gap="4" pr="8">
                   <Box minW="0">

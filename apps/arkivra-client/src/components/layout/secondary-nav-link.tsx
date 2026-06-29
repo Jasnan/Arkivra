@@ -64,7 +64,7 @@ function SecondaryNavBody({
       <Box minW="0" pt={description ? '0.5px' : undefined}>
         <Text truncate fontWeight={active ? 'semibold' : 'medium'} lineHeight="1.25">{label}</Text>
         {description ? (
-          <Text truncate mt="1" textStyle="caption" lineHeight="1.2" color={active ? 'teal.fg' : 'fg.subtle'}>
+          <Text truncate mt="1" textStyle="caption" lineHeight="1.2" color={active ? 'shell.selectionForeground' : 'shell.inactiveForeground'}>
             {description}
           </Text>
         ) : null}
@@ -91,16 +91,18 @@ function secondaryNavItemStyles({
 
   return {
     alignItems: 'center',
-    bg: active ? 'teal.subtle' : 'transparent',
-    color: active ? 'teal.fg' : 'fg.muted',
+    bg: active ? 'shell.selectionBackground' : 'transparent',
+    color: active ? 'shell.selectionForeground' : 'shell.inactiveForeground',
     display: 'flex',
     gap: showDisclosureSlot ? '2' : '0',
     minHeight: usesTwoLineHeight ? (isCompact ? SECONDARY_NAV_COMPACT_TWO_LINE_HEIGHT : '3.375rem') : (isCompact ? '2.375rem' : '2.625rem'),
     paddingInline: isCompact ? '0.875rem' : '0.75rem',
     paddingBlock: usesTwoLineHeight ? (isCompact ? '0.5rem' : '0.625rem') : undefined,
     textStyle: 'sidebar',
-    borderRadius: 'var(--chakra-radii-md)',
-    transition: 'background-color 120ms ease, color 120ms ease',
+    borderRadius: 'var(--chakra-radii-sm)',
+    borderLeftWidth: '2px',
+    borderLeftColor: active ? 'shell.accentForeground' : 'transparent',
+    transition: 'background-color 120ms ease, border-color 120ms ease, color 120ms ease',
   } as const;
 }
 
@@ -141,7 +143,11 @@ export function SecondaryNavLink({
     <Flex
       {...secondaryNavItemStyles({ active, density, description, showDisclosureSlot, iconOnly })}
       ml={`${Math.min(depth, 6) * 0.8}rem`}
-      _hover={{ bg: active ? 'teal.subtle' : 'bg.muted', color: active ? 'teal.fg' : 'fg' }}
+      _hover={{
+        bg: 'shell.hoverBackground',
+        borderLeftColor: active ? 'shell.accentForeground' : 'transparent',
+        color: 'shell.selectionForeground',
+      }}
     >
       {showDisclosureSlot ? (
         hasExpansionState ? (
@@ -163,8 +169,8 @@ export function SecondaryNavLink({
             width="5"
             height="5"
             rounded="sm"
-            color={active ? 'teal.fg' : 'fg.subtle'}
-            _hover={{ color: active ? 'teal.fg' : 'fg', bg: active ? 'teal.subtle' : 'bg.subtle' }}
+            color={active ? 'shell.selectionForeground' : 'shell.inactiveForeground'}
+            _hover={{ color: 'shell.selectionForeground', bg: 'shell.hoverBackground' }}
             _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
           >
             {isExpanded
@@ -230,7 +236,11 @@ export function SecondaryNavButton({
       width="full"
       textAlign="left"
       cursor="pointer"
-      _hover={{ bg: active ? 'teal.subtle' : 'bg.muted', color: active ? 'teal.fg' : 'fg' }}
+      _hover={{
+        bg: 'shell.hoverBackground',
+        borderLeftColor: active ? 'shell.accentForeground' : 'transparent',
+        color: 'shell.selectionForeground',
+      }}
       _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
       onClick={onClick}
     >

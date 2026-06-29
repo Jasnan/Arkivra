@@ -146,8 +146,10 @@ export function RadioDropdownMenu<TValue extends string>({
                     fontSize="sm"
                     fontWeight="medium"
                     color="fg"
-                    _checked={{ bg: 'teal.subtle', color: 'fg' }}
-                    _highlighted={{ bg: value === option.value ? 'teal.subtle' : 'bg.subtle' }}
+                    borderWidth="1px"
+                    borderColor={value === option.value ? 'teal.muted' : 'transparent'}
+                    _checked={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
+                    _highlighted={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
                   >
                     <Box
                       position="absolute"

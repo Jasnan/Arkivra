@@ -172,11 +172,13 @@ function VaultFileTreePanel({
       minW={{ base: '0', md: '15.75rem', xl: '17rem' }}
       shrink={0}
       direction="column"
+      borderLeftWidth={{ base: '0', md: '1px' }}
       borderRightWidth={{ base: '0', md: '1px' }}
       borderBottomWidth={{ base: '1px', md: '0' }}
-      borderColor="border.strong"
+      borderColor="shell.secondaryBorder"
       boxShadow="none"
-      bg="bg.sidebar"
+      bg="shell.secondarySideBar"
+      color="shell.foreground"
       overflow="hidden"
     >
       <Box flex="1" minH="0" overflowY="auto" px="3" py="4" pr="2">

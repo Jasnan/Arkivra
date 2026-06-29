@@ -663,8 +663,10 @@ export function SearchModeControl({
                 pe="10"
                 py="2"
                 color="fg"
-                _checked={{ bg: 'teal.subtle' }}
-                _highlighted={{ bg: value === 'hybrid' ? 'teal.subtle' : 'bg.subtle' }}
+                borderWidth="1px"
+                borderColor={value === 'hybrid' ? 'teal.muted' : 'transparent'}
+                _checked={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
+                _highlighted={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
               >
                 <Box
                   position="absolute"
@@ -702,8 +704,10 @@ export function SearchModeControl({
                 pe="10"
                 py="2"
                 color="fg"
-                _checked={{ bg: 'teal.subtle' }}
-                _highlighted={{ bg: value === 'keyword' ? 'teal.subtle' : 'bg.subtle' }}
+                borderWidth="1px"
+                borderColor={value === 'keyword' ? 'teal.muted' : 'transparent'}
+                _checked={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
+                _highlighted={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
               >
                 <Box
                   position="absolute"

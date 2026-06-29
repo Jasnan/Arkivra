@@ -7,6 +7,7 @@
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "dev": "vite",
+    "dev:api": "ARKIVRA_APP_INSTANCE=arkivra-client-new-shadcn ARKIVRA_PROCESS_ROLE=all ARKIVRA_PORT=1321 ARKIVRA_WEB_PORT=5174 ARKIVRA_PUBLIC_URL=http://localhost:5174 pnpm --dir ../arkivra-server dev",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -43,6 +44,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-table": "^8.21.3",
+    "better-auth": "^1.6.14",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

@@ -9,7 +9,7 @@ export default function SignUpPage() {
           <div className="bg-primary text-primary-foreground flex size-9 items-center justify-center rounded-md">
             <Logo size={24} />
           </div>
-          ShadcnStore
+          Arkivra
         </a>
         <SignupForm1 />
       </div>

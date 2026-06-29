@@ -161,7 +161,7 @@ export function FeaturesSection() {
                 </a>
               </Button>
               <Button size="lg" variant="outline" className="cursor-pointer">
-                <a href="https://github.com/silicondeck/shadcn-dashboard-landing-template" target="_blank" rel="noopener noreferrer">
+                <a href="https://github.com/Jasnan/Arkivra" target="_blank" rel="noopener noreferrer">
                   GitHub Repository
                 </a>
               </Button>

@@ -1,7 +1,6 @@
 import type { PropsWithChildren } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useTheme } from 'next-themes';
 import { authClient } from '@/lib/auth-client';
 import { userPreferencesQueryKeys, useUpdateUserUiPreferencesMutation, useUserUiPreferencesQuery } from '@/features/user-preferences/user-preferences.queries';
 import type { UserUiPreferences, UserUiPreferencesUpdate } from '@/features/user-preferences/user-preferences.types';
@@ -640,7 +639,6 @@ function applyDensity(density: AppearanceDensity) {
 }
 
 export function AccentColorProvider({ children }: PropsWithChildren) {
-  const { resolvedTheme, setTheme } = useTheme();
   const queryClient = useQueryClient();
   const session = authClient.useSession();
   const initialPreferences = useMemo(getInitialPreferences, []);
@@ -701,6 +699,8 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
 
   function applyPreferences(nextPreferences: UserUiPreferenceValues, source: PreferenceSource) {
     currentPreferencesRef.current = nextPreferences;
+    applyThemeMode(nextPreferences.themeMode);
+    applyAccentColor(nextPreferences.accentColor, nextPreferences.themeMode);
     preferenceSourceRef.current = source;
     setPreferenceSource(source);
     setThemeModeState(nextPreferences.themeMode);
@@ -828,9 +828,13 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
     };
   }, [isAuthenticated, pendingServerPatch, queryClient, updatePreferencesMutation]);
 
-  useEffect(() => {
-    applyAccentColor(accentColor, resolvedTheme);
-  }, [accentColor, resolvedTheme]);
+  useLayoutEffect(() => {
+    applyThemeMode(themeMode);
+  }, [themeMode]);
+
+  useLayoutEffect(() => {
+    applyAccentColor(accentColor, themeMode);
+  }, [accentColor, themeMode]);
 
   useEffect(() => {
     applyDensity(density);
@@ -847,11 +851,6 @@ export function AccentColorProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     applyRadius(radius);
   }, [radius]);
-
-  useEffect(() => {
-    applyThemeMode(themeMode);
-    setTheme(themeMode);
-  }, [setTheme, themeMode]);
 
   useEffect(() => {
     if (preferenceSourceRef.current !== 'default') {

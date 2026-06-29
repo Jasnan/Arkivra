@@ -27,6 +27,7 @@ export type ParsePipeline = {
 
 const markdownFileExtensions = ['.md', '.markdown'];
 const textFileExtensions = ['.txt'];
+const jsonFileExtensions = ['.json'];
 const whitespacePattern = /\s+/g;
 const whitespaceCharacterPattern = /\s/;
 const markdownFencePattern = /```([\s\S]*?)```/g;
@@ -73,6 +74,18 @@ function decodeUtf8Source(fileData: Buffer) {
   return fileData.toString('utf8').replace(utf8BomPattern, '');
 }
 
+function isJsonSource(input: ParseInput) {
+  const normalizedMimeType = input.mimeType.toLocaleLowerCase();
+  const extension = getFileExtension(input.fileName);
+
+  return (
+    normalizedMimeType === 'application/json' ||
+    normalizedMimeType === 'text/json' ||
+    normalizedMimeType.endsWith('+json') ||
+    jsonFileExtensions.includes(extension)
+  );
+}
+
 function getTextLocatorSource(input: ParseInput): TextLocatorSource | null {
   const normalizedMimeType = input.mimeType.toLocaleLowerCase();
   const extension = getFileExtension(input.fileName);
@@ -85,7 +98,36 @@ function getTextLocatorSource(input: ParseInput): TextLocatorSource | null {
     return { sourceType: 'rawText', text: decodeUtf8Source(input.fileData) };
   }
 
+  if (isJsonSource(input)) {
+    return { sourceType: 'rawText', text: decodeUtf8Source(input.fileData) };
+  }
+
   return null;
+}
+
+function buildJsonParserOutput(input: ParseInput): ParserOutput {
+  const sourceText = decodeUtf8Source(input.fileData);
+  let text = sourceText;
+  const warnings = ['source_json.direct_parse'];
+
+  try {
+    text = JSON.stringify(JSON.parse(sourceText), null, 2);
+  } catch {
+    warnings.push('source_json.invalid_json_raw_text');
+  }
+
+  return {
+    engine: 'source-json',
+    engineVersion: 'v1',
+    text,
+    markdown: '',
+    rawStructuredOutput: {
+      schema_name: 'ArkivraSourceJsonDocument',
+      source_mime_type: input.mimeType,
+    },
+    chunks: [],
+    warnings,
+  };
 }
 
 function normalizeLocatorText(value: string, sourceType: TextLocatorSource['sourceType']) {
@@ -533,7 +575,7 @@ export function createParsePipeline({
   async function run(input: ParseInput, hooks?: ParsePipelineRunHooks): Promise<ParsedDocument> {
     const parser = engine !== undefined ? parserRegistry.get(engine) : parserRegistry.getDefault();
 
-    const raw = await parser.parse(input);
+    const raw = isJsonSource(input) ? buildJsonParserOutput(input) : await parser.parse(input);
 
     const parsed = await buildParsedDocumentFromRawOutput(
       raw,

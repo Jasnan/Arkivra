@@ -109,7 +109,7 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
     documentId,
     includeDeleted: isTrashDocumentRoute,
     enabled:
-      (previewKind === 'markdown' || previewKind === 'text') &&
+      (previewKind === 'markdown' || previewKind === 'structured-text' || previewKind === 'text') &&
       (documentQuery.data?.document.isDeleted === false || isTrashDocumentRoute),
   });
 
@@ -495,7 +495,10 @@ export function DocumentDetailPage({ section = 'preview' }: { section?: Document
     !isHistoricalVersionSelected &&
     !document.isDeleted &&
     canPreview &&
-    (activePreviewKind === 'pdf' || activePreviewKind === 'image' || activePreviewKind === 'text');
+    (activePreviewKind === 'pdf' ||
+      activePreviewKind === 'image' ||
+      activePreviewKind === 'structured-text' ||
+      activePreviewKind === 'text');
   const currentName = renameValue ?? document.name;
   const currentLanguage = languageValue ?? document.language?.code ?? 'unknown';
   const hasNameChanged = currentName.trim() !== document.name;

@@ -4,14 +4,15 @@ import { Box, Flex, Text, chakra } from '@chakra-ui/react';
 import { Download, Image as ImageIcon, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AppEmptyState } from '@/components/ui/empty-state';
-import { DocumentMarkdownPreview } from '@/features/documents/components/document-markdown-preview';
 import { PdfPreviewFrame } from '@/features/documents/components/detail/pdf-preview-frame';
+import { DocumentStructuredTextPreview } from '@/features/documents/components/detail/document-structured-text-preview';
 import type { DocumentDetail } from '@/features/documents/documents.types';
 
 export type DocumentPreviewKind =
   | 'pdf'
   | 'image'
   | 'markdown'
+  | 'structured-text'
   | 'text'
   | 'pending'
   | 'failed'
@@ -44,6 +45,24 @@ function PreviewEmptyState({
           {children}
         </AppEmptyState>
       </Flex>
+    </Box>
+  );
+}
+
+function PreviewTextFrame({ children }: { children: ReactNode }) {
+  return (
+    <Box
+      h="full"
+      minH={{ base: '720px', md: '0' }}
+      overflow="auto"
+      rounded="lg"
+      borderWidth="1px"
+      borderColor="border.surface"
+      bg="bg.surface"
+      px={{ base: '4', md: '8' }}
+      py={{ base: '5', md: '7' }}
+    >
+      {children}
     </Box>
   );
 }
@@ -89,34 +108,44 @@ export function DocumentPreviewSection({
     imagePreviewFailure?.url === inlineFileUrl && imagePreviewFailure.failed;
 
   if (isHistoricalVersion) {
-    if ((previewKind === 'markdown' || previewKind === 'text') && canPreview) {
+    if (
+      (previewKind === 'markdown' || previewKind === 'structured-text' || previewKind === 'text') &&
+      canPreview
+    ) {
       return (
-        <Box
-          h="full"
-          minH={{ base: '720px', md: '0' }}
-          overflow="auto"
-          rounded="lg"
-          borderWidth="1px"
-          borderColor="border.surface"
-          bg="bg.surface"
-          px={{ base: '4', md: '8' }}
-          py={{ base: '5', md: '7' }}
-        >
-          {previewKind === 'markdown' ? (
-            <DocumentMarkdownPreview markdown={fallbackMarkdownContent} />
+        <>
+          {previewKind === 'markdown' || previewKind === 'structured-text' ? (
+            <DocumentStructuredTextPreview
+              content={fallbackMarkdownContent}
+              mimeType={document.mimeType}
+              name={document.name}
+              originalName={document.originalName}
+            />
           ) : (
-            <Text
-              as="pre"
-              whiteSpace="pre-wrap"
-              overflowWrap="anywhere"
-              fontFamily="document"
-              fontSize="sm"
-              color="fg"
+            <Box
+              h="full"
+              minH={{ base: '720px', md: '0' }}
+              overflow="auto"
+              rounded="lg"
+              borderWidth="1px"
+              borderColor="border.surface"
+              bg="bg.surface"
+              px={{ base: '4', md: '8' }}
+              py={{ base: '5', md: '7' }}
             >
-              {fallbackMarkdownContent || 'No extracted text is available for this version.'}
-            </Text>
+              <Text
+                as="pre"
+                whiteSpace="pre-wrap"
+                overflowWrap="anywhere"
+                fontFamily="document"
+                fontSize="sm"
+                color="fg"
+              >
+                {fallbackMarkdownContent || 'No extracted text is available for this version.'}
+              </Text>
+            </Box>
           )}
-        </Box>
+        </>
       );
     }
 
@@ -226,31 +255,34 @@ export function DocumentPreviewSection({
     );
   }
 
-  if (previewKind === 'markdown' && canPreview) {
-    return (
-      <Box
-        h="full"
-        minH={{ base: '720px', md: '0' }}
-        overflow="auto"
-        rounded="lg"
-        borderWidth="1px"
-        borderColor="border.surface"
-        bg="bg.surface"
-        px={{ base: '4', md: '8' }}
-        py={{ base: '5', md: '7' }}
-      >
-        {isMarkdownLoading && markdownSource === undefined ? (
+  if ((previewKind === 'markdown' || previewKind === 'structured-text') && canPreview) {
+    if (isMarkdownLoading && markdownSource === undefined) {
+      return (
+        <PreviewTextFrame>
           <Text fontSize="sm" color="fg.muted">
-            Loading Markdown preview...
+            Loading source preview...
           </Text>
-        ) : isMarkdownError && fallbackMarkdownContent.length === 0 ? (
+        </PreviewTextFrame>
+      );
+    }
+
+    if (isMarkdownError && fallbackMarkdownContent.length === 0) {
+      return (
+        <PreviewTextFrame>
           <Text fontSize="sm" color="fg.error">
-            Unable to load Markdown preview.
+            Unable to load source preview.
           </Text>
-        ) : (
-          <DocumentMarkdownPreview markdown={markdownSource ?? fallbackMarkdownContent} />
-        )}
-      </Box>
+        </PreviewTextFrame>
+      );
+    }
+
+    return (
+      <DocumentStructuredTextPreview
+        content={markdownSource ?? fallbackMarkdownContent}
+        mimeType={document.mimeType}
+        name={document.name}
+        originalName={document.originalName}
+      />
     );
   }
 

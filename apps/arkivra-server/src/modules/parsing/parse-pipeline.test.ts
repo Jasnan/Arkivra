@@ -292,6 +292,53 @@ describe('parse pipeline', () => {
     });
   });
 
+  test('parses JSON directly without calling Docling', async () => {
+    const { pipeline, parser } = makePipeline();
+
+    const parsed = await pipeline.run({
+      ...input,
+      fileName: 'client_secret_google_auth_arkivra.json',
+      mimeType: 'application/json',
+      fileData: Buffer.from(
+        '{"installed":{"client_id":"local-test","redirect_uris":["http://localhost"]}}',
+      ),
+    });
+
+    expect(parser.parse).not.toHaveBeenCalled();
+    expect(parsed.engine).toBe('source-json');
+    expect(parsed.text).toContain('"client_id": "local-test"');
+    expect(parsed.rawText).toBe(parsed.text);
+    expect(parsed.rawMarkdown).toBe('');
+    expect(parsed.chunks).toEqual([
+      expect.objectContaining({
+        id: 'doc_1:fallback-0',
+        text: parsed.text,
+        citationPrecision: 'document',
+        metadata: expect.objectContaining({
+          chunkingType: 'document_text_fallback',
+          fileName: 'client_secret_google_auth_arkivra.json',
+        }),
+      }),
+    ]);
+    expect(parsed.warnings).toContain('source_json.direct_parse');
+  });
+
+  test('keeps invalid JSON as raw text for extraction', async () => {
+    const { pipeline, parser } = makePipeline();
+    const sourceText = '{"unfinished": true';
+
+    const parsed = await pipeline.run({
+      ...input,
+      fileName: 'broken.json',
+      mimeType: 'application/octet-stream',
+      fileData: Buffer.from(sourceText),
+    });
+
+    expect(parser.parse).not.toHaveBeenCalled();
+    expect(parsed.text).toBe(sourceText);
+    expect(parsed.warnings).toContain('source_json.invalid_json_raw_text');
+  });
+
   test('infers Markdown offsets for edge chunks from neighboring exact matches', async () => {
     const fileText = [
       '# QA script',

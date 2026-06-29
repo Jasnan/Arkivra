@@ -392,6 +392,40 @@ describe('documents page', () => {
     expect(screen.queryByTitle(/text preview/i)).not.toBeInTheDocument();
   });
 
+  it('renders JSON files as text previews', async () => {
+    installDocumentDetailFetchMock({
+      documentName: 'client_secret_google_auth_arkivra.json',
+      mimeType: 'application/json',
+      fileText: '{\n  "installed": {\n    "client_id": "local-test"\n  }\n}',
+    });
+
+    const { container } = await renderWithProviders(<DocumentDetailPage />, {
+      initialEntries: ['/vaults/vlt_1/doc_1'],
+      routePath: '/vaults/:vaultId/:documentId',
+    });
+
+    await screen.findByText('"client_id"');
+    expect(container.textContent).toContain('"client_id": "local-test"');
+    expect(screen.queryByText(/preview unavailable/i)).not.toBeInTheDocument();
+  });
+
+  it('renders .json files as text previews when the stored MIME type is generic', async () => {
+    installDocumentDetailFetchMock({
+      documentName: 'settings.json',
+      mimeType: 'application/octet-stream',
+      fileText: '{\n  "theme": "system"\n}',
+    });
+
+    const { container } = await renderWithProviders(<DocumentDetailPage />, {
+      initialEntries: ['/vaults/vlt_1/doc_1'],
+      routePath: '/vaults/:vaultId/:documentId',
+    });
+
+    await screen.findByText('"theme"');
+    expect(container.textContent).toContain('"theme": "system"');
+    expect(screen.queryByText(/preview unavailable/i)).not.toBeInTheDocument();
+  });
+
   it('renders generated PDF previews for Office documents without changing the stored MIME type', async () => {
     installDocumentDetailFetchMock({
       documentName: 'Resume.docx',
@@ -771,6 +805,7 @@ function installVaultContentsFetchMock({
 function installDocumentDetailFetchMock({
   documentName = 'Policy.txt',
   mimeType = 'text/plain',
+  fileText = 'Extracted policy text',
   hasPreviewPdf = false,
   derivedPreviewStatus = 'unavailable',
   derivedPreviewErrorCode = null,
@@ -778,6 +813,7 @@ function installDocumentDetailFetchMock({
 }: {
   documentName?: string;
   mimeType?: string;
+  fileText?: string;
   hasPreviewPdf?: boolean;
   derivedPreviewStatus?: 'pending' | 'ready' | 'unavailable' | 'failed';
   derivedPreviewErrorCode?: string | null;
@@ -834,6 +870,13 @@ function installDocumentDetailFetchMock({
 
       if (url === '/api/vaults/vlt_1/documents/doc_1/chunks') {
         return jsonResponse({ chunks });
+      }
+
+      if (url === '/api/vaults/vlt_1/documents/doc_1/file') {
+        return new Response(fileText, {
+          status: 200,
+          headers: { 'content-type': mimeType },
+        });
       }
 
       if (url === '/api/tags') {

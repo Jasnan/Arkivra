@@ -134,12 +134,9 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
     { title: "Calendar", url: "/calendar", group: "Apps", icon: Calendar },
 
     // Auth Pages
-    { title: "Sign In 1", url: "/auth/sign-in", group: "Auth Pages", icon: Shield },
-    { title: "Sign In 2", url: "/auth/sign-in-2", group: "Auth Pages", icon: Shield },
-    { title: "Sign Up 1", url: "/auth/sign-up", group: "Auth Pages", icon: Shield },
-    { title: "Sign Up 2", url: "/auth/sign-up-2", group: "Auth Pages", icon: Shield },
-    { title: "Forgot Password 1", url: "/auth/forgot-password", group: "Auth Pages", icon: Shield },
-    { title: "Forgot Password 2", url: "/auth/forgot-password-2", group: "Auth Pages", icon: Shield },
+    { title: "Login", url: "/login", group: "Auth Pages", icon: Shield },
+    { title: "Register", url: "/register", group: "Auth Pages", icon: Shield },
+    { title: "Request Password Reset", url: "/request-password-reset", group: "Auth Pages", icon: Shield },
 
     // Errors
     { title: "Unauthorized", url: "/errors/unauthorized", group: "Errors", icon: AlertTriangle },

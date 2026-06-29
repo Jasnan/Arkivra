@@ -252,13 +252,16 @@ export function SelectItem({ className, children, ref, value, ...props }: Select
       fontWeight="medium"
       color="fg"
       outline="none"
-      transition="background-color 120ms ease, color 120ms ease"
-      _checked={{ bg: 'teal.subtle', color: 'fg' }}
-      _highlighted={{ bg: 'bg.subtle', color: 'fg' }}
+      borderWidth="1px"
+      borderColor="transparent"
+      transition="background-color 120ms ease, border-color 120ms ease, color 120ms ease"
+      _checked={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
+      _highlighted={{ bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' }}
       _disabled={{ pointerEvents: 'none', opacity: 0.5 }}
       css={{
         '&[data-highlighted][data-state=checked]': {
           background: 'var(--chakra-colors-teal-subtle)',
+          borderColor: 'var(--chakra-colors-teal-muted)',
         },
       }}
       {...props}

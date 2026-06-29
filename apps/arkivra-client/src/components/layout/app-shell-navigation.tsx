@@ -191,9 +191,37 @@ export function isTextEntryTarget(target: EventTarget | null) {
 
 const accountMenuItemProps = {
   cursor: 'default',
+  minH: 'var(--arkivra-menuItemMinHeight, 2.5rem)',
+  rounded: 'md',
+  px: '3',
+  py: 'var(--arkivra-menuItemPaddingY, 0.5rem)',
   color: 'fg.muted',
-  _highlighted: { bg: 'bg.muted', color: 'fg' },
+  borderWidth: '1px',
+  borderColor: 'transparent',
+  _highlighted: { bg: 'teal.subtle', borderColor: 'teal.muted', color: 'teal.fg' },
 } as const;
+
+const primaryShellItemProps = {
+  borderWidth: '1px',
+  borderColor: 'transparent',
+  borderLeftWidth: '2px',
+  transition: 'background-color 120ms ease, border-color 120ms ease, color 120ms ease',
+} as const;
+
+function getPrimaryShellItemState(active: boolean) {
+  return {
+    bg: active ? 'teal.subtle' : 'transparent',
+    borderColor: active ? 'teal.muted' : 'transparent',
+    borderLeftColor: active ? 'teal.solid' : 'transparent',
+    color: active ? 'teal.fg' : 'shell.inactiveForeground',
+    _hover: {
+      bg: 'teal.subtle',
+      borderColor: 'teal.muted',
+      borderLeftColor: 'teal.solid',
+      color: 'teal.fg',
+    },
+  } as const;
+}
 
 function truncateSidebarAccountLabel(label: string) {
   if (label.length <= SIDEBAR_ACCOUNT_LABEL_MAX_LENGTH) {
@@ -286,16 +314,12 @@ export function UnifiedSidebarNavLink({
           align="center"
           justify={expanded ? 'flex-start' : 'center'}
           gap={expanded ? '2.5' : '0'}
-          rounded="md"
+          rounded="sm"
           px={expanded ? '2.5' : '0'}
           py="1.5"
           pl={expanded ? `${0.625 + depth * 0.85}rem` : '0'}
-          color={active ? 'teal.fg' : 'fg.muted'}
-          bg={active ? 'teal.subtle' : 'transparent'}
-          borderWidth="1px"
-          borderColor="transparent"
-          transition="background-color 120ms ease, color 120ms ease"
-          _hover={{ bg: active ? 'teal.subtle' : 'bg.muted', color: active ? 'teal.fg' : 'fg' }}
+          {...primaryShellItemProps}
+          {...getPrimaryShellItemState(active)}
         >
           <Flex boxSize="5" shrink={0} align="center" justify="center">
             <Icon size={17} strokeWidth={2.1} />
@@ -334,16 +358,12 @@ function UnifiedSidebarNavButton({
         alignItems="center"
         justifyContent={expanded ? 'flex-start' : 'center'}
         gap={expanded ? '2.5' : '0'}
-        rounded="md"
-        borderWidth="1px"
-        borderColor="transparent"
-        bg={active ? 'teal.subtle' : 'transparent'}
-        color={active ? 'teal.fg' : 'fg.muted'}
+        rounded="sm"
+        {...primaryShellItemProps}
+        {...getPrimaryShellItemState(active)}
         px={expanded ? '2.5' : '0'}
         py="1.5"
         cursor="pointer"
-        transition="background-color 120ms ease, color 120ms ease"
-        _hover={{ bg: active ? 'teal.subtle' : 'bg.muted', color: active ? 'teal.fg' : 'fg' }}
         _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
         onClick={onClick}
       >
@@ -389,16 +409,12 @@ function SidebarNavGroup({
             alignItems="center"
             justifyContent={expanded ? 'flex-start' : 'center'}
             gap={expanded ? '2.5' : '0'}
-            rounded="md"
-            borderWidth="1px"
-            borderColor="transparent"
-            bg={groupActive ? 'teal.subtle' : 'transparent'}
-            color={groupActive ? 'teal.fg' : 'fg.muted'}
+            rounded="sm"
+            {...primaryShellItemProps}
+            {...getPrimaryShellItemState(groupActive)}
             px={expanded ? '2.5' : '0'}
             py="1.5"
             cursor="pointer"
-            transition="background-color 120ms ease, color 120ms ease"
-            _hover={{ bg: groupActive ? 'teal.subtle' : 'bg.muted', color: groupActive ? 'teal.fg' : 'fg' }}
             _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
           >
             <Flex boxSize="5" shrink={0} align="center" justify="center">
@@ -407,7 +423,7 @@ function SidebarNavGroup({
             <SidebarLabel expanded={expanded} fontWeight={groupActive ? 'semibold' : 'medium'}>
               {label}
             </SidebarLabel>
-            <Box ml="auto" display={expanded ? 'flex' : 'none'} color={groupActive ? 'teal.fg' : 'fg.subtle'}>
+            <Box ml="auto" display={expanded ? 'flex' : 'none'} color={groupActive ? 'shell.selectionForeground' : 'shell.inactiveForeground'}>
               {open ? <ChevronDown size={15} strokeWidth={2.25} /> : <ChevronRight size={15} strokeWidth={2.25} />}
             </Box>
           </chakra.button>
@@ -469,8 +485,8 @@ export function UnifiedSidebar({
       shrink={0}
       direction="column"
       borderRightWidth="1px"
-      borderColor="border.strong"
-      bg="bg.rail"
+      borderColor="shell.border"
+      bg="shell.sideBar"
       px="2.5"
       pt="2.5"
       pb="3"
@@ -493,10 +509,10 @@ export function UnifiedSidebar({
             rounded="md"
             px={expanded ? '1.5' : '0'}
             py={expanded ? '1.5' : '0'}
-            color="fg"
+            color="shell.foreground"
             cursor="pointer"
             transition="background-color 150ms ease, color 150ms ease"
-            _hover={{ bg: 'bg.muted' }}
+            _hover={{ bg: 'shell.hoverBackground' }}
             _focusVisible={{ outline: '2px solid', outlineColor: 'teal.focusRing', outlineOffset: '2px' }}
             onClick={onToggleExpanded}
           >
@@ -525,10 +541,10 @@ export function UnifiedSidebar({
               textAlign="left"
               transition="opacity 160ms ease, max-width 180ms ease"
             >
-              <Text fontFamily="heading" fontSize="base" fontWeight="semibold" letterSpacing="heading" lineHeight="none">
+              <Text fontFamily="heading" fontSize="base" fontWeight="semibold" letterSpacing="heading" lineHeight="none" color="shell.sideBarTitleForeground">
                 Arkivra
               </Text>
-              <Text textStyle="caption" lineHeight="none" color="fg.muted">
+              <Text textStyle="caption" lineHeight="none" color="shell.inactiveForeground">
                 v{packageJson.version}
               </Text>
             </Box>
@@ -591,7 +607,7 @@ export function UnifiedSidebar({
           ))}
         </Stack>
 
-        <Box my="4" borderTopWidth="1px" borderColor="border.surface" />
+        <Box my="4" borderTopWidth="1px" borderColor="shell.border" />
 
         <Stack gap="1" minW="0">
           <SidebarNavGroup
@@ -614,7 +630,7 @@ export function UnifiedSidebar({
       </Box>
 
       <Stack flexShrink={0} gap="2" minW="0" pt="2">
-        <Box borderTopWidth="1px" borderColor="border.surface" />
+        <Box borderTopWidth="1px" borderColor="shell.border" />
         <Flex align="center" justify={expanded ? 'stretch' : 'center'} pt="2">
           <SidebarTooltip label="Theme" disabled={expanded}>
             <Box w="full">
@@ -635,20 +651,20 @@ export function UnifiedSidebar({
               minH="2.25rem"
               w="full"
               rounded="md"
-              color="fg.muted"
+              color="shell.inactiveForeground"
               borderWidth="1px"
-              borderColor="border.surface"
-              bg="bg.sidebar"
+              borderColor="shell.border"
+              bg="transparent"
               px={expanded ? '2' : '0'}
               cursor="pointer"
-              _hover={{ color: 'fg', bg: 'bg.muted' }}
+              _hover={{ color: 'shell.selectionForeground', bg: 'shell.hoverBackground' }}
             >
               <UserCircle2 size={18} strokeWidth={2.1} />
               <Box minW="0" textAlign="left" display={expanded ? undefined : 'none'}>
-                <Text truncate fontSize="xs" fontWeight="medium" color="fg" title={accountLabel}>
+                <Text truncate fontSize="xs" fontWeight="medium" color="shell.foreground" title={accountLabel}>
                   {sidebarAccountLabel}
                 </Text>
-                <Text mt="0.5" fontSize="2xs" color="fg.muted">
+                <Text mt="0.5" fontSize="2xs" color="shell.inactiveForeground">
                   {roleLabel}
                 </Text>
               </Box>
@@ -756,10 +772,13 @@ export function SecondarySidebar({
       h="100dvh"
       shrink={0}
       direction="column"
+      borderLeftWidth={isOpen ? '1px' : '0'}
+      borderLeftColor="shell.secondaryBorder"
       borderRightWidth={isOpen ? '1px' : '0'}
-      borderRightColor="border.strong"
+      borderRightColor="shell.secondaryBorder"
       boxShadow="none"
-      bg="bg.sidebar"
+      bg="shell.secondarySideBar"
+      color="shell.foreground"
       overflow="hidden"
       visibility={isOpen ? 'visible' : 'hidden'}
       pointerEvents={isOpen ? undefined : 'none'}
@@ -790,7 +809,7 @@ export function SecondarySidebar({
           />
         ) : customContent ?? (
           kind === 'chat' ? (
-            <Text px="2" py="4" fontSize="sm" color="fg.muted">
+            <Text px="2" py="4" fontSize="sm" color="shell.inactiveForeground">
               Open a chat to see conversation history.
             </Text>
           ) : (

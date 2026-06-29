@@ -1,5 +1,109 @@
 import { createSystem, defaultConfig, defineConfig } from '@chakra-ui/react';
 
+// Catppuccin palette values are from https://catppuccin.com/palette/ (MIT).
+const catppuccin = {
+  latte: {
+    rosewater: '#dc8a78',
+    flamingo: '#dd7878',
+    pink: '#ea76cb',
+    mauve: '#8839ef',
+    red: '#d20f39',
+    maroon: '#e64553',
+    peach: '#fe640b',
+    yellow: '#df8e1d',
+    green: '#40a02b',
+    teal: '#179299',
+    sky: '#04a5e5',
+    sapphire: '#209fb5',
+    blue: '#1e66f5',
+    lavender: '#7287fd',
+    text: '#4c4f69',
+    subtext1: '#5c5f77',
+    subtext0: '#6c6f85',
+    overlay2: '#7c7f93',
+    overlay1: '#8c8fa1',
+    overlay0: '#9ca0b0',
+    surface2: '#acb0be',
+    surface1: '#bcc0cc',
+    surface0: '#ccd0da',
+    base: '#eff1f5',
+    mantle: '#e6e9ef',
+    crust: '#dce0e8',
+  },
+  mocha: {
+    rosewater: '#f5e0dc',
+    flamingo: '#f2cdcd',
+    pink: '#f5c2e7',
+    mauve: '#cba6f7',
+    red: '#f38ba8',
+    maroon: '#eba0ac',
+    peach: '#fab387',
+    yellow: '#f9e2af',
+    green: '#a6e3a1',
+    teal: '#94e2d5',
+    sky: '#89dceb',
+    sapphire: '#74c7ec',
+    blue: '#89b4fa',
+    lavender: '#b4befe',
+    text: '#cdd6f4',
+    subtext1: '#bac2de',
+    subtext0: '#a6adc8',
+    overlay2: '#9399b2',
+    overlay1: '#7f849c',
+    overlay0: '#6c7086',
+    surface2: '#585b70',
+    surface1: '#45475a',
+    surface0: '#313244',
+    base: '#1e1e2e',
+    mantle: '#181825',
+    crust: '#11111b',
+  },
+} as const;
+
+const latte = catppuccin.latte;
+const mocha = catppuccin.mocha;
+const latteWorkspace = '#f4f5f9';
+const latteSurface = '#fbfcfe';
+
+const alpha = (hex: string, opacity: number) => {
+  const value = hex.replace('#', '');
+  const red = Number.parseInt(value.slice(0, 2), 16);
+  const green = Number.parseInt(value.slice(2, 4), 16);
+  const blue = Number.parseInt(value.slice(4, 6), 16);
+
+  return `rgba(${red}, ${green}, ${blue}, ${opacity})`;
+};
+
+const makeColorPalette = (
+  light: string,
+  dark: string,
+  lightSubtle: string,
+  darkSubtle: string,
+  lightMuted: string,
+  darkMuted: string,
+  lightFg = light,
+  darkFg = dark,
+) => ({
+  solid: {
+    value: { base: light, _dark: dark },
+  },
+  subtle: {
+    value: { base: lightSubtle, _dark: darkSubtle },
+  },
+  fg: {
+    value: { base: lightFg, _dark: darkFg },
+  },
+  muted: {
+    value: { base: lightMuted, _dark: darkMuted },
+  },
+  hover: {
+    value: { base: lightFg, _dark: darkFg },
+  },
+  focusRing: {
+    value: { base: alpha(light, 0.35), _dark: alpha(dark, 0.38) },
+  },
+});
+
 const config = defineConfig({
   theme: {
     tokens: {
@@ -52,27 +156,27 @@ const config = defineConfig({
 
       colors: {
         primary: {
-          DEFAULT: { value: '#2d6dc3' },
-          strong: { value: '#0066ff' },
-          light: { value: '#8fb9ff' },
+          DEFAULT: { value: latte.blue },
+          strong: { value: latte.sapphire },
+          light: { value: mocha.blue },
         },
 
         accent: {
-          DEFAULT: { value: '#fad13b' },
+          DEFAULT: { value: latte.peach },
         },
 
         neutral: {
-          50: { value: '#f7f9fc' },
-          100: { value: '#edf1f8' },
-          200: { value: '#dfe4ed' },
-          300: { value: '#c5cedb' },
-          400: { value: '#92a1b7' },
-          500: { value: '#677487' },
-          600: { value: '#4f5a6d' },
-          700: { value: '#3f4a5a' },
-          800: { value: '#2c3542' },
-          900: { value: '#19222f' },
-          950: { value: '#10161f' },
+          50: { value: latte.base },
+          100: { value: latte.mantle },
+          200: { value: latte.crust },
+          300: { value: latte.surface0 },
+          400: { value: latte.surface2 },
+          500: { value: latte.overlay1 },
+          600: { value: latte.overlay2 },
+          700: { value: latte.subtext0 },
+          800: { value: latte.subtext1 },
+          900: { value: latte.text },
+          950: { value: mocha.crust },
         },
       },
     },
@@ -228,267 +332,389 @@ const config = defineConfig({
         // Background surfaces
         bg: {
           canvas: {
-            value: { base: '#fdfaf5', _dark: '#0b1220' },
+            value: { base: latteWorkspace, _dark: mocha.base },
           },
 
           surface: {
-            value: { base: '#ffffff', _dark: '#0f1b2d' },
+            value: { base: latteSurface, _dark: mocha.surface0 },
           },
 
           rail: {
-            value: { base: '#faf9f5', _dark: '#0b1220' },
+            value: { base: latte.mantle, _dark: mocha.mantle },
           },
 
           sidebar: {
-            value: { base: '#ffffff', _dark: '#0b1220' },
+            value: { base: latte.mantle, _dark: mocha.mantle },
           },
 
           header: {
-            value: { base: '#faf9f5', _dark: '#0b1220' },
+            value: { base: latte.mantle, _dark: mocha.mantle },
           },
 
           workspace: {
-            value: { base: '#ffffff', _dark: '#0f1b2d' },
+            value: { base: latteWorkspace, _dark: mocha.base },
           },
 
           workspaceMuted: {
-            value: { base: '#ffffff', _dark: '#0b1220' },
+            value: { base: latte.mantle, _dark: mocha.mantle },
           },
 
           cardHover: {
-            value: { base: '#faf9f5', _dark: '#0b1220' },
+            value: { base: latte.surface0, _dark: mocha.surface0 },
           },
 
           elevated: {
-            value: { base: '#ffffff', _dark: '#0f1b2d' },
+            value: { base: latteSurface, _dark: mocha.surface0 },
           },
 
           overlay: {
-            value: { base: '#ffffff', _dark: '#0f1b2d' },
+            value: { base: latteSurface, _dark: mocha.surface0 },
           },
 
           subtle: {
-            value: { base: '#ffffff', _dark: '#0b1220' },
+            value: { base: latte.base, _dark: mocha.surface0 },
           },
 
           muted: {
-            value: { base: '#ffffff', _dark: '#0f1b2d' },
+            value: { base: latte.mantle, _dark: mocha.mantle },
           },
 
           modalHeader: {
-            value: { base: '#ffffff', _dark: '#0f1b2d' },
+            value: { base: latteSurface, _dark: mocha.surface0 },
           },
 
           modalContent: {
-            value: { base: '#ffffff', _dark: '#0b1220' },
+            value: { base: latteWorkspace, _dark: mocha.base },
           },
 
           modalFooter: {
-            value: { base: '#ffffff', _dark: '#0f1b2d' },
+            value: { base: latteSurface, _dark: mocha.surface0 },
           },
 
           modalField: {
-            value: { base: '#ffffff', _dark: '#0f1b2d' },
+            value: { base: latteSurface, _dark: mocha.surface0 },
           },
 
           inverted: {
-            value: { base: '#0b1220', _dark: '#fdfaf5' },
+            value: { base: mocha.crust, _dark: latte.base },
           },
 
           // Status backgrounds
           error: {
-            value: { base: '#fef2f2', _dark: '#341818' },
+            value: { base: alpha(latte.red, 0.12), _dark: alpha(mocha.red, 0.14) },
           },
 
           warning: {
-            value: { base: '#fff8e8', _dark: '#332711' },
+            value: { base: alpha(latte.yellow, 0.14), _dark: alpha(mocha.yellow, 0.14) },
           },
 
           success: {
-            value: { base: '#edfdf3', _dark: '#13281a' },
+            value: { base: alpha(latte.green, 0.12), _dark: alpha(mocha.green, 0.14) },
           },
 
           info: {
-            value: { base: '#eef6ff', _dark: '#132235' },
+            value: { base: alpha(latte.blue, 0.12), _dark: alpha(mocha.blue, 0.14) },
+          },
+        },
+
+        // App shell colors follow Catppuccin VS Code Explorer/file tree defaults.
+        shell: {
+          sideBar: {
+            value: { base: latte.mantle, _dark: mocha.mantle },
+          },
+
+          sideBarSectionHeader: {
+            value: { base: latte.mantle, _dark: mocha.mantle },
+          },
+
+          secondarySideBar: {
+            value: { base: latteWorkspace, _dark: mocha.base },
+          },
+
+          sideBarTitleForeground: {
+            value: { base: latte.text, _dark: mocha.text },
+          },
+
+          editor: {
+            value: { base: latteWorkspace, _dark: mocha.base },
+          },
+
+          foreground: {
+            value: { base: latte.text, _dark: mocha.text },
+          },
+
+          inactiveForeground: {
+            value: { base: latte.subtext1, _dark: mocha.subtext1 },
+          },
+
+          hoverBackground: {
+            value: { base: alpha(latte.surface0, 0.52), _dark: alpha(mocha.surface0, 0.58) },
+          },
+
+          selectionBackground: {
+            value: { base: alpha(latte.surface0, 0.74), _dark: alpha(mocha.surface0, 0.78) },
+          },
+
+          selectionForeground: {
+            value: { base: latte.text, _dark: mocha.text },
+          },
+
+          accentForeground: {
+            value: { base: latte.blue, _dark: mocha.blue },
+          },
+
+          border: {
+            value: { base: 'transparent', _dark: 'transparent' },
+          },
+
+          secondaryBorder: {
+            value: { base: latte.surface1, _dark: mocha.surface1 },
           },
         },
 
         // Foreground/text colors
         fg: {
           DEFAULT: {
-            value: { base: '#3f4a5a', _dark: '#c5cedb' },
+            value: { base: latte.text, _dark: mocha.text },
           },
 
           heading: {
-            value: { base: '#2d6dc3', _dark: '#3884eb' },
+            value: { base: latte.text, _dark: mocha.text },
           },
 
           muted: {
-            value: { base: '#4f5a6d', _dark: '#92a1b7' },
+            value: { base: latte.subtext1, _dark: mocha.subtext1 },
           },
 
           subtle: {
-            value: { base: '#677487', _dark: '#92a1b7' },
+            value: { base: latte.subtext0, _dark: mocha.subtext0 },
           },
 
           tertiary: {
-            value: { base: '#7a6550', _dark: '#9bb3d7' },
+            value: { base: latte.overlay2, _dark: mocha.overlay2 },
           },
 
           inverted: {
-            value: { base: '#ffffff', _dark: '#0b1220' },
+            value: { base: '#ffffff', _dark: mocha.crust },
           },
 
           // Status foregrounds
           error: {
-            value: { base: '#dc2626', _dark: '#f87171' },
+            value: { base: latte.red, _dark: mocha.red },
           },
 
           warning: {
-            value: { base: '#c77b07', _dark: '#f6c453' },
+            value: { base: latte.yellow, _dark: mocha.yellow },
           },
 
           success: {
-            value: { base: '#15803d', _dark: '#4ade80' },
+            value: { base: latte.green, _dark: mocha.green },
           },
 
           info: {
-            value: { base: '#2d6dc3', _dark: '#8fb9ff' },
+            value: { base: latte.blue, _dark: mocha.blue },
           },
         },
 
         // Border colors
         border: {
           DEFAULT: {
-            value: { base: '#dfe4ed', _dark: '#2c3542' },
+            value: { base: latte.surface1, _dark: mocha.surface1 },
           },
 
           subtle: {
-            value: { base: '#edf1f8', _dark: '#19222f' },
+            value: { base: latte.surface0, _dark: mocha.surface0 },
           },
 
           surface: {
-            value: { base: '#dfe4ed', _dark: '#2c3542' },
+            value: { base: latte.surface0, _dark: mocha.surface1 },
           },
 
           divider: {
-            value: { base: '#dfe4ed', _dark: '#2c3542' },
+            value: { base: latte.surface0, _dark: mocha.surface1 },
           },
 
           strong: {
-            value: { base: '#c5cedb', _dark: '#3f4a5a' },
+            value: { base: latte.surface2, _dark: mocha.surface2 },
           },
 
           inverted: {
-            value: { base: '#19222f', _dark: '#c5cedb' },
+            value: { base: latte.text, _dark: mocha.text },
           },
         },
 
         // Compatibility alias used by the dashboard for the Arkivra primary accent.
         teal: {
-          solid: {
-            value: { base: '#2d6dc3', _dark: '#3884eb' },
-          },
-
-          subtle: {
-            value: { base: '#edf1f8', _dark: 'rgba(56, 132, 235, 0.15)' },
-          },
-
-          fg: {
-            value: { base: '#2d6dc3', _dark: '#8fb9ff' },
-          },
-
-          muted: {
-            value: { base: '#8fb9ff', _dark: '#2d6dc3' },
-          },
-
-          hover: {
-            value: { base: '#0066ff', _dark: '#8fb9ff' },
-          },
-
-          focusRing: {
-            value: {
-              base: 'rgba(45, 109, 195, 0.35)',
-              _dark: 'rgba(143, 185, 255, 0.35)',
-            },
-          },
+          ...makeColorPalette(
+            latte.blue,
+            mocha.blue,
+            alpha(latte.blue, 0.12),
+            alpha(mocha.blue, 0.15),
+            alpha(latte.blue, 0.32),
+            alpha(mocha.blue, 0.32),
+          ),
         },
+
+        gray: makeColorPalette(
+          latte.overlay1,
+          mocha.overlay1,
+          latte.surface0,
+          mocha.surface0,
+          latte.surface2,
+          mocha.surface2,
+          latte.text,
+          mocha.text,
+        ),
+
+        red: makeColorPalette(
+          latte.red,
+          mocha.red,
+          alpha(latte.red, 0.12),
+          alpha(mocha.red, 0.15),
+          alpha(latte.red, 0.3),
+          alpha(mocha.red, 0.35),
+        ),
+
+        orange: makeColorPalette(
+          latte.peach,
+          mocha.peach,
+          alpha(latte.peach, 0.12),
+          alpha(mocha.peach, 0.15),
+          alpha(latte.peach, 0.32),
+          alpha(mocha.peach, 0.35),
+        ),
+
+        yellow: makeColorPalette(
+          latte.yellow,
+          mocha.yellow,
+          alpha(latte.yellow, 0.12),
+          alpha(mocha.yellow, 0.15),
+          alpha(latte.yellow, 0.32),
+          alpha(mocha.yellow, 0.35),
+        ),
+
+        green: makeColorPalette(
+          latte.green,
+          mocha.green,
+          alpha(latte.green, 0.12),
+          alpha(mocha.green, 0.15),
+          alpha(latte.green, 0.32),
+          alpha(mocha.green, 0.35),
+        ),
+
+        blue: makeColorPalette(
+          latte.blue,
+          mocha.blue,
+          alpha(latte.blue, 0.12),
+          alpha(mocha.blue, 0.15),
+          alpha(latte.blue, 0.32),
+          alpha(mocha.blue, 0.35),
+        ),
+
+        cyan: makeColorPalette(
+          latte.sky,
+          mocha.sky,
+          alpha(latte.sky, 0.12),
+          alpha(mocha.sky, 0.15),
+          alpha(latte.sky, 0.32),
+          alpha(mocha.sky, 0.35),
+          latte.sapphire,
+          mocha.sky,
+        ),
+
+        purple: makeColorPalette(
+          latte.mauve,
+          mocha.mauve,
+          alpha(latte.mauve, 0.12),
+          alpha(mocha.mauve, 0.15),
+          alpha(latte.mauve, 0.32),
+          alpha(mocha.mauve, 0.35),
+        ),
+
+        pink: makeColorPalette(
+          latte.pink,
+          mocha.pink,
+          alpha(latte.pink, 0.12),
+          alpha(mocha.pink, 0.15),
+          alpha(latte.pink, 0.32),
+          alpha(mocha.pink, 0.35),
+        ),
 
         // Premium auth surfaces
         auth: {
           canvas: {
-            value: { base: '#fdfaf5', _dark: '#0b1220' },
+            value: { base: latte.base, _dark: mocha.base },
           },
 
           canvasEnd: {
-            value: { base: '#faf9f5', _dark: '#0f1b2d' },
+            value: { base: latte.mantle, _dark: mocha.mantle },
           },
 
           card: {
             value: {
               base: 'rgba(255, 255, 255, 0.72)',
-              _dark: 'rgba(15, 27, 45, 0.72)',
+              _dark: alpha(mocha.surface0, 0.72),
             },
           },
 
           cardBorder: {
             value: {
-              base: 'rgba(148, 163, 184, 0.16)',
-              _dark: 'rgba(143, 185, 255, 0.16)',
+              base: alpha(latte.overlay0, 0.18),
+              _dark: alpha(mocha.blue, 0.16),
             },
           },
 
           field: {
             value: {
               base: 'rgba(255, 255, 255, 0.68)',
-              _dark: 'rgba(15, 27, 45, 0.68)',
+              _dark: alpha(mocha.surface0, 0.68),
             },
           },
 
           fieldBorder: {
             value: {
-              base: 'rgba(148, 163, 184, 0.22)',
-              _dark: 'rgba(143, 185, 255, 0.18)',
+              base: alpha(latte.overlay0, 0.24),
+              _dark: alpha(mocha.blue, 0.18),
             },
           },
 
           fieldHover: {
             value: {
               base: 'rgba(255, 255, 255, 0.78)',
-              _dark: 'rgba(15, 27, 45, 0.78)',
+              _dark: alpha(mocha.surface0, 0.78),
             },
           },
 
           primaryFrom: {
-            value: { base: '#2d6dc3', _dark: '#3884eb' },
+            value: { base: latte.blue, _dark: mocha.blue },
           },
 
           primaryTo: {
-            value: { base: '#0066ff', _dark: '#2d6dc3' },
+            value: { base: latte.sapphire, _dark: mocha.sapphire },
           },
 
           glow: {
             value: {
-              base: 'rgba(45, 109, 195, 0.12)',
-              _dark: 'rgba(56, 132, 235, 0.14)',
+              base: alpha(latte.blue, 0.12),
+              _dark: alpha(mocha.blue, 0.14),
             },
           },
 
           horizon: {
             value: {
-              base: 'rgba(45, 109, 195, 0.28)',
-              _dark: 'rgba(143, 185, 255, 0.32)',
+              base: alpha(latte.blue, 0.28),
+              _dark: alpha(mocha.blue, 0.32),
             },
           },
 
           link: {
-            value: { base: '#2d6dc3', _dark: '#8fb9ff' },
+            value: { base: latte.blue, _dark: mocha.blue },
           },
 
           particle: {
             value: {
-              base: 'rgba(45, 109, 195, 0.16)',
-              _dark: 'rgba(143, 185, 255, 0.16)',
+              base: alpha(latte.blue, 0.16),
+              _dark: alpha(mocha.blue, 0.16),
             },
           },
         },

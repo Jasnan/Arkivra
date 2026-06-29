@@ -695,8 +695,8 @@ export function ChatWorkspace({
           minH="0"
           overflow="hidden"
           borderRightWidth="1px"
-          borderColor="border.surface"
-          bg="bg.sidebar"
+          borderColor="shell.secondaryBorder"
+          bg="shell.secondarySideBar"
           px="6"
           pb="3"
         >

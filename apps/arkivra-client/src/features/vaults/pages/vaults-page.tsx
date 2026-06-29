@@ -541,7 +541,7 @@ export function VaultsPage() {
                   </DropdownMenu>
                 </Box>
 
-                <Flex boxSize="16" align="center" justify="center" color="teal.fg">
+                <Flex boxSize="16" align="center" justify="center" color="fg.muted">
                   <Vault size={48} strokeWidth={1.7} />
                 </Flex>
                 <Text mt="4" maxW="full" truncate fontSize="md" fontWeight="semibold" color="fg">

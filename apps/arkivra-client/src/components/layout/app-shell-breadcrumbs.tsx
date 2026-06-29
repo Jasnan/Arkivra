@@ -121,16 +121,16 @@ export function DefaultBreadcrumbs({ breadcrumbs }: { breadcrumbs: BreadcrumbEnt
 
   return (
     <Breadcrumb minW="0">
-      <BreadcrumbList flexWrap="nowrap">
+      <BreadcrumbList flexWrap="nowrap" color="shell.inactiveForeground">
         {visibleBreadcrumbs.map((item, index) => {
           const isLast = index === visibleBreadcrumbs.length - 1;
 
           if (item === null) {
             return (
               <ReactFragment key="breadcrumb-ellipsis">
-                {index > 0 ? <BreadcrumbSeparator /> : null}
+                {index > 0 ? <BreadcrumbSeparator color="shell.inactiveForeground" /> : null}
                 <BreadcrumbItem flexShrink={0}>
-                  <Text aria-hidden="true" color="fg.muted">...</Text>
+                  <Text aria-hidden="true" color="shell.inactiveForeground">...</Text>
                 </BreadcrumbItem>
               </ReactFragment>
             );
@@ -140,16 +140,16 @@ export function DefaultBreadcrumbs({ breadcrumbs }: { breadcrumbs: BreadcrumbEnt
 
           return (
             <ReactFragment key={`${item.to ?? item.label}-${item.label}`}>
-              {index > 0 ? <BreadcrumbSeparator /> : null}
+              {index > 0 ? <BreadcrumbSeparator color="shell.inactiveForeground" /> : null}
               <BreadcrumbItem minW="0" flexShrink={isLast ? 1 : 0}>
                 {item.to && !isLast ? (
                   <Link to={item.to} style={{ minWidth: 0, color: 'inherit' }}>
-                    <Text title={item.label} truncate fontWeight="medium" transition="colors" _hover={{ color: 'fg' }}>
+                    <Text title={item.label} truncate fontWeight="medium" transition="colors" _hover={{ color: 'shell.foreground' }}>
                       {label}
                     </Text>
                   </Link>
                 ) : (
-                  <BreadcrumbPage title={item.label} className="truncate">{label}</BreadcrumbPage>
+                  <BreadcrumbPage title={item.label} className="truncate" color="shell.foreground">{label}</BreadcrumbPage>
                 )}
               </BreadcrumbItem>
             </ReactFragment>

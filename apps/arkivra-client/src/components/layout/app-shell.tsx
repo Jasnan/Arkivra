@@ -161,7 +161,7 @@ export function AppShell() {
   return (
     <TooltipProvider delayDuration={100}>
       <WorkspaceLayoutContext value={layoutContextValue}>
-        <Flex h="100dvh" minH="0" bg="bg.workspace" color="fg" overflow="hidden">
+        <Flex h="100dvh" minH="0" bg="shell.editor" color="fg" overflow="hidden">
           <UnifiedSidebar
             expanded={isPrimarySidebarExpanded}
             activeNavId={transfers.isOpen ? 'transfers' : primaryNavId(location.pathname)}
@@ -202,7 +202,7 @@ export function AppShell() {
               flex="1"
               minH="0"
               overflow={isChatRoute || isFlushContentRoute ? 'hidden' : 'auto'}
-              bg="bg.workspace"
+              bg="shell.editor"
               px={contentPadding}
               py="0"
             >

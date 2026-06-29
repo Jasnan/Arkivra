@@ -8,16 +8,16 @@ import { useAccentColor } from '@/components/providers/accent-color-context';
 import type { AccentColor, AppearanceDensity, AppearanceFontSize, AppearanceRadius } from '@/components/providers/accent-color-context';
 
 const accentOptions: Array<{ color: string; label: string; value: AccentColor }> = [
-  { value: 'gray', label: 'Gray', color: '#4b5563' },
-  { value: 'red', label: 'Red', color: '#dc2626' },
-  { value: 'orange', label: 'Orange', color: '#ea580c' },
-  { value: 'yellow', label: 'Yellow', color: '#facc15' },
-  { value: 'green', label: 'Green', color: '#16a34a' },
-  { value: 'teal', label: 'Teal', color: '#14b8a6' },
-  { value: 'blue', label: 'Blue', color: '#2d6dc3' },
-  { value: 'cyan', label: 'Cyan', color: '#0891b2' },
-  { value: 'purple', label: 'Purple', color: '#7c3aed' },
-  { value: 'pink', label: 'Pink', color: '#db2777' },
+  { value: 'gray', label: 'Gray', color: '#8c8fa1' },
+  { value: 'red', label: 'Red', color: '#d20f39' },
+  { value: 'orange', label: 'Orange', color: '#fe640b' },
+  { value: 'yellow', label: 'Yellow', color: '#df8e1d' },
+  { value: 'green', label: 'Green', color: '#40a02b' },
+  { value: 'teal', label: 'Teal', color: '#179299' },
+  { value: 'blue', label: 'Blue', color: '#1e66f5' },
+  { value: 'cyan', label: 'Cyan', color: '#04a5e5' },
+  { value: 'purple', label: 'Purple', color: '#8839ef' },
+  { value: 'pink', label: 'Pink', color: '#ea76cb' },
 ];
 
 const themeOptions = [
@@ -288,6 +288,8 @@ export function ThemeToggle({ expanded = false }: { expanded?: boolean }) {
       gap="2.5"
       w="full"
       px={expanded ? '2.5' : '0'}
+      color="shell.inactiveForeground"
+      _hover={{ bg: 'shell.hoverBackground', color: 'shell.selectionForeground' }}
       onClick={() => setThemeMode(nextThemeMode)}
     >
       <Flex boxSize="5" shrink={0} align="center" justify="center">

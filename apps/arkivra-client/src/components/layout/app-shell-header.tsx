@@ -36,8 +36,9 @@ export function WorkspaceHeader({
         shrink={0}
         align="stretch"
         borderBottomWidth="1px"
-        borderColor="border.surface"
-        bg="bg.header"
+        borderColor="shell.border"
+        bg="shell.sideBarSectionHeader"
+        color="shell.foreground"
         position="relative"
       >
         {hasSecondarySidebar ? (
@@ -49,7 +50,7 @@ export function WorkspaceHeader({
               title={isSecondarySidebarOpen ? 'Hide secondary sidebar' : 'Show secondary sidebar'}
               variant="ghost"
               size="sm"
-              color="fg.muted"
+              color="shell.inactiveForeground"
               flexShrink={0}
               onClick={onToggleSecondarySidebar}
             >
@@ -81,8 +82,9 @@ export function WorkspaceHeader({
       shrink={0}
       align="center"
       borderBottomWidth="1px"
-      borderColor="border.surface"
-      bg="bg.header"
+      borderColor="shell.border"
+      bg="shell.sideBarSectionHeader"
+      color="shell.foreground"
       px={{ base: '4', md: '5', lg: '4' }}
       position="relative"
     >
@@ -95,7 +97,7 @@ export function WorkspaceHeader({
             title={isSecondarySidebarOpen ? 'Hide secondary sidebar' : 'Show secondary sidebar'}
             variant="ghost"
             size="sm"
-            color="fg.muted"
+            color="shell.inactiveForeground"
             flexShrink={0}
             onClick={onToggleSecondarySidebar}
           >
@@ -105,7 +107,7 @@ export function WorkspaceHeader({
         <Box minW="0" flex="1">
           {headerConfig?.left ?? <DefaultBreadcrumbs breadcrumbs={breadcrumbs} />}
           {headerConfig?.meta ? (
-            <Box mt="0.5" color="fg.muted">
+            <Box mt="0.5" color="shell.inactiveForeground">
               {headerConfig.meta}
             </Box>
           ) : null}

@@ -1,6 +1,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ThemeToggle } from '@/components/navigation/theme-toggle';
 import { useAccentColor } from '@/components/providers/accent-color-context';
 import { PreferencesSettingsPage } from '@/features/settings/pages/preferences-settings-page';
 import { renderWithProviders } from '@/test/utils';
@@ -309,6 +310,38 @@ describe('preferences settings page', () => {
     expect(fetchMock).not.toHaveBeenCalledWith('/api/me/preferences', expect.objectContaining({
       method: 'PATCH',
     }));
+  });
+
+  it('keeps the sidebar theme toggle label and document theme in sync', async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem('arkivra.themeMode', 'dark');
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ preferences: null })));
+
+    await renderWithProviders(<ThemeToggle expanded />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /current theme: dark/i })).toHaveTextContent('Dark');
+      expect(document.documentElement).toHaveClass('dark');
+      expect(document.documentElement).not.toHaveClass('light');
+    });
+
+    await user.click(screen.getByRole('button', { name: /current theme: dark/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /current theme: light/i })).toHaveTextContent('Light');
+      expect(document.documentElement).toHaveClass('light');
+      expect(document.documentElement).not.toHaveClass('dark');
+      expect(window.localStorage.getItem('arkivra.themeMode')).toBe('light');
+    });
+
+    await user.click(screen.getByRole('button', { name: /current theme: light/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /current theme: dark/i })).toHaveTextContent('Dark');
+      expect(document.documentElement).toHaveClass('dark');
+      expect(document.documentElement).not.toHaveClass('light');
+      expect(window.localStorage.getItem('arkivra.themeMode')).toBe('dark');
+    });
   });
 
   it('keeps theme mode from local storage when hydrating server preferences', async () => {

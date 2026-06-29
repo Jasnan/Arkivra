@@ -31,7 +31,13 @@
           const fontSize = cachedPreferences.fontSize;
           const density = cachedPreferences.density;
           const radius = cachedPreferences.radius;
-          const themeMode = cachedPreferences.themeMode || window.localStorage?.getItem('arkivra.themeMode') || 'system';
+          const storedThemeMode = window.localStorage?.getItem('arkivra.themeMode');
+          const cachedThemeMode = cachedPreferences.themeMode;
+          const themeMode = ['light', 'dark'].includes(storedThemeMode)
+            ? storedThemeMode
+            : ['light', 'dark'].includes(cachedThemeMode)
+              ? cachedThemeMode
+              : 'light';
           const accentColor = cachedPreferences.accentColor || 'blue';
           const legacyPreferenceKeys = [
             'arkivra.accentColor',
@@ -123,13 +129,11 @@
             pink: { solid: '#ea76cb', subtle: 'rgba(234, 118, 203, 0.12)', fg: '#ea76cb', muted: 'rgba(234, 118, 203, 0.32)', hover: '#ea76cb', focusRing: 'rgba(234, 118, 203, 0.35)' },
           };
           const rootStyle = document.documentElement.style;
-          const resolvedTheme = themeMode === 'system'
-            ? (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-            : themeMode;
-
           document.documentElement.dataset.arkivraFont = fontFamilies.has(fontFamily) ? fontFamily : 'inter';
-          document.documentElement.classList.toggle('dark', resolvedTheme === 'dark');
-          window.localStorage?.setItem('arkivra.themeMode', ['system', 'light', 'dark'].includes(themeMode) ? themeMode : 'system');
+          document.documentElement.classList.remove('light', 'dark', 'system');
+          document.documentElement.classList.add(themeMode);
+          document.documentElement.style.colorScheme = themeMode;
+          window.localStorage?.setItem('arkivra.themeMode', themeMode);
           for (const key of legacyPreferenceKeys) {
             window.localStorage?.removeItem(key);
           }
@@ -152,7 +156,7 @@
           }
 
           if (accentPalettes[accentColor]) {
-            const palette = resolvedTheme === 'light' ? lightAccentPalettes[accentColor] : accentPalettes[accentColor];
+            const palette = themeMode === 'light' ? lightAccentPalettes[accentColor] : accentPalettes[accentColor];
             rootStyle.setProperty('--chakra-colors-teal-solid', palette.solid);
             rootStyle.setProperty('--chakra-colors-teal-subtle', palette.subtle);
             rootStyle.setProperty('--chakra-colors-teal-fg', palette.fg);

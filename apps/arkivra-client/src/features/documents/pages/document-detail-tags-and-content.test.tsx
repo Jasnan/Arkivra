@@ -481,17 +481,20 @@ describe('document detail tags and content', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    await renderWithProviders(<DocumentDetailPage />, {
+    const { container } = await renderWithProviders(<DocumentDetailPage />, {
       initialEntries: ['/vaults/vlt_1/documents/doc_1'],
       routePath: '/vaults/:vaultId/documents/:documentId',
     });
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Markdown Title' }),
+      await screen.findByText('Markdown Title'),
     ).toBeInTheDocument();
-    expect(screen.queryByText('# Markdown Title')).not.toBeInTheDocument();
-    expect(screen.getByRole('cell', { name: 'Ready' })).toBeInTheDocument();
-    expect(screen.getByText('const preview = true;')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { level: 1, name: 'Markdown Title' }),
+    ).not.toBeInTheDocument();
+    expect(container.textContent).toContain('#');
+    expect(container.textContent).toContain('| Status |');
+    expect(container.textContent).toContain('const preview = true;');
   });
 
   it('shows the unified document chat entry point and removes the legacy action item', async () => {

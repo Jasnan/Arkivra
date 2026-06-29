@@ -1,6 +1,7 @@
 import type { SearchRouteSearch, VaultWorkspaceSearch } from '@/app/search-params';
 import { ROUTES } from '@/app/routes';
 import type { DocumentPreviewKind } from '@/features/documents/components/detail/document-preview-section';
+import { isStructuredTextDocument } from '@/features/documents/components/detail/document-structured-text-preview.utils';
 import type { UploadConflictStrategy } from '@/features/documents/documents.api';
 import type {
   DocumentDetail,
@@ -43,15 +44,25 @@ export function getDocumentTitle(name: string) {
 }
 
 export function getDocumentFileTypeLabel(mimeType: string) {
-  if (mimeType === 'application/pdf') {
+  const normalizedMimeType = mimeType.toLowerCase();
+
+  if (normalizedMimeType === 'application/pdf') {
     return 'PDF document';
   }
 
-  if (mimeType.startsWith('image/')) {
+  if (normalizedMimeType.startsWith('image/')) {
     return 'Image file';
   }
 
-  if (mimeType.startsWith('text/')) {
+  if (
+    normalizedMimeType === 'application/json' ||
+    normalizedMimeType === 'text/json' ||
+    normalizedMimeType.endsWith('+json')
+  ) {
+    return 'JSON document';
+  }
+
+  if (normalizedMimeType.startsWith('text/')) {
     return 'Text document';
   }
 
@@ -73,33 +84,6 @@ export function getSearchReturnParams(search: VaultWorkspaceSearch): SearchRoute
   }
 
   return params;
-}
-
-function isMarkdownDocument({
-  mimeType,
-  name,
-  originalName,
-}: {
-  mimeType: string;
-  name: string;
-  originalName: string;
-}) {
-  const normalizedMimeType = mimeType.toLowerCase();
-  const normalizedNames = [name, originalName].map((value) => value.toLowerCase());
-
-  return (
-    normalizedMimeType === 'text/markdown' ||
-    normalizedMimeType === 'text/x-markdown' ||
-    normalizedMimeType === 'application/markdown' ||
-    normalizedMimeType === 'application/x-markdown' ||
-    normalizedNames.some(
-      (normalizedName) =>
-        normalizedName.endsWith('.md') ||
-        normalizedName.endsWith('.markdown') ||
-        normalizedName.endsWith('.mdown') ||
-        normalizedName.endsWith('.mkd'),
-    )
-  );
 }
 
 function getDocumentFileExtension(name: string) {
@@ -144,8 +128,8 @@ export function getPreviewKind(
     return 'image';
   }
 
-  if (isMarkdownDocument({ mimeType, name, originalName })) {
-    return 'markdown';
+  if (isStructuredTextDocument({ mimeType, name, originalName })) {
+    return 'structured-text';
   }
 
   if (mimeType.startsWith('text/')) {
@@ -256,7 +240,7 @@ export function printDocumentPreview({
     return;
   }
 
-  if (previewKind === 'pdf' || previewKind === 'text') {
+  if (previewKind === 'pdf' || previewKind === 'text' || previewKind === 'structured-text') {
     const frame = window.document.createElement('iframe');
     frame.style.position = 'fixed';
     frame.style.right = '0';

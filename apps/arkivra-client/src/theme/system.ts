@@ -62,6 +62,8 @@ const catppuccin = {
 
 const latte = catppuccin.latte;
 const mocha = catppuccin.mocha;
+const latteWorkspace = '#f4f5f9';
+const latteSurface = '#fbfcfe';
 
 const alpha = (hex: string, opacity: number) => {
   const value = hex.replace('#', '');
@@ -330,11 +332,11 @@ const config = defineConfig({
         // Background surfaces
         bg: {
           canvas: {
-            value: { base: latte.base, _dark: mocha.base },
+            value: { base: latteWorkspace, _dark: mocha.base },
           },
 
           surface: {
-            value: { base: latte.base, _dark: mocha.surface0 },
+            value: { base: latteSurface, _dark: mocha.surface0 },
           },
 
           rail: {
@@ -350,7 +352,7 @@ const config = defineConfig({
           },
 
           workspace: {
-            value: { base: latte.base, _dark: mocha.base },
+            value: { base: latteWorkspace, _dark: mocha.base },
           },
 
           workspaceMuted: {
@@ -362,11 +364,11 @@ const config = defineConfig({
           },
 
           elevated: {
-            value: { base: latte.base, _dark: mocha.surface0 },
+            value: { base: latteSurface, _dark: mocha.surface0 },
           },
 
           overlay: {
-            value: { base: latte.base, _dark: mocha.surface0 },
+            value: { base: latteSurface, _dark: mocha.surface0 },
           },
 
           subtle: {
@@ -378,19 +380,19 @@ const config = defineConfig({
           },
 
           modalHeader: {
-            value: { base: latte.base, _dark: mocha.surface0 },
+            value: { base: latteSurface, _dark: mocha.surface0 },
           },
 
           modalContent: {
-            value: { base: latte.base, _dark: mocha.base },
+            value: { base: latteWorkspace, _dark: mocha.base },
           },
 
           modalFooter: {
-            value: { base: latte.base, _dark: mocha.surface0 },
+            value: { base: latteSurface, _dark: mocha.surface0 },
           },
 
           modalField: {
-            value: { base: latte.base, _dark: mocha.surface0 },
+            value: { base: latteSurface, _dark: mocha.surface0 },
           },
 
           inverted: {
@@ -426,7 +428,7 @@ const config = defineConfig({
           },
 
           secondarySideBar: {
-            value: { base: latte.base, _dark: mocha.base },
+            value: { base: latteWorkspace, _dark: mocha.base },
           },
 
           sideBarTitleForeground: {
@@ -434,7 +436,7 @@ const config = defineConfig({
           },
 
           editor: {
-            value: { base: latte.base, _dark: mocha.base },
+            value: { base: latteWorkspace, _dark: mocha.base },
           },
 
           foreground: {

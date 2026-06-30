@@ -1,12 +1,16 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type InputHTMLAttributes, type MouseEvent } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent, type InputHTMLAttributes, type MouseEvent } from "react"
 import {
+  Check,
   ChevronRight,
-  FileText,
   Folder,
   FolderOpen,
   HardDrive,
+  Home,
+  MoveRight,
+  Search,
+  Trash2,
   X,
 } from "lucide-react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
@@ -16,6 +20,7 @@ import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -24,6 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ApiError } from "@/lib/api"
 import { cn } from "@/lib/utils"
@@ -32,6 +38,7 @@ import { VaultContextMenu, type VaultContextMenuState } from "./components/vault
 import { VAULT_TREE_ROOT_VALUE, VaultSidebarTree } from "./components/vault-sidebar-tree"
 import { VaultUploadMenu } from "./components/vault-upload-menu"
 import { VaultsViewToggle } from "./components/vaults-view-toggle"
+import { getDocumentFileIcon } from "./document-file-icons"
 import {
   filterAllowedUploadFiles,
   normalizeUploadFileName,
@@ -45,6 +52,8 @@ import {
   listFolderTree,
   moveDocument,
   moveFolder,
+  softDeleteDocument,
+  softDeleteFolder,
   type DocumentSummary,
   type FileBrowserItem,
   type FolderSummary,
@@ -67,6 +76,19 @@ interface BrowserDropTarget {
   state: BrowserDropTargetState
 }
 
+interface BrowserSelectionState {
+  folderId: string | null
+  keys: Set<string>
+  lastKey: string | null
+}
+
+interface MoveDestination {
+  id: string | null
+  name: string
+  label: string
+  depth: number
+}
+
 interface UploadConflictDetails {
   code: "document.name_conflict" | "document.duplicate" | string
   message: string
@@ -82,6 +104,8 @@ interface UploadConflictPrompt {
   resolve: (strategy: UploadConflictStrategy) => void
   reject: () => void
 }
+
+const EMPTY_SELECTED_ITEM_KEYS = new Set<string>()
 
 function formatBytes(value: number) {
   if (!Number.isFinite(value) || value <= 0) return "0 B"
@@ -183,6 +207,23 @@ function getBrowserItemParentId(item: FileBrowserItem) {
   return item.type === "folder" ? item.folder.parentId : item.document.folderId
 }
 
+function getCommonBrowserItemParentId(items: FileBrowserItem[]) {
+  if (items.length === 0) {
+    return null
+  }
+
+  const firstItem = items[0]
+  if (!firstItem) {
+    return null
+  }
+
+  const firstParentId = getBrowserItemParentId(firstItem)
+
+  return items.every((item) => getBrowserItemParentId(item) === firstParentId)
+    ? firstParentId
+    : undefined
+}
+
 function isFolderDescendant({
   folders,
   folderId,
@@ -219,6 +260,68 @@ function serializeBrowserDragItems(items: FileBrowserItem[]) {
       type: item.type,
     }))
   )
+}
+
+function getMoveDestinations({
+  folders,
+  targets,
+}: {
+  folders: FolderTreeEntry[]
+  targets: FileBrowserItem[]
+}): MoveDestination[] {
+  const selectedFolders = targets.filter(
+    (item): item is Extract<FileBrowserItem, { type: "folder" }> => item.type === "folder"
+  )
+  const allowedFolders =
+    selectedFolders.length > 0
+      ? folders.filter((folder) =>
+          selectedFolders.every(
+            (target) =>
+              folder.id !== target.folder.id &&
+              !isFolderDescendant({ folders, folderId: target.folder.id, candidateId: folder.id })
+          )
+        )
+      : folders
+
+  return [
+    { id: null, name: "Vault root", label: "Vault root", depth: 0 },
+    ...allowedFolders.map((folder) => ({
+      id: folder.id,
+      name: folder.name,
+      label: folder.path,
+      depth: folder.depth + 1,
+    })),
+  ]
+}
+
+function getMoveDialogTitle(targets: FileBrowserItem[]) {
+  if (targets.length === 1) {
+    return `Move ${itemName(targets[0]!)}`
+  }
+
+  return `Move ${targets.length} items`
+}
+
+function getDeleteConfirmTitle(items: FileBrowserItem[]) {
+  if (items.length === 1) {
+    return `Move "${itemName(items[0]!)}" to trash?`
+  }
+
+  return `Move ${items.length} items to trash?`
+}
+
+function getDeleteConfirmDescription(items: FileBrowserItem[]) {
+  const hasFolder = items.some((item) => item.type === "folder")
+
+  if (items.length === 1) {
+    return hasFolder
+      ? "This folder and its contents will be moved to Trash."
+      : "This document will be moved to Trash."
+  }
+
+  return hasFolder
+    ? "The selected folders, their contents, and selected documents will be moved to Trash."
+    : "The selected documents will be moved to Trash."
 }
 
 function hasInternalBrowserDrag(event: DragEvent<HTMLElement>) {
@@ -346,11 +449,273 @@ async function uploadFileToVault({
   }
 }
 
+function MoveItemsDialog({
+  open,
+  targets,
+  value,
+  destinations,
+  isPending,
+  isLoading,
+  onValueChange,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean
+  targets: FileBrowserItem[]
+  value: string | null
+  destinations: MoveDestination[]
+  isPending: boolean
+  isLoading: boolean
+  onValueChange: (value: string | null) => void
+  onClose: () => void
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+}) {
+  const [searchQuery, setSearchQuery] = useState("")
+  const filteredDestinations = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLocaleLowerCase()
+
+    if (normalizedQuery.length === 0) {
+      return destinations
+    }
+
+    return destinations.filter((destination) =>
+      `${destination.name} ${destination.label}`.toLocaleLowerCase().includes(normalizedQuery)
+    )
+  }, [destinations, searchQuery])
+  const currentDestinationId = getCommonBrowserItemParentId(targets)
+  const selectedDestination =
+    destinations.find((destination) => destination.id === value) ?? destinations[0] ?? null
+  const canSubmitMove =
+    !isLoading &&
+    !isPending &&
+    targets.length > 0 &&
+    selectedDestination !== null &&
+    value === selectedDestination.id &&
+    (currentDestinationId === undefined || value !== currentDestinationId)
+
+  useEffect(() => {
+    if (!open) {
+      setSearchQuery("")
+    }
+  }, [open])
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && !isPending) {
+          onClose()
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{getMoveDialogTitle(targets)}</DialogTitle>
+          <DialogDescription>Select the folder where these items should live.</DialogDescription>
+        </DialogHeader>
+        <form id="move-items-form" className="space-y-4" onSubmit={onSubmit}>
+          <div className="space-y-2">
+            <label htmlFor="move-folder-search" className="text-sm font-medium">
+              Search folders
+            </label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="move-folder-search"
+                value={searchQuery}
+                disabled={isLoading || isPending}
+                className="pl-9"
+                placeholder="Find a destination"
+                onChange={(event) => setSearchQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault()
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <div
+            role="listbox"
+            aria-label="Move destination"
+            className="h-80 overflow-auto rounded-md border bg-background"
+          >
+            {isLoading ? (
+              <div className="flex h-full items-center justify-center px-4 text-sm text-muted-foreground">
+                Loading folders...
+              </div>
+            ) : filteredDestinations.length === 0 ? (
+              <div className="flex h-full items-center justify-center px-4 text-sm text-muted-foreground">
+                No folders found.
+              </div>
+            ) : (
+              filteredDestinations.map((destination) => {
+                const isSelected = destination.id === value
+                const isCurrent =
+                  currentDestinationId !== undefined && destination.id === currentDestinationId
+
+                return (
+                  <button
+                    key={destination.id ?? "__vault_root__"}
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    disabled={isPending}
+                    className={cn(
+                      "flex min-h-12 w-full items-center gap-3 border-b px-3 py-2 text-left transition-colors last:border-b-0 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      isSelected && "bg-accent"
+                    )}
+                    onClick={() => onValueChange(destination.id)}
+                  >
+                    <div
+                      className="flex min-w-0 flex-1 items-center gap-3"
+                      style={{ paddingLeft: `${Math.min(destination.depth, 8) * 0.75}rem` }}
+                    >
+                      <div className="flex size-7 shrink-0 items-center justify-center rounded-md border bg-background text-muted-foreground">
+                        {destination.id === null ? <Home className="size-4" /> : <Folder className="size-4" />}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="truncate text-sm font-medium">{destination.name}</span>
+                          {isCurrent ? (
+                            <span className="shrink-0 text-xs text-muted-foreground">Current</span>
+                          ) : null}
+                        </div>
+                        {destination.label !== destination.name ? (
+                          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                            {destination.label}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <Check
+                      className={cn("size-4 shrink-0", isSelected ? "text-primary" : "text-transparent")}
+                      strokeWidth={2.5}
+                    />
+                  </button>
+                )
+              })
+            )}
+          </div>
+          {selectedDestination ? (
+            <p className="text-sm text-muted-foreground">Destination: {selectedDestination.label}</p>
+          ) : null}
+        </form>
+        <DialogFooter>
+          <Button type="button" variant="outline" disabled={isPending} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" form="move-items-form" disabled={!canSubmitMove}>
+            {isPending ? "Moving..." : "Move"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function SelectedItemsActionBar({
+  selectedCount,
+  canMoveItems,
+  canDeleteItems,
+  itemMutationPending,
+  onMove,
+  onDelete,
+}: {
+  selectedCount: number
+  canMoveItems: boolean
+  canDeleteItems: boolean
+  itemMutationPending: boolean
+  onMove: () => void
+  onDelete: () => void
+}) {
+  if (selectedCount === 0) {
+    return null
+  }
+
+  return (
+    <div className="fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
+      <div className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 shadow-lg">
+        <span className="px-2 text-sm font-medium">{selectedCount} selected</span>
+        <div className="h-5 w-px bg-border" />
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={!canMoveItems || itemMutationPending}
+          onClick={onMove}
+        >
+          <MoveRight className="size-4" />
+          Move to
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={!canDeleteItems || itemMutationPending}
+          onClick={onDelete}
+        >
+          <Trash2 className="size-4 text-destructive" />
+          Delete
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function DeleteItemsConfirmDialog({
+  items,
+  isPending,
+  onClose,
+  onConfirm,
+}: {
+  items: FileBrowserItem[]
+  isPending: boolean
+  onClose: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <Dialog
+      open={items.length > 0}
+      onOpenChange={(open) => {
+        if (!open && !isPending) {
+          onClose()
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{getDeleteConfirmTitle(items)}</DialogTitle>
+          <DialogDescription>{getDeleteConfirmDescription(items)}</DialogDescription>
+        </DialogHeader>
+        <div className="max-h-56 overflow-auto rounded-md border bg-muted/20 p-3">
+          <ul className="list-disc space-y-1 pl-5 text-sm">
+            {items.map((item) => (
+              <li key={getBrowserItemKey(item)} className="break-words">
+                {itemName(item)}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" disabled={isPending} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="button" variant="destructive" disabled={isPending} onClick={onConfirm}>
+            {isPending ? "Moving..." : "Trash"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function ContentGrid({
   items,
   draggedItemKeys,
   dropTarget,
   isDraggable,
+  selectedItemKeys,
   onDragEndItem,
   onDragLeaveFolder,
   onDragOverFolder,
@@ -358,11 +723,13 @@ function ContentGrid({
   onDropOnFolder,
   onOpenFolder,
   onOpenDocument,
+  onToggleItem,
 }: {
   items: FileBrowserItem[]
   draggedItemKeys: Set<string>
   dropTarget: BrowserDropTarget | null
   isDraggable: boolean
+  selectedItemKeys: Set<string>
   onDragEndItem: () => void
   onDragLeaveFolder: (event: DragEvent<HTMLElement>, folderId: string) => void
   onDragOverFolder: (event: DragEvent<HTMLElement>, folderId: string) => void
@@ -370,6 +737,7 @@ function ContentGrid({
   onDropOnFolder: (event: DragEvent<HTMLElement>, folderId: string) => void
   onOpenFolder: (folder: FolderSummary) => void
   onOpenDocument: (document: DocumentSummary) => void
+  onToggleItem: (item: FileBrowserItem, checked: boolean) => void
 }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
@@ -379,6 +747,8 @@ function ContentGrid({
         const size = isFolder ? null : formatBytes(item.document.originalSize)
         const updatedAt = isFolder ? item.folder.updatedAt : item.document.updatedAt
         const itemKey = getBrowserItemKey(item)
+        const DocumentIcon = isFolder ? null : getDocumentFileIcon(item.document)
+        const isSelected = selectedItemKeys.has(itemKey)
 
         return (
           <Card
@@ -388,7 +758,8 @@ function ContentGrid({
             tabIndex={0}
             draggable={isDraggable}
             className={cn(
-              "cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent/30 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+              "relative cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent/30 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+              isSelected && "border-primary/60 bg-accent/40",
               draggedItemKeys.has(itemKey) && "opacity-55",
               isFolder && getFolderDropTargetClass(dropTarget, item.folder.id)
             )}
@@ -421,9 +792,21 @@ function ContentGrid({
               isFolder ? (event) => onDropOnFolder(event, item.folder.id) : undefined
             }
           >
+            <div className="absolute top-3 left-3 z-10">
+              <Checkbox
+                aria-label={`Select ${name}`}
+                checked={isSelected}
+                onClick={(event) => event.stopPropagation()}
+                onCheckedChange={(checked) => onToggleItem(item, checked === true)}
+              />
+            </div>
             <CardContent className="flex min-h-40 flex-col items-center justify-center p-4 text-center">
-              <div className="flex size-12 items-center justify-center rounded-md bg-secondary text-secondary-foreground">
-                {isFolder ? <Folder className="size-7" /> : <FileText className="size-7" />}
+              <div className="flex size-11 items-center justify-center rounded-md border bg-background text-muted-foreground">
+                {isFolder ? (
+                  <Folder className="size-5" strokeWidth={1.9} />
+                ) : DocumentIcon ? (
+                  <DocumentIcon className="size-5" strokeWidth={1.9} />
+                ) : null}
               </div>
               <h2 className="mt-3 max-w-full truncate text-sm font-semibold">{name}</h2>
               <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
@@ -452,9 +835,12 @@ function ContentGrid({
 
 function ContentList({
   items,
+  allItemsSelected,
   draggedItemKeys,
   dropTarget,
   isDraggable,
+  selectedItemKeys,
+  someItemsSelected,
   onDragEndItem,
   onDragLeaveFolder,
   onDragOverFolder,
@@ -462,11 +848,16 @@ function ContentList({
   onDropOnFolder,
   onOpenFolder,
   onOpenDocument,
+  onToggleAllItems,
+  onToggleItem,
 }: {
   items: FileBrowserItem[]
+  allItemsSelected: boolean
   draggedItemKeys: Set<string>
   dropTarget: BrowserDropTarget | null
   isDraggable: boolean
+  selectedItemKeys: Set<string>
+  someItemsSelected: boolean
   onDragEndItem: () => void
   onDragLeaveFolder: (event: DragEvent<HTMLElement>, folderId: string) => void
   onDragOverFolder: (event: DragEvent<HTMLElement>, folderId: string) => void
@@ -474,10 +865,17 @@ function ContentList({
   onDropOnFolder: (event: DragEvent<HTMLElement>, folderId: string) => void
   onOpenFolder: (folder: FolderSummary) => void
   onOpenDocument: (document: DocumentSummary) => void
+  onToggleAllItems: (checked: boolean) => void
+  onToggleItem: (item: FileBrowserItem, checked: boolean) => void
 }) {
   return (
     <div className="overflow-hidden border-y bg-background">
-      <div className="hidden grid-cols-[minmax(0,1fr)_7rem_7.5rem_7rem] gap-3 border-b bg-muted/40 px-4 py-3 text-sm font-medium text-muted-foreground md:grid lg:px-6">
+      <div className="hidden grid-cols-[auto_minmax(0,1fr)_7rem_7.5rem_7rem] gap-3 border-b bg-muted/40 px-4 py-3 text-sm font-medium text-muted-foreground md:grid lg:px-6">
+        <Checkbox
+          aria-label="Select all items"
+          checked={allItemsSelected ? true : someItemsSelected ? "indeterminate" : false}
+          onCheckedChange={(checked) => onToggleAllItems(checked === true)}
+        />
         <span>Name</span>
         <span>Type</span>
         <span>Modified</span>
@@ -488,6 +886,8 @@ function ContentList({
         const name = itemName(item)
         const updatedAt = isFolder ? item.folder.updatedAt : item.document.updatedAt
         const itemKey = getBrowserItemKey(item)
+        const DocumentIcon = isFolder ? null : getDocumentFileIcon(item.document)
+        const isSelected = selectedItemKeys.has(itemKey)
 
         return (
           <div
@@ -497,7 +897,8 @@ function ContentList({
             tabIndex={0}
             draggable={isDraggable}
             className={cn(
-              "grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b px-4 py-4 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[minmax(0,1fr)_7rem_7.5rem_7rem] lg:px-6",
+              "grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b px-4 py-4 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[auto_minmax(0,1fr)_7rem_7.5rem_7rem] lg:px-6",
+              isSelected && "bg-accent/40",
               draggedItemKeys.has(itemKey) && "opacity-55",
               isFolder && getFolderDropTargetClass(dropTarget, item.folder.id)
             )}
@@ -530,9 +931,19 @@ function ContentList({
               isFolder ? (event) => onDropOnFolder(event, item.folder.id) : undefined
             }
           >
+            <Checkbox
+              aria-label={`Select ${name}`}
+              checked={isSelected}
+              onClick={(event) => event.stopPropagation()}
+              onCheckedChange={(checked) => onToggleItem(item, checked === true)}
+            />
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-secondary text-secondary-foreground">
-                {isFolder ? <Folder className="size-6" /> : <FileText className="size-6" />}
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-background text-muted-foreground">
+                {isFolder ? (
+                  <Folder className="size-5" strokeWidth={1.9} />
+                ) : DocumentIcon ? (
+                  <DocumentIcon className="size-5" strokeWidth={1.9} />
+                ) : null}
               </div>
               <div className="min-w-0">
                 <div className="truncate font-medium">{name}</div>
@@ -578,6 +989,14 @@ export default function VaultWorkspacePage() {
   const [contextMenu, setContextMenu] = useState<VaultContextMenuState | null>(null)
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false)
   const [createFolderParentId, setCreateFolderParentId] = useState<string | null>(null)
+  const [selection, setSelection] = useState<BrowserSelectionState>(() => ({
+    folderId: null,
+    keys: new Set(),
+    lastKey: null,
+  }))
+  const [moveTargets, setMoveTargets] = useState<FileBrowserItem[]>([])
+  const [moveDestinationId, setMoveDestinationId] = useState<string | null>(null)
+  const [pendingTrashItems, setPendingTrashItems] = useState<FileBrowserItem[]>([])
   const [draggedItems, setDraggedItems] = useState<FileBrowserItem[]>([])
   const [dropTarget, setDropTarget] = useState<BrowserDropTarget | null>(null)
   const [loadingTree, setLoadingTree] = useState(true)
@@ -590,17 +1009,32 @@ export default function VaultWorkspacePage() {
   const normalizedFolderId = activeFolderId === "root" ? null : activeFolderId
 
   const sortedItems = useMemo(() => sortItems(items), [items])
+  const selectedItemKeys =
+    selection.folderId === normalizedFolderId ? selection.keys : EMPTY_SELECTED_ITEM_KEYS
+  const selectedItems = useMemo(
+    () => sortedItems.filter((item) => selectedItemKeys.has(getBrowserItemKey(item))),
+    [selectedItemKeys, sortedItems]
+  )
+  const selectedCount = selectedItems.length
+  const allItemsSelected = sortedItems.length > 0 && selectedCount === sortedItems.length
+  const someItemsSelected = selectedCount > 0 && !allItemsSelected
   const draggedItemKeys = useMemo(
     () => new Set(draggedItems.map((item) => getBrowserItemKey(item))),
     [draggedItems]
   )
+  const moveDestinations = useMemo(
+    () => getMoveDestinations({ folders, targets: moveTargets }),
+    [folders, moveTargets]
+  )
 
   const selectFolder = useCallback((folderId: string | null) => {
+    setSelection({ folderId, keys: new Set(), lastKey: null })
     setSearchParams(folderId ? { folderId } : {})
   }, [setSearchParams])
 
   const canMoveItems = vault?.role === "owner" || vault?.role === "editor"
   const canCreateItems = canMoveItems
+  const canDeleteItems = canMoveItems
 
   const refreshVaultContents = useCallback(async () => {
     const [treeResult, itemsResult] = await Promise.all([
@@ -697,6 +1131,67 @@ export default function VaultWorkspacePage() {
     setIsCreateFolderOpen(true)
   }, [])
 
+  const clearSelection = useCallback(() => {
+    setSelection({
+      folderId: normalizedFolderId,
+      keys: new Set(),
+      lastKey: null,
+    })
+  }, [normalizedFolderId])
+
+  const selectSingleItem = useCallback((item: FileBrowserItem) => {
+    const itemKey = getBrowserItemKey(item)
+    setSelection({
+      folderId: normalizedFolderId,
+      keys: new Set([itemKey]),
+      lastKey: itemKey,
+    })
+  }, [normalizedFolderId])
+
+  const toggleBrowserItem = useCallback((item: FileBrowserItem, checked: boolean) => {
+    const itemKey = getBrowserItemKey(item)
+
+    setSelection((previousSelection) => {
+      const isSameFolder = previousSelection.folderId === normalizedFolderId
+      const previousKeys = isSameFolder ? previousSelection.keys : EMPTY_SELECTED_ITEM_KEYS
+      const nextKeys = new Set(previousKeys)
+
+      if (checked) {
+        nextKeys.add(itemKey)
+      } else {
+        nextKeys.delete(itemKey)
+      }
+
+      return {
+        folderId: normalizedFolderId,
+        keys: nextKeys,
+        lastKey: itemKey,
+      }
+    })
+  }, [normalizedFolderId])
+
+  const toggleAllBrowserItems = useCallback((checked: boolean) => {
+    setSelection({
+      folderId: normalizedFolderId,
+      keys: checked ? new Set(sortedItems.map((item) => getBrowserItemKey(item))) : new Set(),
+      lastKey: null,
+    })
+  }, [normalizedFolderId, sortedItems])
+
+  const openMoveDialog = useCallback((targets: FileBrowserItem[]) => {
+    if (targets.length === 0) {
+      return
+    }
+
+    setMoveTargets(targets)
+    setMoveDestinationId(getCommonBrowserItemParentId(targets) ?? null)
+  }, [])
+
+  const closeMoveDialog = useCallback(() => {
+    setMoveTargets([])
+    setMoveDestinationId(null)
+  }, [])
+
   const handleBackgroundContextMenu = useCallback((event: MouseEvent<HTMLElement>) => {
     const target = event.target
     if (target instanceof Element && target.closest("[data-vault-browser-item]")) {
@@ -724,8 +1219,10 @@ export default function VaultWorkspacePage() {
 
     setItemMutationPending(true)
     try {
+      const targetsToMove = targets.filter((target) => getBrowserItemParentId(target) !== destinationId)
+
       await Promise.all(
-        targets.map((target) =>
+        targetsToMove.map((target) =>
           target.type === "folder"
             ? moveFolder({ vaultId, folderId: target.folder.id, parentId: destinationId })
             : moveDocument({ vaultId, documentId: target.document.id, folderId: destinationId })
@@ -733,17 +1230,70 @@ export default function VaultWorkspacePage() {
       )
 
       await refreshVaultContents()
-      toast.success(
-        targets.length === 1
-          ? "Item moved."
-          : `${targets.length} items moved.`
-      )
+      closeMoveDialog()
+      clearSelection()
+      if (targetsToMove.length > 0) {
+        toast.success(
+          targetsToMove.length === 1
+            ? "Item moved."
+            : `${targetsToMove.length} items moved.`
+        )
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to move item.")
     } finally {
       setItemMutationPending(false)
     }
-  }, [itemMutationPending, refreshVaultContents, vaultId])
+  }, [clearSelection, closeMoveDialog, itemMutationPending, refreshVaultContents, vaultId])
+
+  const handleMoveSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (moveTargets.length === 0) {
+      return
+    }
+
+    const validation = getBrowserDropValidation({
+      canUpdateItems: canMoveItems,
+      itemMutationPending,
+      destinationId: moveDestinationId,
+      targets: moveTargets,
+      folders,
+    })
+
+    if (!validation.valid) {
+      toast.warning(validation.message)
+      return
+    }
+
+    void handleMoveItems({ targets: moveTargets, destinationId: moveDestinationId })
+  }, [canMoveItems, folders, handleMoveItems, itemMutationPending, moveDestinationId, moveTargets])
+
+  const handleDeleteItems = useCallback(async (targets: FileBrowserItem[]) => {
+    if (!vaultId || targets.length === 0 || itemMutationPending) {
+      return
+    }
+
+    setItemMutationPending(true)
+    try {
+      await Promise.all(
+        targets.map((target) =>
+          target.type === "folder"
+            ? softDeleteFolder({ vaultId, folderId: target.folder.id })
+            : softDeleteDocument({ vaultId, documentId: target.document.id })
+        )
+      )
+
+      await refreshVaultContents()
+      setPendingTrashItems([])
+      clearSelection()
+      toast.success(targets.length === 1 ? "Item moved to trash." : `${targets.length} items moved to trash.`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not delete selected items.")
+    } finally {
+      setItemMutationPending(false)
+    }
+  }, [clearSelection, itemMutationPending, refreshVaultContents, vaultId])
 
   const resetDragState = useCallback(() => {
     setDraggedItems([])
@@ -775,12 +1325,18 @@ export default function VaultWorkspacePage() {
       return
     }
 
-    const dragItems = [item]
+    const itemKey = getBrowserItemKey(item)
+    const dragItems = selectedItemKeys.has(itemKey) && selectedItems.length > 0 ? selectedItems : [item]
+
+    if (!selectedItemKeys.has(itemKey)) {
+      selectSingleItem(item)
+    }
+
     setDraggedItems(dragItems)
     event.dataTransfer.effectAllowed = "move"
     event.dataTransfer.setData(INTERNAL_BROWSER_DRAG_TYPE, serializeBrowserDragItems(dragItems))
-    event.dataTransfer.setData("text/plain", itemName(item))
-  }, [canMoveItems, itemMutationPending])
+    event.dataTransfer.setData("text/plain", dragItems.map((target) => itemName(target)).join(", "))
+  }, [canMoveItems, itemMutationPending, selectSingleItem, selectedItemKeys, selectedItems])
 
   const handleDragOverFolder = useCallback((event: DragEvent<HTMLElement>, folderId: string | null) => {
     if (!hasInternalBrowserDrag(event)) {
@@ -961,6 +1517,31 @@ export default function VaultWorkspacePage() {
           void refreshVaultContents()
         }}
       />
+      <MoveItemsDialog
+        open={moveTargets.length > 0}
+        targets={moveTargets}
+        value={moveDestinationId}
+        destinations={moveDestinations}
+        isPending={itemMutationPending}
+        isLoading={loadingTree}
+        onValueChange={setMoveDestinationId}
+        onClose={closeMoveDialog}
+        onSubmit={handleMoveSubmit}
+      />
+      <DeleteItemsConfirmDialog
+        items={pendingTrashItems}
+        isPending={itemMutationPending}
+        onClose={() => setPendingTrashItems([])}
+        onConfirm={() => void handleDeleteItems(pendingTrashItems)}
+      />
+      <SelectedItemsActionBar
+        selectedCount={selectedCount}
+        canMoveItems={canMoveItems}
+        canDeleteItems={canDeleteItems}
+        itemMutationPending={itemMutationPending}
+        onMove={() => openMoveDialog(selectedItems)}
+        onDelete={() => setPendingTrashItems(selectedItems)}
+      />
       <Dialog
         open={uploadConflictPrompt !== null}
         onOpenChange={(open) => {
@@ -1114,6 +1695,7 @@ export default function VaultWorkspacePage() {
                     draggedItemKeys={draggedItemKeys}
                     dropTarget={dropTarget}
                     isDraggable={canMoveItems && !itemMutationPending}
+                    selectedItemKeys={selectedItemKeys}
                     onDragEndItem={resetDragState}
                     onDragLeaveFolder={handleDragLeaveFolder}
                     onDragOverFolder={handleDragOverFolder}
@@ -1121,14 +1703,18 @@ export default function VaultWorkspacePage() {
                     onDropOnFolder={handleDropOnFolder}
                     onOpenFolder={(folder) => selectFolder(folder.id)}
                     onOpenDocument={openDocument}
+                    onToggleItem={toggleBrowserItem}
                   />
                 </div>
               ) : (
                 <ContentList
                   items={sortedItems}
+                  allItemsSelected={allItemsSelected}
                   draggedItemKeys={draggedItemKeys}
                   dropTarget={dropTarget}
                   isDraggable={canMoveItems && !itemMutationPending}
+                  selectedItemKeys={selectedItemKeys}
+                  someItemsSelected={someItemsSelected}
                   onDragEndItem={resetDragState}
                   onDragLeaveFolder={handleDragLeaveFolder}
                   onDragOverFolder={handleDragOverFolder}
@@ -1136,6 +1722,8 @@ export default function VaultWorkspacePage() {
                   onDropOnFolder={handleDropOnFolder}
                   onOpenFolder={(folder) => selectFolder(folder.id)}
                   onOpenDocument={openDocument}
+                  onToggleAllItems={toggleAllBrowserItems}
+                  onToggleItem={toggleBrowserItem}
                 />
               )}
             </div>

@@ -15,9 +15,12 @@ interface BaseLayoutProps {
   children: React.ReactNode
   title?: string
   description?: string
+  headerContent?: React.ReactNode
+  headerActionsContent?: React.ReactNode
+  hideHeaderSearch?: boolean
 }
 
-export function BaseLayout({ children, title, description }: BaseLayoutProps) {
+export function BaseLayout({ children, title, description, headerContent, headerActionsContent, hideHeaderSearch }: BaseLayoutProps) {
   const [themeCustomizerOpen, setThemeCustomizerOpen] = React.useState(false)
   const { config } = useSidebarConfig()
 
@@ -40,7 +43,7 @@ export function BaseLayout({ children, title, description }: BaseLayoutProps) {
             side={config.side} 
           />
           <SidebarInset>
-            <SiteHeader />
+            <SiteHeader headerContent={headerContent} headerActionsContent={headerActionsContent} hideHeaderSearch={hideHeaderSearch} />
             <div className="flex flex-1 flex-col">
               <div className="@container/main flex flex-1 flex-col gap-2">
                 <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
@@ -64,7 +67,7 @@ export function BaseLayout({ children, title, description }: BaseLayoutProps) {
       ) : (
         <>
           <SidebarInset>
-            <SiteHeader />
+            <SiteHeader headerContent={headerContent} headerActionsContent={headerActionsContent} hideHeaderSearch={hideHeaderSearch} />
             <div className="flex flex-1 flex-col">
               <div className="@container/main flex flex-1 flex-col gap-2">
                 <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">

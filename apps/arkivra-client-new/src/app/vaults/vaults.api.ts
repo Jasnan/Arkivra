@@ -50,6 +50,7 @@ interface VaultDetailResponse {
 
 interface MeResponse {
   canCreateVault: boolean
+  aiFeaturesEnabled?: boolean
 }
 
 export interface DocumentSummary {
@@ -394,6 +395,18 @@ export async function moveFolder({
   })
 }
 
+export async function softDeleteFolder({
+  vaultId,
+  folderId,
+}: {
+  vaultId: string
+  folderId: string
+}) {
+  return fetchJson<void>(`/api/vaults/${vaultId}/folders/${folderId}`, {
+    method: "DELETE",
+  })
+}
+
 export async function getDocument({
   vaultId,
   documentId,
@@ -452,6 +465,18 @@ export async function listDocumentVersionChunks({
   return fetchJson<DocumentChunksResponse>(
     `/api/vaults/${vaultId}/documents/${documentId}/versions/${versionId}/chunks`
   )
+}
+
+export async function softDeleteDocument({
+  vaultId,
+  documentId,
+}: {
+  vaultId: string
+  documentId: string
+}) {
+  return fetchJson<void>(`/api/vaults/${vaultId}/documents/${documentId}`, {
+    method: "DELETE",
+  })
 }
 
 export async function restoreDocumentVersion({

@@ -7,8 +7,15 @@ import { CommandSearch, SearchTrigger } from "@/components/command-search"
 import { ModeToggle } from "@/components/mode-toggle"
 import { HeaderActionsSlot } from "@/contexts/header-actions-context"
 
-export function SiteHeader() {
+interface SiteHeaderProps {
+  headerContent?: React.ReactNode
+  headerActionsContent?: React.ReactNode
+  hideHeaderSearch?: boolean
+}
+
+export function SiteHeader({ headerContent, headerActionsContent, hideHeaderSearch }: SiteHeaderProps) {
   const [searchOpen, setSearchOpen] = React.useState(false)
+  const hasHeaderContent = headerContent !== undefined && headerContent !== null
 
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -31,16 +38,23 @@ export function SiteHeader() {
             orientation="vertical"
             className="mx-2 data-[orientation=vertical]:h-4"
           />
-          <div className="flex-1 max-w-sm">
-            <SearchTrigger onClick={() => setSearchOpen(true)} />
-          </div>
+          {hasHeaderContent ? (
+            <div className="min-w-0 flex-1">{headerContent}</div>
+          ) : hideHeaderSearch ? (
+            <div className="min-w-0 flex-1" />
+          ) : (
+            <div className="max-w-sm flex-1">
+              <SearchTrigger onClick={() => setSearchOpen(true)} />
+            </div>
+          )}
           <div className="ml-auto flex items-center gap-2">
+            {headerActionsContent}
             <HeaderActionsSlot />
             <ModeToggle />
           </div>
         </div>
       </header>
-      <CommandSearch open={searchOpen} onOpenChange={setSearchOpen} />
+      {hasHeaderContent || hideHeaderSearch ? null : <CommandSearch open={searchOpen} onOpenChange={setSearchOpen} />}
     </>
   )
 }

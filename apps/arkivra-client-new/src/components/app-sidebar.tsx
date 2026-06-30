@@ -10,6 +10,8 @@ import {
   Calendar,
   AlertTriangle,
   Settings,
+  Search,
+  Tags,
   Users,
 } from "lucide-react"
 import { Link } from "react-router-dom"
@@ -56,6 +58,16 @@ const data = {
           title: "Vaults",
           url: "/vaults",
           icon: Archive,
+        },
+        {
+          title: "Search",
+          url: "/search",
+          icon: Search,
+        },
+        {
+          title: "Tags",
+          url: "/tags",
+          icon: Tags,
         },
         {
           title: "Tasks",

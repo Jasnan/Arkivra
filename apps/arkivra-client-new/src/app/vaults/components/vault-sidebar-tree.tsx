@@ -3,13 +3,10 @@
 import type { DragEvent, MouseEvent, ReactNode } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
+  Archive,
   ChevronRight,
-  FileText,
   Folder,
-  FolderDot,
   FolderOpen,
-  FolderOpenDot,
-  Vault,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -20,6 +17,7 @@ import type {
   FolderTreeDocumentEntry,
   FolderTreeEntry,
 } from "../vaults.api"
+import { getDocumentFileIcon } from "../document-file-icons"
 
 const ROOT_VALUE = "vaults-root"
 const VAULT_VALUE_PREFIX = "vault:"
@@ -354,27 +352,24 @@ function getBrowserDropValidation({
 }
 
 function getNodeIcon(node: VaultTreeNode, isExpanded = false): ReactNode {
+  const iconClassName = "size-4 text-muted-foreground"
+
   if (node.type === "document") {
-    return <FileText className="size-4 text-blue-600 dark:text-blue-400" />
+    const DocumentIcon = getDocumentFileIcon(node.document)
+    return <DocumentIcon className={iconClassName} strokeWidth={1.9} />
   }
 
   if (node.type === "vault") {
-    return <Vault className="size-4 text-teal-600 dark:text-teal-300" strokeWidth={2.1} />
+    return <Archive className={iconClassName} strokeWidth={1.9} />
   }
 
   if (node.type === "root") {
-    return isExpanded ? (
-      <FolderOpenDot className="size-4 text-muted-foreground" strokeWidth={2.1} />
-    ) : (
-      <FolderDot className="size-4 text-muted-foreground" strokeWidth={2.1} />
-    )
+    const RootIcon = isExpanded ? FolderOpen : Folder
+    return <RootIcon className={iconClassName} strokeWidth={1.9} />
   }
 
-  return isExpanded ? (
-    <FolderOpen className="size-4 text-muted-foreground" strokeWidth={2.1} />
-  ) : (
-    <Folder className="size-4 text-muted-foreground" strokeWidth={2.1} />
-  )
+  const FolderIcon = isExpanded ? FolderOpen : Folder
+  return <FolderIcon className={iconClassName} strokeWidth={1.9} />
 }
 
 function getNodeChildren(node: VaultTreeNode) {

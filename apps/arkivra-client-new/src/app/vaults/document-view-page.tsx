@@ -13,13 +13,17 @@ import {
   Loader2,
   MoreHorizontal,
   Pencil,
+  Printer,
   RefreshCw,
   RotateCcw,
   ScanText,
   Search,
   Trash2,
   X,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react"
+import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch"
 import { toast } from "sonner"
 import { useNavigate, useParams } from "react-router-dom"
 
@@ -62,6 +66,7 @@ import {
   listDocumentVersions,
   listFolderTree,
   renameDocument,
+  softDeleteDocument,
   restoreDocumentVersion,
   updateDocumentLanguage,
   type DeletionImpactPreview,
@@ -157,6 +162,109 @@ function isProcessingActive(status: DocumentSummary["processingStatus"]) {
     status === "summarising" ||
     status === "processing"
   )
+}
+
+function canPrintPreview(previewKind: PreviewKind, selectedVersionId: string | null) {
+  return selectedVersionId === null && (previewKind === "pdf" || previewKind === "image" || previewKind === "text")
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;")
+}
+
+function printDocumentPreview({
+  documentName,
+  inlineFileUrl,
+  previewKind,
+  onPrintWindowError,
+}: {
+  documentName: string
+  inlineFileUrl: string
+  previewKind: PreviewKind
+  onPrintWindowError: () => void
+}) {
+  if (previewKind === "pdf" || previewKind === "text") {
+    const frame = window.document.createElement("iframe")
+    frame.style.position = "fixed"
+    frame.style.right = "0"
+    frame.style.bottom = "0"
+    frame.style.width = "0"
+    frame.style.height = "0"
+    frame.style.border = "0"
+    frame.src = inlineFileUrl
+    frame.onload = () => {
+      frame.contentWindow?.focus()
+      frame.contentWindow?.print()
+    }
+    window.document.body.appendChild(frame)
+    window.setTimeout(() => {
+      frame.remove()
+    }, 60_000)
+    return
+  }
+
+  if (previewKind === "image") {
+    const printWindow = window.open("", "_blank")
+
+    if (printWindow === null) {
+      onPrintWindowError()
+      return
+    }
+
+    printWindow.opener = null
+
+    const escapedDocumentName = escapeHtml(documentName)
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${escapedDocumentName}</title>
+          <style>
+            body {
+              margin: 0;
+              display: flex;
+              min-height: 100vh;
+              align-items: center;
+              justify-content: center;
+              background: white;
+            }
+            img {
+              max-width: 100%;
+              max-height: 100vh;
+              object-fit: contain;
+            }
+          </style>
+        </head>
+        <body>
+          <img id="arkivra-print-image" alt="${escapedDocumentName}" />
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
+
+    const printImage = printWindow.document.getElementById("arkivra-print-image") as HTMLImageElement | null
+
+    if (printImage === null) {
+      onPrintWindowError()
+      printWindow.close()
+      return
+    }
+
+    printImage.onload = () => {
+      printWindow.focus()
+      printWindow.print()
+    }
+    printImage.onerror = () => {
+      onPrintWindowError()
+      printWindow.close()
+    }
+    printImage.src = inlineFileUrl
+  }
 }
 
 function getProcessingMessage(document: Pick<DocumentSummary, "processingStatus" | "processingErrorMessage">, content: string) {
@@ -507,6 +615,90 @@ function DocumentMetadataPanel({
   )
 }
 
+function ImagePreviewFrame({
+  src,
+  documentName,
+  downloadUrl,
+}: {
+  src: string
+  documentName: string
+  downloadUrl: string
+}) {
+  function printImage() {
+    printDocumentPreview({
+      documentName,
+      inlineFileUrl: src,
+      previewKind: "image",
+      onPrintWindowError: () => toast.error("Could not open print dialog."),
+    })
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border bg-muted/20">
+      <TransformWrapper
+        initialScale={1}
+        minScale={0.2}
+        maxScale={8}
+        centerOnInit
+        centerZoomedOut
+        wheel={{ step: 0.08 }}
+        doubleClick={{ mode: "zoomIn" }}
+      >
+        {({ zoomIn, zoomOut, resetTransform }) => (
+          <>
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-b bg-background/95 px-3 py-2">
+              <Button type="button" size="sm" variant="outline" onClick={() => zoomOut()}>
+                <ZoomOut className="size-4" />
+                Zoom out
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => zoomIn()}>
+                <ZoomIn className="size-4" />
+                Zoom in
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => resetTransform()}>
+                <RotateCcw className="size-4" />
+                Reset
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={printImage}>
+                <Printer className="size-4" />
+                Print
+              </Button>
+              <Button asChild size="sm" variant="outline">
+                <a href={downloadUrl}>
+                  <Download className="size-4" />
+                  Download
+                </a>
+              </Button>
+            </div>
+            <div className="min-h-0 flex-1">
+              <TransformComponent
+                wrapperStyle={{
+                  width: "100%",
+                  height: "100%",
+                }}
+                contentStyle={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <img
+                  src={src}
+                  alt={documentName}
+                  draggable={false}
+                  className="max-h-full max-w-full select-none object-contain"
+                />
+              </TransformComponent>
+            </div>
+          </>
+        )}
+      </TransformWrapper>
+    </div>
+  )
+}
+
 function PreviewPanel({
   previewKind,
   document,
@@ -545,9 +737,11 @@ function PreviewPanel({
 
   if (previewKind === "image") {
     return (
-      <div className="flex h-full min-h-0 items-center justify-center rounded-md border bg-muted/20 p-4">
-        <img src={inlineFileUrl} alt={document.name} className="max-h-full max-w-full object-contain" />
-      </div>
+      <ImagePreviewFrame
+        src={inlineFileUrl}
+        documentName={document.name}
+        downloadUrl={downloadUrl}
+      />
     )
   }
 
@@ -709,6 +903,8 @@ export default function DocumentViewPage() {
   const [deleteImpactError, setDeleteImpactError] = useState<string | null>(null)
   const [isRestoreVersionPending, setIsRestoreVersionPending] = useState(false)
   const [isDeleteVersionPending, setIsDeleteVersionPending] = useState(false)
+  const [isDeleteDocumentDialogOpen, setIsDeleteDocumentDialogOpen] = useState(false)
+  const [isDeleteDocumentPending, setIsDeleteDocumentPending] = useState(false)
 
   useEffect(() => {
     let ignore = false
@@ -847,6 +1043,7 @@ export default function DocumentViewPage() {
       : getDocumentVersionDownloadUrl({ vaultId, documentId, versionId: selectedVersionId })
   const currentDownloadUrl = getDocumentDownloadUrl({ vaultId, documentId })
   const inlineFileUrl = getDocumentInlineFileUrl({ vaultId, documentId })
+  const canPrint = canPrintPreview(previewKind, selectedVersionId)
   const extractedContent = activeDocument?.displayContent ?? activeDocument?.content ?? ""
   const extractedTextMessage = activeDocument
     ? getProcessingMessage(activeDocument, extractedContent)
@@ -926,6 +1123,34 @@ export default function DocumentViewPage() {
       toast.error(error instanceof Error ? error.message : "Could not save metadata.")
     } finally {
       setIsMetadataSaving(false)
+    }
+  }
+
+  function handlePrintDocument() {
+    if (!activeDocument || !canPrint) return
+
+    printDocumentPreview({
+      documentName: activeDocument.name,
+      inlineFileUrl,
+      previewKind,
+      onPrintWindowError: () => toast.error("Could not open print dialog."),
+    })
+  }
+
+  async function handleDeleteDocument() {
+    if (!document || isDeleteDocumentPending) return
+
+    setIsDeleteDocumentPending(true)
+
+    try {
+      await softDeleteDocument({ vaultId, documentId })
+      toast.success("Document moved to trash.")
+      setIsDeleteDocumentDialogOpen(false)
+      navigate(vaultReturnPath, { replace: true })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not delete document.")
+    } finally {
+      setIsDeleteDocumentPending(false)
     }
   }
 
@@ -1082,6 +1307,19 @@ export default function DocumentViewPage() {
                           <Download className="size-4" />
                           Download latest
                         </a>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem disabled={!canPrint} onSelect={handlePrintDocument}>
+                        <Printer className="size-4" />
+                        Print
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        disabled={isDeleteDocumentPending}
+                        onSelect={() => setIsDeleteDocumentDialogOpen(true)}
+                      >
+                        <Trash2 className="size-4" />
+                        {isDeleteDocumentPending ? "Deleting..." : "Delete"}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -1308,6 +1546,58 @@ export default function DocumentViewPage() {
           )}
         </section>
       </div>
+      <Dialog
+        open={isDeleteDocumentDialogOpen}
+        onOpenChange={(open) => {
+          if (!isDeleteDocumentPending) {
+            setIsDeleteDocumentDialogOpen(open)
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Delete document?</DialogTitle>
+            <DialogDescription>
+              This moves the document to trash. Its versions are kept with the document and can be restored from trash.
+            </DialogDescription>
+          </DialogHeader>
+          {document ? (
+            <div className="rounded-md border bg-muted/20 p-3">
+              <p className="truncate font-medium">{document.name}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {formatBytes(document.originalSize)} · {document.mimeType || "Unknown type"}
+              </p>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isDeleteDocumentPending}
+              onClick={() => setIsDeleteDocumentDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={isDeleteDocumentPending}
+              onClick={() => {
+                void handleDeleteDocument()
+              }}
+            >
+              {isDeleteDocumentPending ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={versionPendingRestore !== null}
         onOpenChange={(open) => {

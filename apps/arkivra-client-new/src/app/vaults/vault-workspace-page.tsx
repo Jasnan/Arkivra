@@ -7,15 +7,16 @@ import {
   Folder,
   FolderOpen,
   HardDrive,
+  X,
 } from "lucide-react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useHeaderActions } from "@/contexts/header-actions-context"
 import { cn } from "@/lib/utils"
 import { CreateFolderDialog } from "./components/create-folder-dialog"
 import { VaultContextMenu, type VaultContextMenuState } from "./components/vault-context-menu"
@@ -314,11 +315,21 @@ function ContentGrid({
               draggedItemKeys.has(itemKey) && "opacity-55",
               isFolder && getFolderDropTargetClass(dropTarget, item.folder.id)
             )}
-            onClick={() => isFolder ? onOpenFolder(item.folder) : onOpenDocument(item.document)}
+            onClick={() => {
+              if (isFolder) {
+                onOpenFolder(item.folder)
+              } else {
+                onOpenDocument(item.document)
+              }
+            }}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault()
-                isFolder ? onOpenFolder(item.folder) : onOpenDocument(item.document)
+                if (isFolder) {
+                  onOpenFolder(item.folder)
+                } else {
+                  onOpenDocument(item.document)
+                }
               }
             }}
             onDragStart={(event) => onDragStartItem(event, item)}
@@ -413,11 +424,21 @@ function ContentList({
               draggedItemKeys.has(itemKey) && "opacity-55",
               isFolder && getFolderDropTargetClass(dropTarget, item.folder.id)
             )}
-            onClick={() => isFolder ? onOpenFolder(item.folder) : onOpenDocument(item.document)}
+            onClick={() => {
+              if (isFolder) {
+                onOpenFolder(item.folder)
+              } else {
+                onOpenDocument(item.document)
+              }
+            }}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault()
-                isFolder ? onOpenFolder(item.folder) : onOpenDocument(item.document)
+                if (isFolder) {
+                  onOpenFolder(item.folder)
+                } else {
+                  onOpenDocument(item.document)
+                }
               }
             }}
             onDragStart={(event) => onDragStartItem(event, item)}
@@ -709,7 +730,7 @@ export default function VaultWorkspacePage() {
     setDraggedItems([])
   }, [draggedItems, getDropValidation, handleMoveItems])
 
-  const headerActions = useMemo(() => (
+  const workspaceActions = useMemo(() => (
     <>
       <VaultUploadMenu
         disabled={isUploading || !vaultId}
@@ -719,8 +740,6 @@ export default function VaultWorkspacePage() {
       <VaultsViewToggle />
     </>
   ), [isUploading, openUploadDirectory, openUploadFiles, vaultId])
-
-  useHeaderActions(headerActions)
 
   useEffect(() => {
     let ignore = false
@@ -797,6 +816,21 @@ export default function VaultWorkspacePage() {
     navigate(`/vaults/${vaultId}/${document.id}`)
   }
 
+  const currentFolder = useMemo(
+    () => folders.find((folder) => folder.id === normalizedFolderId) ?? null,
+    [folders, normalizedFolderId]
+  )
+  const folderCount = sortedItems.filter((item) => item.type === "folder").length
+  const documentCount = sortedItems.length - folderCount
+  const totalDocumentSize = sortedItems.reduce(
+    (total, item) => total + (item.type === "document" ? item.document.originalSize : 0),
+    0
+  )
+  const workspaceTitle = currentFolder?.name ?? vault?.name ?? "Vault"
+  const workspaceSubtitle = loadingItems
+    ? "Loading contents..."
+    : `${folderCount} folder${folderCount === 1 ? "" : "s"} · ${documentCount} document${documentCount === 1 ? "" : "s"} · ${formatBytes(totalDocumentSize)}`
+
   return (
     <BaseLayout>
       <input
@@ -840,7 +874,36 @@ export default function VaultWorkspacePage() {
         />
       ) : null}
       <div className="px-4 md:px-6">
-        <div className="flex min-h-[calc(100vh-9rem)] overflow-hidden rounded-lg border bg-background">
+        <div className="flex min-h-[calc(100vh-9rem)] flex-col overflow-hidden rounded-lg border bg-background">
+          <header className="flex shrink-0 items-start gap-3 border-b bg-background px-4 py-3 md:px-5">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary md:size-12">
+              {currentFolder ? <FolderOpen className="size-5" /> : <HardDrive className="size-5" />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <h1 className="min-w-0 truncate text-xl font-semibold tracking-tight md:text-2xl">
+                  {workspaceTitle}
+                </h1>
+                {!currentFolder ? <Badge variant="secondary">Vault</Badge> : null}
+              </div>
+              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                <span>{workspaceSubtitle}</span>
+                {vault?.role ? (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span className="capitalize">{vault.role}</span>
+                  </>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {workspaceActions}
+              <Button type="button" variant="outline" size="icon" aria-label="Close vault" onClick={() => navigate("/vaults")}>
+                <X className="size-4" />
+              </Button>
+            </div>
+          </header>
+          <div className="flex min-h-0 flex-1 flex-col md:flex-row">
           <aside className="flex h-56 shrink-0 flex-col border-b bg-muted/20 md:h-auto md:w-80 md:border-r md:border-b-0">
             <ScrollArea className="min-h-0 flex-1">
               <div className="p-2">
@@ -930,6 +993,7 @@ export default function VaultWorkspacePage() {
               )}
             </div>
           </main>
+          </div>
         </div>
       </div>
     </BaseLayout>

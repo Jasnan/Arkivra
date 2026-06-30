@@ -68,10 +68,108 @@ export interface DocumentSummary {
     | "completed"
     | "failed"
     | "processing"
+  processingErrorCode?: string | null
+  processingErrorMessage?: string | null
+  processingFailedAt?: string | null
+  hasPreviewPdf?: boolean
+  derivedPreviewStatus?: "pending" | "ready" | "unavailable" | "failed"
+  derivedPreviewErrorCode?: string | null
+  derivedPreviewErrorMessage?: string | null
+  derivedPreviewFailedAt?: string | null
+  language?: DocumentLanguageMetadata | null
   createdAt: string
   updatedAt: string
   isDeleted: boolean
   deletedAt: string | null
+}
+
+export interface DocumentLanguageMetadata {
+  code: string
+  name: string
+  confidence?: number | null
+  source: "docling" | "heuristic" | "user"
+}
+
+export type DocumentSemanticIndexStatus =
+  | "pending"
+  | "indexing"
+  | "ready"
+  | "failed"
+  | "stale"
+  | "skipped"
+
+export interface DocumentSemanticIndexSummary {
+  documentStatus: DocumentSemanticIndexStatus | null
+  expectedChunkCount: number
+  embeddedChunkCount: number
+  indexedAt: string | null
+  updatedAt: string | null
+}
+
+export interface DocumentDetail extends DocumentSummary {
+  originalSha256Hash: string
+  content: string
+  displayContent?: string
+  createdBy: string | null
+  language: DocumentLanguageMetadata | null
+  semanticIndex: DocumentSemanticIndexSummary | null
+}
+
+export interface DocumentVersionSummary {
+  id: string
+  documentId: string
+  vaultId: string
+  versionNumber: number
+  isCurrent: boolean
+  uploadedBy: string | null
+  uploadedAt: string
+  originalName: string
+  originalSize: number
+  originalSha256Hash: string
+  mimeType: string
+  language: DocumentLanguageMetadata | null
+  parserEngine: string | null
+  parserEngineVersion: string | null
+  parserWarnings: string[] | null
+  processingStatus: DocumentSummary["processingStatus"]
+  processingErrorCode?: string | null
+  processingErrorMessage?: string | null
+  processingFailedAt?: string | null
+  hasPreviewPdf?: boolean
+  derivedPreviewStatus?: "pending" | "ready" | "unavailable" | "failed"
+  derivedPreviewErrorCode?: string | null
+  derivedPreviewErrorMessage?: string | null
+  derivedPreviewFailedAt?: string | null
+  restoredFromVersionId: string | null
+  deletedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DocumentVersionDetail extends DocumentVersionSummary {
+  content: string
+  rawText: string
+  rawMarkdown: string
+  parserStructuredOutput: Record<string, unknown> | null
+}
+
+export interface DocumentChunkSummary {
+  id: string
+  chunkIndex: number
+  content: string
+  originalText: string | null
+  section: string | null
+  sectionPath: string[] | null
+  pageNumber: number | null
+  pageStart: number | null
+  pageEnd: number | null
+  chunkType: string | null
+  tokenCount: number | null
+  parserEngine: string | null
+  citationPrecision: string
+  sourceElementIds: string[] | null
+  metadata: Record<string, unknown> | null
+  createdAt: string
 }
 
 export interface FolderSummary {
@@ -122,6 +220,22 @@ interface FolderTreeResponse {
 
 interface FolderResponse {
   folder: FolderSummary
+}
+
+interface DocumentResponse {
+  document: DocumentDetail
+}
+
+interface DocumentChunksResponse {
+  chunks: DocumentChunkSummary[]
+}
+
+interface DocumentVersionsResponse {
+  versions: DocumentVersionSummary[]
+}
+
+interface DocumentVersionResponse {
+  version: DocumentVersionDetail
 }
 
 export function isPermissionRequestResponse(
@@ -210,6 +324,43 @@ export async function moveDocument({
   )
 }
 
+export async function renameDocument({
+  vaultId,
+  documentId,
+  name,
+}: {
+  vaultId: string
+  documentId: string
+  name: string
+}) {
+  return fetchJson<{ document: { id: string; name: string; updatedAt: string } }>(
+    `/api/vaults/${vaultId}/documents/${documentId}`,
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name }),
+    }
+  )
+}
+
+export async function updateDocumentLanguage({
+  vaultId,
+  documentId,
+  language,
+}: {
+  vaultId: string
+  documentId: string
+  language: string | null
+}) {
+  return fetchJson<{
+    document: { id: string; language: DocumentLanguageMetadata | null; updatedAt: string }
+  }>(`/api/vaults/${vaultId}/documents/${documentId}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ language }),
+  })
+}
+
 export async function moveFolder({
   vaultId,
   folderId,
@@ -224,4 +375,96 @@ export async function moveFolder({
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ parentId }),
   })
+}
+
+export async function getDocument({
+  vaultId,
+  documentId,
+}: {
+  vaultId: string
+  documentId: string
+}) {
+  return fetchJson<DocumentResponse>(`/api/vaults/${vaultId}/documents/${documentId}`)
+}
+
+export async function listDocumentChunks({
+  vaultId,
+  documentId,
+}: {
+  vaultId: string
+  documentId: string
+}) {
+  return fetchJson<DocumentChunksResponse>(`/api/vaults/${vaultId}/documents/${documentId}/chunks`)
+}
+
+export async function listDocumentVersions({
+  vaultId,
+  documentId,
+}: {
+  vaultId: string
+  documentId: string
+}) {
+  return fetchJson<DocumentVersionsResponse>(
+    `/api/vaults/${vaultId}/documents/${documentId}/versions`
+  )
+}
+
+export async function getDocumentVersion({
+  vaultId,
+  documentId,
+  versionId,
+}: {
+  vaultId: string
+  documentId: string
+  versionId: string
+}) {
+  return fetchJson<DocumentVersionResponse>(
+    `/api/vaults/${vaultId}/documents/${documentId}/versions/${versionId}`
+  )
+}
+
+export async function listDocumentVersionChunks({
+  vaultId,
+  documentId,
+  versionId,
+}: {
+  vaultId: string
+  documentId: string
+  versionId: string
+}) {
+  return fetchJson<DocumentChunksResponse>(
+    `/api/vaults/${vaultId}/documents/${documentId}/versions/${versionId}/chunks`
+  )
+}
+
+export function getDocumentDownloadUrl({
+  vaultId,
+  documentId,
+}: {
+  vaultId: string
+  documentId: string
+}) {
+  return `/api/vaults/${vaultId}/documents/${documentId}/download`
+}
+
+export function getDocumentVersionDownloadUrl({
+  vaultId,
+  documentId,
+  versionId,
+}: {
+  vaultId: string
+  documentId: string
+  versionId: string
+}) {
+  return `/api/vaults/${vaultId}/documents/${documentId}/versions/${versionId}/download`
+}
+
+export function getDocumentInlineFileUrl({
+  vaultId,
+  documentId,
+}: {
+  vaultId: string
+  documentId: string
+}) {
+  return `/api/vaults/${vaultId}/documents/${documentId}/file`
 }

@@ -15,7 +15,6 @@ import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
 import type {
-  DocumentSummary,
   FileBrowserItem,
   FolderSummary,
   FolderTreeDocumentEntry,

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import {
+  Archive,
   LayoutPanelLeft,
   LayoutDashboard,
   CheckSquare,
@@ -9,7 +10,6 @@ import {
   Calendar,
   AlertTriangle,
   Settings,
-  LayoutTemplate,
   Users,
 } from "lucide-react"
 import { Link } from "react-router-dom"
@@ -53,6 +53,11 @@ const data = {
       label: "Apps",
       items: [
         {
+          title: "Vaults",
+          url: "/vaults",
+          icon: Archive,
+        },
+        {
           title: "Tasks",
           url: "/tasks",
           icon: CheckSquare,
@@ -77,12 +82,6 @@ const data = {
     {
       label: "Pages",
       items: [
-        {
-          title: "Landing",
-          url: "/landing",
-          target: "_blank",
-          icon: LayoutTemplate,
-        },
         {
           title: "Errors",
           url: "#",

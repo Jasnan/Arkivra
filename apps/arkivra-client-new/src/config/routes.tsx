@@ -5,6 +5,8 @@ import { Navigate } from 'react-router-dom'
 const Landing = lazy(() => import('@/app/landing/page'))
 const Dashboard = lazy(() => import('@/app/dashboard/page'))
 const Dashboard2 = lazy(() => import('@/app/dashboard-2/page'))
+const Vaults = lazy(() => import('@/app/vaults/page'))
+const VaultWorkspace = lazy(() => import('@/app/vaults/vault-workspace-page'))
 const Tasks = lazy(() => import('@/app/tasks/page'))
 const Chat = lazy(() => import('@/app/chat/page'))
 const Calendar = lazy(() => import('@/app/calendar/page'))
@@ -86,6 +88,14 @@ export const routes: RouteConfig[] = [
   },
 
   // Application Routes
+  {
+    path: "/vaults",
+    element: <Vaults />
+  },
+  {
+    path: "/vaults/:vaultId",
+    element: <VaultWorkspace />
+  },
   {
     path: "/tasks",
     element: <Tasks />

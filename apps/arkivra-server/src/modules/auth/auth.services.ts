@@ -445,6 +445,20 @@ export function createAuth({ db, config }: { db: Database; config: Config }): { 
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: config.auth.isEmailVerificationRequired,
+      async sendResetPassword({ user, url }) {
+        await authEmailServices.sendEmail({
+          to: user.email,
+          subject: 'Reset your Arkivra password',
+          text: [
+            `Hi ${user.name || user.email},`,
+            '',
+            'Use this link to reset your Arkivra password:',
+            url,
+            '',
+            'If you did not request a password reset, you can ignore this email.',
+          ].join('\n'),
+        });
+      },
     },
 
     emailVerification: {

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react"
 import {
+  AlertCircle,
   CalendarDays,
   ClipboardCopy,
   Download,
@@ -13,8 +14,10 @@ import {
   MoreHorizontal,
   Pencil,
   RefreshCw,
+  RotateCcw,
   ScanText,
   Search,
+  Trash2,
   X,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -23,7 +26,15 @@ import { useNavigate, useParams } from "react-router-dom"
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,10 +49,12 @@ import { cn } from "@/lib/utils"
 import { PdfPreviewFrame } from "./components/pdf-preview-frame"
 import { VAULT_TREE_ROOT_VALUE, VaultSidebarTree } from "./components/vault-sidebar-tree"
 import {
+  deleteDocumentVersion,
   getDocument,
   getDocumentDownloadUrl,
   getDocumentInlineFileUrl,
   getDocumentVersion,
+  getDocumentVersionDeletionImpact,
   getDocumentVersionDownloadUrl,
   getVault,
   listDocumentChunks,
@@ -49,7 +62,9 @@ import {
   listDocumentVersions,
   listFolderTree,
   renameDocument,
+  restoreDocumentVersion,
   updateDocumentLanguage,
+  type DeletionImpactPreview,
   type DocumentChunkSummary,
   type DocumentDetail,
   type DocumentLanguageMetadata,
@@ -118,6 +133,19 @@ function getDocumentStatusLabel(status: DocumentSummary["processingStatus"]) {
   if (status === "partitioning") return "Parsing"
   if (status === "summarising") return "Summarising"
   return status
+}
+
+function getVersionStatusLabel(version: DocumentVersionSummary) {
+  if (version.deletedAt !== null) return "Deleted"
+  return version.processingStatus ?? "pending"
+}
+
+function isVersionRestorable(version: DocumentVersionSummary) {
+  return !version.isCurrent && version.deletedAt === null && version.processingStatus === "completed"
+}
+
+function isVersionDeletable(version: DocumentVersionSummary) {
+  return !version.isCurrent && version.deletedAt === null
 }
 
 function isProcessingActive(status: DocumentSummary["processingStatus"]) {
@@ -674,6 +702,13 @@ export default function DocumentViewPage() {
   const [isNameEditing, setIsNameEditing] = useState(false)
   const [isLanguageEditing, setIsLanguageEditing] = useState(false)
   const [isMetadataSaving, setIsMetadataSaving] = useState(false)
+  const [versionPendingRestore, setVersionPendingRestore] = useState<DocumentVersionSummary | null>(null)
+  const [versionPendingDelete, setVersionPendingDelete] = useState<DocumentVersionSummary | null>(null)
+  const [deleteImpact, setDeleteImpact] = useState<DeletionImpactPreview | null>(null)
+  const [isDeleteImpactLoading, setIsDeleteImpactLoading] = useState(false)
+  const [deleteImpactError, setDeleteImpactError] = useState<string | null>(null)
+  const [isRestoreVersionPending, setIsRestoreVersionPending] = useState(false)
+  const [isDeleteVersionPending, setIsDeleteVersionPending] = useState(false)
 
   useEffect(() => {
     let ignore = false
@@ -894,6 +929,92 @@ export default function DocumentViewPage() {
     }
   }
 
+  async function refreshDocumentState() {
+    const [documentResult, treeResult, versionsResult] = await Promise.all([
+      getDocument({ vaultId, documentId }),
+      listFolderTree({ vaultId }),
+      listDocumentVersions({ vaultId, documentId }),
+    ])
+
+    setDocument(documentResult.document)
+    setFolders(treeResult.folders)
+    setTreeDocuments(treeResult.documents)
+    setVersions(versionsResult.versions)
+  }
+
+  function closeDeleteVersionDialog() {
+    setVersionPendingDelete(null)
+    setDeleteImpact(null)
+    setDeleteImpactError(null)
+    setIsDeleteImpactLoading(false)
+  }
+
+  function openDeleteVersionDialog(version: DocumentVersionSummary) {
+    setVersionPendingDelete(version)
+    setDeleteImpact(null)
+    setDeleteImpactError(null)
+    setIsDeleteImpactLoading(true)
+
+    void getDocumentVersionDeletionImpact({
+      vaultId,
+      documentId,
+      versionId: version.id,
+      limit: 5,
+    })
+      .then(({ impact }) => {
+        setDeleteImpact(impact)
+      })
+      .catch((error) => {
+        setDeleteImpactError(
+          error instanceof Error ? error.message : "Could not check affected conversations."
+        )
+      })
+      .finally(() => {
+        setIsDeleteImpactLoading(false)
+      })
+  }
+
+  async function handleRestoreVersion(version: DocumentVersionSummary) {
+    if (!isVersionRestorable(version) || isRestoreVersionPending) return
+
+    setIsRestoreVersionPending(true)
+
+    try {
+      await restoreDocumentVersion({ vaultId, documentId, versionId: version.id })
+      setSelectedVersionId(null)
+      setSelectedVersion(null)
+      await refreshDocumentState()
+      toast.success("Version restored as latest.")
+      setVersionPendingRestore(null)
+      setTab("preview")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not restore version.")
+    } finally {
+      setIsRestoreVersionPending(false)
+    }
+  }
+
+  async function handleDeleteVersion(version: DocumentVersionSummary) {
+    if (!isVersionDeletable(version) || isDeleteVersionPending) return
+
+    setIsDeleteVersionPending(true)
+
+    try {
+      await deleteDocumentVersion({ vaultId, documentId, versionId: version.id })
+      if (selectedVersionId === version.id) {
+        setSelectedVersionId(null)
+        setSelectedVersion(null)
+      }
+      await refreshDocumentState()
+      toast.success("Version deleted.")
+      closeDeleteVersionDialog()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not delete version.")
+    } finally {
+      setIsDeleteVersionPending(false)
+    }
+  }
+
   return (
     <BaseLayout>
       <div className="px-4 md:px-6">
@@ -1088,48 +1209,93 @@ export default function DocumentViewPage() {
 
                 {tab === "versions" ? (
                   <ScrollArea className="h-full">
-                    <Card className="rounded-md">
+                    <Card className="gap-0 rounded-lg shadow-sm">
                       <CardHeader>
-                        <CardTitle className="text-base">Versions</CardTitle>
+                        <CardTitle className="text-2xl">Versions</CardTitle>
+                        <CardDescription className="text-base">
+                          Review, download, restore, or delete uploaded document versions.
+                        </CardDescription>
                       </CardHeader>
-                      <CardContent>
+                      <CardContent className="pt-6">
                         {versions.length === 0 ? (
                           <p className="text-sm text-muted-foreground">No historical versions are available.</p>
                         ) : (
-                          <div className="space-y-3">
-                            {versions.map((version) => (
-                              <div key={version.id} className="rounded-md border p-4">
-                                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                                  <div>
-                                    <div className="font-medium">
-                                      Version {version.versionNumber}
-                                      {version.isCurrent ? <Badge className="ml-2" variant="secondary">Current</Badge> : null}
-                                    </div>
-                                    <div className="mt-1 text-sm text-muted-foreground">
-                                      {version.originalName} · {formatBytes(version.originalSize)} · Uploaded {formatDate(version.uploadedAt)}
-                                    </div>
+                          <div className="divide-y divide-border">
+                            {versions.map((version) => {
+                              const isSelected =
+                                selectedVersionId === version.id ||
+                                (selectedVersionId === null && version.isCurrent)
+
+                              return (
+                              <div
+                                key={version.id}
+                                className="flex flex-col gap-4 py-6 first:pt-0 last:pb-0 lg:flex-row lg:items-center lg:justify-between"
+                              >
+                                <div className="min-w-0 flex-1 px-0 lg:pr-6">
+                                  <div className="flex flex-wrap items-center gap-2 text-lg font-semibold leading-tight">
+                                    <span>Version {version.versionNumber}</span>
+                                    {version.isCurrent ? <Badge variant="secondary">Latest version</Badge> : null}
+                                    {version.restoredFromVersionId ? <Badge variant="outline">Restored</Badge> : null}
                                   </div>
-                                  <div className="flex gap-2">
-                                    <Button
-                                      variant={selectedVersionId === version.id ? "secondary" : "outline"}
-                                      size="sm"
-                                      onClick={() => {
-                                        setSelectedVersionId(version.id)
-                                        setTab("preview")
-                                      }}
-                                    >
-                                      View
-                                    </Button>
-                                    <Button asChild variant="outline" size="sm">
-                                      <a href={getDocumentVersionDownloadUrl({ vaultId, documentId, versionId: version.id })}>
-                                        <Download className="size-4" />
-                                        Download
-                                      </a>
-                                    </Button>
+                                  <div className="mt-1 max-w-[44rem] truncate font-mono text-base text-muted-foreground">
+                                    {version.originalName}
+                                  </div>
+                                  <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                                    <span>Uploaded {formatDate(version.uploadedAt)}</span>
+                                    <span aria-hidden="true">·</span>
+                                    <span>{formatBytes(version.originalSize)}</span>
+                                    <span aria-hidden="true">·</span>
+                                    <span>{getVersionStatusLabel(version)}</span>
+                                    {isSelected && !version.isCurrent ? (
+                                      <>
+                                        <span aria-hidden="true">·</span>
+                                        <span>Open in preview</span>
+                                      </>
+                                    ) : null}
                                   </div>
                                 </div>
+                                <div className="flex flex-wrap gap-3 lg:shrink-0 lg:justify-end">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedVersionId(version.isCurrent ? null : version.id)
+                                      setTab("preview")
+                                    }}
+                                  >
+                                    View
+                                  </Button>
+                                  <Button asChild variant="outline" size="sm">
+                                    <a href={getDocumentVersionDownloadUrl({ vaultId, documentId, versionId: version.id })}>
+                                      <Download className="size-4" />
+                                      Download
+                                    </a>
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={!isVersionRestorable(version) || isRestoreVersionPending || isDeleteVersionPending}
+                                    onClick={() => setVersionPendingRestore(version)}
+                                  >
+                                    <RotateCcw className="size-4" />
+                                    Restore
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                    disabled={!isVersionDeletable(version) || isRestoreVersionPending || isDeleteVersionPending}
+                                    onClick={() => openDeleteVersionDialog(version)}
+                                  >
+                                    <Trash2 className="size-4" />
+                                    Delete
+                                  </Button>
+                                </div>
                               </div>
-                            ))}
+                              )
+                            })}
                           </div>
                         )}
                       </CardContent>
@@ -1142,6 +1308,147 @@ export default function DocumentViewPage() {
           )}
         </section>
       </div>
+      <Dialog
+        open={versionPendingRestore !== null}
+        onOpenChange={(open) => {
+          if (!open && !isRestoreVersionPending) {
+            setVersionPendingRestore(null)
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {versionPendingRestore
+                ? `Restore version ${versionPendingRestore.versionNumber}?`
+                : "Restore version?"}
+            </DialogTitle>
+            <DialogDescription>
+              Restoring creates a new latest version. The historical version remains in the version list.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isRestoreVersionPending}
+              onClick={() => setVersionPendingRestore(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={versionPendingRestore === null || isRestoreVersionPending}
+              onClick={() => {
+                if (versionPendingRestore === null) return
+                void handleRestoreVersion(versionPendingRestore)
+              }}
+            >
+              {isRestoreVersionPending ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Restoring...
+                </>
+              ) : (
+                "Restore"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={versionPendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open && !isDeleteVersionPending) {
+            closeDeleteVersionDialog()
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {versionPendingDelete
+                ? `Delete version ${versionPendingDelete.versionNumber}?`
+                : "Delete version?"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="text-sm">
+            {isDeleteImpactLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                Checking affected conversations...
+              </div>
+            ) : deleteImpactError !== null ? (
+              <div className="flex items-center gap-2 text-destructive">
+                <AlertCircle className="size-4" />
+                <span>{deleteImpactError}</span>
+              </div>
+            ) : deleteImpact !== null && deleteImpact.affectedConversationCount > 0 ? (
+              <div className="space-y-3 text-muted-foreground">
+                <p>
+                  This version is referenced by {deleteImpact.affectedConversationCount}{" "}
+                  {deleteImpact.affectedConversationCount === 1 ? "conversation" : "conversations"}.
+                </p>
+                <p>Deleting it will preserve conversation history, remove source content, and make affected conversations read-only.</p>
+                <div>
+                  <p>Affected conversations:</p>
+                  <ul className="mt-1 list-disc space-y-1 pl-5">
+                    {deleteImpact.affectedConversations.map((conversation) => (
+                      <li key={conversation.id} className="break-words">
+                        {conversation.title}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                {deleteImpact.affectedConversationCount > deleteImpact.affectedConversations.length ? (
+                  <p>
+                    Showing {deleteImpact.affectedConversations.length} of{" "}
+                    {deleteImpact.affectedConversationCount} conversations.
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <DialogDescription>
+                This removes this older version from the version history. The current file stays unchanged.
+              </DialogDescription>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isDeleteVersionPending || isDeleteImpactLoading}
+              onClick={closeDeleteVersionDialog}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={
+                versionPendingDelete === null ||
+                isDeleteVersionPending ||
+                isDeleteImpactLoading ||
+                deleteImpactError !== null
+              }
+              onClick={() => {
+                if (versionPendingDelete === null) return
+                void handleDeleteVersion(versionPendingDelete)
+              }}
+            >
+              {isDeleteVersionPending ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete version"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </BaseLayout>
   )
 }

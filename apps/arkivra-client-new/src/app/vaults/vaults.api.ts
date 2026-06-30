@@ -238,6 +238,23 @@ interface DocumentVersionResponse {
   version: DocumentVersionDetail
 }
 
+interface VersionDeletionImpactResponse {
+  impact: DeletionImpactPreview
+}
+
+export interface DeletionImpactConversation {
+  id: string
+  title: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DeletionImpactPreview {
+  affectedConversationCount: number
+  affectedConversations: DeletionImpactConversation[]
+  limit: number
+}
+
 export function isPermissionRequestResponse(
   value: unknown
 ): value is PermissionRequestResponse {
@@ -434,6 +451,61 @@ export async function listDocumentVersionChunks({
 }) {
   return fetchJson<DocumentChunksResponse>(
     `/api/vaults/${vaultId}/documents/${documentId}/versions/${versionId}/chunks`
+  )
+}
+
+export async function restoreDocumentVersion({
+  vaultId,
+  documentId,
+  versionId,
+}: {
+  vaultId: string
+  documentId: string
+  versionId: string
+}) {
+  return fetchJson<DocumentVersionResponse>(
+    `/api/vaults/${vaultId}/documents/${documentId}/versions/${versionId}/restore`,
+    {
+      method: "POST",
+    }
+  )
+}
+
+export async function deleteDocumentVersion({
+  vaultId,
+  documentId,
+  versionId,
+}: {
+  vaultId: string
+  documentId: string
+  versionId: string
+}) {
+  return fetchJson<void>(`/api/vaults/${vaultId}/documents/${documentId}/versions/${versionId}`, {
+    method: "DELETE",
+  })
+}
+
+export async function getDocumentVersionDeletionImpact({
+  vaultId,
+  documentId,
+  versionId,
+  limit,
+}: {
+  vaultId: string
+  documentId: string
+  versionId: string
+  limit?: number
+}) {
+  const params = new URLSearchParams()
+
+  if (limit !== undefined) {
+    params.set("limit", String(limit))
+  }
+
+  const suffix = params.toString().length > 0 ? `?${params.toString()}` : ""
+
+  return fetchJson<VersionDeletionImpactResponse>(
+    `/api/vaults/${vaultId}/documents/${documentId}/versions/${versionId}/deletion-impact${suffix}`
   )
 }
 

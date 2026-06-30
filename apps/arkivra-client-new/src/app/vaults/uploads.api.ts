@@ -43,6 +43,8 @@ interface UploadResponse {
   upload: UploadSessionSummary
 }
 
+export type UploadConflictStrategy = "skip" | "keep_both" | "new_version"
+
 export async function initUploadSession({
   vaultId,
   folderId,
@@ -107,11 +109,19 @@ export async function uploadPart({
 export async function completeUploadSession({
   vaultId,
   uploadId,
+  conflictStrategy,
 }: {
   vaultId: string
   uploadId: string
+  conflictStrategy?: UploadConflictStrategy
 }) {
   return fetchJson<UploadResponse>(`/api/vaults/${vaultId}/uploads/${uploadId}/complete`, {
     method: "POST",
+    ...(conflictStrategy
+      ? {
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ conflictStrategy }),
+        }
+      : {}),
   })
 }

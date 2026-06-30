@@ -16,7 +16,16 @@ import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { ApiError } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { CreateFolderDialog } from "./components/create-folder-dialog"
 import { VaultContextMenu, type VaultContextMenuState } from "./components/vault-context-menu"
@@ -29,7 +38,7 @@ import {
   UPLOAD_ACCEPT_ATTRIBUTE,
   type UploadFileInput,
 } from "./upload-file-rules"
-import { completeUploadSession, initUploadSession, uploadPart } from "./uploads.api"
+import { completeUploadSession, initUploadSession, uploadPart, type UploadConflictStrategy } from "./uploads.api"
 import {
   getVault,
   listFolderItems,
@@ -58,6 +67,22 @@ interface BrowserDropTarget {
   state: BrowserDropTargetState
 }
 
+interface UploadConflictDetails {
+  code: "document.name_conflict" | "document.duplicate" | string
+  message: string
+  existingId: string | null
+  duplicateScope: string | null
+  conflictType: "name" | "hash" | string
+  availableStrategies: UploadConflictStrategy[]
+}
+
+interface UploadConflictPrompt {
+  fileName: string
+  conflict: UploadConflictDetails
+  resolve: (strategy: UploadConflictStrategy) => void
+  reject: () => void
+}
+
 function formatBytes(value: number) {
   if (!Number.isFinite(value) || value <= 0) return "0 B"
 
@@ -67,6 +92,45 @@ function formatBytes(value: number) {
   const formatted = amount >= 10 || exponent === 0 ? Math.round(amount).toString() : amount.toFixed(1)
 
   return `${formatted} ${units[exponent]}`
+}
+
+function isUploadConflictStrategy(value: unknown): value is UploadConflictStrategy {
+  return value === "skip" || value === "keep_both" || value === "new_version"
+}
+
+function getUploadConflictDetails(error: unknown): UploadConflictDetails | null {
+  if (!(error instanceof ApiError) || error.status !== 409) {
+    return null
+  }
+
+  if (error.code !== "document.name_conflict" && error.code !== "document.duplicate") {
+    return null
+  }
+
+  const details = error.details ?? {}
+  const availableStrategies = Array.isArray(details.availableStrategies)
+    ? details.availableStrategies.filter(isUploadConflictStrategy)
+    : []
+
+  return {
+    code: error.code,
+    message: error.message,
+    existingId: typeof details.existingId === "string" ? details.existingId : null,
+    duplicateScope: typeof details.duplicateScope === "string" ? details.duplicateScope : null,
+    conflictType: typeof details.conflictType === "string" ? details.conflictType : "hash",
+    availableStrategies,
+  }
+}
+
+function conflictStrategyLabel(strategy: UploadConflictStrategy) {
+  switch (strategy) {
+    case "skip":
+      return "Skip"
+    case "keep_both":
+      return "Keep both"
+    case "new_version":
+      return "Add version"
+  }
 }
 
 function formatDate(value: string | null | undefined) {
@@ -233,17 +297,20 @@ async function uploadFileToVault({
   vaultId,
   folderId,
   input,
+  onConflict,
 }: {
   vaultId: string
   folderId: string | null
   input: UploadFileInput
+  onConflict: (fileName: string, conflict: UploadConflictDetails) => Promise<UploadConflictStrategy>
 }) {
   const { file, relativePath = null } = input
+  const fileName = normalizeUploadFileName(file.name)
   const initResult = await initUploadSession({
     vaultId,
     folderId,
     relativePath,
-    fileName: normalizeUploadFileName(file.name),
+    fileName,
     mimeType: file.type || "application/octet-stream",
     totalSize: file.size,
   })
@@ -266,7 +333,17 @@ async function uploadFileToVault({
     })
   }
 
-  await completeUploadSession({ vaultId, uploadId: upload.id })
+  try {
+    await completeUploadSession({ vaultId, uploadId: upload.id })
+  } catch (error) {
+    const conflict = getUploadConflictDetails(error)
+    if (conflict === null || conflict.availableStrategies.length === 0) {
+      throw error
+    }
+
+    const strategy = await onConflict(fileName, conflict)
+    await completeUploadSession({ vaultId, uploadId: upload.id, conflictStrategy: strategy })
+  }
 }
 
 function ContentGrid({
@@ -507,6 +584,7 @@ export default function VaultWorkspacePage() {
   const [loadingItems, setLoadingItems] = useState(true)
   const [isUploading, setIsUploading] = useState(false)
   const [itemMutationPending, setItemMutationPending] = useState(false)
+  const [uploadConflictPrompt, setUploadConflictPrompt] = useState<UploadConflictPrompt | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const activeFolderId = searchParams.get("folderId")
   const normalizedFolderId = activeFolderId === "root" ? null : activeFolderId
@@ -535,6 +613,25 @@ export default function VaultWorkspacePage() {
     setItems(itemsResult.items)
   }, [vaultId, normalizedFolderId])
 
+  const requestUploadConflictStrategy = useCallback(
+    (fileName: string, conflict: UploadConflictDetails) =>
+      new Promise<UploadConflictStrategy>((resolve, reject) => {
+        setUploadConflictPrompt({
+          fileName,
+          conflict,
+          resolve: (strategy) => {
+            setUploadConflictPrompt(null)
+            resolve(strategy)
+          },
+          reject: () => {
+            setUploadConflictPrompt(null)
+            reject(new Error("Upload conflict was not resolved."))
+          },
+        })
+      }),
+    []
+  )
+
   const uploadSelectedFiles = useCallback(async (selectedFiles: UploadFileInput[]) => {
     if (!vaultId || isUploading) {
       return
@@ -559,6 +656,7 @@ export default function VaultWorkspacePage() {
           vaultId,
           folderId: normalizedFolderId,
           input,
+          onConflict: requestUploadConflictStrategy,
         })
       }
 
@@ -574,7 +672,7 @@ export default function VaultWorkspacePage() {
     } finally {
       setIsUploading(false)
     }
-  }, [isUploading, normalizedFolderId, refreshVaultContents, vaultId])
+  }, [isUploading, normalizedFolderId, refreshVaultContents, requestUploadConflictStrategy, vaultId])
 
   const handleUploadInputChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files ?? []).map((file) => ({
@@ -863,6 +961,55 @@ export default function VaultWorkspacePage() {
           void refreshVaultContents()
         }}
       />
+      <Dialog
+        open={uploadConflictPrompt !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            uploadConflictPrompt?.reject()
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Document already exists</DialogTitle>
+            <DialogDescription>
+              {uploadConflictPrompt?.conflict.message ??
+                "Choose how to handle this upload conflict."}
+            </DialogDescription>
+          </DialogHeader>
+          {uploadConflictPrompt ? (
+            <div className="rounded-md border bg-muted/20 p-3">
+              <p className="truncate font-medium">{uploadConflictPrompt.fileName}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {uploadConflictPrompt.conflict.conflictType === "name"
+                  ? "A document with this name already exists in this location."
+                  : "A document with the same content already exists."}
+              </p>
+            </div>
+          ) : null}
+          <DialogFooter className="sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => uploadConflictPrompt?.reject()}
+            >
+              Cancel upload
+            </Button>
+            <div className="flex flex-wrap justify-end gap-2">
+              {uploadConflictPrompt?.conflict.availableStrategies.map((strategy) => (
+                <Button
+                  key={strategy}
+                  type="button"
+                  variant={strategy === "new_version" ? "default" : "outline"}
+                  onClick={() => uploadConflictPrompt.resolve(strategy)}
+                >
+                  {conflictStrategyLabel(strategy)}
+                </Button>
+              ))}
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {contextMenu ? (
         <VaultContextMenu
           state={contextMenu}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type InputHTMLAttributes } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type InputHTMLAttributes, type MouseEvent } from "react"
 import {
   ChevronRight,
   FileText,
@@ -17,6 +17,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useHeaderActions } from "@/contexts/header-actions-context"
 import { cn } from "@/lib/utils"
+import { CreateFolderDialog } from "./components/create-folder-dialog"
+import { VaultContextMenu, type VaultContextMenuState } from "./components/vault-context-menu"
 import { VAULT_TREE_ROOT_VALUE, VaultSidebarTree } from "./components/vault-sidebar-tree"
 import { VaultUploadMenu } from "./components/vault-upload-menu"
 import { VaultsViewToggle } from "./components/vaults-view-toggle"
@@ -46,6 +48,14 @@ const DIRECTORY_PICKER_ATTRIBUTES = {
   directory: "",
   webkitdirectory: "",
 } as InputHTMLAttributes<HTMLInputElement>
+const INTERNAL_BROWSER_DRAG_TYPE = "application/x-arkivra-browser-items"
+
+type BrowserDropTargetState = "valid" | "invalid"
+
+interface BrowserDropTarget {
+  folderId: string | null
+  state: BrowserDropTargetState
+}
 
 function formatBytes(value: number) {
   if (!Number.isFinite(value) || value <= 0) return "0 B"
@@ -100,6 +110,119 @@ function sortItems(items: FileBrowserItem[]) {
   })
 }
 
+function getBrowserItemKey(item: FileBrowserItem) {
+  return item.type === "folder" ? `folder-${item.folder.id}` : `document-${item.document.id}`
+}
+
+function getBrowserItemParentId(item: FileBrowserItem) {
+  return item.type === "folder" ? item.folder.parentId : item.document.folderId
+}
+
+function isFolderDescendant({
+  folders,
+  folderId,
+  candidateId,
+}: {
+  folders: FolderTreeEntry[]
+  folderId: string
+  candidateId: string
+}) {
+  const byId = new Map(folders.map((folder) => [folder.id, folder]))
+  let current = byId.get(candidateId) ?? null
+  const seen = new Set<string>()
+
+  while (current !== null) {
+    if (current.id === folderId) {
+      return true
+    }
+
+    if (current.parentId === null || seen.has(current.id)) {
+      return false
+    }
+
+    seen.add(current.id)
+    current = byId.get(current.parentId) ?? null
+  }
+
+  return false
+}
+
+function serializeBrowserDragItems(items: FileBrowserItem[]) {
+  return JSON.stringify(
+    items.map((item) => ({
+      id: item.type === "folder" ? item.folder.id : item.document.id,
+      type: item.type,
+    }))
+  )
+}
+
+function hasInternalBrowserDrag(event: DragEvent<HTMLElement>) {
+  return Array.from(event.dataTransfer.types).includes(INTERNAL_BROWSER_DRAG_TYPE)
+}
+
+function getBrowserDropValidation({
+  canUpdateItems,
+  itemMutationPending,
+  destinationId,
+  targets,
+  folders,
+}: {
+  canUpdateItems: boolean
+  itemMutationPending: boolean
+  destinationId: string | null
+  targets: FileBrowserItem[]
+  folders: FolderTreeEntry[]
+}): { valid: true } | { valid: false; message: string } {
+  if (!canUpdateItems) {
+    return { valid: false, message: "You do not have permission to move items." }
+  }
+
+  if (itemMutationPending) {
+    return { valid: false, message: "Wait for the current file operation to finish." }
+  }
+
+  if (targets.length === 0) {
+    return { valid: false, message: "No items selected to move." }
+  }
+
+  if (targets.every((target) => getBrowserItemParentId(target) === destinationId)) {
+    return { valid: false, message: "Items are already in that folder." }
+  }
+
+  for (const target of targets) {
+    if (target.type !== "folder") {
+      continue
+    }
+
+    if (destinationId === target.folder.id) {
+      return { valid: false, message: "A folder cannot be moved into itself." }
+    }
+
+    if (
+      destinationId !== null &&
+      isFolderDescendant({
+        folders,
+        folderId: target.folder.id,
+        candidateId: destinationId,
+      })
+    ) {
+      return { valid: false, message: "A folder cannot be moved into one of its descendants." }
+    }
+  }
+
+  return { valid: true }
+}
+
+function getFolderDropTargetClass(dropTarget: BrowserDropTarget | null, folderId: string) {
+  if (dropTarget === null || dropTarget.folderId !== folderId) {
+    return ""
+  }
+
+  return dropTarget.state === "valid"
+    ? "border-teal-500 bg-teal-500/10 ring-2 ring-teal-500/30"
+    : "border-destructive bg-destructive/10 ring-2 ring-destructive/30"
+}
+
 function getUploadRelativePath(file: File) {
   const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath
   return relativePath && relativePath.length > 0 ? relativePath : null
@@ -147,10 +270,26 @@ async function uploadFileToVault({
 
 function ContentGrid({
   items,
+  draggedItemKeys,
+  dropTarget,
+  isDraggable,
+  onDragEndItem,
+  onDragLeaveFolder,
+  onDragOverFolder,
+  onDragStartItem,
+  onDropOnFolder,
   onOpenFolder,
   onOpenDocument,
 }: {
   items: FileBrowserItem[]
+  draggedItemKeys: Set<string>
+  dropTarget: BrowserDropTarget | null
+  isDraggable: boolean
+  onDragEndItem: () => void
+  onDragLeaveFolder: (event: DragEvent<HTMLElement>, folderId: string) => void
+  onDragOverFolder: (event: DragEvent<HTMLElement>, folderId: string) => void
+  onDragStartItem: (event: DragEvent<HTMLElement>, item: FileBrowserItem) => void
+  onDropOnFolder: (event: DragEvent<HTMLElement>, folderId: string) => void
   onOpenFolder: (folder: FolderSummary) => void
   onOpenDocument: (document: DocumentSummary) => void
 }) {
@@ -161,13 +300,20 @@ function ContentGrid({
         const name = itemName(item)
         const size = isFolder ? null : formatBytes(item.document.originalSize)
         const updatedAt = isFolder ? item.folder.updatedAt : item.document.updatedAt
+        const itemKey = getBrowserItemKey(item)
 
         return (
           <Card
             key={isFolder ? `folder-${item.folder.id}` : `document-${item.document.id}`}
+            data-vault-browser-item
             role="link"
             tabIndex={0}
-            className="cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent/30 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+            draggable={isDraggable}
+            className={cn(
+              "cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent/30 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+              draggedItemKeys.has(itemKey) && "opacity-55",
+              isFolder && getFolderDropTargetClass(dropTarget, item.folder.id)
+            )}
             onClick={() => isFolder ? onOpenFolder(item.folder) : onOpenDocument(item.document)}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
@@ -175,6 +321,17 @@ function ContentGrid({
                 isFolder ? onOpenFolder(item.folder) : onOpenDocument(item.document)
               }
             }}
+            onDragStart={(event) => onDragStartItem(event, item)}
+            onDragEnd={onDragEndItem}
+            onDragOver={
+              isFolder ? (event) => onDragOverFolder(event, item.folder.id) : undefined
+            }
+            onDragLeave={
+              isFolder ? (event) => onDragLeaveFolder(event, item.folder.id) : undefined
+            }
+            onDrop={
+              isFolder ? (event) => onDropOnFolder(event, item.folder.id) : undefined
+            }
           >
             <CardContent className="flex min-h-40 flex-col items-center justify-center p-4 text-center">
               <div className="flex size-12 items-center justify-center rounded-md bg-secondary text-secondary-foreground">
@@ -207,10 +364,26 @@ function ContentGrid({
 
 function ContentList({
   items,
+  draggedItemKeys,
+  dropTarget,
+  isDraggable,
+  onDragEndItem,
+  onDragLeaveFolder,
+  onDragOverFolder,
+  onDragStartItem,
+  onDropOnFolder,
   onOpenFolder,
   onOpenDocument,
 }: {
   items: FileBrowserItem[]
+  draggedItemKeys: Set<string>
+  dropTarget: BrowserDropTarget | null
+  isDraggable: boolean
+  onDragEndItem: () => void
+  onDragLeaveFolder: (event: DragEvent<HTMLElement>, folderId: string) => void
+  onDragOverFolder: (event: DragEvent<HTMLElement>, folderId: string) => void
+  onDragStartItem: (event: DragEvent<HTMLElement>, item: FileBrowserItem) => void
+  onDropOnFolder: (event: DragEvent<HTMLElement>, folderId: string) => void
   onOpenFolder: (folder: FolderSummary) => void
   onOpenDocument: (document: DocumentSummary) => void
 }) {
@@ -226,13 +399,20 @@ function ContentList({
         const isFolder = item.type === "folder"
         const name = itemName(item)
         const updatedAt = isFolder ? item.folder.updatedAt : item.document.updatedAt
+        const itemKey = getBrowserItemKey(item)
 
         return (
           <div
             key={isFolder ? `folder-${item.folder.id}` : `document-${item.document.id}`}
+            data-vault-browser-item
             role="link"
             tabIndex={0}
-            className="grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b px-4 py-4 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[minmax(0,1fr)_7rem_7.5rem_7rem] lg:px-6"
+            draggable={isDraggable}
+            className={cn(
+              "grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b px-4 py-4 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[minmax(0,1fr)_7rem_7.5rem_7rem] lg:px-6",
+              draggedItemKeys.has(itemKey) && "opacity-55",
+              isFolder && getFolderDropTargetClass(dropTarget, item.folder.id)
+            )}
             onClick={() => isFolder ? onOpenFolder(item.folder) : onOpenDocument(item.document)}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
@@ -240,6 +420,17 @@ function ContentList({
                 isFolder ? onOpenFolder(item.folder) : onOpenDocument(item.document)
               }
             }}
+            onDragStart={(event) => onDragStartItem(event, item)}
+            onDragEnd={onDragEndItem}
+            onDragOver={
+              isFolder ? (event) => onDragOverFolder(event, item.folder.id) : undefined
+            }
+            onDragLeave={
+              isFolder ? (event) => onDragLeaveFolder(event, item.folder.id) : undefined
+            }
+            onDrop={
+              isFolder ? (event) => onDropOnFolder(event, item.folder.id) : undefined
+            }
           >
             <div className="flex min-w-0 items-center gap-3">
               <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-secondary text-secondary-foreground">
@@ -286,6 +477,11 @@ export default function VaultWorkspacePage() {
   const [vaultTreeExpandedValue, setVaultTreeExpandedValue] = useState<string[]>([
     VAULT_TREE_ROOT_VALUE,
   ])
+  const [contextMenu, setContextMenu] = useState<VaultContextMenuState | null>(null)
+  const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false)
+  const [createFolderParentId, setCreateFolderParentId] = useState<string | null>(null)
+  const [draggedItems, setDraggedItems] = useState<FileBrowserItem[]>([])
+  const [dropTarget, setDropTarget] = useState<BrowserDropTarget | null>(null)
   const [loadingTree, setLoadingTree] = useState(true)
   const [loadingItems, setLoadingItems] = useState(true)
   const [isUploading, setIsUploading] = useState(false)
@@ -295,12 +491,17 @@ export default function VaultWorkspacePage() {
   const normalizedFolderId = activeFolderId === "root" ? null : activeFolderId
 
   const sortedItems = useMemo(() => sortItems(items), [items])
+  const draggedItemKeys = useMemo(
+    () => new Set(draggedItems.map((item) => getBrowserItemKey(item))),
+    [draggedItems]
+  )
 
   const selectFolder = useCallback((folderId: string | null) => {
     setSearchParams(folderId ? { folderId } : {})
   }, [setSearchParams])
 
   const canMoveItems = vault?.role === "owner" || vault?.role === "editor"
+  const canCreateItems = canMoveItems
 
   const refreshVaultContents = useCallback(async () => {
     const [treeResult, itemsResult] = await Promise.all([
@@ -372,6 +573,25 @@ export default function VaultWorkspacePage() {
     directoryInputRef.current?.click()
   }, [])
 
+  const openCreateFolderDialog = useCallback((parentId: string | null) => {
+    setCreateFolderParentId(parentId)
+    setIsCreateFolderOpen(true)
+  }, [])
+
+  const handleBackgroundContextMenu = useCallback((event: MouseEvent<HTMLElement>) => {
+    const target = event.target
+    if (target instanceof Element && target.closest("[data-vault-browser-item]")) {
+      return
+    }
+
+    event.preventDefault()
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      vaultName: vault?.name ?? "Vault",
+    })
+  }, [vault?.name])
+
   const handleMoveItems = useCallback(async ({
     targets,
     destinationId,
@@ -405,6 +625,89 @@ export default function VaultWorkspacePage() {
       setItemMutationPending(false)
     }
   }, [itemMutationPending, refreshVaultContents, vaultId])
+
+  const resetDragState = useCallback(() => {
+    setDraggedItems([])
+    setDropTarget(null)
+  }, [])
+
+  const getDropValidation = useCallback((destinationId: string | null) =>
+    getBrowserDropValidation({
+      canUpdateItems: canMoveItems,
+      itemMutationPending,
+      destinationId,
+      targets: draggedItems,
+      folders,
+    }), [canMoveItems, draggedItems, folders, itemMutationPending])
+
+  const setActiveDropTarget = useCallback((folderId: string | null, state: BrowserDropTargetState) => {
+    setDropTarget((previousDropTarget) => {
+      if (previousDropTarget?.folderId === folderId && previousDropTarget.state === state) {
+        return previousDropTarget
+      }
+
+      return { folderId, state }
+    })
+  }, [])
+
+  const handleItemDragStart = useCallback((event: DragEvent<HTMLElement>, item: FileBrowserItem) => {
+    if (!canMoveItems || itemMutationPending) {
+      event.preventDefault()
+      return
+    }
+
+    const dragItems = [item]
+    setDraggedItems(dragItems)
+    event.dataTransfer.effectAllowed = "move"
+    event.dataTransfer.setData(INTERNAL_BROWSER_DRAG_TYPE, serializeBrowserDragItems(dragItems))
+    event.dataTransfer.setData("text/plain", itemName(item))
+  }, [canMoveItems, itemMutationPending])
+
+  const handleDragOverFolder = useCallback((event: DragEvent<HTMLElement>, folderId: string | null) => {
+    if (!hasInternalBrowserDrag(event)) {
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+    const validation = getDropValidation(folderId)
+    event.dataTransfer.dropEffect = validation.valid ? "move" : "none"
+    setActiveDropTarget(folderId, validation.valid ? "valid" : "invalid")
+  }, [getDropValidation, setActiveDropTarget])
+
+  const handleDragLeaveFolder = useCallback((event: DragEvent<HTMLElement>, folderId: string | null) => {
+    if (!hasInternalBrowserDrag(event)) {
+      return
+    }
+
+    const relatedTarget = event.relatedTarget
+    if (relatedTarget instanceof Node && event.currentTarget.contains(relatedTarget)) {
+      return
+    }
+
+    setDropTarget((previousDropTarget) =>
+      previousDropTarget?.folderId === folderId ? null : previousDropTarget
+    )
+  }, [])
+
+  const handleDropOnFolder = useCallback((event: DragEvent<HTMLElement>, folderId: string | null) => {
+    if (!hasInternalBrowserDrag(event)) {
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+    const validation = getDropValidation(folderId)
+    setDropTarget(null)
+
+    if (!validation.valid) {
+      toast.warning(validation.message)
+      return
+    }
+
+    void handleMoveItems({ targets: draggedItems, destinationId: folderId })
+    setDraggedItems([])
+  }, [draggedItems, getDropValidation, handleMoveItems])
 
   const headerActions = useMemo(() => (
     <>
@@ -512,6 +815,30 @@ export default function VaultWorkspacePage() {
         onChange={handleUploadInputChange}
         {...DIRECTORY_PICKER_ATTRIBUTES}
       />
+      <CreateFolderDialog
+        open={isCreateFolderOpen}
+        vaultId={vaultId}
+        parentId={createFolderParentId}
+        onOpenChange={(open) => {
+          setIsCreateFolderOpen(open)
+          if (!open) {
+            setCreateFolderParentId(null)
+          }
+        }}
+        onCreated={() => {
+          void refreshVaultContents()
+        }}
+      />
+      {contextMenu ? (
+        <VaultContextMenu
+          state={contextMenu}
+          canCreateItems={canCreateItems}
+          onClose={() => setContextMenu(null)}
+          onCreateFolder={() => openCreateFolderDialog(normalizedFolderId)}
+          onUploadFiles={openUploadFiles}
+          onUploadFolder={openUploadDirectory}
+        />
+      ) : null}
       <div className="px-4 md:px-6">
         <div className="flex min-h-[calc(100vh-9rem)] overflow-hidden rounded-lg border bg-background">
           <aside className="flex h-56 shrink-0 flex-col border-b bg-muted/20 md:h-auto md:w-80 md:border-r md:border-b-0">
@@ -537,13 +864,20 @@ export default function VaultWorkspacePage() {
                     }}
                     canMoveItems={canMoveItems}
                     itemMutationPending={itemMutationPending}
+                    draggedItems={draggedItems}
+                    dropTarget={dropTarget}
+                    onDragStartItem={handleItemDragStart}
+                    onDragEndItem={resetDragState}
+                    onDragOverFolder={handleDragOverFolder}
+                    onDragLeaveFolder={handleDragLeaveFolder}
+                    onDropOnFolder={handleDropOnFolder}
                     onMoveItems={handleMoveItems}
                   />
                 )}
               </div>
             </ScrollArea>
           </aside>
-          <main className="flex min-w-0 flex-1 flex-col">
+          <main className="flex min-w-0 flex-1 flex-col" onContextMenu={handleBackgroundContextMenu}>
             <div className="min-h-0 flex-1 overflow-auto py-4">
               {errorMessage ? (
                 <div className="mx-4 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive lg:mx-6">
@@ -567,6 +901,14 @@ export default function VaultWorkspacePage() {
                 <div className="px-4 lg:px-6">
                   <ContentGrid
                     items={sortedItems}
+                    draggedItemKeys={draggedItemKeys}
+                    dropTarget={dropTarget}
+                    isDraggable={canMoveItems && !itemMutationPending}
+                    onDragEndItem={resetDragState}
+                    onDragLeaveFolder={handleDragLeaveFolder}
+                    onDragOverFolder={handleDragOverFolder}
+                    onDragStartItem={handleItemDragStart}
+                    onDropOnFolder={handleDropOnFolder}
                     onOpenFolder={(folder) => selectFolder(folder.id)}
                     onOpenDocument={openDocument}
                   />
@@ -574,6 +916,14 @@ export default function VaultWorkspacePage() {
               ) : (
                 <ContentList
                   items={sortedItems}
+                  draggedItemKeys={draggedItemKeys}
+                  dropTarget={dropTarget}
+                  isDraggable={canMoveItems && !itemMutationPending}
+                  onDragEndItem={resetDragState}
+                  onDragLeaveFolder={handleDragLeaveFolder}
+                  onDragOverFolder={handleDragOverFolder}
+                  onDragStartItem={handleItemDragStart}
+                  onDropOnFolder={handleDropOnFolder}
                   onOpenFolder={(folder) => selectFolder(folder.id)}
                   onOpenDocument={openDocument}
                 />

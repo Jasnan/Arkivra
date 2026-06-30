@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react"
 import { Archive, ArrowRight, FileText, HardDrive, ShieldCheck } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
@@ -10,6 +10,10 @@ import { Card, CardContent } from "@/components/ui/card"
 import { useHeaderActions } from "@/contexts/header-actions-context"
 import { cn } from "@/lib/utils"
 import { CreateVaultDialog } from "./components/create-vault-dialog"
+import {
+  VaultItemContextMenu,
+  type VaultItemContextMenuState,
+} from "./components/vault-item-context-menu"
 import { VaultsViewToggle } from "./components/vaults-view-toggle"
 import { getMe, listVaults, type VaultSummary } from "./vaults.api"
 import { useVaultsView } from "./use-vaults-view"
@@ -83,9 +87,10 @@ function getParticipationBadgeClass(vault: VaultSummary) {
   return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
 }
 
-function VaultGrid({ vaults, onOpenVault }: {
+function VaultGrid({ vaults, onOpenVault, onOpenContextMenu }: {
   vaults: VaultSummary[]
   onOpenVault: (vault: VaultSummary) => void
+  onOpenContextMenu: (event: MouseEvent<HTMLElement>, vault: VaultSummary) => void
 }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
@@ -99,6 +104,7 @@ function VaultGrid({ vaults, onOpenVault }: {
             tabIndex={0}
             className="group cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent/30 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
             onClick={() => onOpenVault(vault)}
+            onContextMenu={(event) => onOpenContextMenu(event, vault)}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault()
@@ -142,9 +148,10 @@ function VaultGrid({ vaults, onOpenVault }: {
   )
 }
 
-function VaultList({ vaults, onOpenVault }: {
+function VaultList({ vaults, onOpenVault, onOpenContextMenu }: {
   vaults: VaultSummary[]
   onOpenVault: (vault: VaultSummary) => void
+  onOpenContextMenu: (event: MouseEvent<HTMLElement>, vault: VaultSummary) => void
 }) {
   return (
     <div className="overflow-hidden border-y bg-background">
@@ -163,6 +170,7 @@ function VaultList({ vaults, onOpenVault }: {
             tabIndex={0}
             className="grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b px-4 py-4 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[minmax(0,1fr)_7rem_4rem_5.75rem_7.5rem] lg:px-6"
             onClick={() => onOpenVault(vault)}
+            onContextMenu={(event) => onOpenContextMenu(event, vault)}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault()
@@ -209,6 +217,7 @@ export default function VaultsPage() {
   const navigate = useNavigate()
   const [view] = useVaultsView()
   const [vaults, setVaults] = useState<VaultSummary[]>([])
+  const [contextMenu, setContextMenu] = useState<VaultItemContextMenuState | null>(null)
   const [canCreateVault, setCanCreateVault] = useState(true)
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -275,8 +284,25 @@ export default function VaultsPage() {
     navigate(`/vaults/${vault.id}`)
   }
 
+  function openContextMenu(event: MouseEvent<HTMLElement>, vault: VaultSummary) {
+    event.preventDefault()
+    event.stopPropagation()
+    setContextMenu({
+      vault,
+      x: event.clientX,
+      y: event.clientY,
+    })
+  }
+
   return (
     <BaseLayout>
+      {contextMenu ? (
+        <VaultItemContextMenu
+          state={contextMenu}
+          onClose={() => setContextMenu(null)}
+          onOpenVault={openVault}
+        />
+      ) : null}
       {loading ? (
         <div className="px-4 lg:px-6">
           <div className="flex h-64 items-center justify-center rounded-lg border bg-muted/20 text-sm text-muted-foreground">
@@ -305,10 +331,18 @@ export default function VaultsPage() {
         </div>
       ) : view === "grid" ? (
         <div className="px-4 lg:px-6">
-          <VaultGrid vaults={sortedVaults} onOpenVault={openVault} />
+          <VaultGrid
+            vaults={sortedVaults}
+            onOpenVault={openVault}
+            onOpenContextMenu={openContextMenu}
+          />
         </div>
       ) : (
-        <VaultList vaults={sortedVaults} onOpenVault={openVault} />
+        <VaultList
+          vaults={sortedVaults}
+          onOpenVault={openVault}
+          onOpenContextMenu={openContextMenu}
+        />
       )}
     </BaseLayout>
   )

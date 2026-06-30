@@ -175,6 +175,22 @@ export async function createVault({
   })
 }
 
+export async function createFolder({
+  vaultId,
+  parentId,
+  name,
+}: {
+  vaultId: string
+  parentId: string | null
+  name: string
+}) {
+  return fetchJson<FolderResponse>(`/api/vaults/${vaultId}/folders`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ parentId, name }),
+  })
+}
+
 export async function moveDocument({
   vaultId,
   documentId,

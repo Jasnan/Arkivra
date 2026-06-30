@@ -28,12 +28,13 @@ const FOLDER_VALUE_PREFIX = "folder:"
 const DOCUMENT_VALUE_PREFIX = "document:"
 const INTERNAL_BROWSER_DRAG_TYPE = "application/x-arkivra-browser-items"
 const fallbackTimestamp = "1970-01-01T00:00:00.000Z"
+const TREE_LABEL_MAX_LENGTH = 28
 
 export const VAULT_TREE_ROOT_VALUE = ROOT_VALUE
 
 type BrowserDropTargetState = "valid" | "invalid"
 
-interface BrowserDropTarget {
+export interface BrowserDropTarget {
   folderId: string | null
   state: BrowserDropTargetState
 }
@@ -403,6 +404,12 @@ function getTreeDropTargetClass(dropTarget: BrowserDropTarget | null, folderId: 
     : "bg-destructive/15 text-destructive outline outline-1 outline-destructive"
 }
 
+function truncateTreeLabel(label: string) {
+  return label.length > TREE_LABEL_MAX_LENGTH
+    ? `${label.slice(0, TREE_LABEL_MAX_LENGTH - 3).trimEnd()}...`
+    : label
+}
+
 export function VaultSidebarTree({
   vaults,
   activeVaultId,
@@ -419,6 +426,13 @@ export function VaultSidebarTree({
   onOpenVaultContextMenu,
   canMoveItems = false,
   itemMutationPending = false,
+  draggedItems: externalDraggedItems,
+  dropTarget: externalDropTarget,
+  onDragStartItem,
+  onDragEndItem,
+  onDragOverFolder,
+  onDragLeaveFolder,
+  onDropOnFolder,
   onMoveItems,
 }: {
   vaults: Array<{ id: string; name: string }>
@@ -436,12 +450,20 @@ export function VaultSidebarTree({
   onOpenVaultContextMenu?: (event: MouseEvent<HTMLElement>, vaultId: string) => void
   canMoveItems?: boolean
   itemMutationPending?: boolean
+  draggedItems?: FileBrowserItem[]
+  dropTarget?: BrowserDropTarget | null
+  onDragStartItem?: (event: DragEvent<HTMLElement>, item: FileBrowserItem) => void
+  onDragEndItem?: () => void
+  onDragOverFolder?: (event: DragEvent<HTMLElement>, folderId: string | null) => void
+  onDragLeaveFolder?: (event: DragEvent<HTMLElement>, folderId: string | null) => void
+  onDropOnFolder?: (event: DragEvent<HTMLElement>, folderId: string | null) => void
   onMoveItems?: (input: { targets: FileBrowserItem[]; destinationId: string | null }) => void
 }) {
   const expandedValueRef = useRef(expandedValue)
   const [localDraggedItems, setLocalDraggedItems] = useState<FileBrowserItem[]>([])
-  const [dropTarget, setDropTarget] = useState<BrowserDropTarget | null>(null)
-  const draggedItems = localDraggedItems
+  const [localDropTarget, setLocalDropTarget] = useState<BrowserDropTarget | null>(null)
+  const draggedItems = externalDraggedItems ?? localDraggedItems
+  const dropTarget = externalDropTarget ?? localDropTarget
   const tree = useMemo(
     () => createVaultTree({ vaults, activeVaultId, activeVaultRootOnly, folders, documents }),
     [activeVaultId, activeVaultRootOnly, documents, folders, vaults]
@@ -535,7 +557,7 @@ export function VaultSidebarTree({
       : undefined
 
   const setActiveDropTarget = (folderId: string | null, state: BrowserDropTargetState) => {
-    setDropTarget((previousDropTarget) => {
+    setLocalDropTarget((previousDropTarget) => {
       if (previousDropTarget?.folderId === folderId && previousDropTarget.state === state) {
         return previousDropTarget
       }
@@ -561,6 +583,11 @@ export function VaultSidebarTree({
       return
     }
 
+    if (onDragStartItem) {
+      onDragStartItem(event, item)
+      return
+    }
+
     setLocalDraggedItems([item])
     event.dataTransfer.effectAllowed = "move"
     event.dataTransfer.setData("text/plain", node.name)
@@ -568,14 +595,24 @@ export function VaultSidebarTree({
   }
 
   const handleDragEnd = () => {
+    if (onDragEndItem) {
+      onDragEndItem()
+      return
+    }
+
     setLocalDraggedItems([])
-    setDropTarget(null)
+    setLocalDropTarget(null)
   }
 
   const handleDragOver = (event: DragEvent<HTMLElement>, node: VaultTreeNode) => {
     const destinationId = getDropDestinationId(node, activeVaultId)
 
     if (destinationId === undefined || draggedItems.length === 0 || !hasInternalBrowserDrag(event)) {
+      return
+    }
+
+    if (onDragOverFolder) {
+      onDragOverFolder(event, destinationId)
       return
     }
 
@@ -593,12 +630,17 @@ export function VaultSidebarTree({
       return
     }
 
+    if (onDragLeaveFolder) {
+      onDragLeaveFolder(event, destinationId)
+      return
+    }
+
     const relatedTarget = event.relatedTarget
     if (relatedTarget instanceof Node && event.currentTarget.contains(relatedTarget)) {
       return
     }
 
-    setDropTarget((previousDropTarget) =>
+    setLocalDropTarget((previousDropTarget) =>
       previousDropTarget?.folderId === destinationId ? null : previousDropTarget
     )
   }
@@ -610,10 +652,15 @@ export function VaultSidebarTree({
       return
     }
 
+    if (onDropOnFolder) {
+      onDropOnFolder(event, destinationId)
+      return
+    }
+
     event.preventDefault()
     event.stopPropagation()
     const validation = getDropValidation(destinationId)
-    setDropTarget(null)
+    setLocalDropTarget(null)
 
     if (!validation.valid) {
       toast.warning(validation.message)
@@ -635,6 +682,7 @@ export function VaultSidebarTree({
     const dropDestinationId = getDropDestinationId(node, activeVaultId)
     const dragDropClass =
       dropDestinationId !== undefined ? getTreeDropTargetClass(dropTarget, dropDestinationId) : ""
+    const displayName = truncateTreeLabel(node.name)
 
     return (
       <li key={node.id}>
@@ -667,7 +715,9 @@ export function VaultSidebarTree({
             <span className="size-3.5 shrink-0" />
           )}
           <span className="shrink-0">{getNodeIcon(node, isExpanded)}</span>
-          <span className="min-w-0 flex-1 truncate leading-tight">{node.name}</span>
+          <span className="min-w-0 flex-1 truncate leading-tight" title={node.name}>
+            {displayName}
+          </span>
         </button>
         {isBranch && isExpanded ? (
           <ul className="mt-1 space-y-1">

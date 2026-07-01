@@ -10,7 +10,7 @@ export default function ChatPage() {
 
   return (
     <BaseLayout>
-      <div className="px-4 md:px-6">
+      <div className="flex h-[calc(100svh-var(--header-height)-7.5rem)] min-h-0 px-4 md:h-[calc(100svh-var(--header-height)-8.5rem)] md:px-6">
         <Chat
           selectedConversationId={conversationId}
           onConversationCreated={(chatId) => navigate(`/chat/${chatId}`, { replace: true })}

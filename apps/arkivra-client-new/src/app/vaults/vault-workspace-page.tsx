@@ -11,6 +11,7 @@ import {
   MoveRight,
   Search,
   Trash2,
+  Upload,
   X,
 } from "lucide-react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
@@ -84,6 +85,28 @@ interface MoveDestination {
   name: string
   label: string
   depth: number
+}
+
+interface DroppedFileSystemEntry {
+  name: string
+  fullPath?: string
+  isFile: boolean
+  isDirectory: boolean
+}
+
+interface DroppedFileSystemFileEntry extends DroppedFileSystemEntry {
+  isFile: true
+  file: (successCallback: (file: File) => void, errorCallback?: (error: DOMException) => void) => void
+}
+
+interface DroppedFileSystemDirectoryEntry extends DroppedFileSystemEntry {
+  isDirectory: true
+  createReader: () => {
+    readEntries: (
+      successCallback: (entries: DroppedFileSystemEntry[]) => void,
+      errorCallback?: (error: DOMException) => void
+    ) => void
+  }
 }
 
 const EMPTY_SELECTED_ITEM_KEYS = new Set<string>()
@@ -270,6 +293,11 @@ function hasInternalBrowserDrag(event: DragEvent<HTMLElement>) {
   return Array.from(event.dataTransfer.types).includes(INTERNAL_BROWSER_DRAG_TYPE)
 }
 
+function hasExternalFileDrag(event: DragEvent<HTMLElement>) {
+  const types = Array.from(event.dataTransfer.types)
+  return types.includes("Files") && !types.includes(INTERNAL_BROWSER_DRAG_TYPE)
+}
+
 function getBrowserDropValidation({
   canUpdateItems,
   itemMutationPending,
@@ -336,6 +364,94 @@ function getFolderDropTargetClass(dropTarget: BrowserDropTarget | null, folderId
 function getUploadRelativePath(file: File) {
   const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath
   return relativePath && relativePath.length > 0 ? relativePath : null
+}
+
+function normalizeDroppedRelativePath(path: string | null | undefined) {
+  const normalizedPath = path?.replace(/^\/+/, "").trim()
+  return normalizedPath && normalizedPath.length > 0 ? normalizedPath : null
+}
+
+function getRelativePathForDroppedEntry(entry: DroppedFileSystemEntry, fallbackPath: string) {
+  return normalizeDroppedRelativePath(entry.fullPath) ?? normalizeDroppedRelativePath(fallbackPath)
+}
+
+function isDroppedFileEntry(entry: DroppedFileSystemEntry): entry is DroppedFileSystemFileEntry {
+  return entry.isFile
+}
+
+function isDroppedDirectoryEntry(entry: DroppedFileSystemEntry): entry is DroppedFileSystemDirectoryEntry {
+  return entry.isDirectory
+}
+
+function readDroppedFile(entry: DroppedFileSystemFileEntry, relativePath: string) {
+  return new Promise<UploadFileInput>((resolve, reject) => {
+    entry.file(
+      (file) => resolve({ file, relativePath }),
+      (error) => reject(error)
+    )
+  })
+}
+
+function readDroppedDirectoryEntries(entry: DroppedFileSystemDirectoryEntry) {
+  const reader = entry.createReader()
+  const entries: DroppedFileSystemEntry[] = []
+
+  return new Promise<DroppedFileSystemEntry[]>((resolve, reject) => {
+    function readNextBatch() {
+      reader.readEntries(
+        (batch) => {
+          if (batch.length === 0) {
+            resolve(entries)
+            return
+          }
+
+          entries.push(...batch)
+          readNextBatch()
+        },
+        (error) => reject(error)
+      )
+    }
+
+    readNextBatch()
+  })
+}
+
+async function collectDroppedEntryFiles(entry: DroppedFileSystemEntry, fallbackPath: string): Promise<UploadFileInput[]> {
+  const relativePath = getRelativePathForDroppedEntry(entry, fallbackPath)
+
+  if (isDroppedFileEntry(entry)) {
+    return [await readDroppedFile(entry, relativePath ?? entry.name)]
+  }
+
+  if (!isDroppedDirectoryEntry(entry)) {
+    return []
+  }
+
+  const childEntries = await readDroppedDirectoryEntries(entry)
+  const childFiles = await Promise.all(
+    childEntries.map((childEntry) =>
+      collectDroppedEntryFiles(childEntry, `${relativePath ?? entry.name}/${childEntry.name}`)
+    )
+  )
+
+  return childFiles.flat()
+}
+
+async function getDroppedUploadFiles(dataTransfer: DataTransfer): Promise<UploadFileInput[]> {
+  const entries = Array.from(dataTransfer.items)
+    .filter((item) => item.kind === "file")
+    .map((item) => item.webkitGetAsEntry() as DroppedFileSystemEntry | null)
+    .filter((entry): entry is DroppedFileSystemEntry => entry !== null && entry !== undefined)
+
+  if (entries.length > 0) {
+    const files = await Promise.all(entries.map((entry) => collectDroppedEntryFiles(entry, entry.name)))
+    return files.flat()
+  }
+
+  return Array.from(dataTransfer.files).map((file) => ({
+    file,
+    relativePath: getUploadRelativePath(file),
+  }))
 }
 
 function MoveItemsDialog({
@@ -888,6 +1004,7 @@ export default function VaultWorkspacePage() {
   const [pendingTrashItems, setPendingTrashItems] = useState<FileBrowserItem[]>([])
   const [draggedItems, setDraggedItems] = useState<FileBrowserItem[]>([])
   const [dropTarget, setDropTarget] = useState<BrowserDropTarget | null>(null)
+  const [isEmptyUploadDropActive, setIsEmptyUploadDropActive] = useState(false)
   const [loadingTree, setLoadingTree] = useState(true)
   const [loadingItems, setLoadingItems] = useState(true)
   const [itemMutationPending, setItemMutationPending] = useState(false)
@@ -974,6 +1091,56 @@ export default function VaultWorkspacePage() {
   const openUploadDirectory = useCallback(() => {
     directoryInputRef.current?.click()
   }, [])
+
+  const handleContentUploadDragEnter = useCallback((event: DragEvent<HTMLElement>) => {
+    if (!vaultId || !hasExternalFileDrag(event)) {
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+    event.dataTransfer.dropEffect = "copy"
+    setIsEmptyUploadDropActive(true)
+  }, [vaultId])
+
+  const handleContentUploadDragOver = useCallback((event: DragEvent<HTMLElement>) => {
+    if (!vaultId || !hasExternalFileDrag(event)) {
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+    event.dataTransfer.dropEffect = "copy"
+    setIsEmptyUploadDropActive(true)
+  }, [vaultId])
+
+  const handleContentUploadDragLeave = useCallback((event: DragEvent<HTMLElement>) => {
+    if (!hasExternalFileDrag(event)) {
+      return
+    }
+
+    const relatedTarget = event.relatedTarget
+    if (relatedTarget instanceof Node && event.currentTarget.contains(relatedTarget)) {
+      return
+    }
+
+    setIsEmptyUploadDropActive(false)
+  }, [])
+
+  const handleContentUploadDrop = useCallback((event: DragEvent<HTMLElement>) => {
+    if (!vaultId || !hasExternalFileDrag(event)) {
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+    setIsEmptyUploadDropActive(false)
+    void getDroppedUploadFiles(event.dataTransfer)
+      .then((selectedFiles) => uploadSelectedFiles(selectedFiles))
+      .catch(() => {
+        toast.error("Unable to read dropped files.")
+      })
+  }, [uploadSelectedFiles, vaultId])
 
   const openCreateFolderDialog = useCallback((parentId: string | null) => {
     setCreateFolderParentId(parentId)
@@ -1345,6 +1512,7 @@ export default function VaultWorkspacePage() {
     () => folders.find((folder) => folder.id === normalizedFolderId) ?? null,
     [folders, normalizedFolderId]
   )
+  const emptyLocationLabel = normalizedFolderId === null ? "vault" : "folder"
   const folderCount = sortedItems.filter((item) => item.type === "folder").length
   const documentCount = sortedItems.length - folderCount
   const totalDocumentSize = sortedItems.reduce(
@@ -1491,27 +1659,48 @@ export default function VaultWorkspacePage() {
             </ScrollArea>
           </aside>
           <main className="flex min-w-0 flex-1 flex-col" onContextMenu={handleBackgroundContextMenu}>
-            <div className="min-h-0 flex-1 overflow-auto py-4">
+            <div
+              className="min-h-0 flex-1 overflow-auto p-4 lg:p-6"
+              onDragEnter={handleContentUploadDragEnter}
+              onDragOver={handleContentUploadDragOver}
+              onDragLeave={handleContentUploadDragLeave}
+              onDrop={handleContentUploadDrop}
+            >
               {errorMessage ? (
-                <div className="mx-4 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive lg:mx-6">
+                <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
                   {errorMessage}
                 </div>
               ) : loadingItems ? (
-                <div className="mx-4 flex h-64 items-center justify-center rounded-lg border bg-muted/20 text-sm text-muted-foreground lg:mx-6">
+                <div className="flex h-64 items-center justify-center rounded-lg border bg-muted/20 text-sm text-muted-foreground">
                   Loading contents...
                 </div>
               ) : sortedItems.length === 0 ? (
-                <div className="mx-4 flex min-h-80 flex-col items-center justify-center rounded-lg border bg-muted/20 p-8 text-center lg:mx-6">
-                  <div className="flex size-14 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
-                    <FolderOpen className="size-7" />
+                <div
+                  className={cn(
+                    "flex min-h-full flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 p-8 text-center transition-colors",
+                    isEmptyUploadDropActive && "border-primary bg-primary/5 ring-2 ring-primary/20"
+                  )}
+                >
+                  <div className="flex size-16 items-center justify-center rounded-lg border border-dashed border-primary/40 bg-primary/10 text-primary">
+                    {isEmptyUploadDropActive ? <Upload className="size-7" /> : <FolderOpen className="size-7" />}
                   </div>
-                  <h2 className="mt-4 text-lg font-semibold">This folder is empty</h2>
+                  <h2 className="mt-4 text-lg font-semibold">
+                    {isEmptyUploadDropActive ? "Drop files to upload" : `This ${emptyLocationLabel} is empty`}
+                  </h2>
                   <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                    Documents and folders in this location will appear here.
+                    {isEmptyUploadDropActive
+                      ? "Uploads will be added to Transfers."
+                      : "Drag files here or upload them. You can track their progress in Transfers."}
                   </p>
+                  <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                    <Button type="button" variant="outline" onClick={openUploadFiles}>
+                      <Upload className="size-4" />
+                      Upload files
+                    </Button>
+                  </div>
                 </div>
               ) : view === "grid" ? (
-                <div className="px-4 lg:px-6">
+                <div>
                   <ContentGrid
                     items={sortedItems}
                     draggedItemKeys={draggedItemKeys}

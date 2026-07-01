@@ -3,7 +3,6 @@
 import { format, isThisWeek, isThisYear, isToday, isYesterday } from "date-fns"
 import {
   MessageSquarePlus,
-  MoreVertical,
   Search,
   Trash2,
 } from "lucide-react"
@@ -12,12 +11,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Skeleton } from "@/components/ui/skeleton"
 import type { ChatConversation } from "../chat.api"
 import { NEW_CHAT_DRAFT_ID, getMessageText } from "../chat-utils"
 import type { ChatMessage } from "../chat.api"
@@ -27,6 +21,7 @@ interface ConversationListProps {
   messagesByConversationId: Record<string, ChatMessage[]>
   selectedConversation: string | null
   searchQuery: string
+  isLoading?: boolean
   onSearchQueryChange: (query: string) => void
   onSelectConversation: (conversationId: string) => void
   onCreateConversation: () => void
@@ -53,6 +48,7 @@ export function ConversationList({
   messagesByConversationId,
   selectedConversation,
   searchQuery,
+  isLoading,
   onSearchQueryChange,
   onSelectConversation,
   onCreateConversation,
@@ -96,8 +92,10 @@ export function ConversationList({
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="space-y-1 px-3 py-2 pr-4">
-          {sortedConversations.length === 0 ? (
+        <div className="space-y-1 px-3 py-2">
+          {isLoading ? (
+            <ConversationListSkeleton />
+          ) : sortedConversations.length === 0 ? (
             <div className="text-muted-foreground px-3 py-8 text-center text-sm">
               No conversations found.
             </div>
@@ -110,14 +108,14 @@ export function ConversationList({
                 <div
                   key={conversation.id}
                   className={cn(
-                    "group mr-4 flex cursor-pointer items-center gap-3 overflow-hidden rounded-lg p-3 transition-colors hover:bg-accent/50",
+                    "group grid cursor-pointer grid-cols-[minmax(0,1fr)_2rem] items-center gap-3 rounded-lg p-3 transition-colors hover:bg-accent/50",
                     selectedConversation === conversation.id && "bg-accent text-accent-foreground"
                   )}
                   onClick={() => onSelectConversation(conversation.id)}
                 >
-                  <div className="min-w-0 flex-1 overflow-hidden">
-                    <div className="mb-1 flex min-w-0 items-center justify-between">
-                      <h3 className="min-w-0 max-w-[180px] truncate font-medium">
+                  <div className="min-w-0 overflow-hidden">
+                    <div className="mb-1 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                      <h3 className="min-w-0 truncate font-medium">
                         {conversation.title}
                       </h3>
                       <span className="text-muted-foreground flex-shrink-0 whitespace-nowrap text-xs">
@@ -130,28 +128,20 @@ export function ConversationList({
                   </div>
 
                   {!isDraft ? (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild onClick={(event) => event.stopPropagation()}>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Conversation actions"
-                          className="h-8 w-8 opacity-0 group-hover:opacity-100"
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
-                        <DropdownMenuItem
-                          className="cursor-pointer text-destructive"
-                          onClick={() => onDeleteConversation(conversation.id)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Delete ${conversation.title}`}
+                      title="Delete conversation"
+                      className="h-8 w-8 cursor-pointer text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onDeleteConversation(conversation.id)
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   ) : null}
                 </div>
               )
@@ -159,6 +149,28 @@ export function ConversationList({
           )}
         </div>
       </ScrollArea>
+    </div>
+  )
+}
+
+function ConversationListSkeleton() {
+  return (
+    <div className="space-y-1" aria-label="Loading conversations">
+      {Array.from({ length: 7 }).map((_, index) => (
+        <div
+          key={index}
+          className="grid grid-cols-[minmax(0,1fr)_2rem] items-center gap-3 rounded-lg p-3"
+        >
+          <div className="min-w-0 space-y-2">
+            <div className="grid grid-cols-[minmax(0,1fr)_3.25rem] items-center gap-3">
+              <Skeleton className="h-5 w-full max-w-44" />
+              <Skeleton className="h-4 w-12" />
+            </div>
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+          <Skeleton className="h-8 w-8" />
+        </div>
+      ))}
     </div>
   )
 }

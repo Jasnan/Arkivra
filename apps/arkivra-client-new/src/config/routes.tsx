@@ -12,7 +12,6 @@ const Search = lazy(() => import('@/app/search/page'))
 const Tags = lazy(() => import('@/app/tags/page'))
 const Tasks = lazy(() => import('@/app/tasks/page'))
 const Chat = lazy(() => import('@/app/chat/page'))
-const OldChat = lazy(() => import('@/app/old-chat/page'))
 const Calendar = lazy(() => import('@/app/calendar/page'))
 const Users = lazy(() => import('@/app/users/page'))
 
@@ -124,10 +123,6 @@ export const routes: RouteConfig[] = [
   {
     path: "/chat/:conversationId",
     element: <Chat />
-  },
-  {
-    path: "/old-chat",
-    element: <OldChat />
   },
   {
     path: "/calendar",

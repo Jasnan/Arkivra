@@ -24,7 +24,6 @@ import { toast } from "sonner"
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -1087,27 +1086,27 @@ export default function SearchPage() {
 
   return (
     <BaseLayout hideHeaderSearch>
-      <div className="px-4 lg:px-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Search Results</CardTitle>
-            <CardDescription>
-              View, filter, and manage documents across vaults you can access.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {searchControls}
+      <div className="flex h-[calc(100svh-var(--header-height)-7.5rem)] min-h-0 flex-col gap-6 px-4 lg:h-[calc(100svh-var(--header-height)-8.5rem)] lg:px-6">
+        <div className="shrink-0">
+          <h1 className="text-2xl font-bold tracking-tight">Search Results</h1>
+          <p className="mt-1 text-muted-foreground">
+            View, filter, and manage documents across vaults you can access.
+          </p>
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col gap-6">
+          {searchControls}
+          <div className="min-h-0 flex-1 overflow-auto">
             {!hasSearchCriteria ? (
-              <div className="flex min-h-[24rem] flex-col items-center justify-center rounded-md border p-8 text-center">
+              <div className="flex h-full min-h-[16rem] flex-col items-center justify-center rounded-md border p-8 text-center">
                 <FileSearch className="size-10 text-muted-foreground" />
                 <h2 className="mt-4 text-lg font-semibold">Search your documents</h2>
               </div>
             ) : searchError ? (
               <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{searchError}</div>
             ) : loadingSearch ? (
-              <div className="flex h-64 items-center justify-center rounded-md border text-sm text-muted-foreground">Searching...</div>
+              <div className="flex h-full min-h-[16rem] items-center justify-center rounded-md border text-sm text-muted-foreground">Searching...</div>
             ) : results.length === 0 ? (
-              <div className="flex min-h-[24rem] flex-col items-center justify-center rounded-md border p-8 text-center">
+              <div className="flex h-full min-h-[16rem] flex-col items-center justify-center rounded-md border p-8 text-center">
                 <SearchX className="size-8 text-muted-foreground" />
                 <h2 className="mt-4 text-lg font-semibold">No matches found</h2>
                 <p className="mt-2 max-w-md text-sm text-muted-foreground">Adjust the query or filters and try again.</p>
@@ -1127,24 +1126,22 @@ export default function SearchPage() {
                 onTrash={setPendingTrashItem}
               />
             ) : (
-              <div>
-                <SearchResultGrid
-                  results={results}
-                  vaults={vaults}
-                  onRename={(result) => {
-                    setRenameTarget(result)
-                    setRenameValue(result.name)
-                  }}
-                  onMove={(result) => {
-                    setMoveTarget(result)
-                    setMoveDestinationId(null)
-                  }}
-                  onTrash={setPendingTrashItem}
-                />
-              </div>
+              <SearchResultGrid
+                results={results}
+                vaults={vaults}
+                onRename={(result) => {
+                  setRenameTarget(result)
+                  setRenameValue(result.name)
+                }}
+                onMove={(result) => {
+                  setMoveTarget(result)
+                  setMoveDestinationId(null)
+                }}
+                onTrash={setPendingTrashItem}
+              />
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       <Dialog open={renameTarget !== null} onOpenChange={(open) => !open && setRenameTarget(null)}>

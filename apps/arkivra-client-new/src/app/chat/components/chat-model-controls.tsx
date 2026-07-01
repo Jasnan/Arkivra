@@ -25,14 +25,14 @@ import { cn } from "@/lib/utils"
 
 const responseModeOptions = [
   {
-    title: "Quick answer",
+    title: "Plain answer",
     value: "text",
-    description: "Best for fast replies when you do not need source previews.",
+    description: "Answer without inline citations or source previews.",
   },
   {
     title: "Cited answer",
     value: "multimodal",
-    description: "Use when you want document citations and source evidence.",
+    description: "Answer with inline citations and source evidence.",
   },
 ] satisfies Array<{ title: string; value: ChatResponseMode; description: string }>
 
@@ -95,6 +95,56 @@ export function ChatModelControls({
 
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={disabled || isLoadingModels || modelOptions.length === 0}
+            aria-label="Select model"
+            title={modelOptionsError ?? "Select model"}
+            className="h-9 w-9 min-w-0 justify-center gap-2 rounded-md px-0 text-muted-foreground shadow-none hover:text-foreground sm:w-48 sm:justify-between sm:px-2.5 lg:w-56"
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              <Brain className="size-4 shrink-0" />
+              <span className="hidden min-w-0 truncate text-sm font-medium sm:inline">{modelLabel}</span>
+            </span>
+            <ChevronDown className="hidden size-4 shrink-0 sm:block" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-80">
+          {modelCategories.length > 0 ? (
+            <DropdownMenuRadioGroup value={selectedModel} onValueChange={onSelectedModelChange}>
+              {modelCategories.map(([category, items], categoryIndex) => (
+                <div key={category}>
+                  {categoryIndex > 0 ? <DropdownMenuSeparator /> : null}
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">
+                    {category}
+                  </DropdownMenuLabel>
+                  {items.map((item) => (
+                    <DropdownMenuRadioItem
+                      key={item.value}
+                      value={item.value}
+                      className="cursor-pointer"
+                    >
+                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                      {selectedModel === item.value ? (
+                        <Check className="ml-auto size-4 text-primary" />
+                      ) : null}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </div>
+              ))}
+            </DropdownMenuRadioGroup>
+          ) : (
+            <div className="px-2 py-1.5 text-sm text-muted-foreground">
+              {isLoadingModels ? "Loading models..." : "No models available"}
+            </div>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
       <Popover open={isAnswerModeOpen} onOpenChange={setIsAnswerModeOpen}>
         <PopoverTrigger asChild>
           <Button
@@ -139,56 +189,6 @@ export function ChatModelControls({
           </RadioGroup>
         </PopoverContent>
       </Popover>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={disabled || isLoadingModels || modelOptions.length === 0}
-            aria-label="Select model"
-            title={modelOptionsError ?? "Select model"}
-            className="h-9 w-9 min-w-0 justify-center gap-2 rounded-md px-0 text-muted-foreground shadow-none hover:text-foreground sm:w-auto sm:max-w-[18rem] sm:justify-between sm:px-2.5"
-          >
-            <span className="flex min-w-0 items-center gap-2">
-              <Brain className="size-4 shrink-0" />
-              <span className="hidden truncate text-sm font-medium sm:inline">{modelLabel}</span>
-            </span>
-            <ChevronDown className="hidden size-4 shrink-0 sm:block" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-80">
-          {modelCategories.length > 0 ? (
-            <DropdownMenuRadioGroup value={selectedModel} onValueChange={onSelectedModelChange}>
-              {modelCategories.map(([category, items], categoryIndex) => (
-                <div key={category}>
-                  {categoryIndex > 0 ? <DropdownMenuSeparator /> : null}
-                  <DropdownMenuLabel className="text-xs text-muted-foreground">
-                    {category}
-                  </DropdownMenuLabel>
-                  {items.map((item) => (
-                    <DropdownMenuRadioItem
-                      key={item.value}
-                      value={item.value}
-                      className="cursor-pointer"
-                    >
-                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                      {selectedModel === item.value ? (
-                        <Check className="ml-auto size-4 text-primary" />
-                      ) : null}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </div>
-              ))}
-            </DropdownMenuRadioGroup>
-          ) : (
-            <div className="px-2 py-1.5 text-sm text-muted-foreground">
-              {isLoadingModels ? "Loading models..." : "No models available"}
-            </div>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
     </div>
   )
 }

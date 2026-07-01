@@ -7,6 +7,7 @@ import { toast } from "sonner"
 import { getMe } from "@/app/vaults/vaults.api"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   addDocumentsToDraftContext,
   addVaultsToDraftContext,
@@ -95,7 +96,6 @@ export function Chat({
   const [defaultModel, setDefaultModel] = useState("")
   const [isLoadingModels, setIsLoadingModels] = useState(true)
   const [modelOptionsError, setModelOptionsError] = useState<string | null>(null)
-  const [hasManualResponseMode, setHasManualResponseMode] = useState(false)
   const [runtimeState, setRuntimeState] = useState<AssistantChatRuntimeState>({
     messages: [],
     status: "ready",
@@ -105,6 +105,7 @@ export function Chat({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const previousSelectedConversationIdRef = useRef(selectedConversationId)
   const activeRuntimeChatIdRef = useRef("")
+  const hasManualResponseModeRef = useRef(false)
   const vaultsQuery = useChatContextVaults()
 
   const visibleConversations = useMemo(() => {
@@ -308,7 +309,7 @@ export function Chat({
         setAiFeaturesEnabled(meResult.aiFeaturesEnabled !== false)
 
         const defaultChatAnswerMode = preferencesResult.preferences.defaultChatAnswerMode
-        if (!hasManualResponseMode && isChatResponseMode(defaultChatAnswerMode)) {
+        if (!hasManualResponseModeRef.current && isChatResponseMode(defaultChatAnswerMode)) {
           setResponseMode(defaultChatAnswerMode)
         }
       } catch (error) {
@@ -327,7 +328,7 @@ export function Chat({
     return () => {
       isCurrent = false
     }
-  }, [hasManualResponseMode])
+  }, [])
 
   useEffect(() => {
     if (!selectedConversation || selectedConversation === NEW_CHAT_DRAFT_ID) return
@@ -581,7 +582,7 @@ export function Chat({
 
   return (
     <TooltipProvider delayDuration={0}>
-      <div className="flex h-full min-h-[600px] max-h-[calc(100vh-200px)] overflow-hidden rounded-lg border bg-background">
+      <div className="flex h-full min-h-0 w-full overflow-hidden rounded-lg border bg-background">
         {isSidebarOpen && (
           <div
             className="fixed inset-0 z-40 bg-black/50 lg:hidden"
@@ -625,6 +626,7 @@ export function Chat({
             messagesByConversationId={messagesByConversationId}
             selectedConversation={selectedConversation}
             searchQuery={searchQuery}
+            isLoading={isLoadingConversations}
             onSearchQueryChange={setSearchQuery}
             onSelectConversation={handleSelectConversation}
             onCreateConversation={handleCreateConversation}
@@ -654,7 +656,7 @@ export function Chat({
                 modelOptionsError={modelOptionsError}
                 disabled={composerDisabled}
                 onResponseModeChange={(nextValue) => {
-                  setHasManualResponseMode(true)
+                  hasManualResponseModeRef.current = true
                   setResponseMode(nextValue)
                 }}
                 onSelectedModelChange={setSelectedModel}
@@ -669,9 +671,7 @@ export function Chat({
 
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {isLoadingConversations ? (
-              <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-                Loading chats...
-              </div>
+              <ChatPaneSkeleton />
             ) : selectedConversation ? (
               <AssistantChatRuntimeProvider
                 chatId={effectiveSelectedChatId}
@@ -696,9 +696,7 @@ export function Chat({
                   />
                 ) : null}
                 {isLoadingSelectedConversation ? (
-                  <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-                    Loading conversation...
-                  </div>
+                  <ChatPaneSkeleton />
                 ) : currentMessages.length === 0 && !hasRuntimeMessagesForSelectedConversation && !isStreaming ? (
                   <div className="flex min-h-0 flex-1 items-center justify-center px-4">
                     <div className="max-w-md text-center">
@@ -784,6 +782,33 @@ function ChatWarning({ message }: { message: string }) {
   return (
     <div className="border-b bg-muted/40 px-4 py-2 text-sm text-muted-foreground">
       {message}
+    </div>
+  )
+}
+
+function ChatPaneSkeleton() {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden px-4 py-6" aria-label="Loading chat">
+      <div className="flex justify-start">
+        <div className="max-w-[78%] space-y-3 rounded-lg border bg-muted/30 p-4">
+          <Skeleton className="h-4 w-64 max-w-full" />
+          <Skeleton className="h-4 w-80 max-w-full" />
+          <Skeleton className="h-4 w-52 max-w-full" />
+        </div>
+      </div>
+      <div className="flex justify-end">
+        <div className="max-w-[68%] space-y-3 rounded-lg bg-primary/5 p-4">
+          <Skeleton className="h-4 w-72 max-w-full" />
+          <Skeleton className="h-4 w-44 max-w-full" />
+        </div>
+      </div>
+      <div className="flex justify-start">
+        <div className="max-w-[78%] space-y-3 rounded-lg border bg-muted/30 p-4">
+          <Skeleton className="h-4 w-80 max-w-full" />
+          <Skeleton className="h-4 w-72 max-w-full" />
+          <Skeleton className="h-4 w-56 max-w-full" />
+        </div>
+      </div>
     </div>
   )
 }

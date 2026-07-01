@@ -8,7 +8,6 @@ import { toast } from "sonner"
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -677,26 +676,26 @@ export default function TagsPage() {
 
   return (
     <BaseLayout hideHeaderSearch>
-      <div className="px-4 lg:px-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Tags</CardTitle>
-            <CardDescription>Manage labels used to organize documents.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {tagControls}
+      <div className="flex h-[calc(100svh-var(--header-height)-7.5rem)] min-h-0 flex-col gap-6 px-4 lg:h-[calc(100svh-var(--header-height)-8.5rem)] lg:px-6">
+        <div className="shrink-0">
+          <h1 className="text-2xl font-bold tracking-tight">Tags</h1>
+          <p className="mt-1 text-muted-foreground">Manage labels used to organize documents.</p>
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col gap-6">
+          {tagControls}
+          <div className="min-h-0 flex-1 overflow-auto">
             {loadingTags ? (
-              <div className="flex h-64 items-center justify-center rounded-md border text-sm text-muted-foreground">Loading tags...</div>
+              <div className="flex h-full min-h-[16rem] items-center justify-center rounded-md border text-sm text-muted-foreground">Loading tags...</div>
             ) : tagsError ? (
               <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{tagsError}</div>
             ) : tags.length === 0 ? (
-              <div className="flex min-h-[24rem] flex-col items-center justify-center rounded-md border p-8 text-center">
+              <div className="flex h-full min-h-[16rem] flex-col items-center justify-center rounded-md border p-8 text-center">
                 <Tags className="size-10 text-muted-foreground" />
                 <h2 className="mt-4 text-lg font-semibold">No tags yet</h2>
                 <p className="mt-2 max-w-md text-sm text-muted-foreground">Create the first one to start organizing documents.</p>
               </div>
             ) : filteredTags.length === 0 ? (
-              <div className="flex min-h-[24rem] flex-col items-center justify-center rounded-md border p-8 text-center">
+              <div className="flex h-full min-h-[16rem] flex-col items-center justify-center rounded-md border p-8 text-center">
                 <Tags className="size-8 text-muted-foreground" />
                 <h2 className="mt-4 text-lg font-semibold">No tags found</h2>
                 <p className="mt-2 max-w-md text-sm text-muted-foreground">No tags match that search.</p>
@@ -751,8 +750,8 @@ export default function TagsPage() {
                 </Table>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       {selectedTags.length > 0 ? (

@@ -38,22 +38,7 @@ const data = {
   },
   navGroups: [
     {
-      label: "Dashboards",
-      items: [
-        {
-          title: "Dashboard 1",
-          url: "/dashboard",
-          icon: LayoutDashboard,
-        },
-        {
-          title: "Dashboard 2",
-          url: "/dashboard-2",
-          icon: LayoutPanelLeft,
-        },
-      ],
-    },
-    {
-      label: "Apps",
+      label: "",
       items: [
         {
           title: "Vaults",
@@ -71,19 +56,14 @@ const data = {
           icon: Tags,
         },
         {
-          title: "Tasks",
-          url: "/tasks",
-          icon: CheckSquare,
-        },
-        {
-          title: "new-chat",
+          title: "Chat",
           url: "/chat",
           icon: MessageCircle,
         },
         {
-          title: "old-chat",
-          url: "/old-chat",
-          icon: MessageCircle,
+          title: "Tasks",
+          url: "/tasks",
+          icon: CheckSquare,
         },
         {
           title: "Calendar",
@@ -164,6 +144,21 @@ const data = {
               url: "/admin/ai-settings",
             },
           ],
+        },
+      ],
+    },
+    {
+      label: "Dashboards",
+      items: [
+        {
+          title: "Dashboard 1",
+          url: "/dashboard",
+          icon: LayoutDashboard,
+        },
+        {
+          title: "Dashboard 2",
+          url: "/dashboard-2",
+          icon: LayoutPanelLeft,
         },
       ],
     },

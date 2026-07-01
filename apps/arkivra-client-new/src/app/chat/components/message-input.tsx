@@ -39,6 +39,7 @@ interface MessageInputProps {
   disabled?: boolean
   placeholder?: string
   context?: DraftChatContext
+  contextLocked?: boolean
   onAddVaults?: () => void
   onAddDocuments?: () => void
   onRemoveVault?: (vault: DraftChatVault) => void
@@ -50,6 +51,7 @@ export function MessageInput({
   disabled = false,
   placeholder = "Type a message...",
   context,
+  contextLocked = false,
   onAddVaults,
   onAddDocuments,
   onRemoveVault,
@@ -104,6 +106,7 @@ export function MessageInput({
         <ContextAttachmentList
           context={context}
           disabled={disabled}
+          locked={contextLocked}
           onRemoveVault={onRemoveVault}
           onRemoveDocument={onRemoveDocument}
         />
@@ -132,7 +135,7 @@ export function MessageInput({
             <DropdownMenuContent side="top" align="start">
               <DropdownMenuItem
                 onClick={onAddVaults}
-                disabled={disabled || !onAddVaults}
+                disabled={disabled || contextLocked || !onAddVaults}
                 className="cursor-pointer"
               >
                 <Vault className="h-4 w-4 mr-2" />
@@ -140,7 +143,7 @@ export function MessageInput({
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={onAddDocuments}
-                disabled={disabled || !onAddDocuments}
+                disabled={disabled || contextLocked || !onAddDocuments}
                 className="cursor-pointer"
               >
                 <FileText className="h-4 w-4 mr-2" />
@@ -158,7 +161,7 @@ export function MessageInput({
             value={message}
             onChange={handleTextareaChange}
             onKeyDown={handleKeyPress}
-            disabled={disabled}
+            disabled={disabled || contextLocked}
             className={cn(
               "min-h-[40px] max-h-[120px] resize-none cursor-text disabled:cursor-not-allowed",
               "pr-10"
@@ -231,11 +234,13 @@ export function MessageInput({
 function ContextAttachmentList({
   context,
   disabled,
+  locked,
   onRemoveVault,
   onRemoveDocument,
 }: {
   context: DraftChatContext
   disabled?: boolean
+  locked?: boolean
   onRemoveVault: (vault: DraftChatVault) => void
   onRemoveDocument: (document: DraftChatDocument) => void
 }) {
@@ -246,15 +251,19 @@ function ContextAttachmentList({
 
   return (
     <div className="mb-3 space-y-2">
-      <div className="text-muted-foreground text-xs font-medium">Context: {summary.label}</div>
+      <div className="text-muted-foreground text-xs font-medium">
+        Context: {summary.label}{locked ? " (locked)" : ""}
+      </div>
       <div className="flex flex-wrap gap-2">
         {normalized.vaults.map((vault) => (
           <ContextAttachmentChip
             key={vault.vaultId}
             icon={<Vault className="size-3.5" />}
             label={vault.name ?? vault.vaultId}
-            disabled={disabled}
-            onRemove={() => onRemoveVault(vault)}
+            disabled={disabled || locked}
+            onRemove={() => {
+              if (!locked) onRemoveVault(vault)
+            }}
           />
         ))}
         {normalized.documents.map((document) => (
@@ -264,7 +273,9 @@ function ContextAttachmentList({
             label={document.name ?? document.documentId}
             detail={document.vaultName}
             disabled={disabled}
-            onRemove={() => onRemoveDocument(document)}
+            onRemove={() => {
+              if (!locked) onRemoveDocument(document)
+            }}
           />
         ))}
       </div>

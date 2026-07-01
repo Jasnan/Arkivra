@@ -1,14 +1,21 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { Menu, MessageSquarePlus, X } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { MessageSquareOff, MessageSquarePlus, Menu, X } from "lucide-react"
+import { toast } from "sonner"
 
+import { getMe } from "@/app/vaults/vaults.api"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import {
   addDocumentsToDraftContext,
   addVaultsToDraftContext,
+  canUseContextSnapshot,
+  contextSnapshotFromDraft,
   createEmptyDraftContext,
+  draftContextFromSnapshot,
+  getContextAccessMessage,
+  getDraftContextSummary,
   hydrateDraftContextLabels,
   removeDocumentFromDraftContext,
   removeVaultFromDraftContext,
@@ -24,45 +31,35 @@ import { ChatHeader } from "./chat-header"
 import { MessageList } from "./message-list"
 import { MessageInput } from "./message-input"
 import {
+  createChatConversation,
+  deleteChatConversation,
+  getChatConversation,
   getChatModelOptions,
   getUserUiPreferences,
+  listChatConversations,
+  updateChatConversationContext,
+  type ChatConversation,
+  type ChatConversationDetail,
+  type ChatMessage,
   type ChatResponseMode,
 } from "../chat.api"
+import { streamChatMessage } from "../chat-stream"
+import { getCachedDefaultChatResponseMode, isChatResponseMode } from "../chat-model-utils"
 import {
-  DEFAULT_CHAT_RESPONSE_MODE,
-  getCachedDefaultChatResponseMode,
-  isChatResponseMode,
-} from "../chat-model-utils"
-import { useChat, type Conversation, type Message, type User } from "@/app/chat/use-chat"
+  NEW_CHAT_DRAFT_ID,
+  hasPendingAssistantMessage,
+  messageSignature,
+} from "../chat-utils"
 
-const NEW_CHAT_DRAFT_ID = "__new_chat_draft__"
-
-interface ChatProps {
-  conversations: Conversation[]
-  messages: Record<string, Message[]>
-  users: User[]
-}
-
-export function Chat({
-  conversations,
-  messages,
-  users,
-}: ChatProps) {
-  const {
-    conversations: chatConversations,
-    messages: chatMessages,
-    users: chatUsers,
-    selectedConversation,
-    setSelectedConversation,
-    setConversations,
-    addConversation,
-    setMessages,
-    setUsers,
-    addMessage,
-    toggleMute,
-  } = useChat()
-
+export function Chat() {
+  const [conversations, setConversations] = useState<ChatConversation[]>([])
+  const [messagesByConversationId, setMessagesByConversationId] = useState<Record<string, ChatMessage[]>>({})
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isLoadingConversations, setIsLoadingConversations] = useState(true)
+  const [isLoadingSelectedConversation, setIsLoadingSelectedConversation] = useState(false)
+  const [aiFeaturesEnabled, setAiFeaturesEnabled] = useState(true)
   const [draftContext, setDraftContext] = useState<DraftChatContext>(() => createEmptyDraftContext())
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false)
   const [isDocumentDialogOpen, setIsDocumentDialogOpen] = useState(false)
@@ -75,74 +72,151 @@ export function Chat({
   const [isLoadingModels, setIsLoadingModels] = useState(true)
   const [modelOptionsError, setModelOptionsError] = useState<string | null>(null)
   const [hasManualResponseMode, setHasManualResponseMode] = useState(false)
-  const hasInitializedChatRef = useRef(false)
+  const [streamingConversationId, setStreamingConversationId] = useState<string | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
   const vaultsQuery = useChatContextVaults()
+
+  const visibleConversations = useMemo(() => {
+    if (selectedConversation !== NEW_CHAT_DRAFT_ID) return conversations
+    const now = new Date().toISOString()
+    const draftConversation: ChatConversation = {
+      id: NEW_CHAT_DRAFT_ID,
+      title: "New chat",
+      scope: "global",
+      vaultId: null,
+      documentId: null,
+      contextSnapshot: contextSnapshotFromDraft(draftContext),
+      userId: null,
+      createdAt: now,
+      updatedAt: now,
+    }
+    return [draftConversation, ...conversations]
+  }, [conversations, draftContext, selectedConversation])
+
+  const currentConversation = visibleConversations.find(
+    (conversation) => conversation.id === selectedConversation
+  ) ?? null
+  const currentMessages = useMemo(
+    () => (selectedConversation ? messagesByConversationId[selectedConversation] ?? [] : []),
+    [messagesByConversationId, selectedConversation]
+  )
+  const isDraftConversation = selectedConversation === NEW_CHAT_DRAFT_ID
+  const contextAvailability =
+    currentConversation && currentConversation.id !== NEW_CHAT_DRAFT_ID
+      ? (currentConversation as ChatConversationDetail).contextAvailability
+      : undefined
+  const isContextReadOnly = contextAvailability?.readOnly === true
+  const isContextLocked =
+    Boolean(currentConversation) &&
+    !isDraftConversation &&
+    currentMessages.length > 0
+  const baseDisplayedContext =
+    currentConversation && !isDraftConversation && isContextLocked
+      ? draftContextFromSnapshot(currentConversation.contextSnapshot)
+      : draftContext
   const hydratedDraftContext = hydrateDraftContextLabels({
-    context: draftContext,
+    context: baseDisplayedContext,
     vaults: vaultsQuery.vaults,
   })
+  const activeContextSnapshot =
+    currentConversation && !isDraftConversation && isContextLocked
+      ? currentConversation.contextSnapshot
+      : contextSnapshotFromDraft(hydratedDraftContext)
+  const aiAccessByVaultId = useMemo(() => {
+    const access = new Map<string, "none" | "full">()
+    for (const vault of vaultsQuery.vaults) {
+      access.set(vault.id, vault.aiAccessLevel)
+    }
+    return access
+  }, [vaultsQuery.vaults])
+  const hasFullAiVault = vaultsQuery.vaults.some((vault) => vault.aiAccessLevel === "full")
+  const canUseSelectedContext =
+    vaultsQuery.isLoading ||
+    canUseContextSnapshot({
+      snapshot: activeContextSnapshot,
+      aiAccessByVaultId,
+      hasFullAiVault,
+    })
+  const contextSummary = getDraftContextSummary(hydratedDraftContext)
+  const contextLabel = contextSummary.label
   const resolvedSelectedModel =
     selectedModel && availableModels.includes(selectedModel)
       ? selectedModel
       : defaultModel && availableModels.includes(defaultModel)
         ? defaultModel
         : ""
+  const hasLoadedChatModels = !isLoadingModels && modelOptionsError === null
+  const hasUsableChatModels = !hasLoadedChatModels || resolvedSelectedModel.length > 0
+  const isStreaming = streamingConversationId !== null
+  const composerDisabled =
+    isLoadingSelectedConversation ||
+    isStreaming ||
+    !aiFeaturesEnabled ||
+    isContextReadOnly ||
+    !canUseSelectedContext ||
+    !hasUsableChatModels
 
-  // Close sidebar when clicking outside on mobile
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 1024) { // lg breakpoint
-        setIsSidebarOpen(false)
-      }
-    }
-
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
+  const refreshConversations = useCallback(async () => {
+    const result = await listChatConversations()
+    setConversations(result.conversations)
   }, [])
 
-  // Initialize data
-  useEffect(() => {
-    if (hasInitializedChatRef.current) {
-      return
+  const loadConversation = useCallback(async (chatId: string, options?: { quiet?: boolean }) => {
+    if (!options?.quiet) setIsLoadingSelectedConversation(true)
+    try {
+      const result = await getChatConversation({ chatId })
+      setConversations((current) =>
+        upsertConversation(current, result.conversation)
+      )
+      setMessagesByConversationId((current) => ({
+        ...current,
+        [chatId]: result.conversation.messages,
+      }))
+      setDraftContext(draftContextFromSnapshot(result.conversation.contextSnapshot))
+      return result.conversation
+    } finally {
+      if (!options?.quiet) setIsLoadingSelectedConversation(false)
     }
-
-    hasInitializedChatRef.current = true
-    setConversations(conversations)
-    setUsers(users)
-    
-    // Set messages for all conversations
-    Object.entries(messages).forEach(([conversationId, conversationMessages]) => {
-      setMessages(conversationId, conversationMessages)
-    })
-
-    // Auto-select first conversation if none selected
-    if (!selectedConversation && conversations.length > 0) {
-      setSelectedConversation(conversations[0].id)
-    }
-  }, [conversations, messages, users, selectedConversation, setConversations, setMessages, setUsers, setSelectedConversation])
+  }, [])
 
   useEffect(() => {
     let isCurrent = true
 
-    async function loadDefaultResponseMode() {
+    async function loadInitialData() {
+      setIsLoadingConversations(true)
+      setIsLoadingModels(true)
+      setModelOptionsError(null)
+
       try {
-        const result = await getUserUiPreferences()
-        const defaultChatAnswerMode = result.preferences.defaultChatAnswerMode
-        if (!isCurrent || hasManualResponseMode || !isChatResponseMode(defaultChatAnswerMode)) {
-          return
-        }
+        const [conversationResult, modelResult, preferencesResult, meResult] = await Promise.all([
+          listChatConversations(),
+          getChatModelOptions(),
+          getUserUiPreferences().catch(() => ({ preferences: {} as { defaultChatAnswerMode?: ChatResponseMode } })),
+          getMe().catch(() => ({ aiFeaturesEnabled: true, canCreateVault: false })),
+        ])
+        if (!isCurrent) return
 
-        setResponseMode(defaultChatAnswerMode)
-      } catch {
-        if (!isCurrent || hasManualResponseMode) {
-          return
-        }
+        setConversations(conversationResult.conversations)
+        setAvailableModels(modelResult.options.models)
+        setDefaultModel(modelResult.options.defaultModel)
+        setAiFeaturesEnabled(meResult.aiFeaturesEnabled !== false)
 
-        setResponseMode((current) => current ?? DEFAULT_CHAT_RESPONSE_MODE)
+        const defaultChatAnswerMode = preferencesResult.preferences.defaultChatAnswerMode
+        if (!hasManualResponseMode && isChatResponseMode(defaultChatAnswerMode)) {
+          setResponseMode(defaultChatAnswerMode)
+        }
+      } catch (error) {
+        if (!isCurrent) return
+        toast.error(error instanceof Error ? error.message : "Could not load chat.")
+      } finally {
+        if (isCurrent) {
+          setIsLoadingConversations(false)
+          setIsLoadingModels(false)
+        }
       }
     }
 
-    void loadDefaultResponseMode()
+    void loadInitialData()
 
     return () => {
       isCurrent = false
@@ -150,134 +224,262 @@ export function Chat({
   }, [hasManualResponseMode])
 
   useEffect(() => {
-    let isCurrent = true
+    if (!selectedConversation || selectedConversation === NEW_CHAT_DRAFT_ID) return
+    void loadConversation(selectedConversation)
+  }, [loadConversation, selectedConversation])
 
-    async function loadChatModelOptions() {
-      setIsLoadingModels(true)
-      setModelOptionsError(null)
+  useEffect(() => {
+    if (!selectedConversation || selectedConversation === NEW_CHAT_DRAFT_ID) return
+    if (isStreaming) return
+    if (!hasPendingAssistantMessage(currentMessages)) return
 
-      try {
-        const result = await getChatModelOptions()
-        if (!isCurrent) return
+    const intervalId = window.setInterval(() => {
+      void loadConversation(selectedConversation, { quiet: true })
+    }, 1500)
 
-        setAvailableModels(result.options.models)
-        setDefaultModel(result.options.defaultModel)
-      } catch (error) {
-        if (!isCurrent) return
+    return () => window.clearInterval(intervalId)
+  }, [currentMessages, isStreaming, loadConversation, selectedConversation])
 
-        setAvailableModels([])
-        setDefaultModel("")
-        setModelOptionsError(
-          error instanceof Error
-            ? error.message
-            : "Could not load available models for this chat."
-        )
-      } finally {
-        if (isCurrent) {
-          setIsLoadingModels(false)
-        }
-      }
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) setIsSidebarOpen(false)
     }
 
-    void loadChatModelOptions()
-
-    return () => {
-      isCurrent = false
-    }
+    window.addEventListener("resize", handleResize)
+    return () => window.removeEventListener("resize", handleResize)
   }, [])
 
-  const currentConversation = chatConversations.find(conv => conv.id === selectedConversation)
-  const currentMessages = selectedConversation ? chatMessages[selectedConversation] || [] : []
+  useEffect(() => {
+    return () => abortControllerRef.current?.abort()
+  }, [])
 
-  const handleCreateConversation = () => {
-    const existingDraft = chatConversations.find((conversation) => conversation.id === NEW_CHAT_DRAFT_ID)
-
-    if (existingDraft) {
-      setSelectedConversation(existingDraft.id)
-      setIsSidebarOpen(false)
-      return
-    }
-
-    const now = new Date().toISOString()
-    const draftConversation: Conversation = {
-      id: NEW_CHAT_DRAFT_ID,
-      type: "direct",
-      participants: [],
-      name: "New chat",
-      avatar: "",
-      lastMessage: {
-        id: "",
-        content: "",
-        timestamp: now,
-        senderId: "current-user",
-      },
-      unreadCount: 0,
-      isPinned: false,
-      isMuted: false,
-    }
-
-    addConversation(draftConversation)
-    setSelectedConversation(draftConversation.id)
+  function handleCreateConversation() {
+    abortControllerRef.current?.abort()
+    setSelectedConversation(NEW_CHAT_DRAFT_ID)
     setDraftContext(createEmptyDraftContext())
+    setMessagesByConversationId((current) => ({ ...current, [NEW_CHAT_DRAFT_ID]: [] }))
     setIsSidebarOpen(false)
   }
 
-  const handleSendMessage = (content: string) => {
-    if (!selectedConversation) return
-
-    if (selectedConversation === NEW_CHAT_DRAFT_ID) {
-      const title = content.length > 60 ? `${content.slice(0, 57)}...` : content
-      setConversations(
-        chatConversations.map((conversation) =>
-          conversation.id === NEW_CHAT_DRAFT_ID
-            ? { ...conversation, name: title || "New chat" }
-            : conversation
-        )
-      )
-    }
-
-    const newMessage = {
-      id: `msg-${Date.now()}`,
-      content,
-      timestamp: new Date().toISOString(),
-      senderId: "current-user",
-      type: "text" as const,
-      isEdited: false,
-      reactions: [],
-      replyTo: null,
-    }
-
-    addMessage(selectedConversation, newMessage)
+  function handleSelectConversation(chatId: string) {
+    if (chatId === selectedConversation) return
+    abortControllerRef.current?.abort()
+    setSelectedConversation(chatId)
+    setIsSidebarOpen(false)
   }
 
-  const handleToggleMute = () => {
-    if (selectedConversation) {
-      toggleMute(selectedConversation)
+  async function handleDeleteConversation(chatId: string) {
+    if (chatId === NEW_CHAT_DRAFT_ID) {
+      setSelectedConversation(null)
+      setDraftContext(createEmptyDraftContext())
+      return
     }
+
+    try {
+      await deleteChatConversation({ chatId })
+      setConversations((current) => current.filter((conversation) => conversation.id !== chatId))
+      setMessagesByConversationId((current) => {
+        const next = { ...current }
+        delete next[chatId]
+        return next
+      })
+      if (selectedConversation === chatId) {
+        setSelectedConversation(null)
+        setDraftContext(createEmptyDraftContext())
+      }
+      toast.success("Conversation deleted.")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not delete conversation.")
+    }
+  }
+
+  async function applyContextChange(nextContext: DraftChatContext) {
+    const hydratedNextContext = hydrateDraftContextLabels({
+      context: nextContext,
+      vaults: vaultsQuery.vaults,
+    })
+
+    if (isContextLocked) {
+      const shouldFork = window.confirm(
+        "This conversation already has messages. Create a new chat with the changed context?"
+      )
+      if (!shouldFork) return
+
+      try {
+        const result = await createChatConversation({
+          contextSnapshot: contextSnapshotFromDraft(hydratedNextContext),
+          title: currentConversation?.title,
+        })
+        setDraftContext(hydratedNextContext)
+        setSelectedConversation(result.conversation.id)
+        setConversations((current) => upsertConversation(current, result.conversation))
+        setMessagesByConversationId((current) => ({
+          ...current,
+          [result.conversation.id]: [],
+        }))
+        await refreshConversations()
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not create a new chat.")
+      }
+      return
+    }
+
+    setDraftContext(hydratedNextContext)
+    if (currentConversation && !isDraftConversation) {
+      try {
+        const result = await updateChatConversationContext({
+          chatId: currentConversation.id,
+          contextSnapshot: contextSnapshotFromDraft(hydratedNextContext),
+        })
+        setConversations((current) => upsertConversation(current, result.conversation))
+        await refreshConversations()
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not update conversation context.")
+      }
+    }
+  }
+
+  async function handleSendMessage(content: string) {
+    const trimmedContent = content.trim()
+    if (!trimmedContent || isStreaming) return
+    if (!aiFeaturesEnabled) {
+      toast.error("AI features are disabled.")
+      return
+    }
+    if (!resolvedSelectedModel) {
+      toast.error("No chat models are available from the configured chat providers.")
+      return
+    }
+    if (!canUseSelectedContext) {
+      toast.error(getContextAccessMessage(activeContextSnapshot))
+      return
+    }
+
+    let chatId = selectedConversation && selectedConversation !== NEW_CHAT_DRAFT_ID
+      ? selectedConversation
+      : ""
+    let conversation = currentConversation
+
+    try {
+      if (!chatId) {
+        const result = await createChatConversation({
+          contextSnapshot: contextSnapshotFromDraft(hydratedDraftContext),
+          title: trimmedContent,
+        })
+        conversation = result.conversation
+        chatId = result.conversation.id
+        setSelectedConversation(chatId)
+        setConversations((current) => upsertConversation(current, result.conversation))
+      }
+
+      const now = new Date().toISOString()
+      const userMessage: ChatMessage = {
+        id: `msg-${crypto.randomUUID()}`,
+        role: "user",
+        metadata: {
+          conversationId: chatId,
+          createdAt: now,
+          updatedAt: now,
+          ...(conversation?.vaultId !== undefined ? { vaultId: conversation.vaultId } : {}),
+          ...(conversation?.documentId !== undefined ? { documentId: conversation.documentId } : {}),
+          ...(conversation?.scope ? { scope: conversation.scope } : {}),
+        },
+        parts: [{ type: "text", text: trimmedContent }],
+      }
+      const persistedMessages = chatId === selectedConversation ? currentMessages : []
+      const nextMessages = [...persistedMessages, userMessage]
+      setMessagesByConversationId((current) => ({
+        ...current,
+        [chatId]: nextMessages,
+        [NEW_CHAT_DRAFT_ID]: [],
+      }))
+      setConversations((current) => {
+        const existingConversation =
+          conversation ?? current.find((item) => item.id === chatId) ?? createLocalConversation({
+            chatId,
+            title: trimmedContent,
+            contextSnapshot: activeContextSnapshot,
+            now,
+          })
+
+        return upsertConversation(current, {
+          ...existingConversation,
+          id: chatId,
+          title: existingConversation.title || trimmedContent,
+          updatedAt: now,
+        })
+      })
+
+      const abortController = new AbortController()
+      abortControllerRef.current = abortController
+      setStreamingConversationId(chatId)
+
+      await streamChatMessage({
+        chatId,
+        messages: nextMessages,
+        responseMode,
+        model: resolvedSelectedModel,
+        signal: abortController.signal,
+        onAssistantMessage: (assistantMessage) => {
+          setMessagesByConversationId((current) => {
+            const existing = current[chatId] ?? nextMessages
+            const withoutAssistant = existing.filter((message) => message.id !== assistantMessage.id)
+            const next = [...withoutAssistant, assistantMessage]
+            if (messageSignature(existing) === messageSignature(next)) return current
+            return { ...current, [chatId]: next }
+          })
+        },
+      })
+
+      await Promise.all([
+        refreshConversations(),
+        loadConversation(chatId, { quiet: true }),
+      ])
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return
+      toast.error(error instanceof Error ? error.message : "Could not send message.")
+    } finally {
+      if (abortControllerRef.current) {
+        abortControllerRef.current = null
+      }
+      setStreamingConversationId(null)
+    }
+  }
+
+  if (!aiFeaturesEnabled) {
+    return (
+      <TooltipProvider delayDuration={0}>
+        <div className="flex h-full min-h-[600px] items-center justify-center rounded-lg border bg-background px-6 text-center">
+          <div className="max-w-md">
+            <MessageSquareOff className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+            <h2 className="mb-2 text-lg font-semibold">AI features are disabled</h2>
+            <p className="text-sm text-muted-foreground">
+              Document management and keyword search remain available.
+            </p>
+          </div>
+        </div>
+      </TooltipProvider>
+    )
   }
 
   return (
     <TooltipProvider delayDuration={0}>
-      <div className="h-full min-h-[600px] max-h-[calc(100vh-200px)] flex rounded-lg border overflow-hidden bg-background">
-        {/* Mobile Sidebar Overlay */}
+      <div className="flex h-full min-h-[600px] max-h-[calc(100vh-200px)] overflow-hidden rounded-lg border bg-background">
         {isSidebarOpen && (
-          <div 
-            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          <div
+            className="fixed inset-0 z-40 bg-black/50 lg:hidden"
             onClick={() => setIsSidebarOpen(false)}
           />
         )}
 
-        {/* Conversations Sidebar - Responsive */}
-        <div className={`
-          w-100 border-r bg-background flex-shrink-0
-          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-          lg:relative lg:block
-          fixed inset-y-0 left-0 z-50
-          transition-transform duration-300 ease-in-out
-        `}>
-          {/* Sidebar Header with Close Button (Mobile Only) */}
-          <div className="lg:hidden p-4 border-b flex items-center justify-between bg-background">
-            <h2 className="text-lg font-semibold">Messages</h2>
+        <div
+          className={cnSidebar(
+            "fixed inset-y-0 left-0 z-50 w-100 flex-shrink-0 border-r bg-background transition-transform duration-300 ease-in-out lg:relative lg:block",
+            isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          )}
+        >
+          <div className="flex items-center justify-between border-b bg-background p-4 lg:hidden">
+            <h2 className="text-lg font-semibold">Chats</h2>
             <div className="flex items-center gap-1">
               <Button
                 type="button"
@@ -302,83 +504,102 @@ export function Chat({
           </div>
 
           <ConversationList
-            conversations={chatConversations}
+            conversations={visibleConversations}
+            messagesByConversationId={messagesByConversationId}
             selectedConversation={selectedConversation}
-            onSelectConversation={(id) => {
-              setSelectedConversation(id)
-              setIsSidebarOpen(false) // Close sidebar on mobile after selection
-            }}
+            searchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
+            onSelectConversation={handleSelectConversation}
             onCreateConversation={handleCreateConversation}
+            onDeleteConversation={(chatId) => void handleDeleteConversation(chatId)}
           />
         </div>
 
-        {/* Chat Panel - Flexible Width */}
-        <div className="flex-1 flex flex-col min-w-0 bg-background">
-          {/* Chat Header with Hamburger Menu */}
-          <div className="flex items-center h-16 px-4 border-b bg-background">
-            {/* Hamburger Menu Button - Only visible when sidebar is hidden on mobile */}
+        <div className="flex min-w-0 flex-1 flex-col bg-background">
+          <div className="flex h-16 items-center border-b bg-background px-4">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setIsSidebarOpen(true)}
-              className="cursor-pointer lg:hidden mr-2"
+              className="mr-2 cursor-pointer lg:hidden"
             >
               <Menu className="h-4 w-4" />
             </Button>
-
-            <div className="flex-1">
+            <div className="min-w-0 flex-1">
               <ChatHeader
-                conversation={currentConversation || null}
+                conversation={currentConversation}
+                contextLabel={contextLabel}
+                contextLocked={isContextLocked}
                 responseMode={responseMode}
                 modelOptions={availableModels}
                 selectedModel={resolvedSelectedModel}
                 isLoadingModels={isLoadingModels}
                 modelOptionsError={modelOptionsError}
+                disabled={composerDisabled}
                 onResponseModeChange={(nextValue) => {
                   setHasManualResponseMode(true)
                   setResponseMode(nextValue)
                 }}
                 onSelectedModelChange={setSelectedModel}
-                onToggleMute={handleToggleMute}
+                onDeleteConversation={
+                  currentConversation
+                    ? () => void handleDeleteConversation(currentConversation.id)
+                    : undefined
+                }
               />
             </div>
           </div>
 
-          {/* Messages */}
-          <div className="flex-1 flex flex-col min-h-0">
-            {selectedConversation ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            {isLoadingConversations ? (
+              <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+                Loading chats...
+              </div>
+            ) : selectedConversation ? (
               <>
+                {!canUseSelectedContext || isContextReadOnly || (!hasUsableChatModels && hasLoadedChatModels) ? (
+                  <ChatWarning
+                    message={
+                      isContextReadOnly
+                        ? contextAvailability?.message ?? "This conversation is available as read-only history."
+                        : !hasUsableChatModels && hasLoadedChatModels
+                          ? "No chat models are available from the configured chat providers."
+                          : getContextAccessMessage(activeContextSnapshot)
+                    }
+                  />
+                ) : null}
                 <MessageList
                   messages={currentMessages}
-                  users={chatUsers}
+                  isLoading={isLoadingSelectedConversation}
+                  onQuickReplySelect={(reply) => void handleSendMessage(reply)}
                 />
-                
-                {/* Message Input */}
                 <MessageInput
-                  onSendMessage={handleSendMessage}
-                  placeholder={`Message ${currentConversation?.name || ""}...`}
+                  onSendMessage={(message) => void handleSendMessage(message)}
+                  disabled={composerDisabled}
+                  placeholder="Ask across your documents..."
                   context={hydratedDraftContext}
+                  contextLocked={isContextLocked}
                   onAddVaults={() => setIsVaultDialogOpen(true)}
                   onAddDocuments={() => setIsDocumentDialogOpen(true)}
                   onRemoveVault={(vault) =>
-                    setDraftContext((current) =>
-                      removeVaultFromDraftContext(current, vault.vaultId)
-                    )
+                    void applyContextChange(removeVaultFromDraftContext(hydratedDraftContext, vault.vaultId))
                   }
                   onRemoveDocument={(document) =>
-                    setDraftContext((current) =>
-                      removeDocumentFromDraftContext(current, document)
-                    )
+                    void applyContextChange(removeDocumentFromDraftContext(hydratedDraftContext, document))
                   }
                 />
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center">
+              <div className="flex flex-1 items-center justify-center">
                 <div className="text-center">
-                  <h3 className="text-lg font-semibold mb-2">Welcome to Chat</h3>
-                  <p className="text-muted-foreground">
-                    Select a conversation to start messaging
+                  <h3 className="mb-2 text-lg font-semibold">Welcome to Chat</h3>
+                  <p className="mb-4 text-sm text-muted-foreground">
+                    Start a new conversation to ask questions across your documents.
                   </p>
+                  <Button type="button" onClick={handleCreateConversation}>
+                    <MessageSquarePlus className="mr-2 h-4 w-4" />
+                    New chat
+                  </Button>
                 </div>
               </div>
             )}
@@ -393,7 +614,7 @@ export function Chat({
         error={vaultsQuery.error}
         onOpenChange={setIsVaultDialogOpen}
         onConfirm={(vaults) =>
-          setDraftContext((current) => addVaultsToDraftContext(current, vaults))
+          void applyContextChange(addVaultsToDraftContext(hydratedDraftContext, vaults))
         }
       />
       <DocumentSelectionDialog
@@ -402,9 +623,60 @@ export function Chat({
         vaults={vaultsQuery.vaults}
         onOpenChange={setIsDocumentDialogOpen}
         onConfirm={(documents) =>
-          setDraftContext((current) => addDocumentsToDraftContext(current, documents))
+          void applyContextChange(addDocumentsToDraftContext(hydratedDraftContext, documents))
         }
       />
     </TooltipProvider>
   )
+}
+
+function ChatWarning({ message }: { message: string }) {
+  return (
+    <div className="border-b bg-muted/40 px-4 py-2 text-sm text-muted-foreground">
+      {message}
+    </div>
+  )
+}
+
+function upsertConversation(
+  conversations: ChatConversation[],
+  conversation: ChatConversation
+) {
+  return [
+    conversation,
+    ...conversations.filter((item) => item.id !== conversation.id),
+  ].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+}
+
+function createLocalConversation({
+  chatId,
+  title,
+  contextSnapshot,
+  now,
+}: {
+  chatId: string
+  title: string
+  contextSnapshot: ChatConversation["contextSnapshot"]
+  now: string
+}): ChatConversation {
+  const scopeValues =
+    contextSnapshot.type === "document"
+      ? { scope: "document" as const, vaultId: contextSnapshot.vaultId, documentId: contextSnapshot.documentId }
+      : contextSnapshot.type === "vault"
+        ? { scope: "vault" as const, vaultId: contextSnapshot.vaultId, documentId: null }
+        : { scope: "global" as const, vaultId: null, documentId: null }
+
+  return {
+    id: chatId,
+    title,
+    contextSnapshot,
+    userId: null,
+    createdAt: now,
+    updatedAt: now,
+    ...scopeValues,
+  }
+}
+
+function cnSidebar(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ")
 }

@@ -1,5 +1,6 @@
 import type { SearchResultItem } from "@/app/search/search.api"
 import type { VaultSummary } from "@/app/vaults/vaults.api"
+import type { ChatContextSnapshot } from "./chat.api"
 
 export interface DraftChatVault {
   vaultId: string
@@ -9,6 +10,8 @@ export interface DraftChatVault {
 export interface DraftChatDocument {
   vaultId: string
   documentId: string
+  documentVersionId?: string
+  versionNumber?: number
   name?: string
   vaultName?: string
   path?: string
@@ -63,6 +66,8 @@ function dedupeDocuments(documents: DraftChatDocument[], selectedVaultIds: Set<s
     result.push({
       vaultId,
       documentId,
+      ...(optionalLabel(document.documentVersionId) ? { documentVersionId: optionalLabel(document.documentVersionId) } : {}),
+      ...(typeof document.versionNumber === "number" ? { versionNumber: document.versionNumber } : {}),
       ...(optionalLabel(document.name) ? { name: optionalLabel(document.name) } : {}),
       ...(optionalLabel(document.vaultName) ? { vaultName: optionalLabel(document.vaultName) } : {}),
       ...(optionalLabel(document.path) ? { path: optionalLabel(document.path) } : {}),
@@ -184,4 +189,129 @@ export function draftDocumentFromSearchResult(document: SearchResultItem): Draft
     path: document.vaultName,
     mimeType: document.mimeType,
   }
+}
+
+export function contextSnapshotFromDraft(context: DraftChatContext): ChatContextSnapshot {
+  const normalized = normalizeDraftContext(context)
+  if (normalized.vaults.length === 0 && normalized.documents.length === 0) {
+    return { type: "global", vaultIds: [] }
+  }
+
+  if (normalized.vaults.length === 1 && normalized.documents.length === 0) {
+    const vault = normalized.vaults[0]
+    return {
+      type: "vault",
+      vaultId: vault.vaultId,
+      ...(vault.name ? { vaultName: vault.name } : {}),
+    }
+  }
+
+  if (normalized.vaults.length === 0 && normalized.documents.length === 1) {
+    const document = normalized.documents[0]
+    return {
+      type: "document",
+      vaultId: document.vaultId,
+      documentId: document.documentId,
+      ...(document.vaultName ? { vaultName: document.vaultName } : {}),
+      ...(document.name ? { documentName: document.name } : {}),
+    }
+  }
+
+  return {
+    type: "selection",
+    vaults: normalized.vaults.map((vault) => ({
+      vaultId: vault.vaultId,
+      ...(vault.name ? { name: vault.name } : {}),
+    })),
+    documents: normalized.documents.map((document) => ({
+      vaultId: document.vaultId,
+      documentId: document.documentId,
+      ...(document.documentVersionId ? { documentVersionId: document.documentVersionId } : {}),
+      ...(typeof document.versionNumber === "number" ? { versionNumber: document.versionNumber } : {}),
+      ...(document.name ? { name: document.name } : {}),
+      ...(document.vaultName ? { vaultName: document.vaultName } : {}),
+      ...(document.path ? { path: document.path } : {}),
+    })),
+  }
+}
+
+export function draftContextFromSnapshot(snapshot: ChatContextSnapshot): DraftChatContext {
+  switch (snapshot.type) {
+    case "global":
+      return createEmptyDraftContext()
+    case "vault":
+      return normalizeDraftContext({
+        vaults: [{ vaultId: snapshot.vaultId, name: snapshot.vaultName }],
+        documents: [],
+      })
+    case "document":
+      return normalizeDraftContext({
+        vaults: [],
+        documents: [
+          {
+            vaultId: snapshot.vaultId,
+            documentId: snapshot.documentId,
+            vaultName: snapshot.vaultName,
+            name: snapshot.documentName,
+          },
+        ],
+      })
+    case "selection":
+      return normalizeDraftContext({
+        vaults: snapshot.vaults.map((vault) => ({
+          vaultId: vault.vaultId,
+          name: vault.name,
+        })),
+        documents: snapshot.documents.map((document) => ({
+          vaultId: document.vaultId,
+          documentId: document.documentId,
+          documentVersionId: document.documentVersionId,
+          versionNumber: document.versionNumber,
+          name: document.name,
+          vaultName: document.vaultName,
+          path: document.path,
+        })),
+      })
+  }
+}
+
+export function canUseContextSnapshot({
+  snapshot,
+  aiAccessByVaultId,
+  hasFullAiVault,
+}: {
+  snapshot: ChatContextSnapshot
+  aiAccessByVaultId: Map<string, "none" | "full">
+  hasFullAiVault: boolean
+}) {
+  if (snapshot.type === "global") {
+    if (snapshot.vaultIds.length === 0) return hasFullAiVault
+    return snapshot.vaultIds.every((vaultId) => aiAccessByVaultId.get(vaultId) === "full")
+  }
+
+  if (snapshot.type === "vault") return aiAccessByVaultId.get(snapshot.vaultId) === "full"
+  if (snapshot.type === "document") return aiAccessByVaultId.get(snapshot.vaultId) === "full"
+
+  if (snapshot.vaults.length === 0 && snapshot.documents.length === 0) return false
+
+  return (
+    snapshot.vaults.every((vault) => aiAccessByVaultId.get(vault.vaultId) === "full") &&
+    snapshot.documents.every((document) => aiAccessByVaultId.get(document.vaultId) === "full")
+  )
+}
+
+export function getContextAccessMessage(snapshot: ChatContextSnapshot) {
+  if (snapshot.type === "document") {
+    return "Document chat requires full AI access on this vault."
+  }
+
+  if (snapshot.type === "vault") {
+    return "To chat with this vault, join it as a member with full AI access. Admin access alone is not enough."
+  }
+
+  if (snapshot.type === "selection") {
+    return "Selected context includes vaults or documents without the required AI access."
+  }
+
+  return "To start using chat, join at least one vault as a member with full AI access. Admin access alone is not enough."
 }

@@ -1,174 +1,162 @@
 "use client"
 
-import { format, isToday, isYesterday, isThisWeek, isThisYear } from "date-fns"
-import { 
-  Search, 
-  Pin, 
-  VolumeX, 
+import { format, isThisWeek, isThisYear, isToday, isYesterday } from "date-fns"
+import {
+  MessageSquarePlus,
   MoreVertical,
-  Settings,
-  UserPlus,
-  Filter,
-  MessageSquarePlus
+  Search,
+  Trash2,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger 
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useChat, type Conversation } from "@/app/chat/use-chat"
+import type { ChatConversation } from "../chat.api"
+import { NEW_CHAT_DRAFT_ID, getMessageText } from "../chat-utils"
+import type { ChatMessage } from "../chat.api"
 
 interface ConversationListProps {
-  conversations: Conversation[]
+  conversations: ChatConversation[]
+  messagesByConversationId: Record<string, ChatMessage[]>
   selectedConversation: string | null
+  searchQuery: string
+  onSearchQueryChange: (query: string) => void
   onSelectConversation: (conversationId: string) => void
   onCreateConversation: () => void
+  onDeleteConversation: (conversationId: string) => void
 }
 
-// Enhanced time formatting function
 function formatMessageTime(timestamp: string): string {
   const date = new Date(timestamp)
-  
-  if (isToday(date)) {
-    return format(date, 'h:mm a') // 3:30 PM
-  } else if (isYesterday(date)) {
-    return 'Yesterday'
-  } else if (isThisWeek(date)) {
-    return format(date, 'EEEE') // Day name
-  } else if (isThisYear(date)) {
-    return format(date, 'MMM d') // Jan 15
-  } else {
-    return format(date, 'dd/MM/yy') // 15/01/24
-  }
+  if (isToday(date)) return format(date, "h:mm a")
+  if (isYesterday(date)) return "Yesterday"
+  if (isThisWeek(date)) return format(date, "EEEE")
+  if (isThisYear(date)) return format(date, "MMM d")
+  return format(date, "dd/MM/yy")
 }
 
-export function ConversationList({ 
-  conversations, 
-  selectedConversation, 
-  onSelectConversation,
-  onCreateConversation
-}: ConversationListProps) {
-  const { searchQuery, setSearchQuery } = useChat()
+function lastMessagePreview(conversation: ChatConversation, messages: ChatMessage[]) {
+  const lastMessage = messages.at(-1)
+  if (!lastMessage) return conversation.scope === "global" ? "All accessible vaults" : conversation.scope
+  return getMessageText(lastMessage) || "No text content"
+}
 
+export function ConversationList({
+  conversations,
+  messagesByConversationId,
+  selectedConversation,
+  searchQuery,
+  onSearchQueryChange,
+  onSelectConversation,
+  onCreateConversation,
+  onDeleteConversation,
+}: ConversationListProps) {
   const filteredConversations = conversations.filter((conversation) =>
-    conversation.name.toLowerCase().includes(searchQuery.toLowerCase())
+    conversation.title.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+  const sortedConversations = [...filteredConversations].sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   )
 
-  const sortedConversations = [...filteredConversations].sort((a, b) => {
-    // Pinned conversations first
-    if (a.isPinned && !b.isPinned) return -1
-    if (!a.isPinned && b.isPinned) return 1
-    
-    // Then by last message timestamp
-    return new Date(b.lastMessage.timestamp).getTime() - new Date(a.lastMessage.timestamp).getTime()
-  })
-
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      {/* Header - Hidden on mobile (handled by parent) */}
-      <div className="hidden lg:flex items-center justify-between h-16 px-4 border-b flex-shrink-0">
-        <h2 className="text-lg font-semibold">Messages</h2>
-        <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            aria-label="New chat"
-            title="New chat"
-            onClick={onCreateConversation}
-            className="h-8 w-8 cursor-pointer"
-          >
-            <MessageSquarePlus className="h-4 w-4" />
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 cursor-pointer"
-              >
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={onCreateConversation} className="cursor-pointer">
-                <UserPlus className="h-4 w-4 mr-2" />
-                New Chat
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer">
-                <Filter className="h-4 w-4 mr-2" />
-                Filter Messages
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer">
-                <Settings className="h-4 w-4 mr-2" />
-                Chat Settings
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="hidden h-16 flex-shrink-0 items-center justify-between border-b px-4 lg:flex">
+        <h2 className="text-lg font-semibold">Chats</h2>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label="New chat"
+          title="New chat"
+          onClick={onCreateConversation}
+          className="h-8 w-8 cursor-pointer"
+        >
+          <MessageSquarePlus className="h-4 w-4" />
+        </Button>
       </div>
 
-      {/* Search */}
-      <div className="px-4 py-3 border-b flex-shrink-0">
+      <div className="flex-shrink-0 border-b px-4 py-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
           <Input
             type="text"
             placeholder="Search conversations..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 cursor-text"
+            onChange={(event) => onSearchQueryChange(event.target.value)}
+            className="cursor-text pl-9"
           />
         </div>
       </div>
 
-      {/* Conversations */}
       <ScrollArea className="flex-1">
         <div className="p-2">
-          {sortedConversations.map((conversation) => (
-            <div
-              key={conversation.id}
-              className={cn(
-                "flex items-center gap-3 p-3 rounded-lg cursor-pointer relative overflow-hidden hover:bg-accent/50 transition-colors",
-                selectedConversation === conversation.id
-                  ? "bg-accent text-accent-foreground"
-                  : ""
-              )}
-              onClick={() => onSelectConversation(conversation.id)}
-            >
-              {/* Content */}
-              <div className="flex-1 min-w-0 overflow-hidden">
-                <div className="flex items-center justify-between mb-1 min-w-0">
-                  <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden pr-2">
-                    <h3 className="font-medium truncate min-w-0 max-w-[160px] lg:max-w-[180px]">{conversation.name}</h3>
-                    {conversation.isPinned && (
-                      <Pin className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                    )}
-                    {conversation.isMuted && (
-                      <VolumeX className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                    )}
-                  </div>
-                  <span className="text-xs text-muted-foreground flex-shrink-0 whitespace-nowrap">
-                    {formatMessageTime(conversation.lastMessage.timestamp)}
-                  </span>
-                </div>
-                
-                <div className="flex items-center justify-between gap-2 min-w-0">
-                  <p className="text-sm text-muted-foreground truncate flex-1 min-w-0 max-w-[180px] lg:max-w-[200px] pr-2">
-                    {conversation.lastMessage.content || "No messages yet"}
-                  </p>
-                </div>
-              </div>
+          {sortedConversations.length === 0 ? (
+            <div className="text-muted-foreground px-3 py-8 text-center text-sm">
+              No conversations found.
             </div>
-          ))}
+          ) : (
+            sortedConversations.map((conversation) => {
+              const messages = messagesByConversationId[conversation.id] ?? []
+              const isDraft = conversation.id === NEW_CHAT_DRAFT_ID
+
+              return (
+                <div
+                  key={conversation.id}
+                  className={cn(
+                    "group flex cursor-pointer items-center gap-3 overflow-hidden rounded-lg p-3 transition-colors hover:bg-accent/50",
+                    selectedConversation === conversation.id && "bg-accent text-accent-foreground"
+                  )}
+                  onClick={() => onSelectConversation(conversation.id)}
+                >
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    <div className="mb-1 flex min-w-0 items-center justify-between">
+                      <h3 className="min-w-0 max-w-[180px] truncate font-medium">
+                        {conversation.title}
+                      </h3>
+                      <span className="text-muted-foreground flex-shrink-0 whitespace-nowrap text-xs">
+                        {formatMessageTime(conversation.updatedAt)}
+                      </span>
+                    </div>
+                    <p className="text-muted-foreground min-w-0 truncate pr-2 text-sm">
+                      {lastMessagePreview(conversation, messages)}
+                    </p>
+                  </div>
+
+                  {!isDraft ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(event) => event.stopPropagation()}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Conversation actions"
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
+                        <DropdownMenuItem
+                          className="cursor-pointer text-destructive"
+                          onClick={() => onDeleteConversation(conversation.id)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : null}
+                </div>
+              )
+            })
+          )}
         </div>
       </ScrollArea>
     </div>

@@ -7,11 +7,7 @@ export default function ChatPage() {
   return (
     <BaseLayout>
       <div className="px-4 md:px-6">
-        <Chat
-          conversations={[]}
-          messages={{}}
-          users={[]}
-        />
+        <Chat />
       </div>
     </BaseLayout>
   )

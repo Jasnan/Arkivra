@@ -13,6 +13,7 @@ import {
   Search,
   Tags,
   Users,
+  Bot,
 } from "lucide-react"
 import { Link } from "react-router-dom"
 import { Logo } from "@/components/logo"
@@ -150,6 +151,17 @@ const data = {
             {
               title: "Connections",
               url: "/settings/connections",
+            },
+          ],
+        },
+        {
+          title: "Admin",
+          url: "#",
+          icon: Bot,
+          items: [
+            {
+              title: "AI Settings",
+              url: "/admin/ai-settings",
             },
           ],
         },

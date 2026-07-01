@@ -5,20 +5,6 @@ import { Menu, X } from "lucide-react"
 
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
-import {
-  addDocumentsToDraftContext,
-  addVaultsToDraftContext,
-  createEmptyDraftContext,
-  hydrateDraftContextLabels,
-  removeDocumentFromDraftContext,
-  removeVaultFromDraftContext,
-  type DraftChatContext,
-} from "../chat-context-model"
-import {
-  DocumentSelectionDialog,
-  useChatContextVaults,
-  VaultSelectionDialog,
-} from "./chat-context-dialogs"
 import { ConversationList } from "./conversation-list"
 import { ChatHeader } from "./chat-header"
 import { MessageList } from "./message-list"
@@ -47,14 +33,6 @@ export function Chat({
   } = useChat()
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-  const [draftContext, setDraftContext] = useState<DraftChatContext>(() => createEmptyDraftContext())
-  const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false)
-  const [isDocumentDialogOpen, setIsDocumentDialogOpen] = useState(false)
-  const vaultsQuery = useChatContextVaults()
-  const hydratedDraftContext = hydrateDraftContextLabels({
-    context: draftContext,
-    vaults: vaultsQuery.vaults,
-  })
 
   // Close sidebar when clicking outside on mobile
   useEffect(() => {
@@ -169,6 +147,7 @@ export function Chat({
             <div className="flex-1">
               <ChatHeader
                 conversation={currentConversation || null}
+                users={users}
                 onToggleMute={handleToggleMute}
               />
             </div>
@@ -187,19 +166,6 @@ export function Chat({
                 <MessageInput
                   onSendMessage={handleSendMessage}
                   placeholder={`Message ${currentConversation?.name || ""}...`}
-                  context={hydratedDraftContext}
-                  onAddVaults={() => setIsVaultDialogOpen(true)}
-                  onAddDocuments={() => setIsDocumentDialogOpen(true)}
-                  onRemoveVault={(vault) =>
-                    setDraftContext((current) =>
-                      removeVaultFromDraftContext(current, vault.vaultId)
-                    )
-                  }
-                  onRemoveDocument={(document) =>
-                    setDraftContext((current) =>
-                      removeDocumentFromDraftContext(current, document)
-                    )
-                  }
                 />
               </>
             ) : (
@@ -215,26 +181,6 @@ export function Chat({
           </div>
         </div>
       </div>
-
-      <VaultSelectionDialog
-        open={isVaultDialogOpen}
-        vaults={vaultsQuery.vaults}
-        isLoading={vaultsQuery.isLoading}
-        error={vaultsQuery.error}
-        onOpenChange={setIsVaultDialogOpen}
-        onConfirm={(vaults) =>
-          setDraftContext((current) => addVaultsToDraftContext(current, vaults))
-        }
-      />
-      <DocumentSelectionDialog
-        open={isDocumentDialogOpen}
-        context={hydratedDraftContext}
-        vaults={vaultsQuery.vaults}
-        onOpenChange={setIsDocumentDialogOpen}
-        onConfirm={(documents) =>
-          setDraftContext((current) => addDocumentsToDraftContext(current, documents))
-        }
-      />
     </TooltipProvider>
   )
 }

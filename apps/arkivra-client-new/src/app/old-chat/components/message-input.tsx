@@ -1,14 +1,14 @@
 "use client"
 
-import { useRef, useState, type ReactNode } from "react"
+import { useState, useRef } from "react"
 import {
   Send,
   Paperclip,
+  Smile,
+  Image as ImageIcon,
   FileText,
   Mic,
-  MoreHorizontal,
-  Vault,
-  X,
+  MoreHorizontal
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -26,34 +26,17 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from "@/components/ui/tooltip"
-import {
-  getDraftContextSummary,
-  normalizeDraftContext,
-  type DraftChatContext,
-  type DraftChatDocument,
-  type DraftChatVault,
-} from "../chat-context-model"
 
 interface MessageInputProps {
   onSendMessage: (content: string) => void
   disabled?: boolean
   placeholder?: string
-  context?: DraftChatContext
-  onAddVaults?: () => void
-  onAddDocuments?: () => void
-  onRemoveVault?: (vault: DraftChatVault) => void
-  onRemoveDocument?: (document: DraftChatDocument) => void
 }
 
 export function MessageInput({
   onSendMessage,
   disabled = false,
-  placeholder = "Type a message...",
-  context,
-  onAddVaults,
-  onAddDocuments,
-  onRemoveVault,
-  onRemoveDocument,
+  placeholder = "Type a message..."
 }: MessageInputProps) {
   const [message, setMessage] = useState("")
   const [isTyping, setIsTyping] = useState(false)
@@ -98,16 +81,13 @@ export function MessageInput({
     }
   }
 
+  const handleFileUpload = (type: "image" | "file") => {
+    // In a real app, this would open a file picker
+    console.log(`Upload ${type}`)
+  }
+
   return (
     <div className="border-t p-4">
-      {context && onRemoveVault && onRemoveDocument && (
-        <ContextAttachmentList
-          context={context}
-          disabled={disabled}
-          onRemoveVault={onRemoveVault}
-          onRemoveDocument={onRemoveDocument}
-        />
-      )}
       <div className="flex items-end gap-2">
         {/* Attachment button */}
         <TooltipProvider>
@@ -126,25 +106,23 @@ export function MessageInput({
                 </DropdownMenuTrigger>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Attach context</p>
+                <p>Attach file</p>
               </TooltipContent>
             </Tooltip>
             <DropdownMenuContent side="top" align="start">
               <DropdownMenuItem
-                onClick={onAddVaults}
-                disabled={disabled || !onAddVaults}
+                onClick={() => handleFileUpload("image")}
                 className="cursor-pointer"
               >
-                <Vault className="h-4 w-4 mr-2" />
-                Add vaults
+                <ImageIcon className="h-4 w-4 mr-2" />
+                Photo or video
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={onAddDocuments}
-                disabled={disabled || !onAddDocuments}
+                onClick={() => handleFileUpload("file")}
                 className="cursor-pointer"
               >
                 <FileText className="h-4 w-4 mr-2" />
-                Add documents
+                Document
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -161,13 +139,31 @@ export function MessageInput({
             disabled={disabled}
             className={cn(
               "min-h-[40px] max-h-[120px] resize-none cursor-text disabled:cursor-not-allowed",
-              "pr-10"
+              "pr-20" // Space for emoji and more buttons
             )}
             rows={1}
           />
 
           {/* Input action buttons */}
           <div className="absolute right-2 bottom-2 flex items-center gap-1">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={disabled}
+                    className="h-6 w-6 p-0 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    <Smile className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Add emoji</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -225,82 +221,5 @@ export function MessageInput({
         </div>
       )}
     </div>
-  )
-}
-
-function ContextAttachmentList({
-  context,
-  disabled,
-  onRemoveVault,
-  onRemoveDocument,
-}: {
-  context: DraftChatContext
-  disabled?: boolean
-  onRemoveVault: (vault: DraftChatVault) => void
-  onRemoveDocument: (document: DraftChatDocument) => void
-}) {
-  const normalized = normalizeDraftContext(context)
-  const summary = getDraftContextSummary(normalized)
-
-  if (!summary.hasContext) return null
-
-  return (
-    <div className="mb-3 space-y-2">
-      <div className="text-muted-foreground text-xs font-medium">Context: {summary.label}</div>
-      <div className="flex flex-wrap gap-2">
-        {normalized.vaults.map((vault) => (
-          <ContextAttachmentChip
-            key={vault.vaultId}
-            icon={<Vault className="size-3.5" />}
-            label={vault.name ?? vault.vaultId}
-            disabled={disabled}
-            onRemove={() => onRemoveVault(vault)}
-          />
-        ))}
-        {normalized.documents.map((document) => (
-          <ContextAttachmentChip
-            key={`${document.vaultId}:${document.documentId}`}
-            icon={<FileText className="size-3.5" />}
-            label={document.name ?? document.documentId}
-            detail={document.vaultName}
-            disabled={disabled}
-            onRemove={() => onRemoveDocument(document)}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function ContextAttachmentChip({
-  icon,
-  label,
-  detail,
-  disabled,
-  onRemove,
-}: {
-  icon: ReactNode
-  label: string
-  detail?: string
-  disabled?: boolean
-  onRemove: () => void
-}) {
-  return (
-    <span className="bg-muted inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-xs">
-      <span className="text-muted-foreground flex-shrink-0">{icon}</span>
-      <span className="min-w-0 truncate">
-        {label}
-        {detail ? <span className="text-muted-foreground"> · {detail}</span> : null}
-      </span>
-      <button
-        type="button"
-        className="hover:bg-background ml-0.5 rounded-sm p-0.5 disabled:opacity-50"
-        aria-label={`Remove ${label}`}
-        disabled={disabled}
-        onClick={onRemove}
-      >
-        <X className="size-3" />
-      </button>
-    </span>
   )
 }

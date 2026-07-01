@@ -1,10 +1,14 @@
 "use client"
 
-import {
+import { 
+  Phone, 
+  Video, 
   Info, 
   Search, 
   MoreVertical,
   Users,
+  Bell,
+  BellOff
 } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -23,16 +27,18 @@ import {
   TooltipProvider,
   TooltipTrigger 
 } from "@/components/ui/tooltip"
-import { type Conversation } from "@/app/chat/use-chat"
+import { type Conversation, type User } from "@/app/chat/use-chat"
 
 interface ChatHeaderProps {
   conversation: Conversation | null
+  users: User[]
   onToggleMute?: () => void
   onToggleInfo?: () => void
 }
 
 export function ChatHeader({ 
   conversation, 
+  users, 
   onToggleMute, 
   onToggleInfo 
 }: ChatHeaderProps) {
@@ -42,6 +48,50 @@ export function ChatHeader({
         <p className="text-muted-foreground">Select a conversation to start chatting</p>
       </div>
     )
+  }
+
+  const getConversationUsers = () => {
+    if (conversation.type === "direct") {
+      return users.filter(user => conversation.participants.includes(user.id))
+    }
+    return users.filter(user => conversation.participants.includes(user.id))
+  }
+
+  const conversationUsers = getConversationUsers()
+  const primaryUser = conversationUsers[0]
+
+  const getStatusText = () => {
+    if (conversation.type === "group") {
+      const onlineCount = conversationUsers.filter(user => user.status === "online").length
+      return `${conversation.participants.length} members, ${onlineCount} online`
+    } else if (primaryUser) {
+      switch (primaryUser.status) {
+        case "online":
+          return "Active now"
+        case "away":
+          return "Away"
+        case "offline":
+          return `Last seen ${new Date(primaryUser.lastSeen).toLocaleDateString()}`
+        default:
+          return ""
+      }
+    }
+    return ""
+  }
+
+  const getStatusColor = () => {
+    if (conversation.type === "group") return "text-muted-foreground"
+    
+    switch (primaryUser?.status) {
+      case "online":
+        return "text-green-600"
+      case "away":
+        return "text-yellow-600"
+      case "offline":
+        return "text-muted-foreground"
+      default:
+        return "text-muted-foreground"
+    }
   }
 
   return (
@@ -62,18 +112,60 @@ export function ChatHeader({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h2 className="font-semibold truncate">{conversation.name}</h2>
+            {conversation.isMuted && (
+              <BellOff className="h-4 w-4 text-muted-foreground" />
+            )}
             {conversation.type === "group" && (
               <Badge variant="secondary" className="text-xs cursor-pointer">
                 Group
               </Badge>
             )}
           </div>
+          <p className={`text-sm ${getStatusColor()}`}>
+            {getStatusText()}
+          </p>
         </div>
       </div>
 
       {/* Right side - Action buttons */}
       <div className="flex items-center gap-1">
         <TooltipProvider>
+          {/* Search */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="cursor-pointer">
+                <Search className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Search in conversation</p>
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Phone call */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="cursor-pointer">
+                <Phone className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Voice call</p>
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Video call */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="cursor-pointer">
+                <Video className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Video call</p>
+            </TooltipContent>
+          </Tooltip>
+
           {/* Info */}
           <Tooltip>
             <TooltipTrigger asChild>
@@ -106,10 +198,12 @@ export function ChatHeader({
             >
               {conversation.isMuted ? (
                 <>
+                  <Bell className="h-4 w-4 mr-2" />
                   Unmute conversation
                 </>
               ) : (
                 <>
+                  <BellOff className="h-4 w-4 mr-2" />
                   Mute conversation
                 </>
               )}

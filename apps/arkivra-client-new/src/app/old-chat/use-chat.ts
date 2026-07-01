@@ -144,6 +144,6 @@ export const useChat = create<ChatState & ChatActions>((set, get) => ({
     set((state) => ({
       isTyping: { ...state.isTyping, [conversationId]: isTyping }
     })),
-
+  
   setOnlineUsers: (userIds) => set({ onlineUsers: userIds }),
 }))

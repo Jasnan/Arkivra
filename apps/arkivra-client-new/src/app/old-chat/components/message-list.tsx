@@ -207,7 +207,25 @@ export function MessageList({ messages, users, currentUserId = "current-user" }:
                         >
                           <p>{message.content}</p>
 
-                          {/* Timestamp and delivery receipt */}
+                          {/* Message reactions */}
+                          {message.reactions.length > 0 && (
+                            <div className="flex gap-1 mt-2">
+                              {message.reactions.map((reaction, idx) => (
+                                <div
+                                  key={idx}
+                                  className={cn(
+                                    "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs border cursor-pointer",
+                                    "bg-background/90 backdrop-blur-sm shadow-sm"
+                                  )}
+                                >
+                                  <span>{reaction.emoji}</span>
+                                  <span className="text-muted-foreground">{reaction.count}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Timestamp and status */}
                           <div className={cn(
                             "flex items-center gap-1 mt-1 text-xs",
                             isOwnMessage
@@ -220,7 +238,7 @@ export function MessageList({ messages, users, currentUserId = "current-user" }:
                             )}
                             {isOwnMessage && (
                               <div className="flex">
-                                {/* Delivery receipt */}
+                                {/* Message status indicators */}
                                 <CheckCheck className="h-3 w-3" />
                               </div>
                             )}

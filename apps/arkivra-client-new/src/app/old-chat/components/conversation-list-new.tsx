@@ -6,9 +6,13 @@ import {
   Pin, 
   VolumeX, 
   MoreHorizontal,
+  Users,
+  Hash
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -64,6 +68,14 @@ export function ConversationList({
     return new Date(b.lastMessage.timestamp).getTime() - new Date(a.lastMessage.timestamp).getTime()
   })
 
+  const getOnlineStatus = (conversation: Conversation) => {
+    if (conversation.type === "direct" && conversation.participants.length === 1) {
+      // In a real app, you'd check user online status
+      return Math.random() > 0.5 // Mock online status
+    }
+    return false
+  }
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
@@ -99,6 +111,35 @@ export function ConversationList({
               )}
               onClick={() => onSelectConversation(conversation.id)}
             >
+              {/* Avatar with online indicator */}
+              <div className="relative flex-shrink-0">
+                <Avatar className={cn(
+                  "h-12 w-12",
+                  selectedConversation === conversation.id && "ring-2 ring-background"
+                )}>
+                  <AvatarImage src={conversation.avatar} alt={conversation.name} />
+                  <AvatarFallback className="text-sm">
+                    {conversation.type === "group" ? (
+                      <Users className="h-5 w-5" />
+                    ) : (
+                      conversation.name.split(' ').map(n => n[0]).join('').slice(0, 2)
+                    )}
+                  </AvatarFallback>
+                </Avatar>
+                
+                {/* Online indicator for direct messages */}
+                {conversation.type === "direct" && getOnlineStatus(conversation) && (
+                  <div className="absolute -bottom-1 -right-1 h-4 w-4 bg-green-500 border-2 border-background rounded-full" />
+                )}
+                
+                {/* Group indicator */}
+                {conversation.type === "group" && (
+                  <div className="absolute -bottom-1 -right-1 h-4 w-4 bg-blue-500 border-2 border-background rounded-full flex items-center justify-center">
+                    <Hash className="h-2 w-2 text-white" />
+                  </div>
+                )}
+              </div>
+
               {/* Content */}
               <div className="flex-1 min-w-0 overflow-hidden">
                 <div className="flex items-center justify-between mb-1 min-w-0">
@@ -120,6 +161,13 @@ export function ConversationList({
                   <p className="text-sm text-muted-foreground truncate flex-1 min-w-0 max-w-[200px]">
                     {conversation.lastMessage.content}
                   </p>
+                  
+                  {/* Unread count */}
+                  {conversation.unreadCount > 0 && (
+                    <Badge variant="default" className="ml-2 min-w-[20px] h-5 text-xs cursor-pointer flex-shrink-0">
+                      {conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}
+                    </Badge>
+                  )}
                 </div>
               </div>
 

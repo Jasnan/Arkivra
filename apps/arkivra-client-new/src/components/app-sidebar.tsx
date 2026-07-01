@@ -75,8 +75,13 @@ const data = {
           icon: CheckSquare,
         },
         {
-          title: "Chat",
+          title: "new-chat",
           url: "/chat",
+          icon: MessageCircle,
+        },
+        {
+          title: "old-chat",
+          url: "/old-chat",
           icon: MessageCircle,
         },
         {

@@ -20,6 +20,7 @@ import {
   rankCitationsForQuestion,
   sanitizeCitationsForMessagePersistence,
   shouldMaterializeConversationManifest,
+  shouldRequireRetrievalConfidence,
 } from './chat.services.js';
 
 const citation: Citation = {
@@ -263,6 +264,45 @@ describe('chat service helpers', () => {
             score: 0.2,
           },
         ],
+      }),
+    ).toBe(true);
+  });
+
+  test('requires retrieval confidence before answering from any chat context scope', () => {
+    expect(
+      shouldRequireRetrievalConfidence({
+        type: 'global',
+        vaultIds: ['vlt_1'],
+      }),
+    ).toBe(true);
+    expect(
+      shouldRequireRetrievalConfidence({
+        type: 'selection',
+        vaults: [{ vaultId: 'vlt_1', name: 'Operations' }],
+        documents: [
+          {
+            vaultId: 'vlt_2',
+            documentId: 'doc_2',
+            vaultName: 'Legal',
+            name: 'Contract.pdf',
+          },
+        ],
+      }),
+    ).toBe(true);
+    expect(
+      shouldRequireRetrievalConfidence({
+        type: 'vault',
+        vaultId: 'vlt_1',
+        vaultName: 'Operations',
+      }),
+    ).toBe(true);
+    expect(
+      shouldRequireRetrievalConfidence({
+        type: 'document',
+        vaultId: 'vlt_1',
+        documentId: 'doc_1',
+        vaultName: 'Operations',
+        documentName: 'Policy.pdf',
       }),
     ).toBe(true);
   });

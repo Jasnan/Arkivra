@@ -124,16 +124,15 @@ async function resolveIntentFollowUp({
   return intentResolutionSchema.parse(result.object);
 }
 
-function shouldRequireBroadRetrievalConfidence(scope: ChatScopeInput) {
-  if (scope.type === 'global') {
-    return scope.vaultIds.length === 0;
-  }
-
-  if (scope.type === 'selection') {
-    return scope.vaults.length === 0 && scope.documents.length === 0;
-  }
-
-  return false;
+export function shouldRequireRetrievalConfidence(scope: ChatScopeInput) {
+  // Even narrow document/vault chats still depend on retrieval. Do not hand weak,
+  // unrelated hits to generation just because the user selected a smaller context.
+  return (
+    scope.type === 'global' ||
+    scope.type === 'selection' ||
+    scope.type === 'vault' ||
+    scope.type === 'document'
+  );
 }
 
 export function createChatServices({
@@ -649,7 +648,7 @@ export function createChatServices({
             citations: expandedCitations,
           });
           const answerableRetrievalContext =
-            !shouldRequireBroadRetrievalConfidence(scope) ||
+            !shouldRequireRetrievalConfidence(scope) ||
             hasAnswerableRetrievalContext({
               question: content,
               citations: rankedCitations,

@@ -1,5 +1,6 @@
 export {
   createChatServices,
+  shouldRequireRetrievalConfidence,
 } from './chat.service-factory.js';
 export type { ChatServices } from './chat.service-factory.js';
 

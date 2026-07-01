@@ -58,7 +58,11 @@ import type {
   IntentResolution,
 } from './chat.core.js';
 import { buildAnswerPrompt, collectCitationImages } from './chat.answer-prompt.js';
-import { normalizeCitationsForDisplay, rankCitationsForQuestion } from './chat.citation-ranking.js';
+import {
+  hasAnswerableRetrievalContext,
+  normalizeCitationsForDisplay,
+  rankCitationsForQuestion,
+} from './chat.citation-ranking.js';
 import {
   buildChatMessageCitationRows,
   insertChatMessageCitationRow,
@@ -118,6 +122,18 @@ async function resolveIntentFollowUp({
   });
 
   return intentResolutionSchema.parse(result.object);
+}
+
+function shouldRequireBroadRetrievalConfidence(scope: ChatScopeInput) {
+  if (scope.type === 'global') {
+    return scope.vaultIds.length === 0;
+  }
+
+  if (scope.type === 'selection') {
+    return scope.vaults.length === 0 && scope.documents.length === 0;
+  }
+
+  return false;
 }
 
 export function createChatServices({
@@ -632,7 +648,15 @@ export function createChatServices({
             question: content,
             citations: expandedCitations,
           });
-          citations = normalizeCitationsForDisplay(rankedCitations.slice(0, citationLimit));
+          const answerableRetrievalContext =
+            !shouldRequireBroadRetrievalConfidence(scope) ||
+            hasAnswerableRetrievalContext({
+              question: content,
+              citations: rankedCitations,
+            });
+          citations = answerableRetrievalContext
+            ? normalizeCitationsForDisplay(rankedCitations.slice(0, citationLimit))
+            : [];
           retrievalDiagnostics = buildRetrievalDiagnostics({
             mode: result.mode,
             retrievedCitations: result.citations,

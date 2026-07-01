@@ -96,7 +96,7 @@ export function ConversationList({
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-2">
+        <div className="space-y-1 px-3 py-2 pr-4">
           {sortedConversations.length === 0 ? (
             <div className="text-muted-foreground px-3 py-8 text-center text-sm">
               No conversations found.
@@ -110,7 +110,7 @@ export function ConversationList({
                 <div
                   key={conversation.id}
                   className={cn(
-                    "group flex cursor-pointer items-center gap-3 overflow-hidden rounded-lg p-3 transition-colors hover:bg-accent/50",
+                    "group mr-4 flex cursor-pointer items-center gap-3 overflow-hidden rounded-lg p-3 transition-colors hover:bg-accent/50",
                     selectedConversation === conversation.id && "bg-accent text-accent-foreground"
                   )}
                   onClick={() => onSelectConversation(conversation.id)}

@@ -122,6 +122,10 @@ export const routes: RouteConfig[] = [
     element: <Chat />
   },
   {
+    path: "/chat/:conversationId",
+    element: <Chat />
+  },
+  {
     path: "/old-chat",
     element: <OldChat />
   },

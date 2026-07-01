@@ -69,6 +69,7 @@ export function useChatContextVaults() {
 
 export function VaultSelectionDialog({
   open,
+  context,
   vaults,
   isLoading,
   error,
@@ -76,6 +77,7 @@ export function VaultSelectionDialog({
   onConfirm,
 }: {
   open: boolean
+  context: DraftChatContext
   vaults: VaultSummary[]
   isLoading?: boolean
   error?: string | null
@@ -87,6 +89,10 @@ export function VaultSelectionDialog({
   const availableVaults = useMemo(
     () => vaults.filter((vault) => vault.aiAccessLevel === "full"),
     [vaults]
+  )
+  const selectedVaultById = useMemo(
+    () => new Map(normalizeDraftContext(context).vaults.map((vault) => [vault.vaultId, vault])),
+    [context]
   )
   const filteredVaults = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -110,6 +116,8 @@ export function VaultSelectionDialog({
   }, [open])
 
   function toggleVault(vaultId: string) {
+    if (selectedVaultById.has(vaultId)) return
+
     setSelectedIds((current) => {
       const next = new Set(current)
       if (next.has(vaultId)) {
@@ -182,6 +190,7 @@ export function VaultSelectionDialog({
                   const vault = filteredVaults[virtualItem.index]
                   if (!vault) return null
                   const checked = selectedIds.has(vault.id)
+                  const alreadySelected = selectedVaultById.has(vault.id)
 
                   return (
                     <div
@@ -194,9 +203,11 @@ export function VaultSelectionDialog({
                     >
                       <div
                         role="button"
-                        tabIndex={0}
+                        tabIndex={alreadySelected ? -1 : 0}
+                        aria-disabled={alreadySelected}
                         className={cn(
                           "flex h-full w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors hover:bg-accent",
+                          alreadySelected && "cursor-not-allowed opacity-50 hover:bg-transparent",
                           checked && "bg-accent"
                         )}
                         onClick={() => toggleVault(vault.id)}
@@ -208,7 +219,8 @@ export function VaultSelectionDialog({
                         }}
                       >
                         <Checkbox
-                          checked={checked}
+                          checked={checked || alreadySelected}
+                          disabled={alreadySelected}
                           aria-label={`Select ${vault.name}`}
                           onCheckedChange={() => toggleVault(vault.id)}
                           onClick={(event) => event.stopPropagation()}
@@ -216,7 +228,9 @@ export function VaultSelectionDialog({
                         <div className="min-w-0 w-0 flex-1 overflow-hidden">
                           <div className="truncate text-sm font-medium">{vault.name}</div>
                           <div className="text-muted-foreground truncate text-xs">
-                            {vault.description?.trim() || "No description added."}
+                            {alreadySelected
+                              ? "Already in conversation context"
+                              : vault.description?.trim() || "No description added."}
                           </div>
                         </div>
                       </div>
@@ -287,6 +301,10 @@ export function DocumentSelectionDialog({
   )
   const selectedVaultById = useMemo(
     () => new Map(normalizeDraftContext(context).vaults.map((vault) => [vault.vaultId, vault])),
+    [context]
+  )
+  const selectedDocumentKeys = useMemo(
+    () => new Set(normalizeDraftContext(context).documents.map((document) => documentKey(document))),
     [context]
   )
   const effectiveVaultIds = useMemo(
@@ -360,7 +378,7 @@ export function DocumentSelectionDialog({
 
   function toggleDocument(document: SearchResultItem) {
     const key = documentKey(document)
-    if (selectedVaultById.has(document.vaultId)) return
+    if (selectedVaultById.has(document.vaultId) || selectedDocumentKeys.has(key)) return
 
     setSelectedDocuments((current) => {
       const next = new Map(current)
@@ -444,7 +462,8 @@ export function DocumentSelectionDialog({
                   const key = documentKey(document)
                   const checked = selectedDocuments.has(key)
                   const selectedVault = selectedVaultById.get(document.vaultId)
-                  const disabled = Boolean(selectedVault)
+                  const alreadySelected = selectedDocumentKeys.has(key)
+                  const disabled = Boolean(selectedVault) || alreadySelected
 
                   return (
                     <div
@@ -484,6 +503,8 @@ export function DocumentSelectionDialog({
                           <div className="text-muted-foreground truncate text-xs">
                             {selectedVault
                               ? `Already included via ${selectedVault.name ?? document.vaultName}`
+                              : alreadySelected
+                                ? "Already in conversation context"
                               : document.vaultName}
                           </div>
                         </div>

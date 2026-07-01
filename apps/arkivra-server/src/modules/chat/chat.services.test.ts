@@ -12,6 +12,7 @@ import {
   buildGlobalIntentSystemPrompt,
   getFrozenManifestContextAvailability,
   formatFollowUpAssistantMessage,
+  hasAnswerableRetrievalContext,
   isEmptyGeneratedChatContent,
   isLikelyTruncatedSingleTokenAnswer,
   normalizeCitationsForDisplay,
@@ -221,6 +222,49 @@ describe('chat service helpers', () => {
         citations: [pageCitation, tableCitation],
       }).map(item => item.chunkId),
     ).toEqual(['chk_page', 'chk_table']);
+  });
+
+  test('rejects low-confidence broad retrieval with no query overlap', () => {
+    expect(
+      hasAnswerableRetrievalContext({
+        question: 'asfsdafsdaf sdfsdfsdlkafjsd asdfsdlklaf sdaflkh',
+        citations: [
+          {
+            ...citation,
+            snippet: 'Residence permit details and dates from a personal document.',
+            score: 0.016,
+          },
+        ],
+      }),
+    ).toBe(false);
+  });
+
+  test('accepts broad retrieval when query terms or semantic score support the hit', () => {
+    expect(
+      hasAnswerableRetrievalContext({
+        question: 'How long are records retained?',
+        citations: [
+          {
+            ...citation,
+            snippet: 'Records are retained for seven years.',
+            score: 0.016,
+          },
+        ],
+      }),
+    ).toBe(true);
+
+    expect(
+      hasAnswerableRetrievalContext({
+        question: 'Which policy controls archived files?',
+        citations: [
+          {
+            ...citation,
+            snippet: 'Retention rules are described here.',
+            score: 0.2,
+          },
+        ],
+      }),
+    ).toBe(true);
   });
 
   test('does not duplicate context chunks from the same source element after relevance ranking', () => {

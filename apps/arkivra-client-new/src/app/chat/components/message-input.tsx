@@ -1,19 +1,17 @@
 "use client"
 
-import { useRef, useState, type ReactNode } from "react"
+import { ComposerPrimitive } from "@assistant-ui/react"
+import { useRef, type ChangeEvent, type ReactNode, type RefObject } from "react"
 import {
   Send,
   Paperclip,
   FileText,
-  Mic,
-  MoreHorizontal,
   Vault,
   X,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,7 +33,6 @@ import {
 } from "../chat-context-model"
 
 interface MessageInputProps {
-  onSendMessage: (content: string) => void
   disabled?: boolean
   placeholder?: string
   context?: DraftChatContext
@@ -44,10 +41,11 @@ interface MessageInputProps {
   onAddDocuments?: () => void
   onRemoveVault?: (vault: DraftChatVault) => void
   onRemoveDocument?: (document: DraftChatDocument) => void
+  textareaRef?: RefObject<HTMLTextAreaElement | null>
+  onDraftValueChange?: (value: string) => void
 }
 
 export function MessageInput({
-  onSendMessage,
   disabled = false,
   placeholder = "Type a message...",
   context,
@@ -56,52 +54,26 @@ export function MessageInput({
   onAddDocuments,
   onRemoveVault,
   onRemoveDocument,
+  textareaRef: externalTextareaRef,
+  onDraftValueChange,
 }: MessageInputProps) {
-  const [message, setMessage] = useState("")
-  const [isTyping, setIsTyping] = useState(false)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const localTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const textareaRef = externalTextareaRef ?? localTextareaRef
 
-  const handleSendMessage = () => {
-    const trimmedMessage = message.trim()
-    if (trimmedMessage && !disabled) {
-      onSendMessage(trimmedMessage)
-      setMessage("")
-      setIsTyping(false)
-
-      // Reset textarea height
-      if (textareaRef.current) {
-        textareaRef.current.style.height = "auto"
-      }
-    }
+  function handleComposerChange(event: ChangeEvent<HTMLTextAreaElement>) {
+    onDraftValueChange?.(event.currentTarget.value)
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage()
-    }
-  }
-
-  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value
-    setMessage(value)
-
-    // Auto-resize textarea
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto"
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`
-    }
-
-    // Handle typing indicator
-    if (value.trim() && !isTyping) {
-      setIsTyping(true)
-    } else if (!value.trim() && isTyping) {
-      setIsTyping(false)
-    }
+  function handleComposerSubmit() {
+    if (disabled) return
+    onDraftValueChange?.("")
+    window.setTimeout(() => {
+      if (textareaRef.current) textareaRef.current.style.height = "auto"
+    }, 0)
   }
 
   return (
-    <div className="border-t p-4">
+    <ComposerPrimitive.Root className="shrink-0 border-t p-4" onSubmit={handleComposerSubmit}>
       {context && onRemoveVault && onRemoveDocument && (
         <ContextAttachmentList
           context={context}
@@ -135,7 +107,7 @@ export function MessageInput({
             <DropdownMenuContent side="top" align="start">
               <DropdownMenuItem
                 onClick={onAddVaults}
-                disabled={disabled || contextLocked || !onAddVaults}
+                disabled={disabled || !onAddVaults}
                 className="cursor-pointer"
               >
                 <Vault className="h-4 w-4 mr-2" />
@@ -143,7 +115,7 @@ export function MessageInput({
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={onAddDocuments}
-                disabled={disabled || contextLocked || !onAddDocuments}
+                disabled={disabled || !onAddDocuments}
                 className="cursor-pointer"
               >
                 <FileText className="h-4 w-4 mr-2" />
@@ -153,81 +125,43 @@ export function MessageInput({
           </DropdownMenu>
         </TooltipProvider>
 
-        {/* Message input */}
         <div className="flex-1 relative">
-          <Textarea
+          <ComposerPrimitive.Input
             ref={textareaRef}
+            aria-label="Chat message"
             placeholder={placeholder}
-            value={message}
-            onChange={handleTextareaChange}
-            onKeyDown={handleKeyPress}
-            disabled={disabled || contextLocked}
+            disabled={disabled}
+            submitMode="enter"
+            minRows={1}
+            maxRows={8}
             className={cn(
               "min-h-[40px] max-h-[120px] resize-none cursor-text disabled:cursor-not-allowed",
-              "pr-10"
+              "flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm",
+              "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+              "disabled:opacity-50"
             )}
-            rows={1}
+            onChange={handleComposerChange}
           />
-
-          {/* Input action buttons */}
-          <div className="absolute right-2 bottom-2 flex items-center gap-1">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={disabled}
-                    className="h-6 w-6 p-0 cursor-pointer disabled:cursor-not-allowed"
-                  >
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>More options</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
         </div>
 
-        {/* Voice message or send button */}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              {message.trim() ? (
-                <Button
-                  onClick={handleSendMessage}
-                  disabled={disabled}
-                  className="cursor-pointer disabled:cursor-not-allowed"
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  disabled={disabled}
-                  className="cursor-pointer disabled:cursor-not-allowed"
-                >
-                  <Mic className="h-4 w-4" />
-                </Button>
-              )}
+              <ComposerPrimitive.Send
+                type="submit"
+                aria-label="Send message"
+                className="inline-flex h-10 shrink-0 cursor-pointer items-center justify-center rounded-md bg-primary px-4 text-primary-foreground shadow hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Send className="h-4 w-4" />
+              </ComposerPrimitive.Send>
             </TooltipTrigger>
             <TooltipContent>
-              <p>{message.trim() ? "Send message" : "Voice message"}</p>
+              <p>Send message</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       </div>
-
-      {/* Typing indicator */}
-      {isTyping && (
-        <div className="text-xs text-muted-foreground mt-2">
-          You are typing...
-        </div>
-      )}
-    </div>
+    </ComposerPrimitive.Root>
   )
 }
 
@@ -260,9 +194,9 @@ function ContextAttachmentList({
             key={vault.vaultId}
             icon={<Vault className="size-3.5" />}
             label={vault.name ?? vault.vaultId}
-            disabled={disabled || locked}
+            disabled={disabled}
             onRemove={() => {
-              if (!locked) onRemoveVault(vault)
+              onRemoveVault(vault)
             }}
           />
         ))}
@@ -274,7 +208,7 @@ function ContextAttachmentList({
             detail={document.vaultName}
             disabled={disabled}
             onRemove={() => {
-              if (!locked) onRemoveDocument(document)
+              onRemoveDocument(document)
             }}
           />
         ))}

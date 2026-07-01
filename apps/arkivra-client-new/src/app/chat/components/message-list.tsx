@@ -50,7 +50,7 @@ export function MessageList({ messages, isLoading, onQuickReplySelect }: Message
       return
     }
 
-    if (messages.length >= previousMessageCountRef.current && bottomRef.current) {
+    if (messages.length > previousMessageCountRef.current && bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: "smooth" })
     }
 
@@ -66,7 +66,7 @@ export function MessageList({ messages, isLoading, onQuickReplySelect }: Message
   }
 
   return (
-    <ScrollArea className="flex-1 px-4">
+    <ScrollArea className="min-h-0 flex-1 px-4">
       <div className="space-y-4 py-4">
         {messages.length === 0 ? (
           <div className="flex min-h-[22rem] items-center justify-center">

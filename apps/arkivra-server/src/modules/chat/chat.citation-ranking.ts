@@ -4,6 +4,7 @@ import type {
   CitationContextChunk,
 } from '../search/search.types.js';
 import {
+  BROAD_CHAT_MIN_SEMANTIC_RETRIEVAL_SCORE,
   MAX_CONTEXT_CHUNK_SNIPPET_LENGTH,
   MAX_DISPLAY_CITATION_REGIONS,
   MAX_EXPANDED_CONTEXT_SNIPPET_LENGTH,
@@ -843,6 +844,28 @@ export function getQueryTermMatchScore(citation: Citation, terms: string[]) {
   const snippetScore = countTermMatches(citation.snippet, terms);
 
   return titleScore + structureScore + snippetScore;
+}
+
+export function hasAnswerableRetrievalContext({
+  question,
+  citations,
+  minSemanticScore = BROAD_CHAT_MIN_SEMANTIC_RETRIEVAL_SCORE,
+}: {
+  question: string;
+  citations: Citation[];
+  minSemanticScore?: number;
+}) {
+  if (citations.length === 0) {
+    return false;
+  }
+
+  const queryTerms = extractRetrievalQueryTerms(question);
+  const bestScore = Math.max(...citations.map((citation) => citation.score));
+  const bestTermMatchScore = Math.max(
+    ...citations.map((citation) => getQueryTermMatchScore(citation, queryTerms)),
+  );
+
+  return bestTermMatchScore > 0 || bestScore >= minSemanticScore;
 }
 
 export function getContextRepresentationBonus(representation: string | null | undefined) {

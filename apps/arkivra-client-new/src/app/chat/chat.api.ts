@@ -130,7 +130,7 @@ export type ChatMessagePart =
   | { type: "data-citations"; data: Citation[] }
   | { type: "data-metrics"; data: ChatGenerationMetrics }
   | { type: `data-${string}`; data: unknown }
-  | { type: "file"; mediaType?: string; url?: string }
+  | { type: "file"; mediaType: string; url: string; filename?: string }
 
 export interface ChatMessage {
   id: string

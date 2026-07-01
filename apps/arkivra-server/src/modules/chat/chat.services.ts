@@ -7,6 +7,7 @@ export { buildAnswerPrompt, buildCitationContext } from './chat.answer-prompt.js
 export {
   buildChunkLevelCitationsForChat,
   buildExpandedCitationForChat,
+  hasAnswerableRetrievalContext,
   normalizeCitationsForDisplay,
   rankCitationsForQuestion,
 } from './chat.citation-ranking.js';

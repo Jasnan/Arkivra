@@ -2387,44 +2387,43 @@ function ChatModelsDialog({
   const [visibilityFilter, setVisibilityFilter] = useState("all")
   const allowedModelSet = useMemo(() => new Set(draftAllowedChatModels), [draftAllowedChatModels])
   const providerOptions = useModelProviderOptions(chatModelOptions)
-  const filteredChatModelOptions = useMemo(() => {
-    const normalizedSearch = searchQuery.trim().toLowerCase()
-
-    return chatModelOptions.filter((option) => {
-      const matchesSearch =
-        normalizedSearch.length === 0 ||
-        option.model.toLowerCase().includes(normalizedSearch) ||
-        option.providerLabel.toLowerCase().includes(normalizedSearch) ||
-        option.baseUrl.toLowerCase().includes(normalizedSearch)
-      const matchesProvider = providerFilter === "all" || option.provider === providerFilter
-      return matchesSearch && matchesProvider
-    })
-  }, [chatModelOptions, providerFilter, searchQuery])
+  const filteredChatModelOptions = useMemo(
+    () =>
+      chatModelOptions.filter((option) =>
+        matchesModelFilters({
+          baseUrl: option.baseUrl,
+          isSelected: allowedModelSet.has(option.value),
+          model: option.label,
+          provider: option.provider,
+          providerFilter,
+          providerLabel: option.providerLabel,
+          searchQuery,
+          visibilityFilter,
+        }),
+      ),
+    [allowedModelSet, chatModelOptions, providerFilter, searchQuery, visibilityFilter],
+  )
   const enabledModelOptions = filteredChatModelOptions.filter((option) => allowedModelSet.has(option.value))
-  const allEnabledModelOptions = chatModelOptions.filter((option) => allowedModelSet.has(option.value))
-  const availableModelOptions =
-    visibilityFilter === "enabled"
-      ? []
-      : filteredChatModelOptions.filter((option) => !allowedModelSet.has(option.value))
+  const availableModelOptions = filteredChatModelOptions.filter((option) => !allowedModelSet.has(option.value))
   const isDefaultEnabled = draftDefaultChatModel.length > 0 && allowedModelSet.has(draftDefaultChatModel)
   const isEmpty = chatModelOptions.length === 0
   const hasFilteredResults = enabledModelOptions.length > 0 || availableModelOptions.length > 0
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden sm:max-w-[min(96rem,calc(100vw-2rem))]">
-        <DialogHeader>
+      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden p-0 sm:max-w-6xl">
+        <DialogHeader className="border-b px-6 py-5">
           <DialogTitle className="flex items-center gap-2">
-            <MessageSquare className="size-5 text-primary" />
+            <MessageSquare className="size-5" />
             Configure chat models
           </DialogTitle>
           <DialogDescription>
             Choose which chat models users can access in chat and select the default for new conversations.
           </DialogDescription>
         </DialogHeader>
-        <div className="max-h-[calc(100vh-13rem)] overflow-y-auto pr-1">
-          <div className="space-y-5">
-            <ModelFilters
+        <div className="max-h-[calc(100vh-13rem)] overflow-y-auto px-6 py-5">
+          <div className="space-y-6">
+            <EmbeddingModelFilters
               providerFilter={providerFilter}
               providerOptions={providerOptions}
               searchQuery={searchQuery}
@@ -2438,83 +2437,60 @@ function ChatModelsDialog({
               ]}
             />
 
-            {isEmpty ? (
-              <EmptyState
-                message={
-                  isFetchingChatModels
-                    ? "Loading available models and provider status..."
-                    : "No chat models are selectable from healthy providers."
-                }
-              />
-            ) : !hasFilteredResults ? (
-              <EmptyState message="No models match the current filters." />
-            ) : (
-              <div className="grid gap-5 xl:grid-cols-2">
-                <ModelPanel
-                  title={`Available Models (${availableModelOptions.length.toLocaleString()})`}
-                  description="Enable more models to make them available to users."
-                >
-                  {availableModelOptions.length > 0 ? (
-                    <ScrollableList enabled={availableModelOptions.length > 5}>
-                      <div className="space-y-2">
-                        {availableModelOptions.map((option) => (
-                          <ChatModelCard
-                            key={option.value}
-                            option={option}
-                            variant="available"
-                            onEnable={() => onAllowedModelChange(option.value, true)}
-                          />
-                        ))}
-                      </div>
-                    </ScrollableList>
-                  ) : (
-                    <EmptyState
-                      message={
-                        visibilityFilter === "enabled"
-                          ? "Enabled-only filtering is active."
-                          : "Every matching model is already enabled."
-                      }
+            <div className="grid gap-5 lg:grid-cols-[1.35fr_1fr]">
+              <EmbeddingDialogPanel title={`Available Models (${availableModelOptions.length.toLocaleString()})`}>
+                <EmbeddingModelSearch searchQuery={searchQuery} onSearchQueryChange={setSearchQuery} />
+                {isEmpty ? (
+                  <EmptyState
+                    message={
+                      isFetchingChatModels
+                        ? "Loading available models and provider status..."
+                        : "No chat models are selectable from healthy providers."
+                    }
+                  />
+                ) : !hasFilteredResults ? (
+                  <EmptyState message="No models match the current filters." />
+                ) : availableModelOptions.length > 0 ? (
+                  <ScrollableList enabled={availableModelOptions.length > 5} className="max-h-[20.25rem]">
+                    <ChatModelTable
+                      options={availableModelOptions}
+                      variant="available"
+                      onEnable={onAllowedModelChange}
                     />
-                  )}
-                </ModelPanel>
+                  </ScrollableList>
+                ) : (
+                  <EmptyState
+                    message={
+                      visibilityFilter === "enabled"
+                        ? "Enabled-only filtering is active."
+                        : "Every matching model is already enabled."
+                    }
+                  />
+                )}
+              </EmbeddingDialogPanel>
 
-                <ModelPanel
-                  title={`Enabled Models (${enabledModelOptions.length.toLocaleString()})`}
-                  description="Users can choose from these models in chat."
-                  selected
-                  headerActions={
-                    <DefaultChatModelSelect
-                      enabledModelOptions={allEnabledModelOptions}
-                      value={draftDefaultChatModel}
-                      onChange={onDefaultModelChange}
-                    />
-                  }
-                >
+              <EmbeddingDialogPanel title={`Enabled Models (${enabledModelOptions.length.toLocaleString()})`}>
+                <div className="space-y-3">
                   {enabledModelOptions.length > 0 ? (
-                    <ScrollableList enabled={enabledModelOptions.length > 5}>
-                      <div className="space-y-2">
-                        {enabledModelOptions.map((option) => (
-                          <ChatModelCard
-                            key={option.value}
-                            option={option}
-                            isDefault={option.value === draftDefaultChatModel}
-                            variant="enabled"
-                            onDefault={() => onDefaultModelChange(option.value)}
-                            onDisable={() => onAllowedModelChange(option.value, false)}
-                          />
-                        ))}
-                      </div>
+                    <ScrollableList enabled={enabledModelOptions.length > 4} className="max-h-[15.5rem]">
+                      <ChatModelTable
+                        options={enabledModelOptions}
+                        defaultModel={draftDefaultChatModel}
+                        variant="enabled"
+                        onDefault={onDefaultModelChange}
+                        onDisable={onAllowedModelChange}
+                      />
                     </ScrollableList>
                   ) : (
                     <EmptyState message="No enabled models match the current filters." />
                   )}
                   <InfoNotice>Users can choose any enabled model. The default is used for new conversations.</InfoNotice>
-                </ModelPanel>
-              </div>
-            )}
+                </div>
+              </EmbeddingDialogPanel>
+            </div>
           </div>
         </div>
-        <DialogFooter className="items-center border-t pt-4 sm:justify-between">
+        <DialogFooter className="items-center border-t px-6 py-4 sm:justify-between">
           <div className={cn("text-sm", isDefaultEnabled ? "text-muted-foreground" : "text-orange-600")}>
             {draftAllowedChatModels.length.toLocaleString()} models enabled
             {isDefaultEnabled
@@ -2522,10 +2498,10 @@ function ChatModelsDialog({
               : " - select an enabled default model"}
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button size="sm" disabled={!isDefaultEnabled || isSaving} onClick={onSave}>
+            <Button disabled={!isDefaultEnabled || isSaving} onClick={onSave}>
               {isSaving ? "Saving..." : "Save chat models"}
             </Button>
           </div>
@@ -2766,112 +2742,75 @@ function TranslationModelDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden sm:max-w-[min(96rem,calc(100vw-2rem))]">
-        <DialogHeader>
+      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden p-0 sm:max-w-6xl">
+        <DialogHeader className="border-b px-6 py-5">
           <DialogTitle className="flex items-center gap-2">
-            <Languages className="size-5 text-primary" />
+            <Languages className="size-5" />
             Configure translation model
           </DialogTitle>
           <DialogDescription>
             Choose the multimodal model used for document translation. Only one translation model can be active.
           </DialogDescription>
         </DialogHeader>
-        <ModelSelectionBody
-          emptyMessage={
-            isFetchingModels
-              ? "Loading available models and provider status..."
-              : "No translation models are selectable from healthy providers."
-          }
-          filterProps={{
-            providerFilter,
-            providerOptions,
-            searchQuery,
-            visibilityFilter,
-            onProviderFilterChange: setProviderFilter,
-            onSearchQueryChange: setSearchQuery,
-            onVisibilityFilterChange: setVisibilityFilter,
-          }}
-          filteredCount={filteredOptions.length}
-          hasOptions={translationModelOptions.length > 0}
-          title="Available Models"
-        >
-          <RadioGroup value={selectedTranslationModelKey} onValueChange={onSelectedModelKeyChange}>
-            {filteredOptions.map((option) => (
-              <TranslationModelSelectionCard
-                key={option.key}
-                option={option}
-                isSelected={option.key === selectedTranslationModelKey}
-              />
-            ))}
-          </RadioGroup>
-          <SelectedTranslationModelCard option={selectedTranslationModel} selectedModelChanged={selectedTranslationModelChanged} />
-          <InfoNotice>
-            Translation uses a multimodal model so Arkivra can process rendered pages and selected visual regions.
-          </InfoNotice>
-        </ModelSelectionBody>
-        <DialogFooter className="items-center border-t pt-4 sm:justify-between">
+        <div className="max-h-[calc(100vh-13rem)] overflow-y-auto px-6 py-5">
+          <div className="space-y-6">
+            <EmbeddingModelFilters
+              providerFilter={providerFilter}
+              providerOptions={providerOptions}
+              searchQuery={searchQuery}
+              visibilityFilter={visibilityFilter}
+              onProviderFilterChange={setProviderFilter}
+              onSearchQueryChange={setSearchQuery}
+              onVisibilityFilterChange={setVisibilityFilter}
+            />
+            <div className="grid gap-5 lg:grid-cols-[1.35fr_1fr]">
+              <EmbeddingDialogPanel title={`Available Models (${filteredOptions.length.toLocaleString()})`}>
+                <EmbeddingModelSearch searchQuery={searchQuery} onSearchQueryChange={setSearchQuery} />
+                {!translationModelOptions.length ? (
+                  <EmptyState
+                    message={
+                      isFetchingModels
+                        ? "Loading available models and provider status..."
+                        : "No translation models are selectable from healthy providers."
+                    }
+                  />
+                ) : filteredOptions.length === 0 ? (
+                  <EmptyState message="No models match the current filters." />
+                ) : (
+                  <ScrollableList enabled={filteredOptions.length > 5} className="max-h-[20.25rem]">
+                    <TranslationModelTable
+                      options={filteredOptions}
+                      selectedTranslationModelKey={selectedTranslationModelKey}
+                      onSelectedModelKeyChange={onSelectedModelKeyChange}
+                    />
+                  </ScrollableList>
+                )}
+              </EmbeddingDialogPanel>
+              <EmbeddingDialogPanel title="Selected Model">
+                <SelectedTranslationModelCard
+                  option={selectedTranslationModel}
+                  selectedModelChanged={selectedTranslationModelChanged}
+                />
+                <InfoNotice>
+                  Translation uses a multimodal model so Arkivra can process rendered pages and selected visual regions.
+                </InfoNotice>
+              </EmbeddingDialogPanel>
+            </div>
+          </div>
+        </div>
+        <DialogFooter className="items-center border-t px-6 py-4 sm:justify-between">
           <div className="text-sm text-muted-foreground">Current model: {currentModelSummary}</div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button size="sm" disabled={selectedTranslationModel === null || !selectedTranslationModelChanged || isSaving} onClick={onConfirm}>
+            <Button disabled={selectedTranslationModel === null || !selectedTranslationModelChanged || isSaving} onClick={onConfirm}>
               {isSaving ? "Saving..." : "Save translation model"}
             </Button>
           </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function ModelSelectionBody({
-  children,
-  emptyMessage,
-  filterProps,
-  filteredCount,
-  hasOptions,
-  title,
-}: {
-  children: ReactNode
-  emptyMessage: string
-  filterProps: ModelFiltersProps
-  filteredCount: number
-  hasOptions: boolean
-  title: string
-}) {
-  const childArray = Array.isArray(children) ? children : [children]
-  const list = childArray[0]
-  const selectedCard = childArray[1]
-  const notice = childArray[2]
-
-  return (
-    <div className="max-h-[calc(100vh-13rem)] overflow-y-auto pr-1">
-      <div className="space-y-5">
-        <ModelFilters
-          {...filterProps}
-          visibilityItems={[
-            ["all", "All models"],
-            ["selected", "Selected model"],
-          ]}
-        />
-        <div className="grid gap-5 xl:grid-cols-2">
-          <ModelPanel title={`${title} (${filteredCount.toLocaleString()})`} description="Select a model to use.">
-            {!hasOptions ? (
-              <EmptyState message={emptyMessage} />
-            ) : filteredCount === 0 ? (
-              <EmptyState message="No models match the current filters." />
-            ) : (
-              <ScrollableList enabled={filteredCount > 5}>{list}</ScrollableList>
-            )}
-          </ModelPanel>
-          <ModelPanel title="Selected Model" description="This model will be saved for the service." selected>
-            {selectedCard}
-            {notice}
-          </ModelPanel>
-        </div>
-      </div>
-    </div>
   )
 }
 
@@ -2885,73 +2824,17 @@ interface ModelFiltersProps {
   onVisibilityFilterChange: (value: string) => void
 }
 
-function ModelFilters({
-  onProviderFilterChange,
-  onSearchQueryChange,
-  onVisibilityFilterChange,
-  providerFilter,
-  providerOptions,
-  searchQuery,
-  visibilityFilter,
-  visibilityItems,
-}: ModelFiltersProps & { visibilityItems: Array<[string, string]> }) {
-  return (
-    <div className="grid gap-4 md:grid-cols-3">
-      <div className="space-y-2">
-        <Label htmlFor="model-search">Search</Label>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            id="model-search"
-            value={searchQuery}
-            className="pl-9"
-            placeholder="Search models..."
-            onChange={(event) => onSearchQueryChange(event.currentTarget.value)}
-          />
-        </div>
-      </div>
-      <div className="space-y-2">
-        <Label>Provider</Label>
-        <Select value={providerFilter} onValueChange={onProviderFilterChange}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="All providers" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Providers</SelectItem>
-            {providerOptions.map(([provider, label]) => (
-              <SelectItem key={provider} value={provider}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Show</Label>
-        <Select value={visibilityFilter} onValueChange={onVisibilityFilterChange}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="All models" />
-          </SelectTrigger>
-          <SelectContent>
-            {visibilityItems.map(([value, label]) => (
-              <SelectItem key={value} value={value}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
-  )
-}
-
 function EmbeddingModelFilters({
   onProviderFilterChange,
   onVisibilityFilterChange,
   providerFilter,
   providerOptions,
   visibilityFilter,
-}: ModelFiltersProps) {
+  visibilityItems = [
+    ["all", "All models"],
+    ["selected", "Selected model"],
+  ],
+}: ModelFiltersProps & { visibilityItems?: Array<[string, string]> }) {
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <div className="space-y-2">
@@ -2977,8 +2860,11 @@ function EmbeddingModelFilters({
             <SelectValue placeholder="All models" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All models</SelectItem>
-            <SelectItem value="selected">Selected model</SelectItem>
+            {visibilityItems.map(([value, label]) => (
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -3017,38 +2903,6 @@ function EmbeddingDialogPanel({ children, title }: { children: ReactNode; title:
   )
 }
 
-function ModelPanel({
-  children,
-  description,
-  headerActions,
-  selected = false,
-  title,
-}: {
-  children: ReactNode
-  description: string
-  headerActions?: ReactNode
-  selected?: boolean
-  title: string
-}) {
-  return (
-    <div
-      className={cn(
-        "flex min-h-[32rem] flex-col gap-4 rounded-md border p-4",
-        selected ? "border-primary/30 bg-primary/5" : "bg-muted/30",
-      )}
-    >
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div>
-          <div className="font-semibold">{title}</div>
-          <p className="text-sm text-muted-foreground">{description}</p>
-        </div>
-        {headerActions ? <div className="w-full shrink-0 md:w-72">{headerActions}</div> : null}
-      </div>
-      {children}
-    </div>
-  )
-}
-
 function ScrollableList({
   children,
   className,
@@ -3061,78 +2915,84 @@ function ScrollableList({
   return <div className={cn(enabled && "max-h-[31.5rem] overflow-y-auto pr-1", enabled && className)}>{children}</div>
 }
 
-function ChatModelCard({
-  isDefault = false,
+function ChatModelTable({
+  defaultModel = "",
   onDefault,
   onDisable,
   onEnable,
-  option,
+  options,
   variant,
 }: {
-  isDefault?: boolean
-  onDefault?: () => void
-  onDisable?: () => void
-  onEnable?: () => void
-  option: ChatModelOption
+  defaultModel?: string
+  options: ChatModelOption[]
   variant: "available" | "enabled"
+  onDefault?: (model: string) => void
+  onDisable?: (model: string, checked: boolean) => void
+  onEnable?: (model: string, checked: boolean) => void
 }) {
   return (
-    <div className={cn("rounded-md border bg-card p-3 shadow-xs", isDefault && "border-primary/40")}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="break-words text-sm font-semibold">{option.label}</div>
-          <div className="text-sm text-muted-foreground">{option.providerLabel}</div>
-        </div>
-        {variant === "available" ? (
-          <Button size="sm" variant="outline" onClick={onEnable}>
-            Enable
-          </Button>
-        ) : (
-          <div className="flex shrink-0 flex-wrap justify-end gap-2">
-            {isDefault ? (
-              <Badge variant="secondary">
-                <CheckCircle2 className="size-3" />
-                Default
-              </Badge>
-            ) : (
-              <Button size="sm" variant="outline" onClick={onDefault}>
-                Set as default
-              </Button>
-            )}
-            <Button size="sm" variant="outline" disabled={isDefault} onClick={onDisable}>
-              Disable
-            </Button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
+    <div className="overflow-hidden rounded-md border bg-card">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Model</TableHead>
+            <TableHead className="hidden w-44 md:table-cell">Provider</TableHead>
+            <TableHead className="w-40 text-right">Action</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {options.map((option) => {
+            const isDefault = option.value === defaultModel
 
-function DefaultChatModelSelect({
-  enabledModelOptions,
-  onChange,
-  value,
-}: {
-  enabledModelOptions: ChatModelOption[]
-  onChange: (model: string) => void
-  value: string
-}) {
-  return (
-    <div className="space-y-2">
-      <Label>Default model</Label>
-      <Select value={value} disabled={enabledModelOptions.length === 0} onValueChange={onChange}>
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="Select model" />
-        </SelectTrigger>
-        <SelectContent>
-          {enabledModelOptions.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+            return (
+              <TableRow key={option.value} data-state={isDefault ? "selected" : undefined}>
+                <TableCell className="min-w-0 py-4">
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <span className="truncate text-sm font-semibold">{option.label}</span>
+                      {isDefault ? <Badge className="shrink-0">Default</Badge> : null}
+                    </div>
+                    <div className="truncate text-xs text-muted-foreground md:hidden">
+                      {option.providerLabel}
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell className="hidden py-4 text-muted-foreground md:table-cell">
+                  {option.providerLabel}
+                </TableCell>
+                <TableCell className="py-4 text-right">
+                  {variant === "available" ? (
+                    <Button size="sm" variant="outline" onClick={() => onEnable?.(option.value, true)}>
+                      Enable
+                    </Button>
+                  ) : (
+                    <div className="flex justify-end gap-2">
+                      {isDefault ? (
+                        <Badge variant="secondary">
+                          <CheckCircle2 className="size-3" />
+                          Default
+                        </Badge>
+                      ) : (
+                        <Button size="sm" variant="outline" onClick={() => onDefault?.(option.value)}>
+                          Default
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={isDefault}
+                        onClick={() => onDisable?.(option.value, false)}
+                      >
+                        Disable
+                      </Button>
+                    </div>
+                  )}
+                </TableCell>
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
     </div>
   )
 }
@@ -3251,29 +3111,69 @@ function SelectedEmbeddingMetric({ icon, label, value }: { icon: ReactNode; labe
   )
 }
 
-function TranslationModelSelectionCard({
-  isSelected,
-  option,
+function TranslationModelTable({
+  onSelectedModelKeyChange,
+  options,
+  selectedTranslationModelKey,
 }: {
-  isSelected: boolean
-  option: TranslationModelOption
+  options: TranslationModelOption[]
+  selectedTranslationModelKey: string
+  onSelectedModelKeyChange: (key: string) => void
 }) {
   return (
-    <label
-      className={cn(
-        "flex min-h-20 cursor-pointer items-center justify-between gap-3 rounded-md border bg-card p-3 shadow-xs",
-        isSelected && "border-primary",
-      )}
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <RadioGroupItem value={option.key} />
-        <div className="min-w-0">
-          <div className="truncate text-sm font-semibold">{option.label}</div>
-          <div className="truncate text-sm text-muted-foreground">{option.providerLabel}</div>
-        </div>
+    <RadioGroup value={selectedTranslationModelKey} onValueChange={onSelectedModelKeyChange}>
+      <div className="overflow-hidden rounded-md border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-12" />
+              <TableHead>Model</TableHead>
+              <TableHead className="hidden w-44 md:table-cell">Provider</TableHead>
+              <TableHead className="hidden w-36 lg:table-cell">Capability</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {options.map((option) => {
+              const isSelected = option.key === selectedTranslationModelKey
+
+              return (
+                <TableRow
+                  key={option.key}
+                  data-state={isSelected ? "selected" : undefined}
+                  className="cursor-pointer"
+                  onClick={() => onSelectedModelKeyChange(option.key)}
+                >
+                  <TableCell>
+                    <RadioGroupItem
+                      value={option.key}
+                      aria-label={`Select ${option.label}`}
+                      onClick={(event) => event.stopPropagation()}
+                    />
+                  </TableCell>
+                  <TableCell className="min-w-0 py-4">
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <span className="truncate text-sm font-semibold">{option.label}</span>
+                        {isSelected ? <Badge className="shrink-0">Selected</Badge> : null}
+                      </div>
+                      <div className="truncate text-xs text-muted-foreground md:hidden">
+                        {option.providerLabel} - Multimodal
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden py-4 text-muted-foreground md:table-cell">
+                    {option.providerLabel}
+                  </TableCell>
+                  <TableCell className="hidden py-4 text-muted-foreground lg:table-cell">
+                    Multimodal
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
       </div>
-      <Badge variant="outline">Multimodal</Badge>
-    </label>
+    </RadioGroup>
   )
 }
 

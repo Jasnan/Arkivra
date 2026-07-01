@@ -24,30 +24,55 @@ import {
   TooltipTrigger 
 } from "@/components/ui/tooltip"
 import { type Conversation } from "@/app/chat/use-chat"
+import type { ChatResponseMode } from "../chat.api"
+import { ChatModelControls } from "./chat-model-controls"
 
 interface ChatHeaderProps {
   conversation: Conversation | null
+  responseMode: ChatResponseMode
+  modelOptions: string[]
+  selectedModel: string
+  isLoadingModels?: boolean
+  modelOptionsError?: string | null
+  onResponseModeChange: (nextValue: ChatResponseMode) => void
+  onSelectedModelChange: (nextValue: string) => void
   onToggleMute?: () => void
   onToggleInfo?: () => void
 }
 
 export function ChatHeader({ 
   conversation, 
+  responseMode,
+  modelOptions,
+  selectedModel,
+  isLoadingModels,
+  modelOptionsError,
+  onResponseModeChange,
+  onSelectedModelChange,
   onToggleMute, 
   onToggleInfo 
 }: ChatHeaderProps) {
   if (!conversation) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex h-full items-center justify-between gap-3">
         <p className="text-muted-foreground">Select a conversation to start chatting</p>
+        <ChatModelControls
+          responseMode={responseMode}
+          modelOptions={modelOptions}
+          selectedModel={selectedModel}
+          isLoadingModels={isLoadingModels}
+          modelOptionsError={modelOptionsError}
+          onResponseModeChange={onResponseModeChange}
+          onSelectedModelChange={onSelectedModelChange}
+        />
       </div>
     )
   }
 
   return (
-    <div className="flex items-center justify-between h-full">
+    <div className="flex h-full min-w-0 items-center justify-between gap-3">
       {/* Left side - Avatar and info */}
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3">
         <Avatar className="h-10 w-10 cursor-pointer">
           <AvatarImage src={conversation.avatar} alt={conversation.name} />
           <AvatarFallback>
@@ -72,7 +97,16 @@ export function ChatHeader({
       </div>
 
       {/* Right side - Action buttons */}
-      <div className="flex items-center gap-1">
+      <div className="flex min-w-0 shrink-0 items-center gap-2">
+        <ChatModelControls
+          responseMode={responseMode}
+          modelOptions={modelOptions}
+          selectedModel={selectedModel}
+          isLoadingModels={isLoadingModels}
+          modelOptionsError={modelOptionsError}
+          onResponseModeChange={onResponseModeChange}
+          onSelectedModelChange={onSelectedModelChange}
+        />
         <TooltipProvider>
           {/* Info */}
           <Tooltip>

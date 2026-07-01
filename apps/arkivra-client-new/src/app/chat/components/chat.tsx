@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Menu, X } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { Menu, MessageSquarePlus, X } from "lucide-react"
 
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
@@ -23,7 +23,19 @@ import { ConversationList } from "./conversation-list"
 import { ChatHeader } from "./chat-header"
 import { MessageList } from "./message-list"
 import { MessageInput } from "./message-input"
+import {
+  getChatModelOptions,
+  getUserUiPreferences,
+  type ChatResponseMode,
+} from "../chat.api"
+import {
+  DEFAULT_CHAT_RESPONSE_MODE,
+  getCachedDefaultChatResponseMode,
+  isChatResponseMode,
+} from "../chat-model-utils"
 import { useChat, type Conversation, type Message, type User } from "@/app/chat/use-chat"
+
+const NEW_CHAT_DRAFT_ID = "__new_chat_draft__"
 
 interface ChatProps {
   conversations: Conversation[]
@@ -37,9 +49,13 @@ export function Chat({
   users,
 }: ChatProps) {
   const {
+    conversations: chatConversations,
+    messages: chatMessages,
+    users: chatUsers,
     selectedConversation,
     setSelectedConversation,
     setConversations,
+    addConversation,
     setMessages,
     setUsers,
     addMessage,
@@ -50,11 +66,27 @@ export function Chat({
   const [draftContext, setDraftContext] = useState<DraftChatContext>(() => createEmptyDraftContext())
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false)
   const [isDocumentDialogOpen, setIsDocumentDialogOpen] = useState(false)
+  const [responseMode, setResponseMode] = useState<ChatResponseMode>(() =>
+    getCachedDefaultChatResponseMode()
+  )
+  const [selectedModel, setSelectedModel] = useState("")
+  const [availableModels, setAvailableModels] = useState<string[]>([])
+  const [defaultModel, setDefaultModel] = useState("")
+  const [isLoadingModels, setIsLoadingModels] = useState(true)
+  const [modelOptionsError, setModelOptionsError] = useState<string | null>(null)
+  const [hasManualResponseMode, setHasManualResponseMode] = useState(false)
+  const hasInitializedChatRef = useRef(false)
   const vaultsQuery = useChatContextVaults()
   const hydratedDraftContext = hydrateDraftContextLabels({
     context: draftContext,
     vaults: vaultsQuery.vaults,
   })
+  const resolvedSelectedModel =
+    selectedModel && availableModels.includes(selectedModel)
+      ? selectedModel
+      : defaultModel && availableModels.includes(defaultModel)
+        ? defaultModel
+        : ""
 
   // Close sidebar when clicking outside on mobile
   useEffect(() => {
@@ -70,6 +102,11 @@ export function Chat({
 
   // Initialize data
   useEffect(() => {
+    if (hasInitializedChatRef.current) {
+      return
+    }
+
+    hasInitializedChatRef.current = true
     setConversations(conversations)
     setUsers(users)
     
@@ -84,11 +121,120 @@ export function Chat({
     }
   }, [conversations, messages, users, selectedConversation, setConversations, setMessages, setUsers, setSelectedConversation])
 
-  const currentConversation = conversations.find(conv => conv.id === selectedConversation)
-  const currentMessages = selectedConversation ? messages[selectedConversation] || [] : []
+  useEffect(() => {
+    let isCurrent = true
+
+    async function loadDefaultResponseMode() {
+      try {
+        const result = await getUserUiPreferences()
+        const defaultChatAnswerMode = result.preferences.defaultChatAnswerMode
+        if (!isCurrent || hasManualResponseMode || !isChatResponseMode(defaultChatAnswerMode)) {
+          return
+        }
+
+        setResponseMode(defaultChatAnswerMode)
+      } catch {
+        if (!isCurrent || hasManualResponseMode) {
+          return
+        }
+
+        setResponseMode((current) => current ?? DEFAULT_CHAT_RESPONSE_MODE)
+      }
+    }
+
+    void loadDefaultResponseMode()
+
+    return () => {
+      isCurrent = false
+    }
+  }, [hasManualResponseMode])
+
+  useEffect(() => {
+    let isCurrent = true
+
+    async function loadChatModelOptions() {
+      setIsLoadingModels(true)
+      setModelOptionsError(null)
+
+      try {
+        const result = await getChatModelOptions()
+        if (!isCurrent) return
+
+        setAvailableModels(result.options.models)
+        setDefaultModel(result.options.defaultModel)
+      } catch (error) {
+        if (!isCurrent) return
+
+        setAvailableModels([])
+        setDefaultModel("")
+        setModelOptionsError(
+          error instanceof Error
+            ? error.message
+            : "Could not load available models for this chat."
+        )
+      } finally {
+        if (isCurrent) {
+          setIsLoadingModels(false)
+        }
+      }
+    }
+
+    void loadChatModelOptions()
+
+    return () => {
+      isCurrent = false
+    }
+  }, [])
+
+  const currentConversation = chatConversations.find(conv => conv.id === selectedConversation)
+  const currentMessages = selectedConversation ? chatMessages[selectedConversation] || [] : []
+
+  const handleCreateConversation = () => {
+    const existingDraft = chatConversations.find((conversation) => conversation.id === NEW_CHAT_DRAFT_ID)
+
+    if (existingDraft) {
+      setSelectedConversation(existingDraft.id)
+      setIsSidebarOpen(false)
+      return
+    }
+
+    const now = new Date().toISOString()
+    const draftConversation: Conversation = {
+      id: NEW_CHAT_DRAFT_ID,
+      type: "direct",
+      participants: [],
+      name: "New chat",
+      avatar: "",
+      lastMessage: {
+        id: "",
+        content: "",
+        timestamp: now,
+        senderId: "current-user",
+      },
+      unreadCount: 0,
+      isPinned: false,
+      isMuted: false,
+    }
+
+    addConversation(draftConversation)
+    setSelectedConversation(draftConversation.id)
+    setDraftContext(createEmptyDraftContext())
+    setIsSidebarOpen(false)
+  }
 
   const handleSendMessage = (content: string) => {
     if (!selectedConversation) return
+
+    if (selectedConversation === NEW_CHAT_DRAFT_ID) {
+      const title = content.length > 60 ? `${content.slice(0, 57)}...` : content
+      setConversations(
+        chatConversations.map((conversation) =>
+          conversation.id === NEW_CHAT_DRAFT_ID
+            ? { ...conversation, name: title || "New chat" }
+            : conversation
+        )
+      )
+    }
 
     const newMessage = {
       id: `msg-${Date.now()}`,
@@ -132,23 +278,37 @@ export function Chat({
           {/* Sidebar Header with Close Button (Mobile Only) */}
           <div className="lg:hidden p-4 border-b flex items-center justify-between bg-background">
             <h2 className="text-lg font-semibold">Messages</h2>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsSidebarOpen(false)}
-              className="cursor-pointer"
-            >
-              <X className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="New chat"
+                title="New chat"
+                onClick={handleCreateConversation}
+                className="h-8 w-8 cursor-pointer"
+              >
+                <MessageSquarePlus className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsSidebarOpen(false)}
+                className="cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           <ConversationList
-            conversations={conversations}
+            conversations={chatConversations}
             selectedConversation={selectedConversation}
             onSelectConversation={(id) => {
               setSelectedConversation(id)
               setIsSidebarOpen(false) // Close sidebar on mobile after selection
             }}
+            onCreateConversation={handleCreateConversation}
           />
         </div>
 
@@ -169,6 +329,16 @@ export function Chat({
             <div className="flex-1">
               <ChatHeader
                 conversation={currentConversation || null}
+                responseMode={responseMode}
+                modelOptions={availableModels}
+                selectedModel={resolvedSelectedModel}
+                isLoadingModels={isLoadingModels}
+                modelOptionsError={modelOptionsError}
+                onResponseModeChange={(nextValue) => {
+                  setHasManualResponseMode(true)
+                  setResponseMode(nextValue)
+                }}
+                onSelectedModelChange={setSelectedModel}
                 onToggleMute={handleToggleMute}
               />
             </div>
@@ -180,7 +350,7 @@ export function Chat({
               <>
                 <MessageList
                   messages={currentMessages}
-                  users={users}
+                  users={chatUsers}
                 />
                 
                 {/* Message Input */}

@@ -57,6 +57,7 @@ interface ChatState {
 
 interface ChatActions {
   setConversations: (conversations: Conversation[]) => void
+  addConversation: (conversation: Conversation) => void
   setMessages: (conversationId: string, messages: Message[]) => void
   setUsers: (users: User[]) => void
   setSelectedConversation: (conversationId: string | null) => void
@@ -81,6 +82,18 @@ export const useChat = create<ChatState & ChatActions>((set, get) => ({
 
   // Actions
   setConversations: (conversations) => set({ conversations }),
+
+  addConversation: (conversation) =>
+    set((state) => ({
+      conversations: [
+        conversation,
+        ...state.conversations.filter((item) => item.id !== conversation.id),
+      ],
+      messages: {
+        ...state.messages,
+        [conversation.id]: state.messages[conversation.id] || [],
+      },
+    })),
   
   setMessages: (conversationId, messages) => 
     set((state) => ({

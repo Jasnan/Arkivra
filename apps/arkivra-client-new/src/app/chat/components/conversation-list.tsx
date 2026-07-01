@@ -8,7 +8,8 @@ import {
   MoreVertical,
   Settings,
   UserPlus,
-  Filter
+  Filter,
+  MessageSquarePlus
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -28,6 +29,7 @@ interface ConversationListProps {
   conversations: Conversation[]
   selectedConversation: string | null
   onSelectConversation: (conversationId: string) => void
+  onCreateConversation: () => void
 }
 
 // Enhanced time formatting function
@@ -50,7 +52,8 @@ function formatMessageTime(timestamp: string): string {
 export function ConversationList({ 
   conversations, 
   selectedConversation, 
-  onSelectConversation 
+  onSelectConversation,
+  onCreateConversation
 }: ConversationListProps) {
   const { searchQuery, setSearchQuery } = useChat()
 
@@ -58,7 +61,7 @@ export function ConversationList({
     conversation.name.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const sortedConversations = filteredConversations.sort((a, b) => {
+  const sortedConversations = [...filteredConversations].sort((a, b) => {
     // Pinned conversations first
     if (a.isPinned && !b.isPinned) return -1
     if (!a.isPinned && b.isPinned) return 1
@@ -72,32 +75,45 @@ export function ConversationList({
       {/* Header - Hidden on mobile (handled by parent) */}
       <div className="hidden lg:flex items-center justify-between h-16 px-4 border-b flex-shrink-0">
         <h2 className="text-lg font-semibold">Messages</h2>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 cursor-pointer"
-            >
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem className="cursor-pointer">
-              <UserPlus className="h-4 w-4 mr-2" />
-              New Chat
-            </DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer">
-              <Filter className="h-4 w-4 mr-2" />
-              Filter Messages
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer">
-              <Settings className="h-4 w-4 mr-2" />
-              Chat Settings
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label="New chat"
+            title="New chat"
+            onClick={onCreateConversation}
+            className="h-8 w-8 cursor-pointer"
+          >
+            <MessageSquarePlus className="h-4 w-4" />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 cursor-pointer"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onCreateConversation} className="cursor-pointer">
+                <UserPlus className="h-4 w-4 mr-2" />
+                New Chat
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer">
+                <Filter className="h-4 w-4 mr-2" />
+                Filter Messages
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="cursor-pointer">
+                <Settings className="h-4 w-4 mr-2" />
+                Chat Settings
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {/* Search */}
@@ -147,7 +163,7 @@ export function ConversationList({
                 
                 <div className="flex items-center justify-between gap-2 min-w-0">
                   <p className="text-sm text-muted-foreground truncate flex-1 min-w-0 max-w-[180px] lg:max-w-[200px] pr-2">
-                    {conversation.lastMessage.content}
+                    {conversation.lastMessage.content || "No messages yet"}
                   </p>
                 </div>
               </div>

@@ -6,6 +6,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { CommandSearch, SearchTrigger } from "@/components/command-search"
 import { ModeToggle } from "@/components/mode-toggle"
 import { HeaderActionsSlot } from "@/contexts/header-actions-context"
+import { TransfersHeaderButton } from "@/app/transfers/transfers-header"
 
 interface SiteHeaderProps {
   headerContent?: React.ReactNode
@@ -50,6 +51,7 @@ export function SiteHeader({ headerContent, headerActionsContent, hideHeaderSear
           <div className="ml-auto flex items-center gap-2">
             {headerActionsContent}
             <HeaderActionsSlot />
+            <TransfersHeaderButton />
             <ModeToggle />
           </div>
         </div>

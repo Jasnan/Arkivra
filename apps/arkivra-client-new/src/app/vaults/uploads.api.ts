@@ -1,6 +1,6 @@
 import { ApiError, fetchJson } from "@/lib/api"
 
-type UploadSessionStatus =
+export type UploadSessionStatus =
   | "initialized"
   | "uploading"
   | "paused"
@@ -41,6 +41,10 @@ export interface UploadSessionSummary {
 
 interface UploadResponse {
   upload: UploadSessionSummary
+}
+
+interface UploadListResponse {
+  uploads: UploadSessionSummary[]
 }
 
 export type UploadConflictStrategy = "skip" | "keep_both" | "new_version"
@@ -123,5 +127,38 @@ export async function completeUploadSession({
           body: JSON.stringify({ conflictStrategy }),
         }
       : {}),
+  })
+}
+
+export async function getUploadSession({
+  vaultId,
+  uploadId,
+}: {
+  vaultId: string
+  uploadId: string
+}) {
+  return fetchJson<UploadResponse>(`/api/vaults/${vaultId}/uploads/${uploadId}`)
+}
+
+export async function listUploadSessions({
+  vaultId,
+  activeOnly = false,
+}: {
+  vaultId: string
+  activeOnly?: boolean
+}) {
+  const suffix = activeOnly ? "?active=true" : ""
+  return fetchJson<UploadListResponse>(`/api/vaults/${vaultId}/uploads${suffix}`)
+}
+
+export async function abortUploadSession({
+  vaultId,
+  uploadId,
+}: {
+  vaultId: string
+  uploadId: string
+}) {
+  return fetchJson<UploadResponse>(`/api/vaults/${vaultId}/uploads/${uploadId}/abort`, {
+    method: "POST",
   })
 }

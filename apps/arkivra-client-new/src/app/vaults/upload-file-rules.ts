@@ -92,3 +92,13 @@ export function isAllowedUploadFile(input: UploadFileInput) {
 export function filterAllowedUploadFiles(files: UploadFileInput[]) {
   return files.filter(isAllowedUploadFile)
 }
+
+export function getUploadSourceRootName(input: UploadFileInput) {
+  const parts = getPathParts(input)
+
+  if (!input.relativePath || parts.length <= 1) {
+    return null
+  }
+
+  return parts[0] ?? null
+}

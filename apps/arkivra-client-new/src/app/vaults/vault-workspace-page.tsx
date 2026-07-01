@@ -31,8 +31,8 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { ApiError } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { uploadManager } from "../transfers/upload-manager"
 import { CreateFolderDialog } from "./components/create-folder-dialog"
 import { VaultContextMenu, type VaultContextMenuState } from "./components/vault-context-menu"
 import { VAULT_TREE_ROOT_VALUE, VaultSidebarTree } from "./components/vault-sidebar-tree"
@@ -40,12 +40,9 @@ import { VaultUploadMenu } from "./components/vault-upload-menu"
 import { VaultsViewToggle } from "./components/vaults-view-toggle"
 import { getDocumentFileIcon } from "./document-file-icons"
 import {
-  filterAllowedUploadFiles,
-  normalizeUploadFileName,
   UPLOAD_ACCEPT_ATTRIBUTE,
   type UploadFileInput,
 } from "./upload-file-rules"
-import { completeUploadSession, initUploadSession, uploadPart, type UploadConflictStrategy } from "./uploads.api"
 import {
   getVault,
   listFolderItems,
@@ -89,22 +86,6 @@ interface MoveDestination {
   depth: number
 }
 
-interface UploadConflictDetails {
-  code: "document.name_conflict" | "document.duplicate" | string
-  message: string
-  existingId: string | null
-  duplicateScope: string | null
-  conflictType: "name" | "hash" | string
-  availableStrategies: UploadConflictStrategy[]
-}
-
-interface UploadConflictPrompt {
-  fileName: string
-  conflict: UploadConflictDetails
-  resolve: (strategy: UploadConflictStrategy) => void
-  reject: () => void
-}
-
 const EMPTY_SELECTED_ITEM_KEYS = new Set<string>()
 
 function formatBytes(value: number) {
@@ -116,45 +97,6 @@ function formatBytes(value: number) {
   const formatted = amount >= 10 || exponent === 0 ? Math.round(amount).toString() : amount.toFixed(1)
 
   return `${formatted} ${units[exponent]}`
-}
-
-function isUploadConflictStrategy(value: unknown): value is UploadConflictStrategy {
-  return value === "skip" || value === "keep_both" || value === "new_version"
-}
-
-function getUploadConflictDetails(error: unknown): UploadConflictDetails | null {
-  if (!(error instanceof ApiError) || error.status !== 409) {
-    return null
-  }
-
-  if (error.code !== "document.name_conflict" && error.code !== "document.duplicate") {
-    return null
-  }
-
-  const details = error.details ?? {}
-  const availableStrategies = Array.isArray(details.availableStrategies)
-    ? details.availableStrategies.filter(isUploadConflictStrategy)
-    : []
-
-  return {
-    code: error.code,
-    message: error.message,
-    existingId: typeof details.existingId === "string" ? details.existingId : null,
-    duplicateScope: typeof details.duplicateScope === "string" ? details.duplicateScope : null,
-    conflictType: typeof details.conflictType === "string" ? details.conflictType : "hash",
-    availableStrategies,
-  }
-}
-
-function conflictStrategyLabel(strategy: UploadConflictStrategy) {
-  switch (strategy) {
-    case "skip":
-      return "Skip"
-    case "keep_both":
-      return "Keep both"
-    case "new_version":
-      return "Add version"
-  }
 }
 
 function formatDate(value: string | null | undefined) {
@@ -394,59 +336,6 @@ function getFolderDropTargetClass(dropTarget: BrowserDropTarget | null, folderId
 function getUploadRelativePath(file: File) {
   const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath
   return relativePath && relativePath.length > 0 ? relativePath : null
-}
-
-async function uploadFileToVault({
-  vaultId,
-  folderId,
-  input,
-  onConflict,
-}: {
-  vaultId: string
-  folderId: string | null
-  input: UploadFileInput
-  onConflict: (fileName: string, conflict: UploadConflictDetails) => Promise<UploadConflictStrategy>
-}) {
-  const { file, relativePath = null } = input
-  const fileName = normalizeUploadFileName(file.name)
-  const initResult = await initUploadSession({
-    vaultId,
-    folderId,
-    relativePath,
-    fileName,
-    mimeType: file.type || "application/octet-stream",
-    totalSize: file.size,
-  })
-
-  const { upload } = initResult
-  const partSize = upload.partSize || file.size
-
-  for (let partNumber = 1; partNumber <= upload.partCount; partNumber += 1) {
-    if (upload.uploadedParts.includes(partNumber)) {
-      continue
-    }
-
-    const start = (partNumber - 1) * partSize
-    const end = Math.min(start + partSize, file.size)
-    await uploadPart({
-      vaultId,
-      uploadId: upload.id,
-      partNumber,
-      chunk: file.slice(start, end),
-    })
-  }
-
-  try {
-    await completeUploadSession({ vaultId, uploadId: upload.id })
-  } catch (error) {
-    const conflict = getUploadConflictDetails(error)
-    if (conflict === null || conflict.availableStrategies.length === 0) {
-      throw error
-    }
-
-    const strategy = await onConflict(fileName, conflict)
-    await completeUploadSession({ vaultId, uploadId: upload.id, conflictStrategy: strategy })
-  }
 }
 
 function MoveItemsDialog({
@@ -1001,9 +890,7 @@ export default function VaultWorkspacePage() {
   const [dropTarget, setDropTarget] = useState<BrowserDropTarget | null>(null)
   const [loadingTree, setLoadingTree] = useState(true)
   const [loadingItems, setLoadingItems] = useState(true)
-  const [isUploading, setIsUploading] = useState(false)
   const [itemMutationPending, setItemMutationPending] = useState(false)
-  const [uploadConflictPrompt, setUploadConflictPrompt] = useState<UploadConflictPrompt | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const activeFolderId = searchParams.get("folderId")
   const normalizedFolderId = activeFolderId === "root" ? null : activeFolderId
@@ -1047,66 +934,28 @@ export default function VaultWorkspacePage() {
     setItems(itemsResult.items)
   }, [vaultId, normalizedFolderId])
 
-  const requestUploadConflictStrategy = useCallback(
-    (fileName: string, conflict: UploadConflictDetails) =>
-      new Promise<UploadConflictStrategy>((resolve, reject) => {
-        setUploadConflictPrompt({
-          fileName,
-          conflict,
-          resolve: (strategy) => {
-            setUploadConflictPrompt(null)
-            resolve(strategy)
-          },
-          reject: () => {
-            setUploadConflictPrompt(null)
-            reject(new Error("Upload conflict was not resolved."))
-          },
-        })
-      }),
-    []
-  )
-
   const uploadSelectedFiles = useCallback(async (selectedFiles: UploadFileInput[]) => {
-    if (!vaultId || isUploading) {
+    if (!vaultId) {
       return
     }
 
-    const acceptedFiles = filterAllowedUploadFiles(selectedFiles)
-    const rejectedCount = selectedFiles.length - acceptedFiles.length
+    const result = uploadManager.addFiles({
+      vaultId,
+      folderId: normalizedFolderId,
+      files: selectedFiles,
+    })
 
-    if (acceptedFiles.length === 0) {
+    if (result.acceptedCount === 0) {
       toast.error("No supported files selected.")
       return
     }
 
-    const toastId = toast.loading(
-      acceptedFiles.length === 1 ? "Uploading 1 file..." : `Uploading ${acceptedFiles.length} files...`
+    toast.success(
+      result.rejectedCount > 0
+        ? `Queued ${result.acceptedCount} file${result.acceptedCount === 1 ? "" : "s"}. ${result.rejectedCount} unsupported file${result.rejectedCount === 1 ? "" : "s"} skipped.`
+        : `Queued ${result.acceptedCount} file${result.acceptedCount === 1 ? "" : "s"}.`
     )
-
-    setIsUploading(true)
-    try {
-      for (const input of acceptedFiles) {
-        await uploadFileToVault({
-          vaultId,
-          folderId: normalizedFolderId,
-          input,
-          onConflict: requestUploadConflictStrategy,
-        })
-      }
-
-      await refreshVaultContents()
-      toast.success(
-        rejectedCount > 0
-          ? `Uploaded ${acceptedFiles.length} file${acceptedFiles.length === 1 ? "" : "s"}. ${rejectedCount} unsupported file${rejectedCount === 1 ? "" : "s"} skipped.`
-          : `Uploaded ${acceptedFiles.length} file${acceptedFiles.length === 1 ? "" : "s"}.`,
-        { id: toastId }
-      )
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Upload failed.", { id: toastId })
-    } finally {
-      setIsUploading(false)
-    }
-  }, [isUploading, normalizedFolderId, refreshVaultContents, requestUploadConflictStrategy, vaultId])
+  }, [normalizedFolderId, vaultId])
 
   const handleUploadInputChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files ?? []).map((file) => ({
@@ -1387,13 +1236,13 @@ export default function VaultWorkspacePage() {
   const workspaceActions = useMemo(() => (
     <>
       <VaultUploadMenu
-        disabled={isUploading || !vaultId}
+        disabled={!vaultId}
         onUploadFiles={openUploadFiles}
         onUploadFolder={openUploadDirectory}
       />
       <VaultsViewToggle />
     </>
-  ), [isUploading, openUploadDirectory, openUploadFiles, vaultId])
+  ), [openUploadDirectory, openUploadFiles, vaultId])
 
   useEffect(() => {
     let ignore = false
@@ -1465,6 +1314,28 @@ export default function VaultWorkspacePage() {
       ignore = true
     }
   }, [vaultId, normalizedFolderId])
+
+  useEffect(() => {
+    if (!vaultId) {
+      return
+    }
+
+    void uploadManager.reconcileVault(vaultId)
+  }, [vaultId])
+
+  useEffect(() => {
+    function handleUploadCompleted(event: Event) {
+      const detail = (event as CustomEvent<{ vaultId?: string; folderId?: string | null }>).detail
+      if (detail?.vaultId !== vaultId) {
+        return
+      }
+
+      void refreshVaultContents()
+    }
+
+    window.addEventListener("arkivra:uploads-completed", handleUploadCompleted)
+    return () => window.removeEventListener("arkivra:uploads-completed", handleUploadCompleted)
+  }, [refreshVaultContents, vaultId])
 
   function openDocument(document: DocumentSummary) {
     navigate(`/vaults/${vaultId}/${document.id}`)
@@ -1542,55 +1413,6 @@ export default function VaultWorkspacePage() {
         onMove={() => openMoveDialog(selectedItems)}
         onDelete={() => setPendingTrashItems(selectedItems)}
       />
-      <Dialog
-        open={uploadConflictPrompt !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            uploadConflictPrompt?.reject()
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Document already exists</DialogTitle>
-            <DialogDescription>
-              {uploadConflictPrompt?.conflict.message ??
-                "Choose how to handle this upload conflict."}
-            </DialogDescription>
-          </DialogHeader>
-          {uploadConflictPrompt ? (
-            <div className="rounded-md border bg-muted/20 p-3">
-              <p className="truncate font-medium">{uploadConflictPrompt.fileName}</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {uploadConflictPrompt.conflict.conflictType === "name"
-                  ? "A document with this name already exists in this location."
-                  : "A document with the same content already exists."}
-              </p>
-            </div>
-          ) : null}
-          <DialogFooter className="sm:justify-between">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => uploadConflictPrompt?.reject()}
-            >
-              Cancel upload
-            </Button>
-            <div className="flex flex-wrap justify-end gap-2">
-              {uploadConflictPrompt?.conflict.availableStrategies.map((strategy) => (
-                <Button
-                  key={strategy}
-                  type="button"
-                  variant={strategy === "new_version" ? "default" : "outline"}
-                  onClick={() => uploadConflictPrompt.resolve(strategy)}
-                >
-                  {conflictStrategyLabel(strategy)}
-                </Button>
-              ))}
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
       {contextMenu ? (
         <VaultContextMenu
           state={contextMenu}

@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react"
 import { Link } from "react-router-dom"
-import { Check, Files, MoreHorizontal, Pencil, Plus, RefreshCw, Save, Search, TagIcon, Tags, Trash2, X } from "lucide-react"
+import { Check, Files, MoreHorizontal, Pencil, Plus, RefreshCw, Save, TagIcon, Tags, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -658,86 +659,100 @@ export default function TagsPage() {
     })
   }
 
-  return (
-    <BaseLayout title="Tags" description="Manage labels used to organize documents.">
-      <div className="space-y-4 px-4 lg:px-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative w-full sm:max-w-sm">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={filterText} className="pl-9" placeholder="Search tags" onChange={(event) => setFilterText(event.target.value)} />
-          </div>
-          <Button ref={createButtonRef} type="button" onClick={openCreateDialog}>
-            <Plus className="size-4" />
-            New tag
-          </Button>
-        </div>
+  const tagControls = (
+    <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_auto]">
+      <Input
+        value={filterText}
+        className="w-full cursor-text"
+        aria-label="Search tags"
+        placeholder="Search tags"
+        onChange={(event) => setFilterText(event.target.value)}
+      />
+      <Button ref={createButtonRef} type="button" onClick={openCreateDialog}>
+        <Plus className="size-4" />
+        New tag
+      </Button>
+    </div>
+  )
 
-        <div className="overflow-hidden rounded-lg border bg-background">
-          {loadingTags ? <div className="p-6 text-sm text-muted-foreground">Loading tags...</div> : null}
-          {tagsError ? <div className="m-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{tagsError}</div> : null}
-          {!loadingTags && !tagsError && tags.length === 0 ? (
-            <div className="flex min-h-80 flex-col items-center justify-center p-8 text-center">
-              <Tags className="size-10 text-muted-foreground" />
-              <h2 className="mt-4 text-lg font-semibold">No tags yet</h2>
-              <p className="mt-2 text-sm text-muted-foreground">Create the first one to start organizing documents.</p>
-            </div>
-          ) : null}
-          {!loadingTags && !tagsError && tags.length > 0 && filteredTags.length === 0 ? (
-            <div className="flex min-h-80 flex-col items-center justify-center p-8 text-center">
-              <Tags className="size-10 text-muted-foreground" />
-              <h2 className="mt-4 text-lg font-semibold">No tags found</h2>
-              <p className="mt-2 text-sm text-muted-foreground">No tags match that search.</p>
-            </div>
-          ) : null}
-          {!loadingTags && !tagsError && filteredTags.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/40">
-                  <TableHead className="w-12">
-                    <Checkbox
-                      checked={someVisibleSelected ? "indeterminate" : allVisibleSelected}
-                      aria-label="Select all visible tags"
-                      onCheckedChange={(checked) => toggleAllVisibleTags(checked === true)}
-                    />
-                  </TableHead>
-                  <TableHead>Tag</TableHead>
-                  <TableHead className="hidden md:table-cell">Description</TableHead>
-                  <TableHead className="hidden w-28 md:table-cell">Documents</TableHead>
-                  <TableHead className="hidden w-36 md:table-cell">Created</TableHead>
-                  <TableHead className="w-12" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredTags.map((tag) => {
-                  const isSelected = selectedTagIds.includes(tag.id)
-                  return (
-                    <TableRow key={tag.id} data-state={isSelected ? "selected" : undefined} onContextMenu={(event) => openContextMenu(event, tag)}>
-                      <TableCell>
-                        <Checkbox checked={isSelected} aria-label={`Select ${tag.name}`} onCheckedChange={(checked) => toggleTagSelection(tag.id, checked === true)} />
-                      </TableCell>
-                      <TableCell className="min-w-0">
-                        <div className="flex min-w-0 flex-col gap-1">
-                          <TagBadge tag={tag} />
-                          <div className="truncate text-xs text-muted-foreground md:hidden">
-                            {(tag.documentsCount ?? 0)} document{(tag.documentsCount ?? 0) === 1 ? "" : "s"} · {formatShortDate(tag.createdAt)}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden max-w-[24rem] truncate md:table-cell">{getTagDescription(tag)}</TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <TagDocumentsButton tag={tag} onOpen={setDocumentsTag} />
-                      </TableCell>
-                      <TableCell className="hidden text-muted-foreground md:table-cell">{formatShortDate(tag.createdAt)}</TableCell>
-                      <TableCell>
-                        <TagActions tag={tag} disabled={mutationPending} onEdit={openEditDialog} onDelete={setTagPendingDelete} />
-                      </TableCell>
+  return (
+    <BaseLayout hideHeaderSearch>
+      <div className="px-4 lg:px-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Tags</CardTitle>
+            <CardDescription>Manage labels used to organize documents.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {tagControls}
+            {loadingTags ? (
+              <div className="flex h-64 items-center justify-center rounded-md border text-sm text-muted-foreground">Loading tags...</div>
+            ) : tagsError ? (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{tagsError}</div>
+            ) : tags.length === 0 ? (
+              <div className="flex min-h-[24rem] flex-col items-center justify-center rounded-md border p-8 text-center">
+                <Tags className="size-10 text-muted-foreground" />
+                <h2 className="mt-4 text-lg font-semibold">No tags yet</h2>
+                <p className="mt-2 max-w-md text-sm text-muted-foreground">Create the first one to start organizing documents.</p>
+              </div>
+            ) : filteredTags.length === 0 ? (
+              <div className="flex min-h-[24rem] flex-col items-center justify-center rounded-md border p-8 text-center">
+                <Tags className="size-8 text-muted-foreground" />
+                <h2 className="mt-4 text-lg font-semibold">No tags found</h2>
+                <p className="mt-2 max-w-md text-sm text-muted-foreground">No tags match that search.</p>
+              </div>
+            ) : (
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={someVisibleSelected ? "indeterminate" : allVisibleSelected}
+                          aria-label="Select all visible tags"
+                          onCheckedChange={(checked) => toggleAllVisibleTags(checked === true)}
+                        />
+                      </TableHead>
+                      <TableHead>Tag</TableHead>
+                      <TableHead className="hidden md:table-cell">Description</TableHead>
+                      <TableHead className="hidden w-28 md:table-cell">Documents</TableHead>
+                      <TableHead className="hidden w-36 md:table-cell">Created</TableHead>
+                      <TableHead className="w-12" />
                     </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          ) : null}
-        </div>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredTags.map((tag) => {
+                      const isSelected = selectedTagIds.includes(tag.id)
+                      return (
+                        <TableRow key={tag.id} data-state={isSelected ? "selected" : undefined} onContextMenu={(event) => openContextMenu(event, tag)}>
+                          <TableCell>
+                            <Checkbox checked={isSelected} aria-label={`Select ${tag.name}`} onCheckedChange={(checked) => toggleTagSelection(tag.id, checked === true)} />
+                          </TableCell>
+                          <TableCell className="min-w-0">
+                            <div className="flex min-w-0 flex-col gap-1">
+                              <TagBadge tag={tag} />
+                              <div className="truncate text-xs text-muted-foreground md:hidden">
+                                {(tag.documentsCount ?? 0)} document{(tag.documentsCount ?? 0) === 1 ? "" : "s"} · {formatShortDate(tag.createdAt)}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden max-w-[24rem] truncate md:table-cell">{getTagDescription(tag)}</TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            <TagDocumentsButton tag={tag} onOpen={setDocumentsTag} />
+                          </TableCell>
+                          <TableCell className="hidden text-muted-foreground md:table-cell">{formatShortDate(tag.createdAt)}</TableCell>
+                          <TableCell>
+                            <TagActions tag={tag} disabled={mutationPending} onEdit={openEditDialog} onDelete={setTagPendingDelete} />
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {selectedTags.length > 0 ? (

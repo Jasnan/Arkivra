@@ -295,7 +295,7 @@ export default function VaultsPage() {
   }
 
   return (
-    <BaseLayout>
+    <BaseLayout title="Vaults" description="A vault is a workspace for storing, organizing, and sharing documents. Browse and manage the vaults you can access.">
       {contextMenu ? (
         <VaultItemContextMenu
           state={contextMenu}

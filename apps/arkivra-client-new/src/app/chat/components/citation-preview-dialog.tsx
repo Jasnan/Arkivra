@@ -15,7 +15,6 @@ import {
   getDocumentInlineFileUrl,
   getDocumentPagePreviewUrl,
 } from "@/app/vaults/vaults.api"
-import { ImagePreviewFrame } from "@/app/vaults/components/image-preview-frame"
 import type { Citation } from "../chat.api"
 
 interface CitationPreviewDialogProps {
@@ -259,6 +258,7 @@ export function CitationPreviewDialog({
     [citation]
   )
   const [selectedPage, setSelectedPage] = useState<number | null>(null)
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null)
   const [imageError, setImageError] = useState(false)
   const [pulseHighlightKey, setPulseHighlightKey] = useState<string | null>(null)
   const textPreviewKind = citation ? getCitationTextPreviewKind(citation) : null
@@ -266,6 +266,7 @@ export function CitationPreviewDialog({
   useEffect(() => {
     if (citation) {
       setSelectedPage(initialCitationPreviewPage(citation))
+      setImageSize(null)
       setImageError(false)
       setPulseHighlightKey(null)
     }
@@ -289,7 +290,7 @@ export function CitationPreviewDialog({
       })
     }
   }
-  const canRenderOverlay = pageBoxes.length > 0
+  const canRenderOverlay = pageBoxes.length > 0 && imageSize !== null
   const pageBoxesKey = getPageBoxesKey(pageBoxes)
   const firstPageBoxKey = pageBoxes[0] ? getBoundingBoxKey(pageBoxes[0]) : null
 
@@ -347,10 +348,7 @@ export function CitationPreviewDialog({
 
           <div
             data-testid="citation-preview-scroll-container"
-            className={cn(
-              "min-h-0 max-h-[calc(100vh-10rem)] bg-muted/40 px-6 py-5",
-              textPreviewKind !== null ? "overflow-auto" : "overflow-hidden"
-            )}
+            className="min-h-0 max-h-[calc(100vh-10rem)] overflow-auto bg-muted/40 px-6 py-5"
           >
             {textPreviewKind !== null ? (
               <CitationTextPreview citation={citation} previewKind={textPreviewKind} />
@@ -359,56 +357,64 @@ export function CitationPreviewDialog({
                 No page preview is available for this citation.
               </div>
             ) : (
-              <ImagePreviewFrame
-                src={activePreviewUrl}
-                alt={
-                  activePage !== null
-                    ? `${citation.documentName} page ${activePage}`
-                    : citation.documentName
-                }
-                className="h-full bg-card shadow-sm"
-                imageProps={{
-                  onLoad: () => setImageError(false),
-                  onError: () => setImageError(true),
-                }}
-              >
-                {canRenderOverlay ? (
-                  <div className="pointer-events-none absolute inset-0">
-                    {pageBoxes.map((boundingBox) => {
-                      const highlightKey = getBoundingBoxKey(boundingBox)
-                      const left = (boundingBox.x0 / boundingBox.layoutWidth) * 100
-                      const top = (boundingBox.y0 / boundingBox.layoutHeight) * 100
-                      const width =
-                        ((boundingBox.x1 - boundingBox.x0) / boundingBox.layoutWidth) * 100
-                      const height =
-                        ((boundingBox.y1 - boundingBox.y0) / boundingBox.layoutHeight) * 100
+              <div className="mx-auto w-full max-w-5xl overflow-hidden rounded-md border bg-card shadow-sm">
+                <div className="relative">
+                  <img
+                    src={activePreviewUrl}
+                    alt={
+                      activePage !== null
+                        ? `${citation.documentName} page ${activePage}`
+                        : citation.documentName
+                    }
+                    className="h-auto w-full rounded-md"
+                    onLoad={(event) => {
+                      setImageSize({
+                        width: event.currentTarget.clientWidth,
+                        height: event.currentTarget.clientHeight,
+                      })
+                      setImageError(false)
+                    }}
+                    onError={() => {
+                      setImageSize(null)
+                      setImageError(true)
+                    }}
+                  />
 
-                      return (
-                        <div
-                          key={highlightKey}
-                          data-citation-highlight="true"
-                          data-citation-highlight-key={highlightKey}
-                          data-citation-pulsing={
-                            pulseHighlightKey === highlightKey ? "true" : undefined
-                          }
-                          data-testid="citation-bounding-box"
-                          className={cn(
-                            "absolute rounded-md border-2 border-primary bg-primary/15 shadow-[0_0_0_1px_rgba(255,255,255,0.25)] [transform-origin:center]",
-                            pulseHighlightKey === highlightKey &&
-                              "animate-[citation-preview-highlight-pulse_900ms_ease-out_1]"
-                          )}
-                          style={{
-                            left: `${left}%`,
-                            top: `${top}%`,
-                            width: `${width}%`,
-                            height: `${height}%`,
-                          }}
-                        />
-                      )
-                    })}
-                  </div>
-                ) : null}
-              </ImagePreviewFrame>
+                  {canRenderOverlay ? (
+                    <div className="pointer-events-none absolute inset-0">
+                      {pageBoxes.map((boundingBox) => {
+                        const highlightKey = getBoundingBoxKey(boundingBox)
+                        const left = (boundingBox.x0 / boundingBox.layoutWidth) * imageSize.width
+                        const top = (boundingBox.y0 / boundingBox.layoutHeight) * imageSize.height
+                        const width =
+                          ((boundingBox.x1 - boundingBox.x0) / boundingBox.layoutWidth) *
+                          imageSize.width
+                        const height =
+                          ((boundingBox.y1 - boundingBox.y0) / boundingBox.layoutHeight) *
+                          imageSize.height
+
+                        return (
+                          <div
+                            key={highlightKey}
+                            data-citation-highlight="true"
+                            data-citation-highlight-key={highlightKey}
+                            data-citation-pulsing={
+                              pulseHighlightKey === highlightKey ? "true" : undefined
+                            }
+                            data-testid="citation-bounding-box"
+                            className={cn(
+                              "absolute rounded-md border-2 border-primary bg-primary/15 shadow-[0_0_0_1px_rgba(255,255,255,0.25)] [transform-origin:center]",
+                              pulseHighlightKey === highlightKey &&
+                                "animate-[citation-preview-highlight-pulse_900ms_ease-out_1]"
+                            )}
+                            style={{ left, top, width, height }}
+                          />
+                        )
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             )}
 
             {imageError ? (

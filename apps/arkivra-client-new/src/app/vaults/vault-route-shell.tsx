@@ -190,9 +190,9 @@ export default function VaultRouteShell() {
       <VaultRouteShellContext.Provider value={contextValue}>
         <div className="-mt-4 md:-mt-6">
           <section className="flex h-[calc(100vh-var(--header-height))] min-h-[640px] flex-col overflow-hidden bg-background">
-            <header className="flex h-24 shrink-0 items-start gap-3 overflow-hidden border-b bg-background p-3">
+            <header className="flex h-20 shrink-0 items-center gap-3 overflow-hidden border-b bg-background px-3 py-2">
               {headerConfig ? (
-                <div className="flex min-w-0 flex-1 items-start gap-3">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
                   <div key={headerIconKey} className="subtle-opacity-enter shrink-0">
                     {headerConfig.icon}
                   </div>
@@ -209,9 +209,7 @@ export default function VaultRouteShell() {
                         </div>
                       ) : null}
                     </div>
-                  {headerConfig.actions ? (
-                    <div className="flex shrink-0 items-center gap-2 self-start">{headerConfig.actions}</div>
-                  ) : null}
+                  {headerConfig.actions ? <div className="flex shrink-0 items-center gap-2">{headerConfig.actions}</div> : null}
                 </div>
               ) : (
                 <div className="flex min-h-12 flex-1 items-center gap-2 text-sm text-muted-foreground">

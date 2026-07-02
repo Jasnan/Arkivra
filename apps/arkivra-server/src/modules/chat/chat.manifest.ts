@@ -338,6 +338,22 @@ export function buildManifestHybridSearchArgs({
   };
 }
 
+export function filterCitationsToManifest({
+  manifestRows,
+  citations,
+}: {
+  manifestRows: ChatManifestRow[];
+  citations: Citation[];
+}) {
+  const allowedSourceKeys = new Set(
+    getLiveManifestRows(manifestRows).map(
+      (row) => `${row.vaultId}:${row.documentId}:${row.documentVersionId}`,
+    ),
+  );
+
+  return citations.filter((citation) => allowedSourceKeys.has(getCitationGroupKey(citation)));
+}
+
 export async function searchHybridForManifest({
   searchServices,
   manifestRows,

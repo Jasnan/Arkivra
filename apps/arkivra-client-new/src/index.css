@@ -172,3 +172,20 @@ html {
 .animate-logo-scroll:hover {
   animation-play-state: paused;
 }
+
+@keyframes citation-preview-highlight-pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 25%);
+  }
+  35% {
+    transform: scale(1.08);
+    box-shadow:
+      0 0 0 2px rgb(255 255 255 / 85%),
+      0 0 0 8px color-mix(in srgb, var(--primary) 28%, transparent);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 25%);
+  }
+}

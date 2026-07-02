@@ -2,21 +2,14 @@
 
 import { useEffect, useRef } from "react"
 import { format, isToday, isYesterday } from "date-fns"
-import { Bot, CheckCheck, FileText, Loader2, User } from "lucide-react"
+import { Bot, CheckCheck, Loader2, User } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
 import { cn } from "@/lib/utils"
-import type { ChatMessage, Citation } from "../chat.api"
+import type { ChatMessage } from "../chat.api"
 import {
-  citationSectionLabel,
   emptyAssistantResponseMessage,
   getMessageActiveStatus,
   getMessageCitations,
@@ -25,11 +18,16 @@ import {
   getMessageMetrics,
   getMessageText,
   normalizeChatDisplayContent,
-  pageRange,
   projectInlineCitationsForDisplay,
   renderMetricsSummary,
   statusLabel,
 } from "../chat-utils"
+import {
+  CitationPreviewState,
+  MessageText,
+  SourcesAccordion,
+  useCitationPreviewState,
+} from "./chat-citations"
 
 interface MessageListProps {
   messages: ChatMessage[]
@@ -142,12 +140,14 @@ function AssistantMessage({
   const rawContent = normalizeChatDisplayContent(getMessageText(message))
   const citations = getMessageCitations(message)
   const projected = projectInlineCitationsForDisplay({ content: rawContent, citations })
+  const displayCitations = projected.citations.length > 0 ? projected.citations : citations
   const activeStatus = getMessageActiveStatus(message)
   const generationStatus = getMessageGenerationStatus(message)
   const generationError = getMessageGenerationError(message)
   const emptyMessage = emptyAssistantResponseMessage({ generationStatus, generationError })
   const metricsSummary = renderMetricsSummary(getMessageMetrics(message))
   const footer = [message.metadata?.model, metricsSummary].filter(Boolean).join(" • ")
+  const citationPreview = useCitationPreviewState()
 
   return (
     <div className="flex gap-3">
@@ -159,7 +159,11 @@ function AssistantMessage({
       <div className="max-w-[78%] flex-1">
         <div className="rounded-lg bg-muted px-3 py-2 text-sm">
           {projected.content.length > 0 ? (
-            <MessageText content={projected.content} citations={projected.citations} />
+            <MessageText
+              content={projected.content}
+              citations={projected.citations}
+              onCitationClick={citationPreview.openCitation}
+            />
           ) : emptyMessage ? (
             <p className={cn("whitespace-pre-wrap break-words", generationStatus === "failed" && "text-destructive")}>
               {emptyMessage}
@@ -188,8 +192,12 @@ function AssistantMessage({
             </div>
           ) : null}
 
-          {projected.citations.length > 0 ? (
-            <SourcesAccordion citations={projected.citations} />
+          {displayCitations.length > 0 ? (
+            <SourcesAccordion
+              currentVaultId={message.metadata?.vaultId ?? undefined}
+              citations={displayCitations}
+              onCitationClick={citationPreview.openCitation}
+            />
           ) : null}
 
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -199,92 +207,15 @@ function AssistantMessage({
               <span className="text-destructive">{generationError}</span>
             ) : null}
           </div>
+          <CitationPreviewState
+            citation={citationPreview.citation}
+            open={citationPreview.open}
+            onOpenChange={citationPreview.onOpenChange}
+          />
         </div>
       </div>
     </div>
   )
-}
-
-function MessageText({ content, citations }: { content: string; citations: Citation[] }) {
-  const parts = splitCitationMarkers(content)
-
-  return (
-    <div className="space-y-2 whitespace-pre-wrap break-words leading-6">
-      <p>
-        {parts.map((part, index) => {
-          if (part.kind === "text") return <span key={index}>{part.value}</span>
-          const citation = citations[part.value - 1]
-          if (!citation) return <span key={index}>[{part.value}]</span>
-          return (
-            <button
-              key={index}
-              type="button"
-              className="mx-0.5 inline-flex rounded-full border bg-background px-1.5 py-0.5 text-xs font-medium hover:bg-accent"
-              title={`${citation.documentName} · ${pageRange(citation)}`}
-            >
-              [{part.value}]
-            </button>
-          )
-        })}
-      </p>
-    </div>
-  )
-}
-
-function SourcesAccordion({ citations }: { citations: Citation[] }) {
-  return (
-    <Accordion type="single" collapsible className="mt-3 border-t pt-2">
-      <AccordionItem value="sources" className="border-b-0">
-        <AccordionTrigger className="py-1 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-2">
-            <FileText className="h-3.5 w-3.5" />
-            Cited passages ({citations.length})
-          </span>
-        </AccordionTrigger>
-        <AccordionContent>
-          <div className="space-y-2 pt-1">
-            {citations.map((citation, index) => (
-              <div key={`${citation.chunkId}-${index}`} className="rounded-md border bg-background p-3">
-                <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
-                  <span className="font-semibold">{index + 1}</span>
-                  <span className="font-medium">{pageRange(citation)}</span>
-                  <span className="text-muted-foreground">{citation.documentName}</span>
-                </div>
-                {citationSectionLabel(citation) ? (
-                  <div className="mb-1 truncate text-xs text-muted-foreground">
-                    {citationSectionLabel(citation)}
-                  </div>
-                ) : null}
-                <p className="line-clamp-3 text-xs leading-5 text-muted-foreground">
-                  {citation.snippet}
-                </p>
-              </div>
-            ))}
-          </div>
-        </AccordionContent>
-      </AccordionItem>
-    </Accordion>
-  )
-}
-
-type CitationTextPart =
-  | { kind: "text"; value: string }
-  | { kind: "citation"; value: number }
-
-function splitCitationMarkers(content: string): CitationTextPart[] {
-  const result: CitationTextPart[] = []
-  const pattern = /\[(\d+)\]/g
-  let lastIndex = 0
-
-  for (const match of content.matchAll(pattern)) {
-    const index = match.index ?? 0
-    if (index > lastIndex) result.push({ kind: "text", value: content.slice(lastIndex, index) })
-    result.push({ kind: "citation", value: Number(match[1]) })
-    lastIndex = index + match[0].length
-  }
-
-  if (lastIndex < content.length) result.push({ kind: "text", value: content.slice(lastIndex) })
-  return result.length > 0 ? result : [{ kind: "text", value: content }]
 }
 
 function groupMessagesByDay(messages: ChatMessage[]) {

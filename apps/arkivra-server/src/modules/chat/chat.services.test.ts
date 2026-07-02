@@ -9,10 +9,12 @@ import {
   createChatServices,
   buildExpandedCitationForChat,
   buildManifestHybridSearchArgs,
+  filterCitationsToManifest,
   buildGlobalIntentSystemPrompt,
   getFrozenManifestContextAvailability,
   formatFollowUpAssistantMessage,
   hasAnswerableRetrievalContext,
+  isLowSignalChatQuery,
   isEmptyGeneratedChatContent,
   isLikelyTruncatedSingleTokenAnswer,
   normalizeCitationsForDisplay,
@@ -268,13 +270,21 @@ describe('chat service helpers', () => {
     ).toBe(true);
   });
 
-  test('requires retrieval confidence before answering from any chat context scope', () => {
+  test('detects low-signal chat queries without blocking normal document requests', () => {
+    expect(isLowSignalChatQuery('sfsdfsdfsdf sdfsdfsdfsdf sdfsdfdsfsdf')).toBe(true);
+    expect(isLowSignalChatQuery('!!!!!!!!')).toBe(true);
+    expect(isLowSignalChatQuery('summarise this document')).toBe(false);
+    expect(isLowSignalChatQuery('what is this document about?')).toBe(false);
+    expect(isLowSignalChatQuery('2024 admission deadline')).toBe(false);
+  });
+
+  test('temporarily bypasses retrieval confidence for all chat context scopes', () => {
     expect(
       shouldRequireRetrievalConfidence({
         type: 'global',
         vaultIds: ['vlt_1'],
       }),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       shouldRequireRetrievalConfidence({
         type: 'selection',
@@ -288,14 +298,14 @@ describe('chat service helpers', () => {
           },
         ],
       }),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       shouldRequireRetrievalConfidence({
         type: 'vault',
         vaultId: 'vlt_1',
         vaultName: 'Operations',
       }),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       shouldRequireRetrievalConfidence({
         type: 'document',
@@ -304,7 +314,37 @@ describe('chat service helpers', () => {
         vaultName: 'Operations',
         documentName: 'Policy.pdf',
       }),
-    ).toBe(true);
+    ).toBe(false);
+  });
+
+  test('filters retrieved chat citations to the frozen conversation manifest', () => {
+    const allowedCitation: Citation = {
+      ...citation,
+      vaultId: 'vlt_allowed',
+      documentId: 'doc_allowed',
+      documentVersionId: 'dvr_allowed',
+    };
+    const leakedCitation: Citation = {
+      ...citation,
+      chunkId: 'chk_leaked',
+      vaultId: 'vlt_blocked',
+      documentId: 'doc_blocked',
+      documentVersionId: 'dvr_blocked',
+    };
+
+    expect(
+      filterCitationsToManifest({
+        manifestRows: [
+          {
+            vaultId: 'vlt_allowed',
+            documentId: 'doc_allowed',
+            documentVersionId: 'dvr_allowed',
+            includedBy: 'document',
+          },
+        ],
+        citations: [allowedCitation, leakedCitation],
+      }).map(item => item.chunkId),
+    ).toEqual(['chk_1']);
   });
 
   test('does not duplicate context chunks from the same source element after relevance ranking', () => {

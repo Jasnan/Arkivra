@@ -7,6 +7,8 @@ export const TEXT_ONLY_CONTEXT_CITATIONS = 8;
 export const CHAT_RETRIEVAL_LIMIT = 32;
 export const CHAT_RETRIEVAL_CANDIDATE_POOL_LIMIT = 120;
 export const BROAD_CHAT_MIN_SEMANTIC_RETRIEVAL_SCORE = 0.03;
+export const LOW_SIGNAL_CHAT_QUERY_MESSAGE =
+  'Please ask a clear question about the selected documents.';
 export const CHAT_CONTEXT_PAGE_RADIUS = 1;
 export const MAX_EXPANDED_CONTEXT_CHUNKS = 48;
 export const MAX_EXPANDED_CONTEXT_SNIPPET_LENGTH = 3600;

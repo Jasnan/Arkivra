@@ -20,10 +20,7 @@ import {
   Search,
   Trash2,
   X,
-  ZoomIn,
-  ZoomOut,
 } from "lucide-react"
-import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch"
 import { toast } from "sonner"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 
@@ -50,6 +47,7 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { ImagePreviewFrame as ZoomableImagePreviewFrame } from "./components/image-preview-frame"
 import { PdfPreviewFrame } from "./components/pdf-preview-frame"
 import { VaultContextMenu, type VaultContextMenuState } from "./components/vault-context-menu"
 import { VAULT_TREE_ROOT_VALUE, VaultSidebarTree } from "./components/vault-sidebar-tree"
@@ -635,68 +633,24 @@ function ImagePreviewFrame({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border bg-muted/20">
-      <TransformWrapper
-        initialScale={1}
-        minScale={0.2}
-        maxScale={8}
-        centerOnInit
-        centerZoomedOut
-        wheel={{ step: 0.08 }}
-        doubleClick={{ mode: "zoomIn" }}
-      >
-        {({ zoomIn, zoomOut, resetTransform }) => (
-          <>
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-b bg-background/95 px-3 py-2">
-              <Button type="button" size="sm" variant="outline" onClick={() => zoomOut()}>
-                <ZoomOut className="size-4" />
-                Zoom out
-              </Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => zoomIn()}>
-                <ZoomIn className="size-4" />
-                Zoom in
-              </Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => resetTransform()}>
-                <RotateCcw className="size-4" />
-                Reset
-              </Button>
-              <Button type="button" size="sm" variant="outline" onClick={printImage}>
-                <Printer className="size-4" />
-                Print
-              </Button>
-              <Button asChild size="sm" variant="outline">
-                <a href={downloadUrl}>
-                  <Download className="size-4" />
-                  Download
-                </a>
-              </Button>
-            </div>
-            <div className="min-h-0 flex-1">
-              <TransformComponent
-                wrapperStyle={{
-                  width: "100%",
-                  height: "100%",
-                }}
-                contentStyle={{
-                  width: "100%",
-                  height: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <img
-                  src={src}
-                  alt={documentName}
-                  draggable={false}
-                  className="max-h-full max-w-full select-none object-contain"
-                />
-              </TransformComponent>
-            </div>
-          </>
-        )}
-      </TransformWrapper>
-    </div>
+    <ZoomableImagePreviewFrame
+      src={src}
+      alt={documentName}
+      toolbarActions={
+        <>
+          <Button type="button" size="sm" variant="outline" onClick={printImage}>
+            <Printer className="size-4" />
+            Print
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <a href={downloadUrl}>
+              <Download className="size-4" />
+              Download
+            </a>
+          </Button>
+        </>
+      }
+    />
   )
 }
 

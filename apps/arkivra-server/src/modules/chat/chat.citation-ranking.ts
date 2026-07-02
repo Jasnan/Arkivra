@@ -764,6 +764,58 @@ export function extractRetrievalQueryTerms(question: string) {
   ];
 }
 
+function looksLikeLowSignalLatinToken(token: string) {
+  const letters = token.replace(/[^a-z]/gi, '');
+  if (letters.length < 6) {
+    return false;
+  }
+
+  const vowels = letters.match(/[aeiou]/gi)?.length ?? 0;
+  const uniqueChars = new Set(letters.toLowerCase()).size;
+  const hasLongConsonantRun = /[b-df-hj-np-tv-z]{7,}/i.test(letters);
+  const hasRepeatedCharacterRun = /(.)\1{4,}/.test(letters);
+
+  return (
+    hasRepeatedCharacterRun ||
+    hasLongConsonantRun ||
+    vowels === 0 ||
+    (letters.length >= 8 && uniqueChars <= 3)
+  );
+}
+
+export function isLowSignalChatQuery(question: string) {
+  const normalized = question.trim();
+  if (normalized.length === 0) {
+    return true;
+  }
+
+  if (!/[\p{L}\p{N}]/u.test(normalized)) {
+    return true;
+  }
+
+  const latinTokens = normalized.toLowerCase().match(/[a-z0-9]+/gi) ?? [];
+  if (latinTokens.length === 0) {
+    return false;
+  }
+
+  const alphabeticTokens = latinTokens.filter((token) => /[a-z]/i.test(token));
+  if (alphabeticTokens.length === 0) {
+    return false;
+  }
+
+  const substantiveTokens = alphabeticTokens.filter((token) => token.length >= 3);
+  if (substantiveTokens.length === 0) {
+    return false;
+  }
+
+  const lowSignalTokens = substantiveTokens.filter(looksLikeLowSignalLatinToken);
+  if (substantiveTokens.length === 1) {
+    return lowSignalTokens.length === 1 && substantiveTokens[0]!.length >= 10;
+  }
+
+  return lowSignalTokens.length / substantiveTokens.length >= 0.7;
+}
+
 export function getYearConstraintMatchCount(citation: Citation, years: string[]) {
   if (years.length === 0) {
     return 0;

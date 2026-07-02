@@ -12,7 +12,7 @@ const WINDOWS_NEWLINE_PATTERN = /\r\n/g
 const TRAILING_LINE_WHITESPACE_PATTERN = /[ \t]+\n/g
 const LEADING_LINE_WHITESPACE_PATTERN = /\n[ \t]+/g
 const REPEATED_NEWLINE_PATTERN = /\n{3,}/g
-const CITATION_MARKER_PATTERN = /\[(\d+)\]/g
+const CITATION_MARKER_PATTERN = /\[(\d+)\]|\(\s*Source\s+(\d+)\s*\)|\bSource\s+(\d+)\b/gi
 
 export function normalizeChatDisplayContent(content: string) {
   return content
@@ -194,6 +194,38 @@ export function citationSectionLabel(citation: Citation) {
   return citation.section
 }
 
+export function citationImageAssets(citation: Citation) {
+  if (Array.isArray(citation.imageAssets) && citation.imageAssets.length > 0) {
+    return citation.imageAssets
+  }
+
+  return citation.imageAssetIds.map((assetId) => ({
+    assetId,
+    sourceElementId: null,
+    caption: null,
+    pageNumber: null,
+  }))
+}
+
+export function citationFigureEvidence(citation: Citation) {
+  return citationImageAssets(citation)
+    .map((asset, index) => {
+      const caption = asset.caption?.trim()
+      if (!caption) return null
+      const pageLabel = typeof asset.pageNumber === "number" ? `Page ${asset.pageNumber}` : null
+      return {
+        id: `${asset.assetId}-${index}`,
+        label: `Figure ${index + 1}`,
+        caption,
+        pageLabel,
+      }
+    })
+    .filter(
+      (item): item is { id: string; label: string; caption: string; pageLabel: string | null } =>
+        item !== null
+    )
+}
+
 export function projectInlineCitationsForDisplay({
   content,
   citations,
@@ -205,9 +237,11 @@ export function projectInlineCitationsForDisplay({
     return { content, citations: [] }
   }
 
-  const remappedCitationNumbers = new Map<number, number>()
-  const displayCitations: Citation[] = []
-  const displayContent = content.replace(CITATION_MARKER_PATTERN, (marker, rawCitationNumber) => {
+  let hasValidCitationMarker = false
+  const displayContent = content.replace(CITATION_MARKER_PATTERN, (marker, ...matches) => {
+    const rawCitationNumber = matches
+      .slice(0, 3)
+      .find((match): match is string => typeof match === "string" && match.length > 0)
     const citationNumber = Number(rawCitationNumber)
     if (!Number.isSafeInteger(citationNumber) || citationNumber < 1) return marker
 
@@ -215,17 +249,12 @@ export function projectInlineCitationsForDisplay({
     const citation = citations[citationIndex]
     if (citation === undefined) return marker
 
-    let displayCitationNumber = remappedCitationNumbers.get(citationIndex)
-    if (displayCitationNumber === undefined) {
-      displayCitations.push(citation)
-      displayCitationNumber = displayCitations.length
-      remappedCitationNumbers.set(citationIndex, displayCitationNumber)
-    }
+    hasValidCitationMarker = true
 
-    return `[${displayCitationNumber}]`
+    return `[${citationNumber}]`
   })
 
-  return { content: displayContent, citations: displayCitations }
+  return { content: displayContent, citations: hasValidCitationMarker ? citations : [] }
 }
 
 export function renderMetricsSummary(metrics: ChatGenerationMetrics | null | undefined) {

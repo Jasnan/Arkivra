@@ -9,6 +9,7 @@ export {
   buildChunkLevelCitationsForChat,
   buildExpandedCitationForChat,
   hasAnswerableRetrievalContext,
+  isLowSignalChatQuery,
   normalizeCitationsForDisplay,
   rankCitationsForQuestion,
 } from './chat.citation-ranking.js';
@@ -24,6 +25,7 @@ export {
 export { buildGlobalIntentSystemPrompt, formatFollowUpAssistantMessage } from './chat.core.js';
 export {
   buildManifestHybridSearchArgs,
+  filterCitationsToManifest,
   getFrozenManifestContextAvailability,
   shouldMaterializeConversationManifest,
 } from './chat.manifest.js';

@@ -76,6 +76,7 @@ import {
 } from './chat.generation-guards.js';
 import {
   buildRetrievalDiagnostics,
+  filterCitationsToManifest,
   getConversationOwnershipConditions,
   getScopeValues,
   loadConversationManifest,
@@ -125,14 +126,8 @@ async function resolveIntentFollowUp({
 }
 
 export function shouldRequireRetrievalConfidence(scope: ChatScopeInput) {
-  // Even narrow document/vault chats still depend on retrieval. Do not hand weak,
-  // unrelated hits to generation just because the user selected a smaller context.
-  return (
-    scope.type === 'global' ||
-    scope.type === 'selection' ||
-    scope.type === 'vault' ||
-    scope.type === 'document'
-  );
+  void scope;
+  return false;
 }
 
 export function createChatServices({
@@ -532,6 +527,7 @@ export function createChatServices({
         let generationStartMs: number | null = null;
         let generationFinishedMs: number | null = null;
         let firstTokenAtMs: number | null = null;
+        let generatedFromRetrievedContext = false;
         const includeImages = responseMode === 'multimodal';
         const includeInlineCitations = responseMode === 'multimodal';
         const citationLimit =
@@ -638,10 +634,14 @@ export function createChatServices({
             limit: retrievalLimit,
             candidateLimit: CHAT_RETRIEVAL_CANDIDATE_POOL_LIMIT,
           });
+          const scopedRetrievedCitations = filterCitationsToManifest({
+            manifestRows,
+            citations: result.citations,
+          });
           const expandedCitations = await expandRetrievedCitationsForChat({
             db,
             question: content,
-            citations: result.citations,
+            citations: scopedRetrievedCitations,
           });
           const rankedCitations = rankCitationsForQuestion({
             question: content,
@@ -658,7 +658,7 @@ export function createChatServices({
             : [];
           retrievalDiagnostics = buildRetrievalDiagnostics({
             mode: result.mode,
-            retrievedCitations: result.citations,
+            retrievedCitations: scopedRetrievedCitations,
             expandedCitations,
             finalCitations: citations,
             requestedContextLimit: citationLimit,
@@ -685,6 +685,7 @@ export function createChatServices({
                 })
               : [];
             generationStartMs = Date.now();
+            generatedFromRetrievedContext = true;
 
             const answerSystemPrompt = isGlobalScope(scope)
               ? buildGlobalAnswerSystemPrompt({
@@ -760,12 +761,12 @@ export function createChatServices({
             generatedContent = '';
             throw new Error('The model stopped after a partial answer. Please try again.');
           }
-          if (result.citations.length > 0) {
+          if (generatedFromRetrievedContext && scopedRetrievedCitations.length > 0) {
             const answerExpandedCitations = await expandRetrievedCitationsForChat({
               db,
               question: content,
               answerText: generatedContent,
-              citations: result.citations,
+              citations: scopedRetrievedCitations,
             });
             const answerRankedCitations = rankCitationsForQuestion({
               question: content,
@@ -774,7 +775,7 @@ export function createChatServices({
             citations = normalizeCitationsForDisplay(answerRankedCitations.slice(0, citationLimit));
             retrievalDiagnostics = buildRetrievalDiagnostics({
               mode: result.mode,
-              retrievedCitations: result.citations,
+              retrievedCitations: scopedRetrievedCitations,
               expandedCitations: answerExpandedCitations,
               finalCitations: citations,
               requestedContextLimit: citationLimit,

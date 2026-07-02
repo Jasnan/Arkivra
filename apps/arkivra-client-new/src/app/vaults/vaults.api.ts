@@ -1,4 +1,4 @@
-import { fetchJson } from "@/lib/api"
+import { ApiError, fetchJson } from "@/lib/api"
 
 interface PermissionRequest {
   id: string
@@ -587,4 +587,34 @@ export function getDocumentInlineFileUrl({
   documentId: string
 }) {
   return `/api/vaults/${vaultId}/documents/${documentId}/file`
+}
+
+export async function getDocumentFileText({
+  vaultId,
+  documentId,
+}: {
+  vaultId: string
+  documentId: string
+}) {
+  const response = await fetch(getDocumentInlineFileUrl({ vaultId, documentId }), {
+    credentials: "include",
+  })
+
+  if (!response.ok) {
+    throw new ApiError(`Request failed with status ${response.status}`, response.status)
+  }
+
+  return response.text()
+}
+
+export function getDocumentPagePreviewUrl({
+  vaultId,
+  documentId,
+  pageNumber,
+}: {
+  vaultId: string
+  documentId: string
+  pageNumber: number
+}) {
+  return `/api/vaults/${vaultId}/documents/${documentId}/page/${pageNumber}`
 }

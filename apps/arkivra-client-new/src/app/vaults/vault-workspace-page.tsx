@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent, type InputHTMLAttributes, type MouseEvent } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent, type InputHTMLAttributes, type MouseEvent, type ReactNode } from "react"
 import {
   Check,
   ChevronRight,
@@ -18,7 +18,6 @@ import {
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
-import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -33,7 +32,6 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { DEFAULT_TAG_COLOR, TagFormDialog } from "../tags/components/tag-form-dialog"
 import {
@@ -51,7 +49,6 @@ import {
   type VaultBrowserItemContextMenuState,
 } from "./components/vault-browser-item-context-menu"
 import { VaultContextMenu, type VaultContextMenuState } from "./components/vault-context-menu"
-import { VAULT_TREE_ROOT_VALUE, VaultSidebarTree } from "./components/vault-sidebar-tree"
 import { VaultUploadMenu } from "./components/vault-upload-menu"
 import { VaultsViewToggle } from "./components/vaults-view-toggle"
 import { getDocumentFileIcon } from "./document-file-icons"
@@ -60,10 +57,8 @@ import {
   type UploadFileInput,
 } from "./upload-file-rules"
 import {
-  getVault,
   getDocumentDownloadUrl,
   listFolderItems,
-  listFolderTree,
   moveDocument,
   moveFolder,
   renameDocument,
@@ -73,10 +68,9 @@ import {
   type DocumentSummary,
   type FileBrowserItem,
   type FolderSummary,
-  type FolderTreeDocumentEntry,
   type FolderTreeEntry,
-  type VaultDetail,
 } from "./vaults.api"
+import { useVaultRouteShell } from "./vault-route-shell"
 import { useVaultsView } from "./use-vaults-view"
 
 const DIRECTORY_PICKER_ATTRIBUTES = {
@@ -1173,6 +1167,9 @@ function ContentList({
   tagMutationPending,
   selectedItemKeys,
   someItemsSelected,
+  isLoading,
+  animationKey,
+  emptyContent,
   onDragEndItem,
   onDragLeaveFolder,
   onDragOverFolder,
@@ -1196,6 +1193,9 @@ function ContentList({
   tagMutationPending: boolean
   selectedItemKeys: Set<string>
   someItemsSelected: boolean
+  isLoading?: boolean
+  animationKey: string
+  emptyContent?: ReactNode
   onDragEndItem: () => void
   onDragLeaveFolder: (event: DragEvent<HTMLElement>, folderId: string) => void
   onDragOverFolder: (event: DragEvent<HTMLElement>, folderId: string) => void
@@ -1211,8 +1211,8 @@ function ContentList({
   onToggleItem: (item: FileBrowserItem, checked: boolean) => void
 }) {
   return (
-    <div className="overflow-hidden border-y bg-background">
-      <div className="hidden grid-cols-[auto_minmax(0,1fr)_7rem_7.5rem_minmax(12rem,18rem)] gap-3 border-b bg-muted/40 px-4 py-3 text-sm font-medium text-muted-foreground md:grid lg:px-6">
+    <div className="overflow-hidden border-b bg-background">
+      <div className="hidden grid-cols-[auto_minmax(0,1fr)_7rem_7.5rem_minmax(12rem,18rem)] gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground md:grid lg:px-4">
         <Checkbox
           aria-label="Select all items"
           checked={allItemsSelected ? true : someItemsSelected ? "indeterminate" : false}
@@ -1223,101 +1223,118 @@ function ContentList({
         <span>Modified</span>
         <span>Tags</span>
       </div>
-      {items.map((item) => {
-        const isFolder = item.type === "folder"
-        const name = itemName(item)
-        const updatedAt = isFolder ? item.folder.updatedAt : item.document.updatedAt
-        const itemKey = getBrowserItemKey(item)
-        const DocumentIcon = isFolder ? null : getDocumentFileIcon(item.document)
-        const isSelected = selectedItemKeys.has(itemKey)
+      {isLoading && items.length === 0 ? (
+        <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
+          Loading contents...
+        </div>
+      ) : items.length === 0 && emptyContent ? (
+        <div>{emptyContent}</div>
+      ) : null}
+      {items.length > 0 ? (
+        <div
+          key={animationKey}
+          className={cn(
+            "vault-list-items-enter transition-opacity duration-150",
+            isLoading && "pointer-events-none opacity-60"
+          )}
+        >
+          {items.map((item) => {
+            const isFolder = item.type === "folder"
+            const name = itemName(item)
+            const updatedAt = isFolder ? item.folder.updatedAt : item.document.updatedAt
+            const itemKey = getBrowserItemKey(item)
+            const DocumentIcon = isFolder ? null : getDocumentFileIcon(item.document)
+            const isSelected = selectedItemKeys.has(itemKey)
 
-        return (
-          <div
-            key={isFolder ? `folder-${item.folder.id}` : `document-${item.document.id}`}
-            data-vault-browser-item
-            role="link"
-            tabIndex={0}
-            draggable={isDraggable}
-            className={cn(
-              "grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b px-4 py-4 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[auto_minmax(0,1fr)_7rem_7.5rem_minmax(12rem,18rem)] lg:px-6",
-              isSelected && "bg-accent/40",
-              draggedItemKeys.has(itemKey) && "opacity-55",
-              isFolder && getFolderDropTargetClass(dropTarget, item.folder.id)
-            )}
-            onClick={() => {
-              if (isFolder) {
-                onOpenFolder(item.folder)
-              } else {
-                onOpenDocument(item.document)
-              }
-            }}
-            onContextMenu={(event) => onOpenContextMenu(event, item)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault()
-                if (isFolder) {
-                  onOpenFolder(item.folder)
-                } else {
-                  onOpenDocument(item.document)
+            return (
+              <div
+                key={isFolder ? `folder-${item.folder.id}` : `document-${item.document.id}`}
+                data-vault-browser-item
+                role="link"
+                tabIndex={0}
+                draggable={isDraggable}
+                className={cn(
+                  "grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b px-3 py-2 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[auto_minmax(0,1fr)_7rem_7.5rem_minmax(12rem,18rem)] lg:px-4",
+                  isSelected && "bg-accent/40",
+                  draggedItemKeys.has(itemKey) && "opacity-55",
+                  isFolder && getFolderDropTargetClass(dropTarget, item.folder.id)
+                )}
+                onClick={() => {
+                  if (isFolder) {
+                    onOpenFolder(item.folder)
+                  } else {
+                    onOpenDocument(item.document)
+                  }
+                }}
+                onContextMenu={(event) => onOpenContextMenu(event, item)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault()
+                    if (isFolder) {
+                      onOpenFolder(item.folder)
+                    } else {
+                      onOpenDocument(item.document)
+                    }
+                  }
+                }}
+                onDragStart={(event) => onDragStartItem(event, item)}
+                onDragEnd={onDragEndItem}
+                onDragOver={
+                  isFolder ? (event) => onDragOverFolder(event, item.folder.id) : undefined
                 }
-              }
-            }}
-            onDragStart={(event) => onDragStartItem(event, item)}
-            onDragEnd={onDragEndItem}
-            onDragOver={
-              isFolder ? (event) => onDragOverFolder(event, item.folder.id) : undefined
-            }
-            onDragLeave={
-              isFolder ? (event) => onDragLeaveFolder(event, item.folder.id) : undefined
-            }
-            onDrop={
-              isFolder ? (event) => onDropOnFolder(event, item.folder.id) : undefined
-            }
-          >
-            <Checkbox
-              aria-label={`Select ${name}`}
-              checked={isSelected}
-              onClick={(event) => event.stopPropagation()}
-              onCheckedChange={(checked) => onToggleItem(item, checked === true)}
-            />
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-background text-muted-foreground">
-                {isFolder ? (
-                  <Folder className="size-5" strokeWidth={1.9} />
-                ) : DocumentIcon ? (
-                  <DocumentIcon className="size-5" strokeWidth={1.9} />
-                ) : null}
-              </div>
-              <div className="min-w-0">
-                <div className="truncate font-medium">{name}</div>
-                <div className="mt-1 truncate text-sm text-muted-foreground md:hidden">
-                  {isFolder ? "Folder" : formatBytes(item.document.originalSize)} · {formatDate(updatedAt)}
-                </div>
-              </div>
-            </div>
-            <span className="hidden text-sm text-muted-foreground md:block">
-              {isFolder ? "Folder" : formatBytes(item.document.originalSize)}
-            </span>
-            <span className="hidden text-sm text-muted-foreground md:block">
-              {formatDate(updatedAt)}
-            </span>
-            {isFolder ? (
-              <ChevronRight className="size-4 text-muted-foreground md:hidden" />
-            ) : (
-              <div className="hidden min-w-0 md:block">
-                <DocumentTagsCell
-                  document={item.document}
-                  availableTags={availableTags}
-                  disabled={tagMutationPending}
-                  onAssignTag={onAssignTag}
-                  onOpenCreateTagDialog={onOpenCreateTagDialog}
-                  onRemoveTag={onRemoveTag}
+                onDragLeave={
+                  isFolder ? (event) => onDragLeaveFolder(event, item.folder.id) : undefined
+                }
+                onDrop={
+                  isFolder ? (event) => onDropOnFolder(event, item.folder.id) : undefined
+                }
+              >
+                <Checkbox
+                  aria-label={`Select ${name}`}
+                  checked={isSelected}
+                  onClick={(event) => event.stopPropagation()}
+                  onCheckedChange={(checked) => onToggleItem(item, checked === true)}
                 />
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="flex size-7 shrink-0 items-center justify-center rounded-md border bg-background text-muted-foreground">
+                    {isFolder ? (
+                      <Folder className="size-4" strokeWidth={1.9} />
+                    ) : DocumentIcon ? (
+                      <DocumentIcon className="size-4" strokeWidth={1.9} />
+                    ) : null}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">{name}</div>
+                    <div className="mt-0.5 truncate text-xs text-muted-foreground md:hidden">
+                      {isFolder ? "Folder" : formatBytes(item.document.originalSize)} · {formatDate(updatedAt)}
+                    </div>
+                  </div>
+                </div>
+                <span className="hidden text-xs text-muted-foreground md:block">
+                  {isFolder ? "Folder" : formatBytes(item.document.originalSize)}
+                </span>
+                <span className="hidden text-xs text-muted-foreground md:block">
+                  {formatDate(updatedAt)}
+                </span>
+                {isFolder ? (
+                  <ChevronRight className="size-4 text-muted-foreground md:hidden" />
+                ) : (
+                  <div className="hidden min-w-0 md:block">
+                    <DocumentTagsCell
+                      document={item.document}
+                      availableTags={availableTags}
+                      disabled={tagMutationPending}
+                      onAssignTag={onAssignTag}
+                      onOpenCreateTagDialog={onOpenCreateTagDialog}
+                      onRemoveTag={onRemoveTag}
+                    />
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        )
-      })}
+            )
+          })}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -1327,16 +1344,19 @@ export default function VaultWorkspacePage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [view] = useVaultsView()
+  const {
+    vault,
+    folders,
+    loadingTree,
+    treeError,
+    setHeaderConfig,
+    setSidebarConfig,
+    refreshVaultShell,
+  } = useVaultRouteShell()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const directoryInputRef = useRef<HTMLInputElement | null>(null)
-  const [vault, setVault] = useState<VaultDetail | null>(null)
-  const [folders, setFolders] = useState<FolderTreeEntry[]>([])
-  const [treeDocuments, setTreeDocuments] = useState<FolderTreeDocumentEntry[]>([])
   const [items, setItems] = useState<FileBrowserItem[]>([])
   const [tags, setTags] = useState<Tag[]>([])
-  const [vaultTreeExpandedValue, setVaultTreeExpandedValue] = useState<string[]>([
-    VAULT_TREE_ROOT_VALUE,
-  ])
   const [contextMenu, setContextMenu] = useState<VaultContextMenuState | null>(null)
   const [itemContextMenu, setItemContextMenu] =
     useState<VaultBrowserItemContextMenuState | null>(null)
@@ -1360,7 +1380,6 @@ export default function VaultWorkspacePage() {
   const [draggedItems, setDraggedItems] = useState<FileBrowserItem[]>([])
   const [dropTarget, setDropTarget] = useState<BrowserDropTarget | null>(null)
   const [isEmptyUploadDropActive, setIsEmptyUploadDropActive] = useState(false)
-  const [loadingTree, setLoadingTree] = useState(true)
   const [loadingItems, setLoadingItems] = useState(true)
   const [itemMutationPending, setItemMutationPending] = useState(false)
   const [renameMutationPending, setRenameMutationPending] = useState(false)
@@ -1439,16 +1458,14 @@ export default function VaultWorkspacePage() {
   }, [vaultId])
 
   const refreshVaultContents = useCallback(async () => {
-    const [treeResult, itemsResult] = await Promise.all([
-      listFolderTree({ vaultId }),
+    const [, itemsResult] = await Promise.all([
+      refreshVaultShell(),
       listFolderItems({ vaultId, folderId: normalizedFolderId }),
     ])
     const hydratedItems = await hydrateItemsWithDocumentTags(itemsResult.items)
 
-    setFolders(treeResult.folders)
-    setTreeDocuments(treeResult.documents)
     setItems(hydratedItems)
-  }, [hydrateItemsWithDocumentTags, vaultId, normalizedFolderId])
+  }, [hydrateItemsWithDocumentTags, refreshVaultShell, vaultId, normalizedFolderId])
 
   const refreshTags = useCallback(async () => {
     const result = await listTags()
@@ -1981,44 +1998,6 @@ export default function VaultWorkspacePage() {
   useEffect(() => {
     let ignore = false
 
-    async function loadShell() {
-      setLoadingTree(true)
-      setErrorMessage(null)
-
-      try {
-        const [vaultResult, treeResult] = await Promise.all([
-          getVault({ vaultId }),
-          listFolderTree({ vaultId }),
-        ])
-
-        if (!ignore) {
-          setVault(vaultResult.vault)
-          setFolders(treeResult.folders)
-          setTreeDocuments(treeResult.documents)
-        }
-      } catch (error) {
-        if (!ignore) {
-          setErrorMessage(error instanceof Error ? error.message : "Unable to load vault.")
-        }
-      } finally {
-        if (!ignore) {
-          setLoadingTree(false)
-        }
-      }
-    }
-
-    if (vaultId) {
-      void loadShell()
-    }
-
-    return () => {
-      ignore = true
-    }
-  }, [vaultId])
-
-  useEffect(() => {
-    let ignore = false
-
     async function loadItems() {
       setLoadingItems(true)
       setErrorMessage(null)
@@ -2143,9 +2122,117 @@ export default function VaultWorkspacePage() {
   const workspaceSubtitle = loadingItems
     ? "Loading contents..."
     : `${folderCount} folder${folderCount === 1 ? "" : "s"} · ${documentCount} document${documentCount === 1 ? "" : "s"} · ${formatBytes(totalDocumentSize)}`
+  const emptyFolderContent = (
+    <div
+      className={cn(
+        "flex min-h-full flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 p-8 text-center transition-colors",
+        view === "list" && "min-h-64 rounded-none border-x-0 border-b-0",
+        isEmptyUploadDropActive && "border-primary bg-primary/5 ring-2 ring-primary/20"
+      )}
+    >
+      <div className="flex size-16 items-center justify-center rounded-lg border border-dashed border-primary/40 bg-primary/10 text-primary">
+        {isEmptyUploadDropActive ? <Upload className="size-7" /> : <FolderOpen className="size-7" />}
+      </div>
+      <h2 className="mt-4 text-lg font-semibold">
+        {isEmptyUploadDropActive ? "Drop files to upload" : `This ${emptyLocationLabel} is empty`}
+      </h2>
+      <p className="mt-2 max-w-md text-sm text-muted-foreground">
+        {isEmptyUploadDropActive
+          ? "Uploads will be added to Transfers."
+          : "Drag files here or upload them. You can track their progress in Transfers."}
+      </p>
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+        <Button type="button" variant="outline" onClick={openUploadFiles}>
+          <Upload className="size-4" />
+          Upload files
+        </Button>
+      </div>
+    </div>
+  )
+
+  useEffect(() => {
+    setHeaderConfig({
+      iconKey: currentFolder ? "folder" : "vault",
+      contentKey: `workspace:${workspaceTitle}:${workspaceSubtitle}`,
+      icon: (
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary md:size-12">
+          {currentFolder ? <FolderOpen className="size-5" /> : <HardDrive className="size-5" />}
+        </div>
+      ),
+      title: workspaceTitle,
+      badge: !currentFolder ? <Badge variant="secondary">Vault</Badge> : null,
+      subtitle: (
+        <>
+          <span>{workspaceSubtitle}</span>
+          {vault?.role ? (
+            <>
+              <span aria-hidden="true">·</span>
+              <span className="capitalize">{vault.role}</span>
+            </>
+          ) : null}
+        </>
+      ),
+      actions: (
+        <>
+          {workspaceActions}
+          <Button type="button" variant="outline" size="icon" aria-label="Close vault" onClick={() => navigate("/vaults")}>
+            <X className="size-4" />
+          </Button>
+        </>
+      ),
+    })
+  }, [currentFolder, navigate, setHeaderConfig, vault?.role, workspaceActions, workspaceSubtitle, workspaceTitle])
+
+  useEffect(() => () => setHeaderConfig(null), [setHeaderConfig])
+
+  useEffect(() => {
+    setSidebarConfig({
+      currentFolderId: normalizedFolderId,
+      currentDocumentId: null,
+      onSelectVault: () => selectFolder(null),
+      onSelectFolder: selectFolder,
+      onSelectDocument: (selectedVaultId, documentId) => {
+        navigate(`/vaults/${selectedVaultId}/${documentId}`)
+      },
+      onOpenVaultContextMenu: (event) => handleBackgroundContextMenu(event),
+      canMoveItems,
+      itemMutationPending,
+      draggedItems,
+      dropTarget,
+      onDragStartItem: handleItemDragStart,
+      onDragEndItem: resetDragState,
+      onDragOverFolder: handleDragOverFolder,
+      onDragLeaveFolder: handleDragLeaveFolder,
+      onDropOnFolder: handleDropOnFolder,
+      onMoveItems: handleMoveItems,
+    })
+  }, [
+    canMoveItems,
+    draggedItems,
+    dropTarget,
+    handleBackgroundContextMenu,
+    handleDragLeaveFolder,
+    handleDragOverFolder,
+    handleDropOnFolder,
+    handleItemDragStart,
+    handleMoveItems,
+    itemMutationPending,
+    navigate,
+    normalizedFolderId,
+    resetDragState,
+    selectFolder,
+    setSidebarConfig,
+  ])
+
+  useEffect(() => () => {
+    setSidebarConfig({
+      currentFolderId: null,
+      currentDocumentId: null,
+    })
+  }, [setSidebarConfig])
 
   return (
-    <BaseLayout>
+    <>
       <input
         ref={fileInputRef}
         type="file"
@@ -2261,115 +2348,61 @@ export default function VaultWorkspacePage() {
           onVersions={openDocumentVersions}
         />
       ) : null}
-      <div className="-mt-4 md:-mt-6">
-        <div className="flex min-h-[calc(100vh-var(--header-height))] flex-col overflow-hidden bg-background">
-          <header className="flex shrink-0 items-start gap-3 border-b bg-background p-3">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary md:size-12">
-              {currentFolder ? <FolderOpen className="size-5" /> : <HardDrive className="size-5" />}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <h1 className="min-w-0 truncate text-xl font-semibold tracking-tight md:text-2xl">
-                  {workspaceTitle}
-                </h1>
-                {!currentFolder ? <Badge variant="secondary">Vault</Badge> : null}
-              </div>
-              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-                <span>{workspaceSubtitle}</span>
-                {vault?.role ? (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <span className="capitalize">{vault.role}</span>
-                  </>
-                ) : null}
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              {workspaceActions}
-              <Button type="button" variant="outline" size="icon" aria-label="Close vault" onClick={() => navigate("/vaults")}>
-                <X className="size-4" />
-              </Button>
-            </div>
-          </header>
-          <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-            <aside className="flex h-56 shrink-0 flex-col border-b bg-muted/20 md:h-auto md:w-80 md:border-r md:border-b-0">
-              <ScrollArea className="min-h-0 flex-1">
-                <div className="p-3">
-                  {loadingTree ? (
-                    <div className="px-2 py-3 text-sm text-muted-foreground">Loading tree...</div>
-                  ) : (
-                    <VaultSidebarTree
-                      vaults={vault ? [{ id: vault.id, name: vault.name }] : []}
-                      activeVaultId={vaultId}
-                      activeVaultRootOnly
-                      expandedValue={vaultTreeExpandedValue}
-                      onExpandedValueChange={setVaultTreeExpandedValue}
-                      currentFolderId={normalizedFolderId}
-                      currentDocumentId={null}
-                      folders={folders}
-                      documents={treeDocuments}
-                      onSelectVault={() => selectFolder(null)}
-                      onSelectFolder={selectFolder}
-                      onSelectDocument={(selectedVaultId, documentId) => {
-                        navigate(`/vaults/${selectedVaultId}/${documentId}`)
-                      }}
-                      onOpenVaultContextMenu={(event) => handleBackgroundContextMenu(event)}
-                      canMoveItems={canMoveItems}
-                      itemMutationPending={itemMutationPending}
-                      draggedItems={draggedItems}
-                      dropTarget={dropTarget}
-                      onDragStartItem={handleItemDragStart}
-                      onDragEndItem={resetDragState}
-                      onDragOverFolder={handleDragOverFolder}
-                      onDragLeaveFolder={handleDragLeaveFolder}
-                      onDropOnFolder={handleDropOnFolder}
-                      onMoveItems={handleMoveItems}
-                    />
-                  )}
-                </div>
-              </ScrollArea>
-            </aside>
-            <main className="flex min-w-0 flex-1 flex-col" onContextMenu={handleBackgroundContextMenu}>
+      <div className="flex min-w-0 flex-1 flex-col" onContextMenu={handleBackgroundContextMenu}>
               <div
-                className="min-h-0 flex-1 overflow-auto p-3"
+                className={cn(
+                  "min-h-0 flex-1 overflow-auto",
+                  view === "list" && !treeError && !errorMessage
+                    ? "p-0"
+                    : "p-3"
+                )}
                 onDragEnter={handleContentUploadDragEnter}
                 onDragOver={handleContentUploadDragOver}
                 onDragLeave={handleContentUploadDragLeave}
                 onDrop={handleContentUploadDrop}
               >
-              {errorMessage ? (
+              {treeError ? (
+                <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+                  {treeError}
+                </div>
+              ) : errorMessage ? (
                 <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
                   {errorMessage}
                 </div>
+              ) : view === "list" ? (
+                <ContentList
+                  items={sortedItems}
+                  allItemsSelected={!loadingItems && allItemsSelected}
+                  availableTags={tags}
+                  animationKey={`${normalizedFolderId ?? "root"}:${sortedItems.map((item) => getBrowserItemKey(item)).join(",")}`}
+                  draggedItemKeys={draggedItemKeys}
+                  dropTarget={dropTarget}
+                  isDraggable={!loadingItems && canMoveItems && !itemMutationPending}
+                  isLoading={loadingItems}
+                  emptyContent={emptyFolderContent}
+                  tagMutationPending={tagMutationPending}
+                  selectedItemKeys={loadingItems ? EMPTY_SELECTED_ITEM_KEYS : selectedItemKeys}
+                  someItemsSelected={!loadingItems && someItemsSelected}
+                  onDragEndItem={resetDragState}
+                  onDragLeaveFolder={handleDragLeaveFolder}
+                  onDragOverFolder={handleDragOverFolder}
+                  onDragStartItem={handleItemDragStart}
+                  onDropOnFolder={handleDropOnFolder}
+                  onOpenFolder={(folder) => selectFolder(folder.id)}
+                  onOpenDocument={openDocument}
+                  onOpenContextMenu={handleItemContextMenu}
+                  onAssignTag={handleAssignTag}
+                  onOpenCreateTagDialog={openCreateTagDialog}
+                  onRemoveTag={handleRemoveTag}
+                  onToggleAllItems={toggleAllBrowserItems}
+                  onToggleItem={toggleBrowserItem}
+                />
               ) : loadingItems ? (
                 <div className="flex h-64 items-center justify-center rounded-lg border bg-muted/20 text-sm text-muted-foreground">
                   Loading contents...
                 </div>
               ) : sortedItems.length === 0 ? (
-                <div
-                  className={cn(
-                    "flex min-h-full flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 p-8 text-center transition-colors",
-                    isEmptyUploadDropActive && "border-primary bg-primary/5 ring-2 ring-primary/20"
-                  )}
-                >
-                  <div className="flex size-16 items-center justify-center rounded-lg border border-dashed border-primary/40 bg-primary/10 text-primary">
-                    {isEmptyUploadDropActive ? <Upload className="size-7" /> : <FolderOpen className="size-7" />}
-                  </div>
-                  <h2 className="mt-4 text-lg font-semibold">
-                    {isEmptyUploadDropActive ? "Drop files to upload" : `This ${emptyLocationLabel} is empty`}
-                  </h2>
-                  <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                    {isEmptyUploadDropActive
-                      ? "Uploads will be added to Transfers."
-                      : "Drag files here or upload them. You can track their progress in Transfers."}
-                  </p>
-                  <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-                    <Button type="button" variant="outline" onClick={openUploadFiles}>
-                      <Upload className="size-4" />
-                      Upload files
-                    </Button>
-                  </div>
-                </div>
+                emptyFolderContent
               ) : view === "grid" ? (
                 <div>
                   <ContentGrid
@@ -2389,37 +2422,9 @@ export default function VaultWorkspacePage() {
                     onToggleItem={toggleBrowserItem}
                   />
                 </div>
-              ) : (
-                <ContentList
-                  items={sortedItems}
-                  allItemsSelected={allItemsSelected}
-                  availableTags={tags}
-                  draggedItemKeys={draggedItemKeys}
-                  dropTarget={dropTarget}
-                  isDraggable={canMoveItems && !itemMutationPending}
-                  tagMutationPending={tagMutationPending}
-                  selectedItemKeys={selectedItemKeys}
-                  someItemsSelected={someItemsSelected}
-                  onDragEndItem={resetDragState}
-                  onDragLeaveFolder={handleDragLeaveFolder}
-                  onDragOverFolder={handleDragOverFolder}
-                  onDragStartItem={handleItemDragStart}
-                  onDropOnFolder={handleDropOnFolder}
-                  onOpenFolder={(folder) => selectFolder(folder.id)}
-                  onOpenDocument={openDocument}
-                  onOpenContextMenu={handleItemContextMenu}
-                  onAssignTag={handleAssignTag}
-                  onOpenCreateTagDialog={openCreateTagDialog}
-                  onRemoveTag={handleRemoveTag}
-                  onToggleAllItems={toggleAllBrowserItems}
-                  onToggleItem={toggleBrowserItem}
-                />
-              )}
+              ) : null}
             </div>
-          </main>
-          </div>
-        </div>
       </div>
-    </BaseLayout>
+    </>
   )
 }

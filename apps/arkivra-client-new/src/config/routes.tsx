@@ -6,6 +6,7 @@ const Landing = lazy(() => import('@/app/landing/page'))
 const Dashboard = lazy(() => import('@/app/dashboard/page'))
 const Dashboard2 = lazy(() => import('@/app/dashboard-2/page'))
 const Vaults = lazy(() => import('@/app/vaults/page'))
+const VaultRouteShell = lazy(() => import('@/app/vaults/vault-route-shell'))
 const VaultWorkspace = lazy(() => import('@/app/vaults/vault-workspace-page'))
 const DocumentView = lazy(() => import('@/app/vaults/document-view-page'))
 const Trash = lazy(() => import('@/app/vaults/trash-page'))
@@ -38,7 +39,8 @@ const ConnectionSettings = lazy(() => import('@/app/settings/connections/page'))
 const AdminAiSettings = lazy(() => import('@/app/admin/ai-settings/page'))
 
 export interface RouteConfig {
-  path: string
+  path?: string
+  index?: boolean
   element: React.ReactNode
   children?: RouteConfig[]
   public?: boolean
@@ -99,11 +101,17 @@ export const routes: RouteConfig[] = [
   },
   {
     path: "/vaults/:vaultId",
-    element: <VaultWorkspace />
-  },
-  {
-    path: "/vaults/:vaultId/:documentId",
-    element: <DocumentView />
+      element: <VaultRouteShell />,
+    children: [
+      {
+        index: true,
+        element: <VaultWorkspace />,
+      },
+      {
+        path: ":documentId",
+        element: <DocumentView />,
+      },
+    ],
   },
   {
     path: "/trash",

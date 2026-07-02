@@ -160,10 +160,6 @@ export function AppBreadcrumbs() {
     let ignore = false
 
     async function loadBreadcrumbData() {
-      setVaultName(undefined)
-      setDocumentName(undefined)
-      setFolderBreadcrumbs([])
-
       try {
         if (parts[0] === "vaults" && vaultId) {
           const vaultsResult = await listVaults()
@@ -239,10 +235,13 @@ export function AppBreadcrumbs() {
 
 function DefaultBreadcrumbs({ breadcrumbs }: { breadcrumbs: BreadcrumbEntry[] }) {
   const visibleBreadcrumbs = getVisibleBreadcrumbs(breadcrumbs)
+  const animationKey = visibleBreadcrumbs
+    .map((item) => item ? `${item.to ?? ""}:${item.label}` : "ellipsis")
+    .join("|")
 
   return (
     <Breadcrumb className="min-w-0">
-      <BreadcrumbList className="flex-nowrap text-muted-foreground">
+      <BreadcrumbList key={animationKey} className="subtle-opacity-enter flex-nowrap text-muted-foreground">
         {visibleBreadcrumbs.map((item, index) => {
           const isLast = index === visibleBreadcrumbs.length - 1
 
@@ -287,10 +286,13 @@ function DefaultBreadcrumbs({ breadcrumbs }: { breadcrumbs: BreadcrumbEntry[] })
 
 function VaultRouteBreadcrumbs({ entries }: { entries: VaultBreadcrumbEntry[] }) {
   const visibleEntries = getVisibleBreadcrumbs(entries)
+  const animationKey = visibleEntries
+    .map((entry) => entry ? `${entry.key}:${entry.label}` : "ellipsis")
+    .join("|")
 
   return (
     <Breadcrumb className="min-w-0">
-      <BreadcrumbList className="flex-nowrap">
+      <BreadcrumbList key={animationKey} className="subtle-opacity-enter flex-nowrap">
         {visibleEntries.map((entry, index) => {
           const isLast = index === visibleEntries.length - 1
 

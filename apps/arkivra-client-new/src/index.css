@@ -189,3 +189,38 @@ html {
     box-shadow: 0 0 0 1px rgb(255 255 255 / 25%);
   }
 }
+
+@keyframes vault-list-items-enter {
+  from {
+    opacity: 0.72;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes subtle-opacity-enter {
+  from {
+    opacity: 0.72;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.subtle-opacity-enter {
+  animation: subtle-opacity-enter 120ms ease-out both;
+}
+
+.vault-list-items-enter {
+  animation: vault-list-items-enter 160ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subtle-opacity-enter,
+  .vault-list-items-enter {
+    animation: none;
+  }
+}

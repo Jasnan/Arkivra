@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, type FormEvent, type MouseEvent } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useState, type FormEvent, type MouseEvent } from "react"
 import {
   AlertCircle,
   CalendarDays,
@@ -50,6 +50,7 @@ import { ImagePreviewFrame as ZoomableImagePreviewFrame } from "./components/ima
 import { PdfPreviewFrame } from "./components/pdf-preview-frame"
 import { VaultContextMenu, type VaultContextMenuState } from "./components/vault-context-menu"
 import { VAULT_TREE_ROOT_VALUE, VaultSidebarTree } from "./components/vault-sidebar-tree"
+import { useOptionalVaultRouteShell } from "./vault-route-shell"
 import {
   deleteDocumentVersion,
   getMe,
@@ -903,13 +904,18 @@ export default function DocumentViewPage() {
   const documentId = params.documentId ?? ""
   const isTrashDocumentRoute = location.pathname.startsWith("/trash/")
   const navigate = useNavigate()
+  const vaultRouteShell = useOptionalVaultRouteShell()
+  const usesVaultRouteShell = vaultRouteShell !== null && !isTrashDocumentRoute
+  const setShellHeaderConfig = vaultRouteShell?.setHeaderConfig
+  const setShellSidebarConfig = vaultRouteShell?.setSidebarConfig
+  const refreshVaultShell = vaultRouteShell?.refreshVaultShell
   const [searchParams] = useSearchParams()
   const requestedTab = searchParams.get("tab")
   const [document, setDocument] = useState<DocumentDetail | null>(null)
-  const [vault, setVault] = useState<VaultDetail | null>(null)
+  const [standaloneVault, setStandaloneVault] = useState<VaultDetail | null>(null)
   const [trashVaultId, setTrashVaultId] = useState("")
-  const [folders, setFolders] = useState<FolderTreeEntry[]>([])
-  const [treeDocuments, setTreeDocuments] = useState<FolderTreeDocumentEntry[]>([])
+  const [standaloneFolders, setStandaloneFolders] = useState<FolderTreeEntry[]>([])
+  const [standaloneTreeDocuments, setStandaloneTreeDocuments] = useState<FolderTreeDocumentEntry[]>([])
   const [versions, setVersions] = useState<DocumentVersionSummary[]>([])
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
   const [selectedVersion, setSelectedVersion] = useState<DocumentVersionDetail | null>(null)
@@ -943,6 +949,12 @@ export default function DocumentViewPage() {
   const [vaultContextMenu, setVaultContextMenu] = useState<VaultContextMenuState | null>(null)
   const [aiFeaturesEnabled, setAiFeaturesEnabled] = useState(true)
   const vaultId = routeVaultId || trashVaultId
+  const vault = usesVaultRouteShell ? vaultRouteShell.vault : standaloneVault
+  const folders = usesVaultRouteShell ? vaultRouteShell.folders : standaloneFolders
+  const treeDocuments = usesVaultRouteShell ? vaultRouteShell.treeDocuments : standaloneTreeDocuments
+  const setEffectiveTreeDocuments = usesVaultRouteShell
+    ? vaultRouteShell.setTreeDocuments
+    : setStandaloneTreeDocuments
 
   useEffect(() => {
     if (requestedTab === "versions" && !isTrashDocumentRoute) {
@@ -978,20 +990,27 @@ export default function DocumentViewPage() {
           }
         }
 
-        const [documentResult, vaultResult, treeResult, versionsResult] = await Promise.all([
+        const [documentResult, versionsResult, shellResult] = await Promise.all([
           getDocument({ vaultId: resolvedVaultId, documentId }),
-          getVault({ vaultId: resolvedVaultId }),
-          listFolderTree({ vaultId: resolvedVaultId }),
           isTrashDocumentRoute
             ? Promise.resolve({ versions: [] })
             : listDocumentVersions({ vaultId: resolvedVaultId, documentId }),
+          usesVaultRouteShell
+            ? Promise.resolve(null)
+            : Promise.all([
+                getVault({ vaultId: resolvedVaultId }),
+                listFolderTree({ vaultId: resolvedVaultId }),
+              ]),
         ])
 
         if (!ignore) {
           setDocument(documentResult.document)
-          setVault(vaultResult.vault)
-          setFolders(treeResult.folders)
-          setTreeDocuments(treeResult.documents)
+          if (shellResult !== null) {
+            const [vaultResult, treeResult] = shellResult
+            setStandaloneVault(vaultResult.vault)
+            setStandaloneFolders(treeResult.folders)
+            setStandaloneTreeDocuments(treeResult.documents)
+          }
           setVersions(versionsResult.versions)
           setSelectedVersionId(null)
           setSelectedVersion(null)
@@ -1014,7 +1033,7 @@ export default function DocumentViewPage() {
     return () => {
       ignore = true
     }
-  }, [documentId, isTrashDocumentRoute, routeVaultId])
+  }, [documentId, isTrashDocumentRoute, routeVaultId, usesVaultRouteShell])
 
   useEffect(() => {
     let ignore = false
@@ -1176,7 +1195,7 @@ export default function DocumentViewPage() {
           name: result.document.name,
           updatedAt: result.document.updatedAt,
         }
-        setTreeDocuments((currentDocuments) =>
+        setEffectiveTreeDocuments((currentDocuments) =>
           currentDocuments.map((treeDocument) =>
             treeDocument.id === documentId
               ? { ...treeDocument, name: result.document.name, updatedAt: result.document.updatedAt }
@@ -1192,7 +1211,7 @@ export default function DocumentViewPage() {
           language: result.document.language,
           updatedAt: result.document.updatedAt,
         }
-        setTreeDocuments((currentDocuments) =>
+        setEffectiveTreeDocuments((currentDocuments) =>
           currentDocuments.map((treeDocument) =>
             treeDocument.id === documentId
               ? { ...treeDocument, language: result.document.language, updatedAt: result.document.updatedAt }
@@ -1217,7 +1236,7 @@ export default function DocumentViewPage() {
     }
   }
 
-  function handlePrintDocument() {
+  const handlePrintDocument = useCallback(() => {
     if (!activeDocument || !canPrint) return
 
     printDocumentPreview({
@@ -1226,9 +1245,9 @@ export default function DocumentViewPage() {
       previewKind,
       onPrintWindowError: () => toast.error("Could not open print dialog."),
     })
-  }
+  }, [activeDocument, canPrint, inlineFileUrl, previewKind])
 
-  function openVaultContextMenu(event: MouseEvent<HTMLElement>) {
+  const openVaultContextMenu = useCallback((event: MouseEvent<HTMLElement>) => {
     event.preventDefault()
     event.stopPropagation()
     setVaultContextMenu({
@@ -1236,7 +1255,7 @@ export default function DocumentViewPage() {
       y: event.clientY,
       vaultName: vault?.name ?? "Vault",
     })
-  }
+  }, [vault?.name])
 
   async function handleDeleteDocument() {
     if (!document || isDeleteDocumentPending) return
@@ -1286,13 +1305,15 @@ export default function DocumentViewPage() {
   async function refreshDocumentState() {
     const [documentResult, treeResult, versionsResult] = await Promise.all([
       getDocument({ vaultId, documentId }),
-      listFolderTree({ vaultId }),
+      usesVaultRouteShell && refreshVaultShell ? refreshVaultShell().then(() => null) : listFolderTree({ vaultId }),
       listDocumentVersions({ vaultId, documentId }),
     ])
 
     setDocument(documentResult.document)
-    setFolders(treeResult.folders)
-    setTreeDocuments(treeResult.documents)
+    if (treeResult !== null) {
+      setStandaloneFolders(treeResult.folders)
+      setStandaloneTreeDocuments(treeResult.documents)
+    }
     setVersions(versionsResult.versions)
   }
 
@@ -1369,8 +1390,330 @@ export default function DocumentViewPage() {
     }
   }
 
+  useEffect(() => {
+    if (!usesVaultRouteShell || !setShellHeaderConfig) return
+
+    if (loadingDocument && document && activeDocument) {
+      return
+    }
+
+    if (loadingDocument || errorMessage || !document || !activeDocument) {
+      setShellHeaderConfig({
+        iconKey: "document-file",
+        contentKey: `document-loading:${loadingDocument ? "loading" : errorMessage ?? "document"}`,
+        icon: (
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-red-500/10 text-xs font-semibold text-red-600 dark:text-red-300 md:size-12">
+            <FileText className="size-5" />
+          </div>
+        ),
+        title: loadingDocument ? "Loading document..." : "Document",
+        subtitle: errorMessage ? <span>{errorMessage}</span> : null,
+      })
+
+      return
+    }
+
+    setShellHeaderConfig({
+      iconKey: activeDocument.mimeType === "application/pdf" ? "document-pdf" : "document-file",
+      contentKey: `document:${documentId}:${selectedVersionId ?? "current"}:${activeDocument.updatedAt}`,
+      icon: (
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-red-500/10 text-xs font-semibold text-red-600 dark:text-red-300 md:size-12">
+          {activeDocument.mimeType === "application/pdf" ? "PDF" : <FileText className="size-5" />}
+        </div>
+      ),
+      title: getDocumentTitle(activeDocument.name),
+      badge: (
+        <>
+          <Badge variant="outline" className={cn(getDocumentStatusClass(activeDocument.processingStatus))}>
+            {getDocumentStatusLabel(activeDocument.processingStatus)}
+          </Badge>
+          {selectedVersionId !== null ? <Badge variant="secondary">Historical version</Badge> : null}
+        </>
+      ),
+      subtitle: (
+        <>
+          <span>{formatBytes(activeDocument.originalSize)}</span>
+          <span aria-hidden="true">·</span>
+          <span>{activeDocument.mimeType || "Unknown type"}</span>
+          <span aria-hidden="true">·</span>
+          <span>Updated {formatDate(activeDocument.updatedAt)}</span>
+        </>
+      ),
+      actions: (
+        <>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline" size="icon" aria-label={`Open actions for ${activeDocument.name}`}>
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem onSelect={() => setTab("preview")}>
+                <ImageIcon className="size-4" />
+                Preview
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setTab("content")}>
+                <ScanText className="size-4" />
+                Text and chunks
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setTab("metadata")}>
+                <Info className="size-4" />
+                Metadata
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setTab("versions")}>
+                <RefreshCw className="size-4" />
+                Versions
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <a href={currentDownloadUrl}>
+                  <Download className="size-4" />
+                  Download latest
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={!canPrint} onSelect={handlePrintDocument}>
+                <Printer className="size-4" />
+                Print
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                disabled={isDeleteDocumentPending}
+                onSelect={() => setIsDeleteDocumentDialogOpen(true)}
+              >
+                <Trash2 className="size-4" />
+                {isDeleteDocumentPending ? "Deleting..." : "Delete"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button type="button" variant="outline" size="icon" aria-label="Close document detail" onClick={() => navigate(documentReturnPath)}>
+            <X className="size-4" />
+          </Button>
+        </>
+      ),
+    })
+
+  }, [
+    activeDocument,
+    canPrint,
+    currentDownloadUrl,
+    document,
+    documentId,
+    documentReturnPath,
+    errorMessage,
+    handlePrintDocument,
+    isDeleteDocumentPending,
+    loadingDocument,
+    navigate,
+    selectedVersionId,
+    setShellHeaderConfig,
+    usesVaultRouteShell,
+  ])
+
+  useEffect(() => {
+    if (!usesVaultRouteShell || !setShellHeaderConfig) return
+    return () => setShellHeaderConfig(null)
+  }, [setShellHeaderConfig, usesVaultRouteShell])
+
+  useEffect(() => {
+    if (!usesVaultRouteShell || !setShellSidebarConfig) return
+
+    setShellSidebarConfig({
+      currentFolderId: activeDocument?.folderId ?? null,
+      currentDocumentId: documentId,
+      onSelectVault: () => navigate(`/vaults/${vaultId}`),
+      onSelectFolder: (folderId) => {
+        navigate(folderId ? `/vaults/${vaultId}?folderId=${folderId}` : `/vaults/${vaultId}`)
+      },
+      onSelectDocument: (selectedVaultId, selectedDocumentId) => {
+        navigate(`/vaults/${selectedVaultId}/${selectedDocumentId}`)
+      },
+      onOpenVaultContextMenu: openVaultContextMenu,
+    })
+  }, [activeDocument?.folderId, documentId, navigate, openVaultContextMenu, setShellSidebarConfig, usesVaultRouteShell, vaultId])
+
+  useEffect(() => {
+    if (!usesVaultRouteShell || !setShellSidebarConfig) return
+    return () => {
+      setShellSidebarConfig({
+        currentFolderId: null,
+        currentDocumentId: null,
+      })
+    }
+  }, [setShellSidebarConfig, usesVaultRouteShell])
+
+  const documentPanels = activeDocument && document ? (
+    <>
+      {tab === "preview" ? (
+        <PreviewPanel
+          previewKind={previewKind}
+          document={activeDocument}
+          vaultId={vaultId}
+          documentId={documentId}
+          inlineFileUrl={inlineFileUrl}
+          downloadUrl={downloadUrl}
+          selectedVersionId={selectedVersionId}
+          aiFeaturesEnabled={!isTrashDocumentRoute && aiFeaturesEnabled}
+        />
+      ) : null}
+
+      {tab === "content" && !isTrashDocumentRoute ? (
+        <div className="flex h-full min-h-0 flex-col gap-3 p-3">
+          <div className="flex shrink-0 rounded-md border p-1">
+            <Button
+              type="button"
+              size="sm"
+              variant={contentTab === "text" ? "secondary" : "ghost"}
+              onClick={() => setContentTab("text")}
+            >
+              Extracted text
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={contentTab === "chunks" ? "secondary" : "ghost"}
+              onClick={() => setContentTab("chunks")}
+            >
+              Chunks
+            </Button>
+          </div>
+          {contentTab === "text" ? (
+            <ScrollArea className="min-h-0 flex-1 bg-background">
+              <pre className="whitespace-pre-wrap break-words font-mono text-sm leading-6">{extractedTextMessage}</pre>
+            </ScrollArea>
+          ) : (
+            <ScrollArea className="min-h-0 flex-1">
+              <ChunkList chunks={chunks} loading={loadingChunks} error={chunksError} />
+            </ScrollArea>
+          )}
+        </div>
+      ) : null}
+
+      {tab === "metadata" ? (
+        <ScrollArea className="h-full p-3">
+          <DocumentMetadataPanel
+            document={document}
+            currentName={currentName}
+            currentLanguage={currentLanguage}
+            isNameEditing={isNameEditing}
+            isLanguageEditing={isLanguageEditing}
+            isMetadataSaving={isMetadataSaving}
+            hasNameChanged={hasNameChanged}
+            hasLanguageChanged={hasLanguageChanged}
+            onNameChange={setRenameValue}
+            onLanguageChange={setLanguageValue}
+            onEditName={() => setIsNameEditing(true)}
+            onEditLanguage={() => setIsLanguageEditing(true)}
+            editsDisabled={isTrashDocumentRoute}
+            onCopyMetadataValue={(value, label) => {
+              void copyMetadataValue(value, label)
+            }}
+            onSubmit={handleMetadataSave}
+          />
+        </ScrollArea>
+      ) : null}
+
+      {tab === "versions" && !isTrashDocumentRoute ? (
+        <ScrollArea className="h-full p-3">
+          <section>
+            <div>
+              <h2 className="text-2xl font-semibold tracking-tight">Versions</h2>
+              <p className="mt-1 text-base text-muted-foreground">
+                Review, download, restore, or delete uploaded document versions.
+              </p>
+            </div>
+            <div className="pt-6">
+              {versions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No historical versions are available.</p>
+              ) : (
+                <div className="divide-y divide-border">
+                  {versions.map((version) => {
+                    const isSelected =
+                      selectedVersionId === version.id ||
+                      (selectedVersionId === null && version.isCurrent)
+
+                    return (
+                      <div
+                        key={version.id}
+                        className="flex flex-col gap-4 py-6 first:pt-0 last:pb-0 lg:flex-row lg:items-center lg:justify-between"
+                      >
+                        <div className="min-w-0 flex-1 px-0 lg:pr-6">
+                          <div className="flex flex-wrap items-center gap-2 text-lg font-semibold leading-tight">
+                            <span>Version {version.versionNumber}</span>
+                            {version.isCurrent ? <Badge variant="secondary">Latest version</Badge> : null}
+                            {version.restoredFromVersionId ? <Badge variant="outline">Restored</Badge> : null}
+                          </div>
+                          <div className="mt-1 max-w-[44rem] truncate font-mono text-base text-muted-foreground">
+                            {version.originalName}
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                            <span>Uploaded {formatDate(version.uploadedAt)}</span>
+                            <span aria-hidden="true">·</span>
+                            <span>{formatBytes(version.originalSize)}</span>
+                            <span aria-hidden="true">·</span>
+                            <span>{getVersionStatusLabel(version)}</span>
+                            {isSelected && !version.isCurrent ? (
+                              <>
+                                <span aria-hidden="true">·</span>
+                                <span>Open in preview</span>
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-3 lg:shrink-0 lg:justify-end">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedVersionId(version.isCurrent ? null : version.id)
+                              setTab("preview")
+                            }}
+                          >
+                            View
+                          </Button>
+                          <Button asChild variant="outline" size="sm">
+                            <a href={getDocumentVersionDownloadUrl({ vaultId, documentId, versionId: version.id })}>
+                              <Download className="size-4" />
+                              Download
+                            </a>
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={!isVersionRestorable(version) || isRestoreVersionPending || isDeleteVersionPending}
+                            onClick={() => setVersionPendingRestore(version)}
+                          >
+                            <RotateCcw className="size-4" />
+                            Restore
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            disabled={!isVersionDeletable(version) || isRestoreVersionPending || isDeleteVersionPending}
+                            onClick={() => openDeleteVersionDialog(version)}
+                          >
+                            <Trash2 className="size-4" />
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
+        </ScrollArea>
+      ) : null}
+    </>
+  ) : null
+  const Frame = usesVaultRouteShell ? Fragment : BaseLayout
+
   return (
-    <BaseLayout>
+    <Frame>
       {vaultContextMenu ? (
         <VaultContextMenu
           state={vaultContextMenu}
@@ -1381,6 +1724,44 @@ export default function DocumentViewPage() {
           onUploadFolder={() => undefined}
         />
       ) : null}
+      {usesVaultRouteShell ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          {loadingDocument ? (
+            <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              Loading document...
+            </div>
+          ) : errorMessage || !document || !activeDocument ? (
+            <div className="m-4 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive lg:m-6">
+              {errorMessage ?? "Unable to load document."}
+            </div>
+          ) : (
+            <>
+              {isProcessingActive(activeDocument.processingStatus) || activeDocument.processingStatus === "failed" ? (
+                <div
+                  className={cn(
+                    "mx-4 mt-3 shrink-0 rounded-lg border p-3 text-sm md:mx-5",
+                    activeDocument.processingStatus === "failed"
+                      ? "border-destructive/30 bg-destructive/10 text-destructive"
+                      : "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-200"
+                  )}
+                >
+                  {getProcessingMessage(activeDocument, "")}
+                </div>
+              ) : null}
+
+              {loadingVersion ? (
+                <div className="mx-4 mt-3 flex h-14 shrink-0 items-center justify-center gap-2 rounded-lg border bg-muted/20 text-sm text-muted-foreground md:mx-5">
+                  <Loader2 className="size-4 animate-spin" />
+                  Loading version...
+                </div>
+              ) : null}
+
+              <div className="min-h-0 flex-1">{documentPanels}</div>
+            </>
+          )}
+        </div>
+      ) : (
       <div className="-mt-4 md:-mt-6">
         <section className="flex h-[calc(100vh-var(--header-height))] min-h-[640px] flex-col overflow-hidden bg-background">
           {loadingDocument ? (
@@ -1708,6 +2089,7 @@ export default function DocumentViewPage() {
           )}
         </section>
       </div>
+      )}
       <Dialog
         open={isDeleteDocumentDialogOpen}
         onOpenChange={(open) => {
@@ -1909,6 +2291,6 @@ export default function DocumentViewPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </BaseLayout>
+    </Frame>
   )
 }

@@ -537,12 +537,26 @@ export function VaultSidebarTree({
       return
     }
 
+    if (!effectiveExpandedValue.includes(node.id)) {
+      handleExpandedValueChange([...expandedValue, node.id])
+    }
+
+    handleItemClick(node)
+  }
+
+  const handleBranchToggle = (event: MouseEvent<HTMLElement>, node: VaultTreeNode) => {
+    event.preventDefault()
+    event.stopPropagation()
+
+    if (isLockedExpandedNode(node)) {
+      return
+    }
+
     handleExpandedValueChange(
       effectiveExpandedValue.includes(node.id)
         ? expandedValue.filter((value) => value !== node.id)
         : [...expandedValue, node.id]
     )
-    handleItemClick(node)
   }
 
   const getContextMenuHandler = (node: VaultTreeNode) =>
@@ -701,10 +715,15 @@ export function VaultSidebarTree({
           onDrop={(event) => handleDrop(event, node)}
         >
           {showBranchIndicator ? (
-            <ChevronRight
-              className={cn("size-3.5 shrink-0 transition-transform", isExpanded && "rotate-90")}
-              strokeWidth={2.2}
-            />
+            <span
+              className="flex size-3.5 shrink-0 items-center justify-center"
+              onClick={(event) => handleBranchToggle(event, node)}
+            >
+              <ChevronRight
+                className={cn("size-3.5 transition-transform", isExpanded && "rotate-90")}
+                strokeWidth={2.2}
+              />
+            </span>
           ) : (
             <span className="size-3.5 shrink-0" />
           )}

@@ -64,25 +64,27 @@ function PublicOnlyRoute({
 }
 
 function renderRoutes(routeConfigs: RouteConfig[]) {
-  return routeConfigs.map((route, index) => (
-    <Route
-      key={route.path + index}
-      path={route.path}
-      element={
-        <Suspense fallback={<LoadingSpinner />}>
-          {route.public ? (
-            <PublicOnlyRoute allowAuthenticated={route.allowAuthenticated}>
-              {route.element}
-            </PublicOnlyRoute>
-          ) : (
-            <ProtectedRoute>{route.element}</ProtectedRoute>
-          )}
-        </Suspense>
-      }
-    >
-      {route.children && renderRoutes(route.children)}
-    </Route>
-  ))
+  return routeConfigs.map((route, index) => {
+    const element = (
+      <Suspense fallback={<LoadingSpinner />}>
+        {route.public ? (
+          <PublicOnlyRoute allowAuthenticated={route.allowAuthenticated}>
+            {route.element}
+          </PublicOnlyRoute>
+        ) : (
+          <ProtectedRoute>{route.element}</ProtectedRoute>
+        )}
+      </Suspense>
+    )
+
+    return route.index ? (
+      <Route key={`index-${index}`} index element={element} />
+    ) : (
+      <Route key={(route.path ?? "route") + index} path={route.path} element={element}>
+        {route.children && renderRoutes(route.children)}
+      </Route>
+    )
+  })
 }
 
 export function AppRouter() {

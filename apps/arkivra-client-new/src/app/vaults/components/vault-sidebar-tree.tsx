@@ -1,15 +1,15 @@
 "use client"
 
 import type { DragEvent, MouseEvent, ReactNode } from "react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   Archive,
-  ChevronRight,
   Folder,
   FolderOpen,
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { File as TreeFile, Folder as TreeFolder, Tree } from "@/components/ui/file-tree"
 import { cn } from "@/lib/utils"
 import type {
   FileBrowserItem,
@@ -231,7 +231,7 @@ function createVaultTree({
       ]
 }
 
-function getFolderRevealValues(folderId: string | null, folders: FolderTreeEntry[]) {
+function getFolderRevealValues(folderId: string | null, folders: FolderTreeEntry[], includeTarget: boolean) {
   const foldersById = new Map(folders.map((folder) => [folder.id, folder]))
   const revealValues: string[] = []
   let current = folderId === null ? null : foldersById.get(folderId)
@@ -239,6 +239,10 @@ function getFolderRevealValues(folderId: string | null, folders: FolderTreeEntry
   while (current) {
     revealValues.unshift(folderValue(current.id))
     current = current.parentId ? foldersById.get(current.parentId) : undefined
+  }
+
+  if (!includeTarget) {
+    revealValues.pop()
   }
 
   return revealValues
@@ -409,7 +413,6 @@ export function VaultSidebarTree({
   activeVaultId,
   activeVaultRootOnly = false,
   expandedValue,
-  onExpandedValueChange,
   currentFolderId,
   currentDocumentId,
   folders,
@@ -453,7 +456,6 @@ export function VaultSidebarTree({
   onDropOnFolder?: (event: DragEvent<HTMLElement>, folderId: string | null) => void
   onMoveItems?: (input: { targets: FileBrowserItem[]; destinationId: string | null }) => void
 }) {
-  const expandedValueRef = useRef(expandedValue)
   const [localDraggedItems, setLocalDraggedItems] = useState<FileBrowserItem[]>([])
   const [localDropTarget, setLocalDropTarget] = useState<BrowserDropTarget | null>(null)
   const draggedItems = externalDraggedItems ?? localDraggedItems
@@ -462,6 +464,14 @@ export function VaultSidebarTree({
     () => createVaultTree({ vaults, activeVaultId, activeVaultRootOnly, folders, documents }),
     [activeVaultId, activeVaultRootOnly, documents, folders, vaults]
   )
+  const initialExpandedItems = useMemo(() => {
+    if (activeVaultRootOnly && activeVaultId) {
+      return [vaultValue(activeVaultId)]
+    }
+
+    return expandedValue
+  }, [activeVaultId, activeVaultRootOnly, expandedValue])
+  const [expandedItems, setExpandedItems] = useState(initialExpandedItems)
   const activeDocumentFolderId = useMemo(
     () => documents.find((document) => document.id === currentDocumentId)?.folderId ?? null,
     [currentDocumentId, documents]
@@ -472,91 +482,38 @@ export function VaultSidebarTree({
     if (activeVaultId) return vaultValue(activeVaultId)
     return rootValue()
   }, [activeVaultId, currentDocumentId, currentFolderId])
-  const lockedExpandedValue = useMemo(() => {
-    if (activeVaultRootOnly) return activeVaultId ? [vaultValue(activeVaultId)] : []
-    return [rootValue()]
-  }, [activeVaultId, activeVaultRootOnly])
-  const effectiveExpandedValue = useMemo(
-    () => uniqueValues([...expandedValue, ...lockedExpandedValue]),
-    [expandedValue, lockedExpandedValue]
-  )
   const draggedItemKeys = useMemo(
     () => new Set(draggedItems.map((item) => getBrowserItemKey(item))),
     [draggedItems]
   )
 
   useEffect(() => {
-    expandedValueRef.current = expandedValue
-  }, [expandedValue])
+    setExpandedItems((currentExpandedItems) =>
+      uniqueValues([...currentExpandedItems, ...initialExpandedItems])
+    )
+  }, [initialExpandedItems])
 
   useEffect(() => {
     if (!activeVaultId) return
 
     const folderIdToReveal = currentDocumentId ? activeDocumentFolderId : currentFolderId
-    const valuesToExpand = [
-      ...lockedExpandedValue,
+    if (!currentDocumentId && folderIdToReveal === null) return
+
+    const valuesToReveal = [
       vaultValue(activeVaultId),
-      ...getFolderRevealValues(folderIdToReveal, folders),
+      ...getFolderRevealValues(folderIdToReveal, folders, Boolean(currentDocumentId)),
     ]
-    const currentExpandedValue = expandedValueRef.current
-    const nextExpandedValue = uniqueValues([...currentExpandedValue, ...valuesToExpand])
-    const missingValues = nextExpandedValue.filter((value) => !currentExpandedValue.includes(value))
 
-    if (missingValues.length > 0) {
-      expandedValueRef.current = nextExpandedValue
-      onExpandedValueChange(nextExpandedValue)
-    }
-  }, [
-    activeDocumentFolderId,
-    activeVaultId,
-    currentDocumentId,
-    currentFolderId,
-    folders,
-    lockedExpandedValue,
-    onExpandedValueChange,
-  ])
-
-  const isLockedExpandedNode = (node: VaultTreeNode) => lockedExpandedValue.includes(node.id)
-
-  const handleExpandedValueChange = (nextExpandedValue: string[]) => {
-    const nextValue = uniqueValues([...nextExpandedValue, ...lockedExpandedValue])
-    expandedValueRef.current = nextValue
-    onExpandedValueChange(nextValue)
-  }
+    setExpandedItems((currentExpandedItems) =>
+      uniqueValues([...currentExpandedItems, ...valuesToReveal])
+    )
+  }, [activeDocumentFolderId, activeVaultId, currentDocumentId, currentFolderId, folders])
 
   const handleItemClick = (node: VaultTreeNode) => {
     if (node.type === "root") return
     if (node.type === "vault") return onSelectVault(node.vaultId)
     if (node.type === "folder") return onSelectFolder(node.folder.id)
     onSelectDocument(node.vaultId, node.document.id)
-  }
-
-  const handleBranchClick = (node: VaultTreeNode) => {
-    if (isLockedExpandedNode(node)) {
-      handleItemClick(node)
-      return
-    }
-
-    if (!effectiveExpandedValue.includes(node.id)) {
-      handleExpandedValueChange([...expandedValue, node.id])
-    }
-
-    handleItemClick(node)
-  }
-
-  const handleBranchToggle = (event: MouseEvent<HTMLElement>, node: VaultTreeNode) => {
-    event.preventDefault()
-    event.stopPropagation()
-
-    if (isLockedExpandedNode(node)) {
-      return
-    }
-
-    handleExpandedValueChange(
-      effectiveExpandedValue.includes(node.id)
-        ? expandedValue.filter((value) => value !== node.id)
-        : [...expandedValue, node.id]
-    )
   }
 
   const getContextMenuHandler = (node: VaultTreeNode) =>
@@ -679,12 +636,10 @@ export function VaultSidebarTree({
     setLocalDraggedItems([])
   }
 
-  function renderNode(node: VaultTreeNode, depth: number) {
+  function renderNode(node: VaultTreeNode) {
     const children = getNodeChildren(node)
     const isBranch = Boolean(children?.length)
-    const isExpanded = effectiveExpandedValue.includes(node.id)
     const isSelected = selectedValue === node.id
-    const showBranchIndicator = isBranch && !isLockedExpandedNode(node)
     const browserItem = treeNodeToBrowserItem(node)
     const isDragSource = browserItem !== null && draggedItemKeys.has(getBrowserItemKey(browserItem))
     const dropDestinationId = getDropDestinationId(node, activeVaultId)
@@ -692,58 +647,70 @@ export function VaultSidebarTree({
       dropDestinationId !== undefined ? getTreeDropTargetClass(dropTarget, dropDestinationId) : ""
     const displayName = truncateTreeLabel(node.name)
 
-    return (
-      <li key={node.id}>
-        <button
-          type="button"
-          className={cn(
-            "flex min-h-8 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
-            isSelected && "bg-accent text-accent-foreground",
-            isDragSource && "opacity-55",
-            dragDropClass
-          )}
-          style={{ paddingLeft: `${0.5 + depth * 0.875}rem` }}
-          aria-expanded={isBranch ? isExpanded : undefined}
-          aria-selected={isSelected}
-          draggable={browserItem !== null && canMoveItems && !itemMutationPending}
-          onClick={() => (isBranch ? handleBranchClick(node) : handleItemClick(node))}
-          onContextMenu={getContextMenuHandler(node)}
-          onDragStart={(event) => handleDragStart(event, node)}
-          onDragEnd={handleDragEnd}
-          onDragOver={(event) => handleDragOver(event, node)}
-          onDragLeave={(event) => handleDragLeave(event, node)}
-          onDrop={(event) => handleDrop(event, node)}
+    const itemClassName = cn(
+      isDragSource && "opacity-55",
+      dragDropClass
+    )
+    const itemProps = {
+      "aria-selected": isSelected,
+      draggable: browserItem !== null && canMoveItems && !itemMutationPending,
+      onContextMenu: getContextMenuHandler(node),
+      onDragStart: (event: DragEvent<HTMLElement>) => handleDragStart(event, node),
+      onDragEnd: handleDragEnd,
+      onDragOver: (event: DragEvent<HTMLElement>) => handleDragOver(event, node),
+      onDragLeave: (event: DragEvent<HTMLElement>) => handleDragLeave(event, node),
+      onDrop: (event: DragEvent<HTMLElement>) => handleDrop(event, node),
+    }
+    const label = (
+      <span className="min-w-0 flex-1 truncate leading-tight" title={node.name}>
+        {displayName}
+      </span>
+    )
+
+    if (isBranch) {
+      return (
+        <TreeFolder
+          key={node.id}
+          value={node.id}
+          element={label}
+          isSelect={isSelected}
+          openIcon={getNodeIcon(node, true)}
+          closeIcon={getNodeIcon(node, false)}
+          triggerClassName={itemClassName}
+          triggerProps={itemProps}
+          onSelect={() => handleItemClick(node)}
         >
-          {showBranchIndicator ? (
-            <span
-              className="flex size-3.5 shrink-0 items-center justify-center"
-              onClick={(event) => handleBranchToggle(event, node)}
-            >
-              <ChevronRight
-                className={cn("size-3.5 transition-transform", isExpanded && "rotate-90")}
-                strokeWidth={2.2}
-              />
-            </span>
-          ) : (
-            <span className="size-3.5 shrink-0" />
-          )}
-          <span className="shrink-0">{getNodeIcon(node, isExpanded)}</span>
-          <span className="min-w-0 flex-1 truncate leading-tight" title={node.name}>
-            {displayName}
-          </span>
-        </button>
-        {isBranch && isExpanded ? (
-          <ul className="mt-1 space-y-1">
-            {children?.map((child) => renderNode(child, depth + 1))}
-          </ul>
-        ) : null}
-      </li>
+          {children?.map((child) => renderNode(child))}
+        </TreeFolder>
+      )
+    }
+
+    return (
+      <TreeFile
+        key={node.id}
+        value={node.id}
+        isSelect={isSelected}
+        fileIcon={getNodeIcon(node)}
+        className={itemClassName}
+        onClick={() => handleItemClick(node)}
+        {...itemProps}
+      >
+        {label}
+      </TreeFile>
     )
   }
 
   return (
     <nav aria-label="Vault file tree" className="text-sm">
-      <ul className="space-y-1">{tree.map((node) => renderNode(node, 0))}</ul>
+      <Tree
+        className="h-auto"
+        selectedId={selectedValue}
+        expandedItems={expandedItems}
+        onExpandedItemsChange={setExpandedItems}
+        indicator
+      >
+        {tree.map((node) => renderNode(node))}
+      </Tree>
     </nav>
   )
 }

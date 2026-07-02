@@ -1264,6 +1264,12 @@ export default function DocumentViewPage() {
 
     try {
       await softDeleteDocument({ vaultId, documentId })
+      setEffectiveTreeDocuments((currentDocuments) =>
+        currentDocuments.filter((treeDocument) => treeDocument.id !== documentId)
+      )
+      if (usesVaultRouteShell && refreshVaultShell) {
+        void refreshVaultShell()
+      }
       toast.success("Document moved to trash.")
       setIsDeleteDocumentDialogOpen(false)
       navigate(documentReturnPath, { replace: true })

@@ -193,11 +193,9 @@ html {
 @keyframes vault-list-items-enter {
   from {
     opacity: 0.72;
-    transform: translateY(3px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 

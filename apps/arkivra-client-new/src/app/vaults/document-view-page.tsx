@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, type FormEvent } from "react"
+import { useEffect, useMemo, useState, type FormEvent, type MouseEvent } from "react"
 import {
   AlertCircle,
   CalendarDays,
@@ -25,7 +25,7 @@ import {
 } from "lucide-react"
 import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch"
 import { toast } from "sonner"
-import { useNavigate, useParams } from "react-router-dom"
+import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
@@ -51,6 +51,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { PdfPreviewFrame } from "./components/pdf-preview-frame"
+import { VaultContextMenu, type VaultContextMenuState } from "./components/vault-context-menu"
 import { VAULT_TREE_ROOT_VALUE, VaultSidebarTree } from "./components/vault-sidebar-tree"
 import {
   deleteDocumentVersion,
@@ -873,6 +874,8 @@ function ChunkList({
 export default function DocumentViewPage() {
   const { vaultId = "", documentId = "" } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const requestedTab = searchParams.get("tab")
   const [document, setDocument] = useState<DocumentDetail | null>(null)
   const [vault, setVault] = useState<VaultDetail | null>(null)
   const [folders, setFolders] = useState<FolderTreeEntry[]>([])
@@ -886,7 +889,7 @@ export default function DocumentViewPage() {
   const [loadingChunks, setLoadingChunks] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [chunksError, setChunksError] = useState<string | null>(null)
-  const [tab, setTab] = useState<DocumentTab>("preview")
+  const [tab, setTab] = useState<DocumentTab>(requestedTab === "versions" ? "versions" : "preview")
   const [contentTab, setContentTab] = useState<ContentTab>("text")
   const [vaultTreeExpandedValue, setVaultTreeExpandedValue] = useState<string[]>([
     VAULT_TREE_ROOT_VALUE,
@@ -905,6 +908,13 @@ export default function DocumentViewPage() {
   const [isDeleteVersionPending, setIsDeleteVersionPending] = useState(false)
   const [isDeleteDocumentDialogOpen, setIsDeleteDocumentDialogOpen] = useState(false)
   const [isDeleteDocumentPending, setIsDeleteDocumentPending] = useState(false)
+  const [vaultContextMenu, setVaultContextMenu] = useState<VaultContextMenuState | null>(null)
+
+  useEffect(() => {
+    if (requestedTab === "versions") {
+      setTab("versions")
+    }
+  }, [requestedTab])
 
   useEffect(() => {
     let ignore = false
@@ -1137,6 +1147,16 @@ export default function DocumentViewPage() {
     })
   }
 
+  function openVaultContextMenu(event: MouseEvent<HTMLElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+    setVaultContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      vaultName: vault?.name ?? "Vault",
+    })
+  }
+
   async function handleDeleteDocument() {
     if (!document || isDeleteDocumentPending) return
 
@@ -1242,6 +1262,16 @@ export default function DocumentViewPage() {
 
   return (
     <BaseLayout>
+      {vaultContextMenu ? (
+        <VaultContextMenu
+          state={vaultContextMenu}
+          canCreateItems={false}
+          onClose={() => setVaultContextMenu(null)}
+          onCreateFolder={() => undefined}
+          onUploadFiles={() => undefined}
+          onUploadFolder={() => undefined}
+        />
+      ) : null}
       <div className="px-4 md:px-6">
         <section className="flex h-[calc(100vh-8rem)] min-h-[640px] flex-col overflow-hidden rounded-lg border bg-background">
           {loadingDocument ? (
@@ -1371,6 +1401,7 @@ export default function DocumentViewPage() {
                           onSelectDocument={(selectedVaultId, selectedDocumentId) => {
                             navigate(`/vaults/${selectedVaultId}/${selectedDocumentId}`)
                           }}
+                          onOpenVaultContextMenu={openVaultContextMenu}
                         />
                       ) : (
                         <div className="px-2 py-3 text-sm text-muted-foreground">Loading tree...</div>

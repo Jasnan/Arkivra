@@ -2,11 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react"
 import { Link } from "react-router-dom"
-import { Check, Files, MoreHorizontal, Pencil, Plus, RefreshCw, Save, TagIcon, Tags, Trash2, X } from "lucide-react"
+import { Files, MoreHorizontal, Pencil, Plus, Tags, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { BaseLayout } from "@/components/layouts/base-layout"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -25,64 +24,19 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import {
+  DEFAULT_TAG_COLOR,
+  TagFormDialog,
+  type TagFormDialogMode,
+} from "./components/tag-form-dialog"
 import { createTag, deleteTag, listTagDocuments, listTags, updateTag, type Tag, type TagDocument } from "./tags.api"
-
-type DialogMode = "create" | "edit"
 
 interface ContextMenuState {
   tag: Tag
   x: number
   y: number
-}
-
-const DEFAULT_TAG_COLOR = "#0EA5E9"
-const DEFAULT_TAG_COLORS = [
-  "#D8FF75",
-  "#7FFF7A",
-  "#7AFFCE",
-  "#7AD7FF",
-  "#7A7FFF",
-  "#CE7AFF",
-  "#FF7AD7",
-  "#FF7A7F",
-  "#FFCE7A",
-  "#FFFFFF",
-]
-const hexPrefixPattern = /^#/
-const hexColorPattern = /^[\dA-F]{6}$/i
-
-function expandShortHex(value: string) {
-  return value
-    .split("")
-    .map((character) => `${character}${character}`)
-    .join("")
-}
-
-function getHexRgb(value: string) {
-  const normalized = value.trim().replace(hexPrefixPattern, "")
-  const hex = normalized.length === 3 ? expandShortHex(normalized) : normalized
-
-  if (!hexColorPattern.test(hex)) {
-    return null
-  }
-
-  return {
-    red: Number.parseInt(hex.slice(0, 2), 16),
-    green: Number.parseInt(hex.slice(2, 4), 16),
-    blue: Number.parseInt(hex.slice(4, 6), 16),
-  }
-}
-
-function getReadableTextColor(backgroundColor: string) {
-  const rgb = getHexRgb(backgroundColor)
-  if (!rgb) return "#111827"
-
-  const luminance = (0.299 * rgb.red + 0.587 * rgb.green + 0.114 * rgb.blue) / 255
-  return luminance > 0.58 ? "#111827" : "#FFFFFF"
 }
 
 function formatBytes(value: number) {
@@ -111,17 +65,17 @@ function formatShortDate(value?: string | null) {
 
 function TagBadge({ tag, name, color }: { tag?: Tag; name?: string; color?: string | null }) {
   const label = tag?.name ?? name ?? "Tag"
-  const backgroundColor = tag?.color ?? color ?? "#94a3b8"
-  const textColor = getReadableTextColor(backgroundColor)
+  const dotColor = tag?.color ?? color ?? "#94a3b8"
 
   return (
-    <Badge
-      className="max-w-full gap-1.5 truncate border px-2 py-1 normal-case"
-      style={{ backgroundColor, color: textColor, borderColor: backgroundColor.toUpperCase() === "#FFFFFF" ? "hsl(var(--border))" : backgroundColor }}
-    >
-      <TagIcon className="size-3 shrink-0" />
+    <span className="inline-flex w-fit max-w-full items-center gap-1.5 self-start rounded-md bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground">
+      <span
+        aria-hidden="true"
+        className="size-2 shrink-0 rounded-full"
+        style={{ backgroundColor: dotColor }}
+      />
       <span className="truncate">{label}</span>
-    </Badge>
+    </span>
   )
 }
 
@@ -132,10 +86,11 @@ function getTagDescription(tag: Tag) {
 
 function TagDocumentsButton({ tag, onOpen }: { tag: Tag; onOpen: (tag: Tag, trigger: HTMLElement) => void }) {
   const documentsCount = tag.documentsCount ?? 0
+  const countClassName = "inline-flex h-8 items-center justify-start gap-2 text-sm"
 
   if (documentsCount === 0) {
     return (
-      <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+      <span className={cn(countClassName, "text-muted-foreground")}>
         <Files className="size-4" />
         {documentsCount}
       </span>
@@ -143,136 +98,17 @@ function TagDocumentsButton({ tag, onOpen }: { tag: Tag; onOpen: (tag: Tag, trig
   }
 
   return (
-    <Button type="button" variant="ghost" size="sm" className="h-8 px-2" onClick={(event) => onOpen(tag, event.currentTarget)}>
+    <button
+      type="button"
+      className={cn(
+        countClassName,
+        "rounded-md text-foreground transition-colors hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      )}
+      onClick={(event) => onOpen(tag, event.currentTarget)}
+    >
       <Files className="size-4" />
       {documentsCount}
-    </Button>
-  )
-}
-
-function TagFormDialog({
-  open,
-  mode,
-  isPending,
-  name,
-  color,
-  description,
-  isDirty,
-  onNameChange,
-  onColorChange,
-  onDescriptionChange,
-  onOpenChange,
-  onSubmit,
-}: {
-  open: boolean
-  mode: DialogMode
-  isPending: boolean
-  name: string
-  color: string
-  description: string
-  isDirty: boolean
-  onNameChange: (value: string) => void
-  onColorChange: (value: string) => void
-  onDescriptionChange: (value: string) => void
-  onOpenChange: (open: boolean) => void
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void
-}) {
-  const colorInputRef = useRef<HTMLInputElement | null>(null)
-  const title = mode === "create" ? "New tag" : "Edit tag"
-  const descriptionText =
-    mode === "create"
-      ? "Create a consistent label for organizing documents."
-      : "Update this label while preserving document organization."
-  const submitLabel = mode === "create" ? "Create" : "Save"
-  const pendingLabel = mode === "create" ? "Creating..." : "Saving..."
-
-  return (
-    <Dialog open={open} onOpenChange={(nextOpen) => (!isPending || nextOpen) && (!isDirty || nextOpen) && onOpenChange(nextOpen)}>
-      <DialogContent className="sm:max-w-2xl">
-        <form onSubmit={onSubmit}>
-          <DialogHeader>
-            <div className="flex items-start gap-3">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <TagIcon className="size-5" />
-              </div>
-              <div>
-                <DialogTitle>{title}</DialogTitle>
-                <DialogDescription>{descriptionText}</DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-
-          <div className="space-y-5 py-5">
-            <div className="space-y-2">
-              <Label htmlFor="tag-name">Name</Label>
-              <Input id="tag-name" autoFocus required maxLength={64} value={name} placeholder="Tag name" onChange={(event) => onNameChange(event.target.value)} />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Color</Label>
-              <div className="flex flex-wrap items-center gap-2">
-                {DEFAULT_TAG_COLORS.map((swatch) => {
-                  const selected = color.toUpperCase() === swatch.toUpperCase()
-                  return (
-                    <button
-                      key={swatch}
-                      type="button"
-                      aria-label={`Select color ${swatch}`}
-                      aria-pressed={selected}
-                      className={cn("flex size-9 items-center justify-center rounded-md border", selected && "ring-2 ring-ring ring-offset-2")}
-                      style={{ backgroundColor: swatch }}
-                      onClick={() => onColorChange(swatch)}
-                    >
-                      {selected ? <Check className="size-4" style={{ color: getReadableTextColor(swatch) }} /> : null}
-                    </button>
-                  )
-                })}
-                <Button type="button" variant="outline" size="icon" aria-label="Choose custom color" onClick={() => colorInputRef.current?.click()}>
-                  <Plus className="size-4" />
-                </Button>
-                <Button type="button" variant="ghost" size="icon" aria-label="Reset tag color" onClick={() => onColorChange(DEFAULT_TAG_COLOR)}>
-                  <RefreshCw className="size-4" />
-                </Button>
-                <input
-                  ref={colorInputRef}
-                  type="color"
-                  value={color}
-                  className="sr-only"
-                  onChange={(event) => onColorChange(event.target.value.toUpperCase())}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tag-description">Description <span className="font-normal text-muted-foreground">(optional)</span></Label>
-              <Textarea
-                id="tag-description"
-                maxLength={256}
-                value={description}
-                className="min-h-28 resize-y"
-                placeholder="Eg. All the contracts signed by the company"
-                onChange={(event) => onDescriptionChange(event.target.value)}
-              />
-            </div>
-
-            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-              Preview
-              <TagBadge name={name.trim() || "New tag"} color={color} />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" disabled={isPending} onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={name.trim().length === 0 || isPending}>
-              {mode === "create" ? <Plus className="size-4" /> : <Save className="size-4" />}
-              {isPending ? pendingLabel : submitLabel}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    </button>
   )
 }
 
@@ -498,7 +334,7 @@ export default function TagsPage() {
   const [tagsError, setTagsError] = useState<string | null>(null)
   const [filterText, setFilterText] = useState("")
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
-  const [dialogMode, setDialogMode] = useState<DialogMode>("create")
+  const [dialogMode, setDialogMode] = useState<TagFormDialogMode>("create")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingTagId, setEditingTagId] = useState<string | null>(null)
   const [formName, setFormName] = useState("")
@@ -714,7 +550,7 @@ export default function TagsPage() {
                       </TableHead>
                       <TableHead>Tag</TableHead>
                       <TableHead className="hidden md:table-cell">Description</TableHead>
-                      <TableHead className="hidden w-28 md:table-cell">Documents</TableHead>
+                      <TableHead className="hidden w-28 text-left md:table-cell">Documents</TableHead>
                       <TableHead className="hidden w-36 md:table-cell">Created</TableHead>
                       <TableHead className="w-12" />
                     </TableRow>
@@ -736,7 +572,7 @@ export default function TagsPage() {
                             </div>
                           </TableCell>
                           <TableCell className="hidden max-w-[24rem] truncate md:table-cell">{getTagDescription(tag)}</TableCell>
-                          <TableCell className="hidden md:table-cell">
+                          <TableCell className="hidden text-left md:table-cell">
                             <TagDocumentsButton tag={tag} onOpen={setDocumentsTag} />
                           </TableCell>
                           <TableCell className="hidden text-muted-foreground md:table-cell">{formatShortDate(tag.createdAt)}</TableCell>

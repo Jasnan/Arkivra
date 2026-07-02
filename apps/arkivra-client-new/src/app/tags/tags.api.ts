@@ -34,6 +34,16 @@ export async function listTagDocuments({ tagId }: { tagId: string }) {
   return fetchJson<{ documents: TagDocument[] }>(`/api/tags/${tagId}/documents`)
 }
 
+export async function listDocumentTags({
+  vaultId,
+  documentId,
+}: {
+  vaultId: string
+  documentId: string
+}) {
+  return fetchJson<{ tags: Tag[] }>(`/api/vaults/${vaultId}/documents/${documentId}/tags`)
+}
+
 export async function createTag({
   name,
   color,
@@ -70,6 +80,36 @@ export async function updateTag({
 
 export async function deleteTag({ tagId }: { tagId: string }) {
   return fetchJson<void>(`/api/tags/${tagId}`, {
+    method: "DELETE",
+  })
+}
+
+export async function assignTagToDocument({
+  vaultId,
+  documentId,
+  tagId,
+}: {
+  vaultId: string
+  documentId: string
+  tagId: string
+}) {
+  return fetchJson<{ tag: Tag }>(`/api/vaults/${vaultId}/documents/${documentId}/tags`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ tagId }),
+  })
+}
+
+export async function removeTagFromDocument({
+  vaultId,
+  documentId,
+  tagId,
+}: {
+  vaultId: string
+  documentId: string
+  tagId: string
+}) {
+  return fetchJson<void>(`/api/vaults/${vaultId}/documents/${documentId}/tags/${tagId}`, {
     method: "DELETE",
   })
 }

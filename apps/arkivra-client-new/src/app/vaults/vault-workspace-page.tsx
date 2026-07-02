@@ -8,7 +8,9 @@ import {
   FolderOpen,
   HardDrive,
   Home,
+  Info,
   MoveRight,
+  Plus,
   Search,
   Trash2,
   Upload,
@@ -31,10 +33,24 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
+import { DEFAULT_TAG_COLOR, TagFormDialog } from "../tags/components/tag-form-dialog"
+import {
+  assignTagToDocument,
+  createTag,
+  listDocumentTags,
+  listTags,
+  removeTagFromDocument,
+  type Tag,
+} from "../tags/tags.api"
 import { uploadManager } from "../transfers/upload-manager"
 import { CreateFolderDialog } from "./components/create-folder-dialog"
+import {
+  VaultBrowserItemContextMenu,
+  type VaultBrowserItemContextMenuState,
+} from "./components/vault-browser-item-context-menu"
 import { VaultContextMenu, type VaultContextMenuState } from "./components/vault-context-menu"
 import { VAULT_TREE_ROOT_VALUE, VaultSidebarTree } from "./components/vault-sidebar-tree"
 import { VaultUploadMenu } from "./components/vault-upload-menu"
@@ -46,10 +62,13 @@ import {
 } from "./upload-file-rules"
 import {
   getVault,
+  getDocumentDownloadUrl,
   listFolderItems,
   listFolderTree,
   moveDocument,
   moveFolder,
+  renameDocument,
+  renameFolder,
   softDeleteDocument,
   softDeleteFolder,
   type DocumentSummary,
@@ -133,18 +152,6 @@ function formatDate(value: string | null | undefined) {
     month: "short",
     year: "numeric",
   }).format(date)
-}
-
-function getDocumentStatusClass(document: DocumentSummary) {
-  if (document.processingStatus === "failed") {
-    return "border-destructive/40 bg-destructive/10 text-destructive"
-  }
-
-  if (document.processingStatus && document.processingStatus !== "completed") {
-    return "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
-  }
-
-  return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
 }
 
 function getDocumentStatusLabel(document: DocumentSummary) {
@@ -715,6 +722,327 @@ function DeleteItemsConfirmDialog({
   )
 }
 
+function getItemKindLabel(item: FileBrowserItem) {
+  return item.type === "folder" ? "Folder" : "Document"
+}
+
+function getItemId(item: FileBrowserItem) {
+  return item.type === "folder" ? item.folder.id : item.document.id
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid gap-1 rounded-md border bg-muted/20 px-3 py-2 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-3">
+      <dt className="text-xs font-medium uppercase text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 break-words text-sm font-medium">{value}</dd>
+    </div>
+  )
+}
+
+function RenameItemDialog({
+  target,
+  value,
+  isPending,
+  onValueChange,
+  onClose,
+  onSubmit,
+}: {
+  target: FileBrowserItem | null
+  value: string
+  isPending: boolean
+  onValueChange: (value: string) => void
+  onClose: () => void
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+}) {
+  const targetType = target?.type ?? "item"
+  const originalName = target ? itemName(target) : ""
+  const canSubmit = value.trim().length > 0 && value.trim() !== originalName && !isPending
+
+  return (
+    <Dialog
+      open={target !== null}
+      onOpenChange={(open) => {
+        if (!open && !isPending) {
+          onClose()
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{`Rename ${targetType}`}</DialogTitle>
+          <DialogDescription>Change the display name used in this vault.</DialogDescription>
+        </DialogHeader>
+        <form id="rename-item-form" className="space-y-3" onSubmit={onSubmit}>
+          <label htmlFor="rename-item-name" className="text-sm font-medium">
+            Name
+          </label>
+          <Input
+            id="rename-item-name"
+            autoFocus
+            value={value}
+            maxLength={255}
+            disabled={isPending}
+            onChange={(event) => onValueChange(event.target.value)}
+          />
+        </form>
+        <DialogFooter>
+          <Button type="button" variant="outline" disabled={isPending} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" form="rename-item-form" disabled={!canSubmit}>
+            {isPending ? "Renaming..." : "Rename"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ItemInfoDialog({
+  target,
+  location,
+  onClose,
+}: {
+  target: FileBrowserItem | null
+  location: string
+  onClose: () => void
+}) {
+  return (
+    <Dialog open={target !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Info</DialogTitle>
+          <DialogDescription>Details for this vault item.</DialogDescription>
+        </DialogHeader>
+        {target ? (
+          <dl className="space-y-2">
+            <InfoRow label="Name" value={itemName(target)} />
+            <InfoRow label="Type" value={getItemKindLabel(target)} />
+            <InfoRow label="Location" value={location} />
+            {target.type === "document" ? (
+              <>
+                <InfoRow label="Size" value={formatBytes(target.document.originalSize)} />
+                <InfoRow label="Original file" value={target.document.originalName} />
+                <InfoRow label="MIME type" value={target.document.mimeType} />
+                <InfoRow label="Status" value={getDocumentStatusLabel(target.document)} />
+              </>
+            ) : null}
+            <InfoRow
+              label="Created"
+              value={formatDate(target.type === "folder" ? target.folder.createdAt : target.document.createdAt)}
+            />
+            <InfoRow
+              label="Updated"
+              value={formatDate(target.type === "folder" ? target.folder.updatedAt : target.document.updatedAt)}
+            />
+            <InfoRow label="ID" value={getItemId(target)} />
+          </dl>
+        ) : null}
+        <DialogFooter>
+          <Button type="button" onClick={onClose}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function TagPill({
+  name,
+  color,
+  subtle = false,
+}: {
+  name: string
+  color: string | null
+  subtle?: boolean
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex min-w-0 max-w-32 items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium",
+        subtle ? "text-muted-foreground" : "bg-secondary text-secondary-foreground"
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className="size-2 shrink-0 rounded-full"
+        style={{ backgroundColor: color ?? "#94a3b8" }}
+      />
+      <span className="truncate">{name}</span>
+    </span>
+  )
+}
+
+function DocumentTagsCell({
+  document,
+  availableTags,
+  disabled,
+  onAssignTag,
+  onOpenCreateTagDialog,
+  onRemoveTag,
+}: {
+  document: DocumentSummary
+  availableTags: Tag[]
+  disabled: boolean
+  onAssignTag: (documentId: string, tagId: string) => void
+  onOpenCreateTagDialog: (documentId: string, name: string) => void
+  onRemoveTag: (documentId: string, tagId: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [filter, setFilter] = useState("")
+  const tagAnchorRef = useRef<HTMLDivElement | null>(null)
+  const tagContentRef = useRef<HTMLDivElement | null>(null)
+  const assignedTags = document.tags ?? []
+  const assignedTagIds = useMemo(() => new Set(assignedTags.map((tag) => tag.id)), [assignedTags])
+  const normalizedFilter = filter.trim().toLowerCase()
+  const filteredTags = useMemo(
+    () =>
+      availableTags.filter((tag) =>
+        normalizedFilter.length === 0 ? true : tag.name.toLowerCase().includes(normalizedFilter)
+      ),
+    [availableTags, normalizedFilter]
+  )
+  const selectedTags = filteredTags.filter((tag) => assignedTagIds.has(tag.id))
+  const unselectedTags = filteredTags.filter((tag) => !assignedTagIds.has(tag.id))
+  const hasExactTagMatch = availableTags.some(
+    (tag) => tag.name.trim().toLowerCase() === normalizedFilter
+  )
+  const canCreateTag = normalizedFilter.length > 0 && !hasExactTagMatch
+
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen)
+    setFilter("")
+  }
+
+  useEffect(() => {
+    if (!open) return
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target
+      if (!(target instanceof Node)) return
+
+      if (tagAnchorRef.current?.contains(target) || tagContentRef.current?.contains(target)) {
+        return
+      }
+
+      setOpen(false)
+      setFilter("")
+    }
+
+    window.document.addEventListener("pointerdown", handlePointerDown, true)
+    return () => window.document.removeEventListener("pointerdown", handlePointerDown, true)
+  }, [open])
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverAnchor asChild>
+        <div
+          ref={tagAnchorRef}
+          className="flex min-w-0 items-center gap-1.5"
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            {assignedTags.slice(0, 3).map((tag) => (
+              <TagPill key={tag.id} name={tag.name} color={tag.color} />
+            ))}
+            {assignedTags.length > 3 ? (
+              <span className="rounded-md bg-secondary px-2 py-1 text-xs text-muted-foreground">
+                +{assignedTags.length - 3}
+              </span>
+            ) : null}
+          </div>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="size-7 shrink-0 rounded-md border-dashed"
+              aria-label={`Add tag to ${document.name}`}
+              disabled={disabled}
+            >
+              <Plus className="size-3.5" />
+            </Button>
+          </PopoverTrigger>
+        </div>
+      </PopoverAnchor>
+      <PopoverContent
+        ref={tagContentRef}
+        align="start"
+        avoidCollisions={false}
+        className="w-80 overflow-hidden rounded-md p-0"
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
+        <Input
+          value={filter}
+          autoFocus
+          placeholder="Filter tags..."
+          className="h-10 rounded-none border-x-0 border-t-0 focus-visible:ring-0"
+          onChange={(event) => setFilter(event.target.value)}
+        />
+        <div className="max-h-72 overflow-y-auto py-1">
+          {selectedTags.map((tag) => (
+            <button
+              key={tag.id}
+              type="button"
+              className="flex min-h-9 w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
+              onClick={() => {
+                onRemoveTag(document.id, tag.id)
+              }}
+            >
+              <span className="flex size-5 shrink-0 items-center justify-center rounded-md border border-primary bg-primary text-primary-foreground">
+                <Check className="size-3.5" strokeWidth={2.5} />
+              </span>
+              <TagPill name={tag.name} color={tag.color} subtle />
+            </button>
+          ))}
+          {selectedTags.length > 0 && unselectedTags.length > 0 ? (
+            <div className="my-1 border-t" />
+          ) : null}
+          {unselectedTags.map((tag) => (
+            <button
+              key={tag.id}
+              type="button"
+              className="flex min-h-9 w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
+              onClick={() => {
+                onAssignTag(document.id, tag.id)
+              }}
+            >
+              <span aria-hidden="true" className="size-5 shrink-0 rounded-md border border-input bg-background" />
+              <TagPill name={tag.name} color={tag.color} subtle />
+            </button>
+          ))}
+          {canCreateTag ? (
+            <>
+              {(selectedTags.length > 0 || unselectedTags.length > 0) ? (
+                <div className="my-1 border-t" />
+              ) : null}
+              <button
+                type="button"
+                className="flex min-h-10 w-full items-center gap-3 px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                onClick={() => {
+                  onOpenCreateTagDialog(document.id, filter.trim())
+                  setOpen(false)
+                }}
+              >
+                <Plus className="size-4" />
+                <span className="truncate">{`Create new tag "${filter.trim()}"`}</span>
+              </button>
+            </>
+          ) : null}
+          {selectedTags.length === 0 && unselectedTags.length === 0 && !canCreateTag ? (
+            <div className="px-3 py-3 text-sm text-muted-foreground">No tags found.</div>
+          ) : null}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 function ContentGrid({
   items,
   draggedItemKeys,
@@ -728,6 +1056,7 @@ function ContentGrid({
   onDropOnFolder,
   onOpenFolder,
   onOpenDocument,
+  onOpenContextMenu,
   onToggleItem,
 }: {
   items: FileBrowserItem[]
@@ -742,6 +1071,7 @@ function ContentGrid({
   onDropOnFolder: (event: DragEvent<HTMLElement>, folderId: string) => void
   onOpenFolder: (folder: FolderSummary) => void
   onOpenDocument: (document: DocumentSummary) => void
+  onOpenContextMenu: (event: MouseEvent<HTMLElement>, item: FileBrowserItem) => void
   onToggleItem: (item: FileBrowserItem, checked: boolean) => void
 }) {
   return (
@@ -775,6 +1105,7 @@ function ContentGrid({
                 onOpenDocument(item.document)
               }
             }}
+            onContextMenu={(event) => onOpenContextMenu(event, item)}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault()
@@ -825,11 +1156,6 @@ function ContentGrid({
                 )}
                 <span>{formatDate(updatedAt)}</span>
               </div>
-              {!isFolder ? (
-                <Badge variant="outline" className={cn("mt-2", getDocumentStatusClass(item.document))}>
-                  {getDocumentStatusLabel(item.document)}
-                </Badge>
-              ) : null}
             </CardContent>
           </Card>
         )
@@ -841,9 +1167,11 @@ function ContentGrid({
 function ContentList({
   items,
   allItemsSelected,
+  availableTags,
   draggedItemKeys,
   dropTarget,
   isDraggable,
+  tagMutationPending,
   selectedItemKeys,
   someItemsSelected,
   onDragEndItem,
@@ -853,14 +1181,20 @@ function ContentList({
   onDropOnFolder,
   onOpenFolder,
   onOpenDocument,
+  onOpenContextMenu,
+  onAssignTag,
+  onOpenCreateTagDialog,
+  onRemoveTag,
   onToggleAllItems,
   onToggleItem,
 }: {
   items: FileBrowserItem[]
   allItemsSelected: boolean
+  availableTags: Tag[]
   draggedItemKeys: Set<string>
   dropTarget: BrowserDropTarget | null
   isDraggable: boolean
+  tagMutationPending: boolean
   selectedItemKeys: Set<string>
   someItemsSelected: boolean
   onDragEndItem: () => void
@@ -870,12 +1204,16 @@ function ContentList({
   onDropOnFolder: (event: DragEvent<HTMLElement>, folderId: string) => void
   onOpenFolder: (folder: FolderSummary) => void
   onOpenDocument: (document: DocumentSummary) => void
+  onOpenContextMenu: (event: MouseEvent<HTMLElement>, item: FileBrowserItem) => void
+  onAssignTag: (documentId: string, tagId: string) => void
+  onOpenCreateTagDialog: (documentId: string, name: string) => void
+  onRemoveTag: (documentId: string, tagId: string) => void
   onToggleAllItems: (checked: boolean) => void
   onToggleItem: (item: FileBrowserItem, checked: boolean) => void
 }) {
   return (
     <div className="overflow-hidden border-y bg-background">
-      <div className="hidden grid-cols-[auto_minmax(0,1fr)_7rem_7.5rem_7rem] gap-3 border-b bg-muted/40 px-4 py-3 text-sm font-medium text-muted-foreground md:grid lg:px-6">
+      <div className="hidden grid-cols-[auto_minmax(0,1fr)_7rem_7.5rem_minmax(12rem,18rem)] gap-3 border-b bg-muted/40 px-4 py-3 text-sm font-medium text-muted-foreground md:grid lg:px-6">
         <Checkbox
           aria-label="Select all items"
           checked={allItemsSelected ? true : someItemsSelected ? "indeterminate" : false}
@@ -884,7 +1222,7 @@ function ContentList({
         <span>Name</span>
         <span>Type</span>
         <span>Modified</span>
-        <span>Status</span>
+        <span>Tags</span>
       </div>
       {items.map((item) => {
         const isFolder = item.type === "folder"
@@ -902,7 +1240,7 @@ function ContentList({
             tabIndex={0}
             draggable={isDraggable}
             className={cn(
-              "grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b px-4 py-4 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[auto_minmax(0,1fr)_7rem_7.5rem_7rem] lg:px-6",
+              "grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b px-4 py-4 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[auto_minmax(0,1fr)_7rem_7.5rem_minmax(12rem,18rem)] lg:px-6",
               isSelected && "bg-accent/40",
               draggedItemKeys.has(itemKey) && "opacity-55",
               isFolder && getFolderDropTargetClass(dropTarget, item.folder.id)
@@ -914,6 +1252,7 @@ function ContentList({
                 onOpenDocument(item.document)
               }
             }}
+            onContextMenu={(event) => onOpenContextMenu(event, item)}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault()
@@ -966,9 +1305,16 @@ function ContentList({
             {isFolder ? (
               <ChevronRight className="size-4 text-muted-foreground md:hidden" />
             ) : (
-              <Badge variant="outline" className={cn("hidden md:inline-flex", getDocumentStatusClass(item.document))}>
-                {getDocumentStatusLabel(item.document)}
-              </Badge>
+              <div className="hidden min-w-0 md:block">
+                <DocumentTagsCell
+                  document={item.document}
+                  availableTags={availableTags}
+                  disabled={tagMutationPending}
+                  onAssignTag={onAssignTag}
+                  onOpenCreateTagDialog={onOpenCreateTagDialog}
+                  onRemoveTag={onRemoveTag}
+                />
+              </div>
             )}
           </div>
         )
@@ -988,12 +1334,22 @@ export default function VaultWorkspacePage() {
   const [folders, setFolders] = useState<FolderTreeEntry[]>([])
   const [treeDocuments, setTreeDocuments] = useState<FolderTreeDocumentEntry[]>([])
   const [items, setItems] = useState<FileBrowserItem[]>([])
+  const [tags, setTags] = useState<Tag[]>([])
   const [vaultTreeExpandedValue, setVaultTreeExpandedValue] = useState<string[]>([
     VAULT_TREE_ROOT_VALUE,
   ])
   const [contextMenu, setContextMenu] = useState<VaultContextMenuState | null>(null)
+  const [itemContextMenu, setItemContextMenu] =
+    useState<VaultBrowserItemContextMenuState | null>(null)
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false)
   const [createFolderParentId, setCreateFolderParentId] = useState<string | null>(null)
+  const [renameTarget, setRenameTarget] = useState<FileBrowserItem | null>(null)
+  const [renameValue, setRenameValue] = useState("")
+  const [infoTarget, setInfoTarget] = useState<FileBrowserItem | null>(null)
+  const [createTagTargetDocumentId, setCreateTagTargetDocumentId] = useState<string | null>(null)
+  const [createTagName, setCreateTagName] = useState("")
+  const [createTagColor, setCreateTagColor] = useState(DEFAULT_TAG_COLOR)
+  const [createTagDescription, setCreateTagDescription] = useState("")
   const [selection, setSelection] = useState<BrowserSelectionState>(() => ({
     folderId: null,
     keys: new Set(),
@@ -1008,6 +1364,8 @@ export default function VaultWorkspacePage() {
   const [loadingTree, setLoadingTree] = useState(true)
   const [loadingItems, setLoadingItems] = useState(true)
   const [itemMutationPending, setItemMutationPending] = useState(false)
+  const [renameMutationPending, setRenameMutationPending] = useState(false)
+  const [tagMutationPending, setTagMutationPending] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const activeFolderId = searchParams.get("folderId")
   const normalizedFolderId = activeFolderId === "root" ? null : activeFolderId
@@ -1030,6 +1388,10 @@ export default function VaultWorkspacePage() {
     () => getMoveDestinations({ folders, targets: moveTargets }),
     [folders, moveTargets]
   )
+  const isCreateTagDialogDirty =
+    createTagName.trim().length > 0 ||
+    createTagDescription.trim().length > 0 ||
+    createTagColor !== DEFAULT_TAG_COLOR
 
   const selectFolder = useCallback((folderId: string | null) => {
     setSelection({ folderId, keys: new Set(), lastKey: null })
@@ -1040,16 +1402,59 @@ export default function VaultWorkspacePage() {
   const canCreateItems = canMoveItems
   const canDeleteItems = canMoveItems
 
+  const hydrateItemsWithDocumentTags = useCallback(async (nextItems: FileBrowserItem[]) => {
+    const documentItems = nextItems.filter((item) => item.type === "document")
+
+    if (documentItems.length === 0) {
+      return nextItems
+    }
+
+    const tagsByDocumentId = new Map<string, Tag[]>()
+
+    await Promise.all(
+      documentItems.map(async (item) => {
+        if (item.type !== "document") return
+
+        try {
+          const result = await listDocumentTags({ vaultId, documentId: item.document.id })
+          tagsByDocumentId.set(item.document.id, result.tags)
+        } catch {
+          tagsByDocumentId.set(item.document.id, item.document.tags ?? [])
+        }
+      })
+    )
+
+    return nextItems.map((item) => {
+      if (item.type !== "document") {
+        return item
+      }
+
+      return {
+        ...item,
+        document: {
+          ...item.document,
+          tags: tagsByDocumentId.get(item.document.id) ?? item.document.tags ?? [],
+        },
+      }
+    })
+  }, [vaultId])
+
   const refreshVaultContents = useCallback(async () => {
     const [treeResult, itemsResult] = await Promise.all([
       listFolderTree({ vaultId }),
       listFolderItems({ vaultId, folderId: normalizedFolderId }),
     ])
+    const hydratedItems = await hydrateItemsWithDocumentTags(itemsResult.items)
 
     setFolders(treeResult.folders)
     setTreeDocuments(treeResult.documents)
-    setItems(itemsResult.items)
-  }, [vaultId, normalizedFolderId])
+    setItems(hydratedItems)
+  }, [hydrateItemsWithDocumentTags, vaultId, normalizedFolderId])
+
+  const refreshTags = useCallback(async () => {
+    const result = await listTags()
+    setTags(result.tags)
+  }, [])
 
   const uploadSelectedFiles = useCallback(async (selectedFiles: UploadFileInput[]) => {
     if (!vaultId) {
@@ -1199,6 +1604,7 @@ export default function VaultWorkspacePage() {
       return
     }
 
+    setItemContextMenu(null)
     setMoveTargets(targets)
     setMoveDestinationId(getCommonBrowserItemParentId(targets) ?? null)
   }, [])
@@ -1208,6 +1614,26 @@ export default function VaultWorkspacePage() {
     setMoveDestinationId(null)
   }, [])
 
+  const openRenameDialog = useCallback((item: FileBrowserItem) => {
+    setItemContextMenu(null)
+    setRenameTarget(item)
+    setRenameValue(itemName(item))
+  }, [])
+
+  const closeRenameDialog = useCallback(() => {
+    if (renameMutationPending) {
+      return
+    }
+
+    setRenameTarget(null)
+    setRenameValue("")
+  }, [renameMutationPending])
+
+  const openInfoDialog = useCallback((item: FileBrowserItem) => {
+    setItemContextMenu(null)
+    setInfoTarget(item)
+  }, [])
+
   const handleBackgroundContextMenu = useCallback((event: MouseEvent<HTMLElement>) => {
     const target = event.target
     if (target instanceof Element && target.closest("[data-vault-browser-item]")) {
@@ -1215,12 +1641,57 @@ export default function VaultWorkspacePage() {
     }
 
     event.preventDefault()
+    event.stopPropagation()
+    setItemContextMenu(null)
     setContextMenu({
       x: event.clientX,
       y: event.clientY,
       vaultName: vault?.name ?? "Vault",
     })
   }, [vault?.name])
+
+  const handleItemContextMenu = useCallback((event: MouseEvent<HTMLElement>, item: FileBrowserItem) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setContextMenu(null)
+    setItemContextMenu({
+      item,
+      x: event.clientX,
+      y: event.clientY,
+    })
+  }, [])
+
+  const handleRenameSubmit = useCallback(async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    const nextName = renameValue.trim()
+    if (!vaultId || renameTarget === null || nextName.length === 0 || renameMutationPending) {
+      return
+    }
+
+    if (nextName === itemName(renameTarget)) {
+      closeRenameDialog()
+      return
+    }
+
+    setRenameMutationPending(true)
+    try {
+      if (renameTarget.type === "folder") {
+        await renameFolder({ vaultId, folderId: renameTarget.folder.id, name: nextName })
+      } else {
+        await renameDocument({ vaultId, documentId: renameTarget.document.id, name: nextName })
+      }
+
+      await refreshVaultContents()
+      setRenameTarget(null)
+      setRenameValue("")
+      toast.success("Item renamed.")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not rename item.")
+    } finally {
+      setRenameMutationPending(false)
+    }
+  }, [closeRenameDialog, refreshVaultContents, renameMutationPending, renameTarget, renameValue, vaultId])
 
   const handleMoveItems = useCallback(async ({
     targets,
@@ -1310,6 +1781,103 @@ export default function VaultWorkspacePage() {
       setItemMutationPending(false)
     }
   }, [clearSelection, itemMutationPending, refreshVaultContents, vaultId])
+
+  const handleAssignTag = useCallback(async (documentId: string, tagId: string) => {
+    if (!vaultId || tagMutationPending) {
+      return
+    }
+
+    setTagMutationPending(true)
+    try {
+      await assignTagToDocument({ vaultId, documentId, tagId })
+      await Promise.all([refreshVaultContents(), refreshTags()])
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not assign tag.")
+    } finally {
+      setTagMutationPending(false)
+    }
+  }, [refreshTags, refreshVaultContents, tagMutationPending, vaultId])
+
+  const handleRemoveTag = useCallback(async (documentId: string, tagId: string) => {
+    if (!vaultId || tagMutationPending) {
+      return
+    }
+
+    setTagMutationPending(true)
+    try {
+      await removeTagFromDocument({ vaultId, documentId, tagId })
+      await Promise.all([refreshVaultContents(), refreshTags()])
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not remove tag.")
+    } finally {
+      setTagMutationPending(false)
+    }
+  }, [refreshTags, refreshVaultContents, tagMutationPending, vaultId])
+
+  const openCreateTagDialog = useCallback((documentId: string, name: string) => {
+    setCreateTagTargetDocumentId(documentId)
+    setCreateTagName(name)
+    setCreateTagColor(DEFAULT_TAG_COLOR)
+    setCreateTagDescription("")
+  }, [])
+
+  const closeCreateTagDialog = useCallback(() => {
+    if (tagMutationPending) {
+      return
+    }
+
+    setCreateTagTargetDocumentId(null)
+    setCreateTagName("")
+    setCreateTagColor(DEFAULT_TAG_COLOR)
+    setCreateTagDescription("")
+  }, [tagMutationPending])
+
+  const handleCreateTagSubmit = useCallback(async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    const normalizedName = createTagName.trim()
+    if (
+      !vaultId ||
+      createTagTargetDocumentId === null ||
+      normalizedName.length === 0 ||
+      tagMutationPending
+    ) {
+      return
+    }
+
+    setTagMutationPending(true)
+    try {
+      const result = await createTag({
+        name: normalizedName,
+        color: createTagColor || null,
+        description: createTagDescription.trim() || null,
+      })
+      await assignTagToDocument({
+        vaultId,
+        documentId: createTagTargetDocumentId,
+        tagId: result.tag.id,
+      })
+      await Promise.all([refreshVaultContents(), refreshTags()])
+      setCreateTagTargetDocumentId(null)
+      setCreateTagName("")
+      setCreateTagColor(DEFAULT_TAG_COLOR)
+      setCreateTagDescription("")
+      toast.success("Tag created.")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not create tag.")
+    } finally {
+      setTagMutationPending(false)
+    }
+  }, [
+    createTagColor,
+    createTagDescription,
+    createTagName,
+    createTagTargetDocumentId,
+    refreshTags,
+    refreshVaultContents,
+    tagMutationPending,
+    vaultId,
+  ])
 
   const resetDragState = useCallback(() => {
     setDraggedItems([])
@@ -1458,9 +2026,10 @@ export default function VaultWorkspacePage() {
 
       try {
         const result = await listFolderItems({ vaultId, folderId: normalizedFolderId })
+        const hydratedItems = await hydrateItemsWithDocumentTags(result.items)
 
         if (!ignore) {
-          setItems(result.items)
+          setItems(hydratedItems)
         }
       } catch (error) {
         if (!ignore) {
@@ -1480,7 +2049,30 @@ export default function VaultWorkspacePage() {
     return () => {
       ignore = true
     }
-  }, [vaultId, normalizedFolderId])
+  }, [hydrateItemsWithDocumentTags, vaultId, normalizedFolderId])
+
+  useEffect(() => {
+    let ignore = false
+
+    async function loadTags() {
+      try {
+        const result = await listTags()
+        if (!ignore) {
+          setTags(result.tags)
+        }
+      } catch {
+        if (!ignore) {
+          setTags([])
+        }
+      }
+    }
+
+    void loadTags()
+
+    return () => {
+      ignore = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!vaultId) {
@@ -1508,10 +2100,39 @@ export default function VaultWorkspacePage() {
     navigate(`/vaults/${vaultId}/${document.id}`)
   }
 
+  function openBrowserItem(item: FileBrowserItem) {
+    if (item.type === "folder") {
+      selectFolder(item.folder.id)
+      return
+    }
+
+    openDocument(item.document)
+  }
+
+  function downloadDocument(item: Extract<FileBrowserItem, { type: "document" }>) {
+    window.location.assign(getDocumentDownloadUrl({ vaultId, documentId: item.document.id }))
+  }
+
+  function openDocumentVersions(item: Extract<FileBrowserItem, { type: "document" }>) {
+    navigate(`/vaults/${vaultId}/${item.document.id}?tab=versions`)
+  }
+
   const currentFolder = useMemo(
     () => folders.find((folder) => folder.id === normalizedFolderId) ?? null,
     [folders, normalizedFolderId]
   )
+  const infoLocation = useMemo(() => {
+    if (infoTarget === null) {
+      return "Vault root"
+    }
+
+    const parentId = getBrowserItemParentId(infoTarget)
+    if (parentId === null) {
+      return "Vault root"
+    }
+
+    return folders.find((folder) => folder.id === parentId)?.path ?? "Folder"
+  }, [folders, infoTarget])
   const emptyLocationLabel = normalizedFolderId === null ? "vault" : "folder"
   const folderCount = sortedItems.filter((item) => item.type === "folder").length
   const documentCount = sortedItems.length - folderCount
@@ -1567,6 +2188,37 @@ export default function VaultWorkspacePage() {
         onClose={closeMoveDialog}
         onSubmit={handleMoveSubmit}
       />
+      <RenameItemDialog
+        target={renameTarget}
+        value={renameValue}
+        isPending={renameMutationPending}
+        onValueChange={setRenameValue}
+        onClose={closeRenameDialog}
+        onSubmit={handleRenameSubmit}
+      />
+      <ItemInfoDialog
+        target={infoTarget}
+        location={infoLocation}
+        onClose={() => setInfoTarget(null)}
+      />
+      <TagFormDialog
+        open={createTagTargetDocumentId !== null}
+        mode="create"
+        isPending={tagMutationPending}
+        name={createTagName}
+        color={createTagColor}
+        description={createTagDescription}
+        isDirty={isCreateTagDialogDirty}
+        onNameChange={setCreateTagName}
+        onColorChange={setCreateTagColor}
+        onDescriptionChange={setCreateTagDescription}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeCreateTagDialog()
+          }
+        }}
+        onSubmit={handleCreateTagSubmit}
+      />
       <DeleteItemsConfirmDialog
         items={pendingTrashItems}
         isPending={itemMutationPending}
@@ -1589,6 +2241,25 @@ export default function VaultWorkspacePage() {
           onCreateFolder={() => openCreateFolderDialog(normalizedFolderId)}
           onUploadFiles={openUploadFiles}
           onUploadFolder={openUploadDirectory}
+        />
+      ) : null}
+      {itemContextMenu ? (
+        <VaultBrowserItemContextMenu
+          state={itemContextMenu}
+          canDeleteItems={canDeleteItems}
+          canMoveItems={canMoveItems}
+          itemMutationPending={itemMutationPending}
+          onClose={() => setItemContextMenu(null)}
+          onDownloadDocument={downloadDocument}
+          onOpenInfo={openInfoDialog}
+          onMoveItem={(item) => openMoveDialog([item])}
+          onOpenItem={openBrowserItem}
+          onRenameItem={openRenameDialog}
+          onTrashItem={(item) => {
+            setItemContextMenu(null)
+            setPendingTrashItems([item])
+          }}
+          onVersions={openDocumentVersions}
         />
       ) : null}
       <div className="px-4 md:px-6">
@@ -1643,6 +2314,7 @@ export default function VaultWorkspacePage() {
                     onSelectDocument={(selectedVaultId, documentId) => {
                       navigate(`/vaults/${selectedVaultId}/${documentId}`)
                     }}
+                    onOpenVaultContextMenu={(event) => handleBackgroundContextMenu(event)}
                     canMoveItems={canMoveItems}
                     itemMutationPending={itemMutationPending}
                     draggedItems={draggedItems}
@@ -1714,6 +2386,7 @@ export default function VaultWorkspacePage() {
                     onDropOnFolder={handleDropOnFolder}
                     onOpenFolder={(folder) => selectFolder(folder.id)}
                     onOpenDocument={openDocument}
+                    onOpenContextMenu={handleItemContextMenu}
                     onToggleItem={toggleBrowserItem}
                   />
                 </div>
@@ -1721,9 +2394,11 @@ export default function VaultWorkspacePage() {
                 <ContentList
                   items={sortedItems}
                   allItemsSelected={allItemsSelected}
+                  availableTags={tags}
                   draggedItemKeys={draggedItemKeys}
                   dropTarget={dropTarget}
                   isDraggable={canMoveItems && !itemMutationPending}
+                  tagMutationPending={tagMutationPending}
                   selectedItemKeys={selectedItemKeys}
                   someItemsSelected={someItemsSelected}
                   onDragEndItem={resetDragState}
@@ -1733,6 +2408,10 @@ export default function VaultWorkspacePage() {
                   onDropOnFolder={handleDropOnFolder}
                   onOpenFolder={(folder) => selectFolder(folder.id)}
                   onOpenDocument={openDocument}
+                  onOpenContextMenu={handleItemContextMenu}
+                  onAssignTag={handleAssignTag}
+                  onOpenCreateTagDialog={openCreateTagDialog}
+                  onRemoveTag={handleRemoveTag}
                   onToggleAllItems={toggleAllBrowserItems}
                   onToggleItem={toggleBrowserItem}
                 />

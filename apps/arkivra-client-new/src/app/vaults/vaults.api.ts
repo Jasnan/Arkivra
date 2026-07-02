@@ -82,6 +82,7 @@ export interface DocumentSummary {
   updatedAt: string
   isDeleted: boolean
   deletedAt: string | null
+  tags?: DocumentTagSummary[]
 }
 
 export interface DocumentLanguageMetadata {
@@ -89,6 +90,12 @@ export interface DocumentLanguageMetadata {
   name: string
   confidence?: number | null
   source: "docling" | "heuristic" | "user"
+}
+
+export interface DocumentTagSummary {
+  id: string
+  name: string
+  color: string | null
 }
 
 export type DocumentSemanticIndexStatus =
@@ -320,6 +327,22 @@ export async function createFolder({
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ parentId, name }),
+  })
+}
+
+export async function renameFolder({
+  vaultId,
+  folderId,
+  name,
+}: {
+  vaultId: string
+  folderId: string
+  name: string
+}) {
+  return fetchJson<FolderResponse>(`/api/vaults/${vaultId}/folders/${folderId}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name }),
   })
 }
 

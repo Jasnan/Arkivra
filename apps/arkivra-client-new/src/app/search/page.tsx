@@ -7,6 +7,7 @@ import {
   Check,
   ChevronsUpDown,
   Download,
+  Filter,
   FileSearch,
   Grid3X3,
   HardDrive,
@@ -17,6 +18,7 @@ import {
   SearchX,
   Sparkles,
   Trash2,
+  X,
 } from "lucide-react"
 import { Link, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
@@ -977,124 +979,203 @@ export default function SearchPage() {
 
   const activeFilterCount = selectedVaultIds.length + selectedTagIds.length + (dateFrom || dateTo ? 1 : 0)
   const isSearchFiltered = query.trim().length > 0 || activeFilterCount > 0 || sortBy !== "created_desc" || requestedSearchMode !== null
-  const searchControls = (
-    <div className="space-y-4">
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_auto_auto_auto]">
+  const activeFilterChips = [
+    ...selectedVaults.map((vault) => ({
+      key: `vault-${vault.id}`,
+      label: vault.name,
+      onRemove: () => updateParams({ vaultId: "", vaultIds: joinSearchList(selectedVaultIds.filter((value) => value !== vault.id)) }),
+    })),
+    ...selectedTags.map((tag) => ({
+      key: `tag-${tag.id}`,
+      label: tag.name,
+      onRemove: () => updateParams({ tagId: "", tagIds: joinSearchList(selectedTagIds.filter((value) => value !== tag.id)) }),
+    })),
+    ...(dateFrom || dateTo
+      ? [
+          {
+            key: "date",
+            label: dateFrom && dateTo ? `${dateFrom} - ${dateTo}` : dateFrom ? `From ${dateFrom}` : `Until ${dateTo}`,
+            onRemove: () => {
+              setDatePreset("any")
+              updateParams({ dateFrom: "", dateTo: "" })
+            },
+          },
+        ]
+      : []),
+  ]
+  const headerSearchControls = (
+    <div className="flex w-full min-w-0 flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+      <div className="relative min-w-0 flex-1">
+        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={query}
-          className="w-full cursor-text"
+          className="h-9 w-full cursor-text border-0 bg-transparent pr-3 pl-9 shadow-none focus-visible:ring-0"
           aria-label="Search documents"
-          placeholder="Search documents"
+          placeholder="Search documents..."
           onChange={(event) => setQuery(event.target.value)}
         />
-        {semanticSearchAvailable ? <SearchModeControl value={selectedSearchMode} onValueChange={(value) => updateParams({ searchMode: value })} /> : null}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button type="button" variant="outline" className="justify-between">
-              Sort: {sortOptions.find((option) => option.value === sortBy)?.label ?? "Recent"}
-              <ChevronsUpDown className="size-4 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Sort results</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuRadioGroup value={sortBy} onValueChange={(value) => isSearchSortBy(value) && updateParams({ sortBy: value })}>
-              {sortOptions.map((option) => (
-                <DropdownMenuRadioItem key={option.value} value={option.value}>
-                  {option.label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <div className="flex lg:justify-end">
+      </div>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {semanticSearchAvailable ? (
+            <SearchModeControl value={selectedSearchMode} onValueChange={(value) => updateParams({ searchMode: value })} />
+          ) : null}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                className={cn("relative px-3", activeFilterCount > 0 && "text-primary")}
+                aria-label={activeFilterCount > 0 ? `Open filters, ${activeFilterCount} active` : "Open filters"}
+              >
+                <Filter className="size-4" />
+                <span className="hidden sm:inline">Filter</span>
+                {activeFilterCount > 0 ? (
+                  <span className="absolute -top-1 -right-1 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground">
+                    {activeFilterCount}
+                  </span>
+                ) : null}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))] p-0">
+              <div className="flex items-center justify-between border-b px-4 py-3">
+                <div className="text-sm font-medium">Filters</div>
+                <Button type="button" variant="ghost" size="sm" disabled={!isSearchFiltered} onClick={resetFilters}>
+                  Reset
+                </Button>
+              </div>
+              <div className="grid gap-3 p-3">
+                <MultiSelectFilter
+                  label="Vaults"
+                  triggerLabel={selectedVaultsLabel}
+                  options={vaults.map((vault) => ({ value: vault.id, label: vault.name }))}
+                  selectedValues={selectedVaultIds}
+                  isLoading={loadingFilters}
+                  onValueChange={(values) => updateParams({ vaultId: "", vaultIds: joinSearchList(values) })}
+                  onClear={() => updateParams({ vaultId: "", vaultIds: "" })}
+                />
+                <MultiSelectFilter
+                  label="Tags"
+                  triggerLabel={selectedTagsLabel}
+                  options={tags.map((tag) => ({
+                    value: tag.id,
+                    label: tag.name,
+                    color: tag.color,
+                    meta: typeof tag.documentsCount === "number" ? `${tag.documentsCount} doc${tag.documentsCount === 1 ? "" : "s"}` : undefined,
+                  }))}
+                  selectedValues={selectedTagIds}
+                  isLoading={loadingFilters}
+                  onValueChange={(values) => updateParams({ tagId: "", tagIds: joinSearchList(values) })}
+                  onClear={() => updateParams({ tagId: "", tagIds: "" })}
+                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button type="button" variant="outline" className="justify-start">
+                      <CalendarDays className="size-4" />
+                      <span className="truncate">{dateFrom || dateTo ? "Date filtered" : "Any time"}</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-80">
+                    <div className="space-y-4">
+                      <div className="text-sm font-medium">Date modified</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { value: "any", label: "Any time" },
+                          { value: "last_7_days", label: "Last 7 days" },
+                          { value: "last_30_days", label: "Last 30 days" },
+                          { value: "custom", label: "Custom" },
+                        ].map((option) => (
+                          <Button
+                            key={option.value}
+                            type="button"
+                            variant={datePreset === option.value ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setPresetDateFilter(option.value as DatePreset)}
+                          >
+                            {option.label}
+                          </Button>
+                        ))}
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <div className="space-y-1">
+                          <label htmlFor="search-date-from" className="text-xs text-muted-foreground">From</label>
+                          <Input
+                            id="search-date-from"
+                            type="date"
+                            value={dateFrom}
+                            onChange={(event) => {
+                              setDatePreset("custom")
+                              updateParams({ dateFrom: event.target.value })
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label htmlFor="search-date-to" className="text-xs text-muted-foreground">To</label>
+                          <Input
+                            id="search-date-to"
+                            type="date"
+                            value={dateTo}
+                            onChange={(event) => {
+                              setDatePreset("custom")
+                              updateParams({ dateTo: event.target.value })
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </PopoverContent>
+          </Popover>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="ghost" className="justify-between px-3">
+                <span className="hidden sm:inline">Sort:</span>
+                {sortOptions.find((option) => option.value === sortBy)?.label ?? "Recent"}
+                <ChevronsUpDown className="size-4 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Sort results</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuRadioGroup value={sortBy} onValueChange={(value) => isSearchSortBy(value) && updateParams({ sortBy: value })}>
+                {sortOptions.map((option) => (
+                  <DropdownMenuRadioItem key={option.value} value={option.value}>
+                    {option.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button type="button" variant="ghost" size="icon" className="cursor-pointer" disabled={!isSearchFiltered} onClick={resetFilters} aria-label="Reset search filters">
+            <RefreshCcw className="h-4 w-4" />
+          </Button>
           <SearchViewToggle value={view} onValueChange={setView} />
         </div>
-      </div>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
-        <MultiSelectFilter
-          label="Vaults"
-          triggerLabel={selectedVaultsLabel}
-          options={vaults.map((vault) => ({ value: vault.id, label: vault.name }))}
-          selectedValues={selectedVaultIds}
-          isLoading={loadingFilters}
-          onValueChange={(values) => updateParams({ vaultId: "", vaultIds: joinSearchList(values) })}
-          onClear={() => updateParams({ vaultId: "", vaultIds: "" })}
-        />
-        <MultiSelectFilter
-          label="Tags"
-          triggerLabel={selectedTagsLabel}
-          options={tags.map((tag) => ({
-            value: tag.id,
-            label: tag.name,
-            color: tag.color,
-            meta: typeof tag.documentsCount === "number" ? `${tag.documentsCount} doc${tag.documentsCount === 1 ? "" : "s"}` : undefined,
-          }))}
-          selectedValues={selectedTagIds}
-          isLoading={loadingFilters}
-          onValueChange={(values) => updateParams({ tagId: "", tagIds: joinSearchList(values) })}
-          onClear={() => updateParams({ tagId: "", tagIds: "" })}
-        />
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button type="button" variant="outline" className="justify-start">
-              <CalendarDays className="size-4" />
-              <span className="truncate">{dateFrom || dateTo ? "Date filtered" : "Any time"}</span>
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-80">
-            <div className="space-y-4">
-              <div className="text-sm font-medium">Date modified</div>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { value: "any", label: "Any time" },
-                  { value: "last_7_days", label: "Last 7 days" },
-                  { value: "last_30_days", label: "Last 30 days" },
-                  { value: "custom", label: "Custom" },
-                ].map((option) => (
-                  <Button
-                    key={option.value}
-                    type="button"
-                    variant={datePreset === option.value ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setPresetDateFilter(option.value as DatePreset)}
-                  >
-                    {option.label}
-                  </Button>
-                ))}
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <label htmlFor="search-date-from" className="text-xs text-muted-foreground">From</label>
-                  <Input id="search-date-from" type="date" value={dateFrom} onChange={(event) => { setDatePreset("custom"); updateParams({ dateFrom: event.target.value }) }} />
-                </div>
-                <div className="space-y-1">
-                  <label htmlFor="search-date-to" className="text-xs text-muted-foreground">To</label>
-                  <Input id="search-date-to" type="date" value={dateTo} onChange={(event) => { setDatePreset("custom"); updateParams({ dateTo: event.target.value }) }} />
-                </div>
-              </div>
-            </div>
-          </PopoverContent>
-        </Popover>
-        <Button type="button" variant="outline" className="px-3 cursor-pointer" disabled={!isSearchFiltered} onClick={resetFilters}>
-          <RefreshCcw className="h-4 w-4" />
-          <span className="hidden lg:block">Reset Filters</span>
-        </Button>
-      </div>
     </div>
   )
+  const activeFilters = activeFilterChips.length > 0 ? (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-sm font-medium text-muted-foreground">Active filters:</span>
+      {activeFilterChips.map((filter) => (
+        <button
+          key={filter.key}
+          type="button"
+          className="inline-flex h-8 items-center gap-2 rounded-md border bg-muted/30 px-3 text-sm font-medium transition-colors hover:bg-muted"
+          onClick={filter.onRemove}
+        >
+          <span>{filter.label}</span>
+          <X className="size-3.5" />
+        </button>
+      ))}
+    </div>
+  ) : null
 
   return (
-    <BaseLayout hideHeaderSearch>
+    <BaseLayout hideHeaderSearch headerContent={headerSearchControls}>
       <div className="flex h-[calc(100svh-var(--header-height)-7.5rem)] min-h-0 flex-col gap-6 px-4 lg:h-[calc(100svh-var(--header-height)-8.5rem)] lg:px-6">
-        <div className="shrink-0">
-          <h1 className="text-2xl font-bold tracking-tight">Search Results</h1>
-          <p className="mt-1 text-muted-foreground">
-            View, filter, and manage documents across vaults you can access.
-          </p>
-        </div>
         <div className="flex min-h-0 flex-1 flex-col gap-6">
-          {searchControls}
+          {activeFilters}
           <div className="min-h-0 flex-1 overflow-auto">
             {!hasSearchCriteria ? (
               <div className="flex h-full min-h-[16rem] flex-col items-center justify-center rounded-md border p-8 text-center">
@@ -1143,7 +1224,6 @@ export default function SearchPage() {
           </div>
         </div>
       </div>
-
       <Dialog open={renameTarget !== null} onOpenChange={(open) => !open && setRenameTarget(null)}>
         <DialogContent>
           <DialogHeader>

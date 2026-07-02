@@ -8,7 +8,6 @@ import {
   FolderOpen,
   HardDrive,
   Home,
-  Info,
   MoveRight,
   Plus,
   Search,
@@ -893,7 +892,7 @@ function DocumentTagsCell({
   const [filter, setFilter] = useState("")
   const tagAnchorRef = useRef<HTMLDivElement | null>(null)
   const tagContentRef = useRef<HTMLDivElement | null>(null)
-  const assignedTags = document.tags ?? []
+  const assignedTags = useMemo(() => document.tags ?? [], [document.tags])
   const assignedTagIds = useMemo(() => new Set(assignedTags.map((tag) => tag.id)), [assignedTags])
   const normalizedFilter = filter.trim().toLowerCase()
   const filteredTags = useMemo(
@@ -2262,9 +2261,9 @@ export default function VaultWorkspacePage() {
           onVersions={openDocumentVersions}
         />
       ) : null}
-      <div className="px-4 md:px-6">
-        <div className="flex min-h-[calc(100vh-9rem)] flex-col overflow-hidden rounded-lg border bg-background">
-          <header className="flex shrink-0 items-start gap-3 border-b bg-background px-4 py-3 md:px-5">
+      <div className="-mt-4 md:-mt-6">
+        <div className="flex min-h-[calc(100vh-var(--header-height))] flex-col overflow-hidden bg-background">
+          <header className="flex shrink-0 items-start gap-3 border-b bg-background p-3">
             <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary md:size-12">
               {currentFolder ? <FolderOpen className="size-5" /> : <HardDrive className="size-5" />}
             </div>
@@ -2293,51 +2292,51 @@ export default function VaultWorkspacePage() {
             </div>
           </header>
           <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-          <aside className="flex h-56 shrink-0 flex-col border-b bg-muted/20 md:h-auto md:w-80 md:border-r md:border-b-0">
-            <ScrollArea className="min-h-0 flex-1">
-              <div className="p-2">
-                {loadingTree ? (
-                  <div className="px-2 py-3 text-sm text-muted-foreground">Loading tree...</div>
-                ) : (
-                  <VaultSidebarTree
-                    vaults={vault ? [{ id: vault.id, name: vault.name }] : []}
-                    activeVaultId={vaultId}
-                    activeVaultRootOnly
-                    expandedValue={vaultTreeExpandedValue}
-                    onExpandedValueChange={setVaultTreeExpandedValue}
-                    currentFolderId={normalizedFolderId}
-                    currentDocumentId={null}
-                    folders={folders}
-                    documents={treeDocuments}
-                    onSelectVault={() => selectFolder(null)}
-                    onSelectFolder={selectFolder}
-                    onSelectDocument={(selectedVaultId, documentId) => {
-                      navigate(`/vaults/${selectedVaultId}/${documentId}`)
-                    }}
-                    onOpenVaultContextMenu={(event) => handleBackgroundContextMenu(event)}
-                    canMoveItems={canMoveItems}
-                    itemMutationPending={itemMutationPending}
-                    draggedItems={draggedItems}
-                    dropTarget={dropTarget}
-                    onDragStartItem={handleItemDragStart}
-                    onDragEndItem={resetDragState}
-                    onDragOverFolder={handleDragOverFolder}
-                    onDragLeaveFolder={handleDragLeaveFolder}
-                    onDropOnFolder={handleDropOnFolder}
-                    onMoveItems={handleMoveItems}
-                  />
-                )}
-              </div>
-            </ScrollArea>
-          </aside>
-          <main className="flex min-w-0 flex-1 flex-col" onContextMenu={handleBackgroundContextMenu}>
-            <div
-              className="min-h-0 flex-1 overflow-auto p-4 lg:p-6"
-              onDragEnter={handleContentUploadDragEnter}
-              onDragOver={handleContentUploadDragOver}
-              onDragLeave={handleContentUploadDragLeave}
-              onDrop={handleContentUploadDrop}
-            >
+            <aside className="flex h-56 shrink-0 flex-col border-b bg-muted/20 md:h-auto md:w-80 md:border-r md:border-b-0">
+              <ScrollArea className="min-h-0 flex-1">
+                <div className="p-3">
+                  {loadingTree ? (
+                    <div className="px-2 py-3 text-sm text-muted-foreground">Loading tree...</div>
+                  ) : (
+                    <VaultSidebarTree
+                      vaults={vault ? [{ id: vault.id, name: vault.name }] : []}
+                      activeVaultId={vaultId}
+                      activeVaultRootOnly
+                      expandedValue={vaultTreeExpandedValue}
+                      onExpandedValueChange={setVaultTreeExpandedValue}
+                      currentFolderId={normalizedFolderId}
+                      currentDocumentId={null}
+                      folders={folders}
+                      documents={treeDocuments}
+                      onSelectVault={() => selectFolder(null)}
+                      onSelectFolder={selectFolder}
+                      onSelectDocument={(selectedVaultId, documentId) => {
+                        navigate(`/vaults/${selectedVaultId}/${documentId}`)
+                      }}
+                      onOpenVaultContextMenu={(event) => handleBackgroundContextMenu(event)}
+                      canMoveItems={canMoveItems}
+                      itemMutationPending={itemMutationPending}
+                      draggedItems={draggedItems}
+                      dropTarget={dropTarget}
+                      onDragStartItem={handleItemDragStart}
+                      onDragEndItem={resetDragState}
+                      onDragOverFolder={handleDragOverFolder}
+                      onDragLeaveFolder={handleDragLeaveFolder}
+                      onDropOnFolder={handleDropOnFolder}
+                      onMoveItems={handleMoveItems}
+                    />
+                  )}
+                </div>
+              </ScrollArea>
+            </aside>
+            <main className="flex min-w-0 flex-1 flex-col" onContextMenu={handleBackgroundContextMenu}>
+              <div
+                className="min-h-0 flex-1 overflow-auto p-3"
+                onDragEnter={handleContentUploadDragEnter}
+                onDragOver={handleContentUploadDragOver}
+                onDragLeave={handleContentUploadDragLeave}
+                onDrop={handleContentUploadDrop}
+              >
               {errorMessage ? (
                 <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
                   {errorMessage}

@@ -12,12 +12,14 @@ import {
   Settings,
   Search,
   Tags,
+  Trash2,
   Users,
   Bot,
 } from "lucide-react"
 import { Link } from "react-router-dom"
 import { Logo } from "@/components/logo"
 
+import { CommandSearch, SearchTrigger } from "@/components/command-search"
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
 import {
@@ -74,6 +76,11 @@ const data = {
           title: "Users",
           url: "/users",
           icon: Users,
+        },
+        {
+          title: "Trash",
+          url: "/trash",
+          icon: Trash2,
         },
       ],
     },
@@ -166,33 +173,54 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const [searchOpen, setSearchOpen] = React.useState(false)
+
+  React.useEffect(() => {
+    const down = (event: KeyboardEvent) => {
+      if (event.key === "k" && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault()
+        setSearchOpen((open) => !open)
+      }
+    }
+
+    document.addEventListener("keydown", down)
+    return () => document.removeEventListener("keydown", down)
+  }, [])
+
   return (
-    <Sidebar {...props}>
-      <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <Link to="/dashboard">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <Logo size={24} className="text-current" />
-                </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">Arkivra</span>
-                  <span className="truncate text-xs">Admin Dashboard</span>
-                </div>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarHeader>
-      <SidebarContent>
-        {data.navGroups.map((group) => (
-          <NavMain key={group.label} label={group.label} items={group.items} />
-        ))}
-      </SidebarContent>
-      <SidebarFooter>
-        <NavUser user={data.user} />
-      </SidebarFooter>
-    </Sidebar>
+    <>
+      <Sidebar {...props}>
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton size="lg" asChild>
+                <Link to="/dashboard">
+                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                    <Logo size={24} className="text-current" />
+                  </div>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-medium">Arkivra</span>
+                    <span className="truncate text-xs">Admin Dashboard</span>
+                  </div>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+          <SearchTrigger
+            className="h-10 rounded-lg px-3 md:w-full lg:w-full group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:sm:pr-0 group-data-[collapsible=icon]:[&_kbd]:hidden group-data-[collapsible=icon]:[&_span]:hidden group-data-[collapsible=icon]:[&_svg]:mr-0"
+            onClick={() => setSearchOpen(true)}
+          />
+        </SidebarHeader>
+        <SidebarContent>
+          {data.navGroups.map((group) => (
+            <NavMain key={group.label} label={group.label} items={group.items} />
+          ))}
+        </SidebarContent>
+        <SidebarFooter>
+          <NavUser user={data.user} />
+        </SidebarFooter>
+      </Sidebar>
+      <CommandSearch open={searchOpen} onOpenChange={setSearchOpen} />
+    </>
   )
 }

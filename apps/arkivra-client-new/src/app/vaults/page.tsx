@@ -93,7 +93,7 @@ function VaultGrid({ vaults, onOpenVault, onOpenContextMenu }: {
   onOpenContextMenu: (event: MouseEvent<HTMLElement>, vault: VaultSummary) => void
 }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(17rem,19rem))] justify-start gap-2">
       {vaults.map((vault) => {
         const description = getDescriptionPreview(getVaultDescription(vault.description))
 
@@ -112,22 +112,22 @@ function VaultGrid({ vaults, onOpenVault, onOpenContextMenu }: {
               }
             }}
           >
-            <CardContent className="flex min-h-40 flex-col items-center justify-center p-4 text-center">
-              <div className="flex size-12 items-center justify-center rounded-md bg-secondary text-secondary-foreground">
-                <Archive className="size-7" strokeWidth={1.7} />
+            <CardContent className="flex h-36 flex-col items-center justify-center p-3 text-center">
+              <div className="flex size-7 items-center justify-center rounded-md bg-secondary text-secondary-foreground">
+                <Archive className="size-3.5" strokeWidth={1.7} />
               </div>
-              <h2 className="mt-3 max-w-full truncate text-sm font-semibold">
+              <h2 className="mt-1.5 line-clamp-1 min-h-4 max-w-full text-sm font-semibold leading-4">
                 {vault.name}
               </h2>
               <p
                 className={cn(
-                  "mt-1 min-h-5 max-w-full truncate text-xs text-muted-foreground",
+                  "mt-0.5 line-clamp-2 min-h-6 max-w-full text-xs leading-3 text-muted-foreground",
                   !description && "invisible"
                 )}
               >
                 {description ?? "Description"}
               </p>
-              <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
+              <div className="mt-1.5 flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
                   <FileText className="size-3.5" />
                   {vault.fileCount} {vault.fileCount === 1 ? "file" : "files"}
@@ -137,7 +137,7 @@ function VaultGrid({ vaults, onOpenVault, onOpenContextMenu }: {
                   {formatBytes(vault.totalSize)}
                 </span>
               </div>
-              <Badge variant="outline" className={cn("mt-2", getParticipationBadgeClass(vault))}>
+              <Badge variant="outline" className={cn("mt-1 h-5 px-2 text-xs", getParticipationBadgeClass(vault))}>
                 {getParticipationLabel(vault)}
               </Badge>
             </CardContent>
@@ -154,8 +154,8 @@ function VaultList({ vaults, onOpenVault, onOpenContextMenu }: {
   onOpenContextMenu: (event: MouseEvent<HTMLElement>, vault: VaultSummary) => void
 }) {
   return (
-    <div className="overflow-hidden border-y bg-background">
-      <div className="hidden grid-cols-[minmax(0,1fr)_7rem_4rem_5.75rem_7.5rem] gap-3 border-b bg-muted/40 px-4 py-3 text-sm font-medium text-muted-foreground md:grid lg:px-6">
+    <div className="-mt-4 overflow-hidden border-b bg-background md:-mt-6">
+      <div className="hidden grid-cols-[minmax(0,1fr)_7rem_4rem_5.75rem_7.5rem] gap-2 border-b bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground md:grid lg:px-6">
         <span>Name</span>
         <span>Access</span>
         <span>Files</span>
@@ -168,7 +168,7 @@ function VaultList({ vaults, onOpenVault, onOpenContextMenu }: {
             key={vault.id}
             role="link"
             tabIndex={0}
-            className="grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b px-4 py-4 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[minmax(0,1fr)_7rem_4rem_5.75rem_7.5rem] lg:px-6"
+            className="grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b px-4 py-2 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[minmax(0,1fr)_7rem_4rem_5.75rem_7.5rem] lg:px-6"
             onClick={() => onOpenVault(vault)}
             onContextMenu={(event) => onOpenContextMenu(event, vault)}
             onKeyDown={(event) => {
@@ -178,13 +178,13 @@ function VaultList({ vaults, onOpenVault, onOpenContextMenu }: {
               }
             }}
           >
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-secondary text-secondary-foreground">
-                <Archive className="size-6" strokeWidth={1.7} />
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-secondary-foreground">
+                <Archive className="size-5" strokeWidth={1.7} />
               </div>
               <div className="min-w-0">
                 <div className="truncate font-medium">{vault.name}</div>
-                <div className="mt-1 truncate text-sm text-muted-foreground md:hidden">
+                <div className="mt-0.5 truncate text-xs text-muted-foreground md:hidden">
                   {getParticipationLabel(vault)} · {vault.fileCount} {vault.fileCount === 1 ? "file" : "files"} · {formatBytes(vault.totalSize)}
                 </div>
               </div>
@@ -295,7 +295,7 @@ export default function VaultsPage() {
   }
 
   return (
-    <BaseLayout title="Vaults" description="A vault is a workspace for storing, organizing, and sharing documents. Browse and manage the vaults you can access.">
+    <BaseLayout>
       {contextMenu ? (
         <VaultItemContextMenu
           state={contextMenu}

@@ -31,7 +31,7 @@ export function ImagePreviewFrame({
   return (
     <div
       className={cn(
-        "flex h-full min-h-0 flex-col overflow-hidden rounded-md border bg-muted/20",
+        "flex h-full min-h-0 flex-col overflow-hidden bg-muted/20",
         className
       )}
     >

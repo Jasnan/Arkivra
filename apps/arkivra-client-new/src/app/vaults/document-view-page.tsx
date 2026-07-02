@@ -22,12 +22,11 @@ import {
   X,
 } from "lucide-react"
 import { toast } from "sonner"
-import { useNavigate, useParams, useSearchParams } from "react-router-dom"
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -53,6 +52,7 @@ import { VaultContextMenu, type VaultContextMenuState } from "./components/vault
 import { VAULT_TREE_ROOT_VALUE, VaultSidebarTree } from "./components/vault-sidebar-tree"
 import {
   deleteDocumentVersion,
+  getMe,
   getDocument,
   getDocumentDownloadUrl,
   getDocumentInlineFileUrl,
@@ -60,23 +60,28 @@ import {
   getDocumentVersionDeletionImpact,
   getDocumentVersionDownloadUrl,
   getVault,
+  getDocumentDuplicateConflict,
+  listDeletedDocuments,
   listDocumentChunks,
   listDocumentVersionChunks,
   listDocumentVersions,
   listFolderTree,
   renameDocument,
+  restoreDocument,
   softDeleteDocument,
   restoreDocumentVersion,
   updateDocumentLanguage,
   type DeletionImpactPreview,
   type DocumentChunkSummary,
   type DocumentDetail,
+  type DocumentDuplicateConflict,
   type DocumentLanguageMetadata,
   type DocumentSummary,
   type DocumentVersionDetail,
   type DocumentVersionSummary,
   type FolderTreeDocumentEntry,
   type FolderTreeEntry,
+  type UploadConflictStrategy,
   type VaultDetail,
 } from "./vaults.api"
 
@@ -93,6 +98,19 @@ const editableDocumentLanguages = [
   { value: "es", label: "Spanish" },
   { value: "fr", label: "French" },
 ] as const
+
+function conflictStrategyLabel(strategy: UploadConflictStrategy) {
+  switch (strategy) {
+    case "skip":
+      return "Skip"
+    case "keep_both":
+      return "Keep both"
+    case "new_version":
+      return "New version"
+    default:
+      return strategy
+  }
+}
 
 function formatBytes(value: number) {
   if (!Number.isFinite(value) || value <= 0) return "0 B"
@@ -492,6 +510,7 @@ function DocumentMetadataPanel({
   onLanguageChange,
   onEditName,
   onEditLanguage,
+  editsDisabled = false,
   onCopyMetadataValue,
   onSubmit,
 }: {
@@ -507,6 +526,7 @@ function DocumentMetadataPanel({
   onLanguageChange: (value: string) => void
   onEditName: () => void
   onEditLanguage: () => void
+  editsDisabled?: boolean
   onCopyMetadataValue: (value: string, label: string) => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
 }) {
@@ -514,11 +534,11 @@ function DocumentMetadataPanel({
   const semanticIndexLabel = getSemanticIndexLabel(document)
 
   return (
-    <form className="mx-auto flex min-h-full max-w-6xl flex-col gap-4 pb-5" onSubmit={onSubmit}>
-      <Card className="rounded-md">
-        <CardHeader className="flex flex-row items-center justify-between gap-4">
-          <CardTitle className="text-base">Document metadata</CardTitle>
-          {isNameEditing || isLanguageEditing ? (
+    <form className="flex min-h-full flex-col gap-4" onSubmit={onSubmit}>
+      <section>
+        <div className="flex flex-row items-center justify-between gap-4">
+          <h2 className="text-base font-semibold">Document metadata</h2>
+          {!editsDisabled && (isNameEditing || isLanguageEditing) ? (
             <Button
               type="submit"
               size="sm"
@@ -527,20 +547,20 @@ function DocumentMetadataPanel({
               {isMetadataSaving ? "Saving..." : "Save"}
             </Button>
           ) : null}
-        </CardHeader>
-        <CardContent className="grid gap-5 md:grid-cols-2">
+        </div>
+        <div className="mt-5 grid gap-5 md:grid-cols-2">
           <MetadataItem icon={FileText} label="Original filename" value={document.originalName} copyValue={document.originalName} copyLabel="Original filename" onCopy={onCopyMetadataValue} />
 
           <MetadataItem
             icon={Info}
             label="Source language"
-            action={
+            action={!editsDisabled ? (
               <Button type="button" variant="ghost" size="icon" className="size-8 shrink-0" aria-label="Edit source language" onClick={onEditLanguage}>
                 <Pencil className="size-4" />
               </Button>
-            }
+            ) : null}
           >
-            {isLanguageEditing ? (
+            {!editsDisabled && isLanguageEditing ? (
               <Select value={currentLanguage} onValueChange={onLanguageChange}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select source language" />
@@ -564,13 +584,13 @@ function DocumentMetadataPanel({
             icon={FileText}
             label="Display name"
             className="md:col-span-2"
-            action={
+            action={!editsDisabled ? (
               <Button type="button" variant="ghost" size="icon" className="size-8 shrink-0" aria-label="Edit display name" onClick={onEditName}>
                 <Pencil className="size-4" />
               </Button>
-            }
+            ) : null}
           >
-            {isNameEditing ? (
+            {!editsDisabled && isNameEditing ? (
               <Input
                 id="document-name"
                 type="text"
@@ -608,9 +628,52 @@ function DocumentMetadataPanel({
             </div>
           </MetadataItem>
           <MetadataItem icon={Hash} label="Document ID" value={document.id} copyValue={document.id} copyLabel="Document ID" onCopy={onCopyMetadataValue} />
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </form>
+  )
+}
+
+function DocumentRestoreConflictDialog({
+  conflict,
+  isPending,
+  onClose,
+  onResolve,
+}: {
+  conflict: DocumentDuplicateConflict | null
+  isPending: boolean
+  onClose: () => void
+  onResolve: (strategy: UploadConflictStrategy) => void
+}) {
+  return (
+    <Dialog
+      open={conflict !== null}
+      onOpenChange={(open) => {
+        if (!open && !isPending) onClose()
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Document already exists</DialogTitle>
+          <DialogDescription>
+            {conflict?.message ?? "A document with this file already exists in this vault."}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          {conflict?.availableStrategies.map((strategy) => (
+            <Button
+              key={strategy}
+              type="button"
+              variant={strategy === "keep_both" ? "default" : "outline"}
+              disabled={isPending}
+              onClick={() => onResolve(strategy)}
+            >
+              {conflictStrategyLabel(strategy)}
+            </Button>
+          ))}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -657,15 +720,21 @@ function ImagePreviewFrame({
 function PreviewPanel({
   previewKind,
   document,
+  vaultId,
+  documentId,
   inlineFileUrl,
   downloadUrl,
   selectedVersionId,
+  aiFeaturesEnabled,
 }: {
   previewKind: PreviewKind
   document: DocumentDetail
+  vaultId: string
+  documentId: string
   inlineFileUrl: string
   downloadUrl: string
   selectedVersionId: string | null
+  aiFeaturesEnabled: boolean
 }) {
   const extractedContent = document.displayContent ?? document.content
 
@@ -686,6 +755,10 @@ function PreviewPanel({
         src={inlineFileUrl}
         documentName={document.name}
         downloadUrl={downloadUrl}
+        vaultId={vaultId}
+        documentId={documentId}
+        translationsDisabled={!aiFeaturesEnabled}
+        sourceLanguage={document.language}
       />
     )
   }
@@ -702,8 +775,8 @@ function PreviewPanel({
 
   if (previewKind === "text") {
     return (
-      <ScrollArea className="h-full min-h-0 rounded-md border bg-background">
-        <pre className="whitespace-pre-wrap break-words p-5 font-mono text-sm leading-6">
+      <ScrollArea className="h-full min-h-0 bg-background">
+        <pre className="whitespace-pre-wrap break-words font-mono text-sm leading-6">
           {extractedContent || "No text preview is available for this document."}
         </pre>
       </ScrollArea>
@@ -754,7 +827,7 @@ function EmptyPreview({
   downloadUrl: string
 }) {
   return (
-    <div className="flex h-full min-h-0 items-center justify-center rounded-md border bg-muted/20 p-8 text-center">
+    <div className="flex h-full min-h-0 items-center justify-center text-center">
       <div className="flex max-w-md flex-col items-center">
         <div className="flex size-16 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
           {icon}
@@ -783,7 +856,7 @@ function ChunkList({
 }) {
   if (loading) {
     return (
-      <div className="flex min-h-80 items-center justify-center gap-2 rounded-md border bg-muted/20 text-sm text-muted-foreground">
+      <div className="flex min-h-80 items-center justify-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" />
         Loading chunks...
       </div>
@@ -791,47 +864,50 @@ function ChunkList({
   }
 
   if (error) {
-    return <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{error}</div>
+    return <div className="bg-destructive/10 p-4 text-sm text-destructive">{error}</div>
   }
 
   if (chunks.length === 0) {
     return (
-      <div className="flex min-h-80 items-center justify-center rounded-md border bg-muted/20 p-6 text-center text-sm text-muted-foreground">
+      <div className="flex min-h-80 items-center justify-center p-6 text-center text-sm text-muted-foreground">
         No chunks are available for this document.
       </div>
     )
   }
 
   return (
-    <div className="space-y-3">
+    <div className="divide-y divide-border">
       {chunks.map((chunk) => (
-        <Card key={chunk.id} className="rounded-md">
-          <CardHeader className="pb-2">
+        <section key={chunk.id} className="py-4 first:pt-0 last:pb-0">
+          <div className="pb-2">
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <Badge variant="outline">Chunk {chunk.chunkIndex + 1}</Badge>
               {chunk.pageNumber ? <span>Page {chunk.pageNumber}</span> : null}
               {chunk.section ? <span>{chunk.section}</span> : null}
               {chunk.tokenCount ? <span>{chunk.tokenCount} tokens</span> : null}
             </div>
-          </CardHeader>
-          <CardContent>
-            <p className="whitespace-pre-wrap break-words text-sm leading-6">
-              {chunk.originalText || chunk.content}
-            </p>
-          </CardContent>
-        </Card>
+          </div>
+          <p className="whitespace-pre-wrap break-words text-sm leading-6">
+            {chunk.originalText || chunk.content}
+          </p>
+        </section>
       ))}
     </div>
   )
 }
 
 export default function DocumentViewPage() {
-  const { vaultId = "", documentId = "" } = useParams()
+  const params = useParams()
+  const location = useLocation()
+  const routeVaultId = params.vaultId ?? ""
+  const documentId = params.documentId ?? ""
+  const isTrashDocumentRoute = location.pathname.startsWith("/trash/")
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const requestedTab = searchParams.get("tab")
   const [document, setDocument] = useState<DocumentDetail | null>(null)
   const [vault, setVault] = useState<VaultDetail | null>(null)
+  const [trashVaultId, setTrashVaultId] = useState("")
   const [folders, setFolders] = useState<FolderTreeEntry[]>([])
   const [treeDocuments, setTreeDocuments] = useState<FolderTreeDocumentEntry[]>([])
   const [versions, setVersions] = useState<DocumentVersionSummary[]>([])
@@ -862,13 +938,17 @@ export default function DocumentViewPage() {
   const [isDeleteVersionPending, setIsDeleteVersionPending] = useState(false)
   const [isDeleteDocumentDialogOpen, setIsDeleteDocumentDialogOpen] = useState(false)
   const [isDeleteDocumentPending, setIsDeleteDocumentPending] = useState(false)
+  const [isRestoreDocumentPending, setIsRestoreDocumentPending] = useState(false)
+  const [restoreConflict, setRestoreConflict] = useState<DocumentDuplicateConflict | null>(null)
   const [vaultContextMenu, setVaultContextMenu] = useState<VaultContextMenuState | null>(null)
+  const [aiFeaturesEnabled, setAiFeaturesEnabled] = useState(true)
+  const vaultId = routeVaultId || trashVaultId
 
   useEffect(() => {
-    if (requestedTab === "versions") {
+    if (requestedTab === "versions" && !isTrashDocumentRoute) {
       setTab("versions")
     }
-  }, [requestedTab])
+  }, [isTrashDocumentRoute, requestedTab])
 
   useEffect(() => {
     let ignore = false
@@ -882,11 +962,29 @@ export default function DocumentViewPage() {
       setIsLanguageEditing(false)
 
       try {
+        let resolvedVaultId = routeVaultId
+
+        if (isTrashDocumentRoute) {
+          const deletedDocumentsResult = await listDeletedDocuments()
+          const deletedDocument = deletedDocumentsResult.documents.find((item) => item.id === documentId)
+
+          if (!deletedDocument) {
+            throw new Error("Document not found in trash.")
+          }
+
+          resolvedVaultId = deletedDocument.vaultId
+          if (!ignore) {
+            setTrashVaultId(deletedDocument.vaultId)
+          }
+        }
+
         const [documentResult, vaultResult, treeResult, versionsResult] = await Promise.all([
-          getDocument({ vaultId, documentId }),
-          getVault({ vaultId }),
-          listFolderTree({ vaultId }),
-          listDocumentVersions({ vaultId, documentId }),
+          getDocument({ vaultId: resolvedVaultId, documentId }),
+          getVault({ vaultId: resolvedVaultId }),
+          listFolderTree({ vaultId: resolvedVaultId }),
+          isTrashDocumentRoute
+            ? Promise.resolve({ versions: [] })
+            : listDocumentVersions({ vaultId: resolvedVaultId, documentId }),
         ])
 
         if (!ignore) {
@@ -895,6 +993,8 @@ export default function DocumentViewPage() {
           setFolders(treeResult.folders)
           setTreeDocuments(treeResult.documents)
           setVersions(versionsResult.versions)
+          setSelectedVersionId(null)
+          setSelectedVersion(null)
         }
       } catch (error) {
         if (!ignore) {
@@ -907,14 +1007,34 @@ export default function DocumentViewPage() {
       }
     }
 
-    if (vaultId && documentId) {
+    if ((routeVaultId || isTrashDocumentRoute) && documentId) {
       void loadDocument()
     }
 
     return () => {
       ignore = true
     }
-  }, [vaultId, documentId])
+  }, [documentId, isTrashDocumentRoute, routeVaultId])
+
+  useEffect(() => {
+    let ignore = false
+
+    void getMe()
+      .then((result) => {
+        if (!ignore) {
+          setAiFeaturesEnabled(result.aiFeaturesEnabled !== false)
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setAiFeaturesEnabled(true)
+        }
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [])
 
   useEffect(() => {
     let ignore = false
@@ -955,7 +1075,7 @@ export default function DocumentViewPage() {
     let ignore = false
 
     async function loadChunks() {
-      if (tab !== "content" || contentTab !== "chunks") return
+      if (isTrashDocumentRoute || tab !== "content" || contentTab !== "chunks") return
 
       setLoadingChunks(true)
       setChunksError(null)
@@ -985,7 +1105,13 @@ export default function DocumentViewPage() {
     return () => {
       ignore = true
     }
-  }, [contentTab, documentId, selectedVersionId, tab, vaultId])
+  }, [contentTab, documentId, isTrashDocumentRoute, selectedVersionId, tab, vaultId])
+
+  useEffect(() => {
+    if (isTrashDocumentRoute && (tab === "content" || tab === "versions")) {
+      setTab("preview")
+    }
+  }, [isTrashDocumentRoute, tab])
 
   const activeDocument = useMemo(() => {
     if (!document) return null
@@ -1003,11 +1129,11 @@ export default function DocumentViewPage() {
     : "unsupported"
   const downloadUrl =
     selectedVersionId === null
-      ? getDocumentDownloadUrl({ vaultId, documentId })
+      ? getDocumentDownloadUrl({ vaultId, documentId, includeDeleted: isTrashDocumentRoute })
       : getDocumentVersionDownloadUrl({ vaultId, documentId, versionId: selectedVersionId })
-  const currentDownloadUrl = getDocumentDownloadUrl({ vaultId, documentId })
-  const inlineFileUrl = getDocumentInlineFileUrl({ vaultId, documentId })
-  const canPrint = canPrintPreview(previewKind, selectedVersionId)
+  const currentDownloadUrl = getDocumentDownloadUrl({ vaultId, documentId, includeDeleted: isTrashDocumentRoute })
+  const inlineFileUrl = getDocumentInlineFileUrl({ vaultId, documentId, includeDeleted: isTrashDocumentRoute })
+  const canPrint = !isTrashDocumentRoute && canPrintPreview(previewKind, selectedVersionId)
   const extractedContent = activeDocument?.displayContent ?? activeDocument?.content ?? ""
   const extractedTextMessage = activeDocument
     ? getProcessingMessage(activeDocument, extractedContent)
@@ -1015,6 +1141,7 @@ export default function DocumentViewPage() {
   const vaultReturnPath = activeDocument?.folderId
     ? `/vaults/${vaultId}?folderId=${activeDocument.folderId}`
     : `/vaults/${vaultId}`
+  const documentReturnPath = isTrashDocumentRoute ? "/trash" : vaultReturnPath
   const currentName = renameValue ?? document?.name ?? ""
   const currentLanguage = languageValue ?? document?.language?.code ?? "unknown"
   const hasNameChanged = document ? currentName.trim() !== document.name : false
@@ -1120,11 +1247,39 @@ export default function DocumentViewPage() {
       await softDeleteDocument({ vaultId, documentId })
       toast.success("Document moved to trash.")
       setIsDeleteDocumentDialogOpen(false)
-      navigate(vaultReturnPath, { replace: true })
+      navigate(documentReturnPath, { replace: true })
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not delete document.")
     } finally {
       setIsDeleteDocumentPending(false)
+    }
+  }
+
+  async function handleRestoreDocument(conflictStrategy?: UploadConflictStrategy) {
+    if (!document || isRestoreDocumentPending) return
+
+    setIsRestoreDocumentPending(true)
+
+    try {
+      const result = await restoreDocument({ vaultId, documentId, conflictStrategy })
+      toast.success(result.skipped ? "Restore skipped." : "Document restored.")
+      setRestoreConflict(null)
+
+      if (isTrashDocumentRoute && !result.skipped) {
+        navigate("/trash", { replace: true })
+      } else if (!result.skipped) {
+        await refreshDocumentState()
+      }
+    } catch (error) {
+      const conflict = getDocumentDuplicateConflict(error)
+      if (conflict !== null && conflict.availableStrategies.length > 0) {
+        setRestoreConflict(conflict)
+        return
+      }
+
+      toast.error(error instanceof Error ? error.message : "Could not restore document.")
+    } finally {
+      setIsRestoreDocumentPending(false)
     }
   }
 
@@ -1226,8 +1381,8 @@ export default function DocumentViewPage() {
           onUploadFolder={() => undefined}
         />
       ) : null}
-      <div className="px-4 md:px-6">
-        <section className="flex h-[calc(100vh-8rem)] min-h-[640px] flex-col overflow-hidden rounded-lg border bg-background">
+      <div className="-mt-4 md:-mt-6">
+        <section className="flex h-[calc(100vh-var(--header-height))] min-h-[640px] flex-col overflow-hidden bg-background">
           {loadingDocument ? (
             <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
@@ -1239,7 +1394,7 @@ export default function DocumentViewPage() {
             </div>
           ) : (
             <>
-              <header className="flex shrink-0 items-start gap-3 border-b bg-background px-4 py-3 md:px-5">
+              <header className="flex shrink-0 items-start gap-3 border-b bg-background p-3">
                 <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-red-500/10 text-xs font-semibold text-red-600 dark:text-red-300 md:size-12">
                   {activeDocument.mimeType === "application/pdf" ? "PDF" : <FileText className="size-5" />}
                 </div>
@@ -1273,41 +1428,59 @@ export default function DocumentViewPage() {
                         <ImageIcon className="size-4" />
                         Preview
                       </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => setTab("content")}>
-                        <ScanText className="size-4" />
-                        Text and chunks
-                      </DropdownMenuItem>
+                      {!isTrashDocumentRoute ? (
+                        <DropdownMenuItem onSelect={() => setTab("content")}>
+                          <ScanText className="size-4" />
+                          Text and chunks
+                        </DropdownMenuItem>
+                      ) : null}
                       <DropdownMenuItem onSelect={() => setTab("metadata")}>
                         <Info className="size-4" />
                         Metadata
                       </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => setTab("versions")}>
-                        <RefreshCw className="size-4" />
-                        Versions
-                      </DropdownMenuItem>
+                      {!isTrashDocumentRoute ? (
+                        <DropdownMenuItem onSelect={() => setTab("versions")}>
+                          <RefreshCw className="size-4" />
+                          Versions
+                        </DropdownMenuItem>
+                      ) : null}
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem asChild>
-                        <a href={currentDownloadUrl}>
-                          <Download className="size-4" />
-                          Download latest
-                        </a>
-                      </DropdownMenuItem>
+                      {!isTrashDocumentRoute ? (
+                        <DropdownMenuItem asChild>
+                          <a href={currentDownloadUrl}>
+                            <Download className="size-4" />
+                            Download latest
+                          </a>
+                        </DropdownMenuItem>
+                      ) : null}
                       <DropdownMenuItem disabled={!canPrint} onSelect={handlePrintDocument}>
                         <Printer className="size-4" />
                         Print
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        disabled={isDeleteDocumentPending}
-                        onSelect={() => setIsDeleteDocumentDialogOpen(true)}
-                      >
-                        <Trash2 className="size-4" />
-                        {isDeleteDocumentPending ? "Deleting..." : "Delete"}
-                      </DropdownMenuItem>
+                      {isTrashDocumentRoute ? (
+                        <DropdownMenuItem
+                          disabled={isRestoreDocumentPending}
+                          onSelect={() => {
+                            void handleRestoreDocument()
+                          }}
+                        >
+                          <RotateCcw className="size-4" />
+                          {isRestoreDocumentPending ? "Restoring..." : "Restore"}
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          disabled={isDeleteDocumentPending}
+                          onSelect={() => setIsDeleteDocumentDialogOpen(true)}
+                        >
+                          <Trash2 className="size-4" />
+                          {isDeleteDocumentPending ? "Deleting..." : "Delete"}
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
-                  <Button type="button" variant="outline" size="icon" aria-label="Close document detail" onClick={() => navigate(vaultReturnPath)}>
+                  <Button type="button" variant="outline" size="icon" aria-label="Close document detail" onClick={() => navigate(documentReturnPath)}>
                     <X className="size-4" />
                   </Button>
                 </div>
@@ -1336,7 +1509,7 @@ export default function DocumentViewPage() {
               <div className="flex min-h-0 flex-1 flex-col md:flex-row">
                 <aside className="flex h-56 shrink-0 flex-col border-b bg-muted/20 md:h-auto md:w-80 md:border-r md:border-b-0">
                   <ScrollArea className="min-h-0 flex-1">
-                    <div className="p-2">
+                    <div className="p-3">
                       {vault ? (
                         <VaultSidebarTree
                           vaults={[{ id: vault.id, name: vault.name }]}
@@ -1364,19 +1537,22 @@ export default function DocumentViewPage() {
                   </ScrollArea>
                 </aside>
 
-                <div className="min-h-0 flex-1 p-3 md:p-5">
+                <div className="min-h-0 flex-1">
                 {tab === "preview" ? (
                   <PreviewPanel
                     previewKind={previewKind}
                     document={activeDocument}
+                    vaultId={vaultId}
+                    documentId={documentId}
                     inlineFileUrl={inlineFileUrl}
                     downloadUrl={downloadUrl}
                     selectedVersionId={selectedVersionId}
+                    aiFeaturesEnabled={!isTrashDocumentRoute && aiFeaturesEnabled}
                   />
                 ) : null}
 
-                {tab === "content" ? (
-                  <div className="flex h-full min-h-0 flex-col gap-3">
+                {tab === "content" && !isTrashDocumentRoute ? (
+                  <div className="flex h-full min-h-0 flex-col gap-3 p-3">
                     <div className="flex shrink-0 rounded-md border p-1">
                       <Button
                         type="button"
@@ -1396,8 +1572,8 @@ export default function DocumentViewPage() {
                       </Button>
                     </div>
                     {contentTab === "text" ? (
-                      <ScrollArea className="min-h-0 flex-1 rounded-md border bg-background">
-                        <pre className="whitespace-pre-wrap break-words p-5 font-mono text-sm leading-6">{extractedTextMessage}</pre>
+                      <ScrollArea className="min-h-0 flex-1 bg-background">
+                        <pre className="whitespace-pre-wrap break-words font-mono text-sm leading-6">{extractedTextMessage}</pre>
                       </ScrollArea>
                     ) : (
                       <ScrollArea className="min-h-0 flex-1">
@@ -1408,7 +1584,7 @@ export default function DocumentViewPage() {
                 ) : null}
 
                 {tab === "metadata" ? (
-                  <ScrollArea className="h-full">
+                  <ScrollArea className="h-full p-3">
                     <DocumentMetadataPanel
                       document={document}
                       currentName={currentName}
@@ -1422,6 +1598,7 @@ export default function DocumentViewPage() {
                       onLanguageChange={setLanguageValue}
                       onEditName={() => setIsNameEditing(true)}
                       onEditLanguage={() => setIsLanguageEditing(true)}
+                      editsDisabled={isTrashDocumentRoute}
                       onCopyMetadataValue={(value, label) => {
                         void copyMetadataValue(value, label)
                       }}
@@ -1430,16 +1607,16 @@ export default function DocumentViewPage() {
                   </ScrollArea>
                 ) : null}
 
-                {tab === "versions" ? (
-                  <ScrollArea className="h-full">
-                    <Card className="gap-0 rounded-lg shadow-sm">
-                      <CardHeader>
-                        <CardTitle className="text-2xl">Versions</CardTitle>
-                        <CardDescription className="text-base">
+                {tab === "versions" && !isTrashDocumentRoute ? (
+                  <ScrollArea className="h-full p-3">
+                    <section>
+                      <div>
+                        <h2 className="text-2xl font-semibold tracking-tight">Versions</h2>
+                        <p className="mt-1 text-base text-muted-foreground">
                           Review, download, restore, or delete uploaded document versions.
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="pt-6">
+                        </p>
+                      </div>
+                      <div className="pt-6">
                         {versions.length === 0 ? (
                           <p className="text-sm text-muted-foreground">No historical versions are available.</p>
                         ) : (
@@ -1521,8 +1698,8 @@ export default function DocumentViewPage() {
                             })}
                           </div>
                         )}
-                      </CardContent>
-                    </Card>
+                      </div>
+                    </section>
                   </ScrollArea>
                 ) : null}
                 </div>
@@ -1583,6 +1760,14 @@ export default function DocumentViewPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <DocumentRestoreConflictDialog
+        conflict={restoreConflict}
+        isPending={isRestoreDocumentPending}
+        onClose={() => setRestoreConflict(null)}
+        onResolve={(strategy) => {
+          void handleRestoreDocument(strategy)
+        }}
+      />
       <Dialog
         open={versionPendingRestore !== null}
         onOpenChange={(open) => {

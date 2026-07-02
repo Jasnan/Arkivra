@@ -10,6 +10,49 @@ interface PermissionRequestResponse {
 
 export type VaultRole = "owner" | "editor" | "viewer"
 export type AiAccessLevel = "none" | "full"
+export type UploadConflictStrategy = "skip" | "keep_both" | "new_version"
+
+export interface DocumentDuplicateConflict {
+  message: string
+  existingId: string | null
+  conflictType: string
+  availableStrategies: UploadConflictStrategy[]
+}
+
+export type DocumentTranslationLanguage = "de" | "en"
+
+export type DocumentTranslationSource =
+  | {
+      type: "page-image"
+      pageNumber: number
+      imageBase64: string
+      mimeType: "image/png"
+    }
+  | {
+      type: "area-image"
+      pageNumber: number
+      imageBase64: string
+      mimeType: "image/png"
+      rect: {
+        x: number
+        y: number
+        width: number
+        height: number
+      }
+    }
+  | {
+      type: "text"
+      pageNumber?: number
+      text: string
+    }
+
+export interface DocumentTranslation {
+  targetLanguage: DocumentTranslationLanguage
+  text: string
+  provider: string
+  model: string
+  sourceType: DocumentTranslationSource["type"]
+}
 
 export interface VaultSummary {
   id: string
@@ -83,6 +126,11 @@ export interface DocumentSummary {
   isDeleted: boolean
   deletedAt: string | null
   tags?: DocumentTagSummary[]
+}
+
+export interface DeletedDocumentSummary extends DocumentSummary {
+  vaultId: string
+  vaultName: string
 }
 
 export interface DocumentLanguageMetadata {
@@ -234,6 +282,11 @@ interface DocumentResponse {
   document: DocumentDetail
 }
 
+interface DeletedDocumentsResponse {
+  documents: DeletedDocumentSummary[]
+  retentionDays: number
+}
+
 interface DocumentChunksResponse {
   chunks: DocumentChunkSummary[]
 }
@@ -250,6 +303,14 @@ interface VersionDeletionImpactResponse {
   impact: DeletionImpactPreview
 }
 
+interface DocumentDeletionImpactResponse {
+  impact: DocumentDeletionImpactPreview
+}
+
+interface BulkDocumentDeletionImpactResponse {
+  impact: BulkDocumentDeletionImpactPreview
+}
+
 export interface DeletionImpactConversation {
   id: string
   title: string
@@ -261,6 +322,16 @@ export interface DeletionImpactPreview {
   affectedConversationCount: number
   affectedConversations: DeletionImpactConversation[]
   limit: number
+}
+
+export interface DocumentDeletionImpactPreview extends DeletionImpactPreview {
+  versionCount: number
+}
+
+export interface BulkDocumentDeletionImpactPreview {
+  documentCount: number
+  versionCount: number
+  affectedConversationCount: number
 }
 
 export function isPermissionRequestResponse(
@@ -440,6 +511,18 @@ export async function getDocument({
   return fetchJson<DocumentResponse>(`/api/vaults/${vaultId}/documents/${documentId}`)
 }
 
+export async function listDeletedDocuments({ vaultId }: { vaultId?: string } = {}) {
+  const params = new URLSearchParams()
+
+  if (vaultId) {
+    params.set("vaultId", vaultId)
+  }
+
+  const suffix = params.toString().length > 0 ? `?${params.toString()}` : ""
+
+  return fetchJson<DeletedDocumentsResponse>(`/api/trash${suffix}`)
+}
+
 export async function listDocumentChunks({
   vaultId,
   documentId,
@@ -502,6 +585,70 @@ export async function softDeleteDocument({
   })
 }
 
+export async function restoreDocument({
+  vaultId,
+  documentId,
+  conflictStrategy,
+}: {
+  vaultId: string
+  documentId: string
+  conflictStrategy?: UploadConflictStrategy
+}) {
+  return fetchJson<{
+    document: { id: string; folderId: string | null; originalName: string } | null
+    message?: string
+    skipped?: boolean
+    existingId?: string | null
+    conflictType?: string
+  }>(`/api/vaults/${vaultId}/documents/${documentId}/restore`, {
+    method: "POST",
+    ...(conflictStrategy === undefined
+      ? {}
+      : {
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ conflictStrategy }),
+        }),
+  })
+}
+
+function isUploadConflictStrategy(value: unknown): value is UploadConflictStrategy {
+  return value === "skip" || value === "keep_both" || value === "new_version"
+}
+
+export function getDocumentDuplicateConflict(error: unknown): DocumentDuplicateConflict | null {
+  if (!(error instanceof ApiError) || error.status !== 409) {
+    return null
+  }
+
+  if (error.code !== "document.duplicate" && error.code !== "document.name_conflict") {
+    return null
+  }
+
+  const details = error.details ?? {}
+  const availableStrategies = Array.isArray(details.availableStrategies)
+    ? details.availableStrategies.filter(isUploadConflictStrategy)
+    : []
+
+  return {
+    message: error.message,
+    existingId: typeof details.existingId === "string" ? details.existingId : null,
+    conflictType: typeof details.conflictType === "string" ? details.conflictType : "hash",
+    availableStrategies,
+  }
+}
+
+export async function permanentlyDeleteDocument({
+  vaultId,
+  documentId,
+}: {
+  vaultId: string
+  documentId: string
+}) {
+  return fetchJson<void>(`/api/vaults/${vaultId}/documents/${documentId}/permanent`, {
+    method: "DELETE",
+  })
+}
+
 export async function restoreDocumentVersion({
   vaultId,
   documentId,
@@ -557,14 +704,57 @@ export async function getDocumentVersionDeletionImpact({
   )
 }
 
-export function getDocumentDownloadUrl({
+export async function getDocumentDeletionImpact({
   vaultId,
   documentId,
+  includeDeleted = false,
+  limit,
 }: {
   vaultId: string
   documentId: string
+  includeDeleted?: boolean
+  limit?: number
 }) {
-  return `/api/vaults/${vaultId}/documents/${documentId}/download`
+  const params = new URLSearchParams()
+  if (includeDeleted) {
+    params.set("includeDeleted", "true")
+  }
+  if (limit !== undefined) {
+    params.set("limit", String(limit))
+  }
+
+  const suffix = params.toString().length > 0 ? `?${params.toString()}` : ""
+
+  return fetchJson<DocumentDeletionImpactResponse>(
+    `/api/vaults/${vaultId}/documents/${documentId}/deletion-impact${suffix}`
+  )
+}
+
+export async function getBulkDocumentDeletionImpact({
+  documents,
+  includeDeleted = false,
+}: {
+  documents: Array<{ vaultId: string; documentId: string }>
+  includeDeleted?: boolean
+}) {
+  return fetchJson<BulkDocumentDeletionImpactResponse>("/api/documents/deletion-impact", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ documents, includeDeleted }),
+  })
+}
+
+export function getDocumentDownloadUrl({
+  vaultId,
+  documentId,
+  includeDeleted = false,
+}: {
+  vaultId: string
+  documentId: string
+  includeDeleted?: boolean
+}) {
+  const suffix = includeDeleted ? "?includeDeleted=true" : ""
+  return `/api/vaults/${vaultId}/documents/${documentId}/download${suffix}`
 }
 
 export function getDocumentVersionDownloadUrl({
@@ -582,21 +772,26 @@ export function getDocumentVersionDownloadUrl({
 export function getDocumentInlineFileUrl({
   vaultId,
   documentId,
+  includeDeleted = false,
 }: {
   vaultId: string
   documentId: string
+  includeDeleted?: boolean
 }) {
-  return `/api/vaults/${vaultId}/documents/${documentId}/file`
+  const suffix = includeDeleted ? "?includeDeleted=true" : ""
+  return `/api/vaults/${vaultId}/documents/${documentId}/file${suffix}`
 }
 
 export async function getDocumentFileText({
   vaultId,
   documentId,
+  includeDeleted = false,
 }: {
   vaultId: string
   documentId: string
+  includeDeleted?: boolean
 }) {
-  const response = await fetch(getDocumentInlineFileUrl({ vaultId, documentId }), {
+  const response = await fetch(getDocumentInlineFileUrl({ vaultId, documentId, includeDeleted }), {
     credentials: "include",
   })
 
@@ -605,6 +800,30 @@ export async function getDocumentFileText({
   }
 
   return response.text()
+}
+
+export async function translateDocument({
+  vaultId,
+  documentId,
+  targetLanguage,
+  source,
+  signal,
+}: {
+  vaultId: string
+  documentId: string
+  targetLanguage: DocumentTranslationLanguage
+  source: DocumentTranslationSource
+  signal?: AbortSignal
+}) {
+  return fetchJson<{ translation: DocumentTranslation }>(
+    `/api/vaults/${vaultId}/documents/${documentId}/translations`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ targetLanguage, source }),
+      signal,
+    }
+  )
 }
 
 export function getDocumentPagePreviewUrl({

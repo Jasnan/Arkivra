@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react"
 import { Link } from "react-router-dom"
-import { Files, MoreHorizontal, Pencil, Plus, Tags, Trash2, X } from "lucide-react"
+import { Files, MoreHorizontal, Pencil, Plus, Search, Tags, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { BaseLayout } from "@/components/layouts/base-layout"
@@ -495,14 +495,17 @@ export default function TagsPage() {
   }
 
   const tagControls = (
-    <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_auto]">
-      <Input
-        value={filterText}
-        className="w-full cursor-text"
-        aria-label="Search tags"
-        placeholder="Search tags"
-        onChange={(event) => setFilterText(event.target.value)}
-      />
+    <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="relative min-w-0 flex-1">
+        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={filterText}
+            className="h-9 w-full cursor-text border-0 bg-transparent pr-3 pl-9 shadow-none focus-visible:ring-0"
+            aria-label="Search tags"
+            placeholder="Search tags"
+            onChange={(event) => setFilterText(event.target.value)}
+          />
+      </div>
       <Button ref={createButtonRef} type="button" onClick={openCreateDialog}>
         <Plus className="size-4" />
         New tag
@@ -511,14 +514,9 @@ export default function TagsPage() {
   )
 
   return (
-    <BaseLayout hideHeaderSearch>
+    <BaseLayout hideHeaderSearch headerContent={tagControls}>
       <div className="flex h-[calc(100svh-var(--header-height)-7.5rem)] min-h-0 flex-col gap-6 px-4 lg:h-[calc(100svh-var(--header-height)-8.5rem)] lg:px-6">
-        <div className="shrink-0">
-          <h1 className="text-2xl font-bold tracking-tight">Tags</h1>
-          <p className="mt-1 text-muted-foreground">Manage labels used to organize documents.</p>
-        </div>
         <div className="flex min-h-0 flex-1 flex-col gap-6">
-          {tagControls}
           <div className="min-h-0 flex-1 overflow-auto">
             {loadingTags ? (
               <div className="flex h-full min-h-[16rem] items-center justify-center rounded-md border text-sm text-muted-foreground">Loading tags...</div>

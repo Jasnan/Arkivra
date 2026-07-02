@@ -8,6 +8,7 @@ const Dashboard2 = lazy(() => import('@/app/dashboard-2/page'))
 const Vaults = lazy(() => import('@/app/vaults/page'))
 const VaultWorkspace = lazy(() => import('@/app/vaults/vault-workspace-page'))
 const DocumentView = lazy(() => import('@/app/vaults/document-view-page'))
+const Trash = lazy(() => import('@/app/vaults/trash-page'))
 const Search = lazy(() => import('@/app/search/page'))
 const Tags = lazy(() => import('@/app/tags/page'))
 const Tasks = lazy(() => import('@/app/tasks/page'))
@@ -102,6 +103,14 @@ export const routes: RouteConfig[] = [
   },
   {
     path: "/vaults/:vaultId/:documentId",
+    element: <DocumentView />
+  },
+  {
+    path: "/trash",
+    element: <Trash />
+  },
+  {
+    path: "/trash/:documentId",
     element: <DocumentView />
   },
   {

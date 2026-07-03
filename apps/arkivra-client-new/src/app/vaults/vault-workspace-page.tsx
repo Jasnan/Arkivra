@@ -57,7 +57,9 @@ import {
   type UploadFileInput,
 } from "./upload-file-rules"
 import {
+  getDocument,
   getDocumentDownloadUrl,
+  getMe,
   listFolderItems,
   moveDocument,
   moveFolder,
@@ -66,6 +68,8 @@ import {
   softDeleteDocument,
   softDeleteFolder,
   type DocumentSummary,
+  type DocumentSemanticIndexSummary,
+  type DocumentDetail,
   type FileBrowserItem,
   type FolderSummary,
   type FolderTreeEntry,
@@ -145,12 +149,6 @@ function formatDate(value: string | null | undefined) {
     month: "short",
     year: "numeric",
   }).format(date)
-}
-
-function getDocumentStatusLabel(document: DocumentSummary) {
-  if (!document.processingStatus) return "Ready"
-  if (document.processingStatus === "completed") return "Ready"
-  return document.processingStatus
 }
 
 function itemName(item: FileBrowserItem) {
@@ -257,6 +255,75 @@ function getMoveDestinations({
       depth: folder.depth + 1,
     })),
   ]
+}
+
+function canUseVaultChat(vault: { aiAccessLevel?: string } | null | undefined) {
+  return vault?.aiAccessLevel === "full"
+}
+
+function getVaultChatUrl(vaultId: string) {
+  return `/chat?vaultId=${encodeURIComponent(vaultId)}`
+}
+
+function getDocumentChatUrl({
+  vaultId,
+  documentId,
+  documentName,
+}: {
+  vaultId: string
+  documentId: string
+  documentName?: string
+}) {
+  const params = new URLSearchParams({
+    vaultId,
+    documentId,
+  })
+
+  if (documentName?.trim()) {
+    params.set("documentName", documentName)
+  }
+
+  return `/chat?${params.toString()}`
+}
+
+function getVaultItemLocationPath({
+  item,
+  folders,
+  vaultName,
+}: {
+  item: FileBrowserItem
+  folders: FolderTreeEntry[]
+  vaultName: string
+}) {
+  const rootName = vaultName.trim() || "Vault"
+  const pathSegments = [rootName]
+
+  if (item.type === "folder") {
+    const folderPath = folders.find((folder) => folder.id === item.folder.id)?.path
+
+    if (folderPath) {
+      pathSegments.push(...folderPath.split("/").filter(Boolean))
+    } else {
+      const parentPath = item.folder.parentId
+        ? folders.find((folder) => folder.id === item.folder.parentId)?.path
+        : null
+
+      if (parentPath) {
+        pathSegments.push(...parentPath.split("/").filter(Boolean))
+      }
+      pathSegments.push(item.folder.name)
+    }
+  } else {
+    const parentPath = item.document.folderId
+      ? folders.find((folder) => folder.id === item.document.folderId)?.path
+      : null
+
+    if (parentPath) {
+      pathSegments.push(...parentPath.split("/").filter(Boolean))
+    }
+  }
+
+  return `/${pathSegments.join("/")}`
 }
 
 function getMoveDialogTitle(targets: FileBrowserItem[]) {
@@ -723,12 +790,37 @@ function getItemId(item: FileBrowserItem) {
   return item.type === "folder" ? item.folder.id : item.document.id
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function getDocumentIndexingStatusLabel(document: DocumentSummary & { semanticIndex?: DocumentSemanticIndexSummary | null }) {
+  const semanticIndex = document.semanticIndex
+
+  if (!semanticIndex) return "Not Indexed"
+
+  return semanticIndex.expectedChunkCount > 0 &&
+    semanticIndex.embeddedChunkCount >= semanticIndex.expectedChunkCount
+    ? "Indexed"
+    : "Not Indexed"
+}
+
+function getDocumentParsingStatusLabel(document: DocumentSummary) {
+  const status = document.processingStatus ?? "unknown"
+  return `${status.charAt(0).toLocaleUpperCase()}${status.slice(1)}`
+}
+
+function getDocumentTagsLabel(document: DocumentSummary) {
+  const tags = document.tags ?? []
+  if (tags.length === 0) return "None"
+
+  return tags.map((tag) => tag.name).join(", ")
+}
+
+function InfoRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="grid gap-1 rounded-md border bg-muted/20 px-3 py-2 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-3">
-      <dt className="text-xs font-medium uppercase text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 break-words text-sm font-medium">{value}</dd>
-    </div>
+    <tr className="border-b last:border-b-0">
+      <th scope="row" className="w-36 bg-muted/30 px-3 py-2 text-left align-top text-xs font-medium uppercase text-muted-foreground">
+        {label}
+      </th>
+      <td className="min-w-0 break-words px-3 py-2 align-top text-sm font-medium">{value}</td>
+    </tr>
   )
 }
 
@@ -794,42 +886,105 @@ function RenameItemDialog({
 function ItemInfoDialog({
   target,
   location,
+  vaultId,
   onClose,
 }: {
   target: FileBrowserItem | null
   location: string
+  vaultId: string
   onClose: () => void
 }) {
+  const [documentDetail, setDocumentDetail] = useState<DocumentDetail | null>(null)
+  const [isLoadingDocumentDetail, setIsLoadingDocumentDetail] = useState(false)
+
+  useEffect(() => {
+    let ignore = false
+
+    async function loadDocumentDetail() {
+      if (target?.type !== "document" || !vaultId) {
+        setDocumentDetail(null)
+        setIsLoadingDocumentDetail(false)
+        return
+      }
+
+      setIsLoadingDocumentDetail(true)
+
+      try {
+        const result = await getDocument({ vaultId, documentId: target.document.id })
+        if (!ignore) {
+          setDocumentDetail(result.document)
+        }
+      } catch {
+        if (!ignore) {
+          setDocumentDetail(null)
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingDocumentDetail(false)
+        }
+      }
+    }
+
+    void loadDocumentDetail()
+
+    return () => {
+      ignore = true
+    }
+  }, [target, vaultId])
+
+  const infoDocument = target?.type === "document" ? (documentDetail ?? target.document) : null
+
   return (
     <Dialog open={target !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Info</DialogTitle>
-          <DialogDescription>Details for this vault item.</DialogDescription>
         </DialogHeader>
         {target ? (
-          <dl className="space-y-2">
-            <InfoRow label="Name" value={itemName(target)} />
-            <InfoRow label="Type" value={getItemKindLabel(target)} />
-            <InfoRow label="Location" value={location} />
-            {target.type === "document" ? (
-              <>
-                <InfoRow label="Size" value={formatBytes(target.document.originalSize)} />
-                <InfoRow label="Original file" value={target.document.originalName} />
-                <InfoRow label="MIME type" value={target.document.mimeType} />
-                <InfoRow label="Status" value={getDocumentStatusLabel(target.document)} />
-              </>
-            ) : null}
-            <InfoRow
-              label="Created"
-              value={formatDate(target.type === "folder" ? target.folder.createdAt : target.document.createdAt)}
-            />
-            <InfoRow
-              label="Updated"
-              value={formatDate(target.type === "folder" ? target.folder.updatedAt : target.document.updatedAt)}
-            />
-            <InfoRow label="ID" value={getItemId(target)} />
-          </dl>
+          <div className="overflow-hidden rounded-md border">
+            <table className="w-full table-fixed border-collapse">
+              <tbody>
+                {target.type === "document" ? (
+                  <>
+                    <InfoRow label="ID" value={target.document.id} />
+                    <InfoRow label="File name" value={target.document.originalName} />
+                    <InfoRow label="Display name" value={target.document.name} />
+                    <InfoRow label="MIME type" value={target.document.mimeType} />
+                    <InfoRow label="Created" value={formatDate(target.document.createdAt)} />
+                    <InfoRow label="Location" value={location} />
+                    <InfoRow
+                      label="Status"
+                      value={
+                        <span className="flex flex-wrap gap-x-4 gap-y-1">
+                          <span>
+                            <span className="text-muted-foreground">Parsing:</span>{" "}
+                            {getDocumentParsingStatusLabel(target.document)}
+                          </span>
+                          <span>
+                            <span className="text-muted-foreground">Indexing:</span>{" "}
+                            {isLoadingDocumentDetail || infoDocument === null
+                              ? "Loading..."
+                              : getDocumentIndexingStatusLabel(infoDocument)}
+                          </span>
+                        </span>
+                      }
+                    />
+                    <InfoRow label="Size" value={formatBytes(target.document.originalSize)} />
+                    <InfoRow label="Tags" value={getDocumentTagsLabel(target.document)} />
+                  </>
+                ) : (
+                  <>
+                    <InfoRow label="ID" value={getItemId(target)} />
+                    <InfoRow label="Name" value={itemName(target)} />
+                    <InfoRow label="Type" value={getItemKindLabel(target)} />
+                    <InfoRow label="Location" value={location} />
+                    <InfoRow label="Created" value={formatDate(target.folder.createdAt)} />
+                    <InfoRow label="Updated" value={formatDate(target.folder.updatedAt)} />
+                  </>
+                )}
+              </tbody>
+            </table>
+          </div>
         ) : null}
         <DialogFooter>
           <Button type="button" onClick={onClose}>
@@ -1385,6 +1540,7 @@ export default function VaultWorkspacePage() {
   const [renameMutationPending, setRenameMutationPending] = useState(false)
   const [tagMutationPending, setTagMutationPending] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [aiFeaturesEnabled, setAiFeaturesEnabled] = useState(true)
   const activeFolderId = searchParams.get("folderId")
   const normalizedFolderId = activeFolderId === "root" ? null : activeFolderId
 
@@ -1419,6 +1575,7 @@ export default function VaultWorkspacePage() {
   const canMoveItems = vault?.role === "owner" || vault?.role === "editor"
   const canCreateItems = canMoveItems
   const canDeleteItems = canMoveItems
+  const showVaultChatAction = aiFeaturesEnabled && canUseVaultChat(vault)
 
   const hydrateItemsWithDocumentTags = useCallback(async (nextItems: FileBrowserItem[]) => {
     const documentItems = nextItems.filter((item) => item.type === "document")
@@ -1988,12 +2145,34 @@ export default function VaultWorkspacePage() {
     <>
       <VaultUploadMenu
         disabled={!vaultId}
+        showChat={showVaultChatAction}
+        onOpenChat={() => navigate(getVaultChatUrl(vaultId))}
         onUploadFiles={openUploadFiles}
         onUploadFolder={openUploadDirectory}
       />
       <VaultsViewToggle />
     </>
-  ), [openUploadDirectory, openUploadFiles, vaultId])
+  ), [navigate, openUploadDirectory, openUploadFiles, showVaultChatAction, vaultId])
+
+  useEffect(() => {
+    let ignore = false
+
+    void getMe()
+      .then((result) => {
+        if (!ignore) {
+          setAiFeaturesEnabled(result.aiFeaturesEnabled !== false)
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setAiFeaturesEnabled(true)
+        }
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [])
 
   useEffect(() => {
     let ignore = false
@@ -2095,22 +2274,29 @@ export default function VaultWorkspacePage() {
     navigate(`/vaults/${vaultId}/${item.document.id}?tab=versions`)
   }
 
+  function openDocumentChat(item: Extract<FileBrowserItem, { type: "document" }>) {
+    navigate(getDocumentChatUrl({
+      vaultId,
+      documentId: item.document.id,
+      documentName: item.document.name,
+    }))
+  }
+
   const currentFolder = useMemo(
     () => folders.find((folder) => folder.id === normalizedFolderId) ?? null,
     [folders, normalizedFolderId]
   )
   const infoLocation = useMemo(() => {
     if (infoTarget === null) {
-      return "Vault root"
+      return `/${vault?.name?.trim() || "Vault"}`
     }
 
-    const parentId = getBrowserItemParentId(infoTarget)
-    if (parentId === null) {
-      return "Vault root"
-    }
-
-    return folders.find((folder) => folder.id === parentId)?.path ?? "Folder"
-  }, [folders, infoTarget])
+    return getVaultItemLocationPath({
+      item: infoTarget,
+      folders,
+      vaultName: vault?.name ?? "Vault",
+    })
+  }, [folders, infoTarget, vault?.name])
   const emptyLocationLabel = normalizedFolderId === null ? "vault" : "folder"
   const folderCount = sortedItems.filter((item) => item.type === "folder").length
   const documentCount = sortedItems.length - folderCount
@@ -2195,6 +2381,7 @@ export default function VaultWorkspacePage() {
         navigate(`/vaults/${selectedVaultId}/${documentId}`)
       },
       onOpenVaultContextMenu: (event) => handleBackgroundContextMenu(event),
+      onOpenItemContextMenu: handleItemContextMenu,
       canMoveItems,
       itemMutationPending,
       draggedItems,
@@ -2214,6 +2401,7 @@ export default function VaultWorkspacePage() {
     handleDragLeaveFolder,
     handleDragOverFolder,
     handleDropOnFolder,
+    handleItemContextMenu,
     handleItemDragStart,
     handleMoveItems,
     itemMutationPending,
@@ -2285,6 +2473,7 @@ export default function VaultWorkspacePage() {
       <ItemInfoDialog
         target={infoTarget}
         location={infoLocation}
+        vaultId={vaultId}
         onClose={() => setInfoTarget(null)}
       />
       <TagFormDialog
@@ -2337,6 +2526,7 @@ export default function VaultWorkspacePage() {
           itemMutationPending={itemMutationPending}
           onClose={() => setItemContextMenu(null)}
           onDownloadDocument={downloadDocument}
+          onOpenChat={showVaultChatAction ? openDocumentChat : undefined}
           onOpenInfo={openInfoDialog}
           onMoveItem={(item) => openMoveDialog([item])}
           onOpenItem={openBrowserItem}

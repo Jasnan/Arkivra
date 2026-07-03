@@ -45,6 +45,7 @@ interface VaultRouteSidebarConfig {
   onSelectFolder?: (folderId: string | null) => void
   onSelectDocument?: (vaultId: string, documentId: string) => void
   onOpenVaultContextMenu?: (event: MouseEvent<HTMLElement>, vaultId: string) => void
+  onOpenItemContextMenu?: (event: MouseEvent<HTMLElement>, item: FileBrowserItem) => void
   canMoveItems?: boolean
   itemMutationPending?: boolean
   draggedItems?: FileBrowserItem[]
@@ -241,6 +242,7 @@ export default function VaultRouteShell() {
                         onSelectFolder={selectFolder}
                         onSelectDocument={selectDocument}
                         onOpenVaultContextMenu={sidebarConfig.onOpenVaultContextMenu}
+                        onOpenItemContextMenu={sidebarConfig.onOpenItemContextMenu}
                         canMoveItems={sidebarConfig.canMoveItems}
                         itemMutationPending={sidebarConfig.itemMutationPending}
                         draggedItems={sidebarConfig.draggedItems}

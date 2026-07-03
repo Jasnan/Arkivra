@@ -62,6 +62,8 @@ import {
 
 interface ChatProps {
   selectedConversationId?: string
+  initialContext?: DraftChatContext
+  inputPlaceholder?: string
   onConversationCreated?: (chatId: string) => void
   onConversationSelected?: (chatId: string) => void
   onConversationCleared?: () => void
@@ -69,19 +71,33 @@ interface ChatProps {
 
 export function Chat({
   selectedConversationId,
+  initialContext,
+  inputPlaceholder = "Ask across your documents...",
   onConversationCreated,
   onConversationSelected,
   onConversationCleared,
 }: ChatProps) {
+  const normalizedInitialContext = useMemo(
+    () => normalizeDraftContext(initialContext ?? createEmptyDraftContext()),
+    [initialContext]
+  )
+  const initialContextSignature = useMemo(
+    () => JSON.stringify(normalizedInitialContext),
+    [normalizedInitialContext]
+  )
+  const hasInitialContext =
+    normalizedInitialContext.vaults.length > 0 || normalizedInitialContext.documents.length > 0
   const [conversations, setConversations] = useState<ChatConversation[]>([])
   const [messagesByConversationId, setMessagesByConversationId] = useState<Record<string, ChatMessage[]>>({})
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(selectedConversationId ?? null)
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(
+    selectedConversationId ?? (hasInitialContext ? NEW_CHAT_DRAFT_ID : null)
+  )
   const [searchQuery, setSearchQuery] = useState("")
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isLoadingConversations, setIsLoadingConversations] = useState(true)
   const [isLoadingSelectedConversation, setIsLoadingSelectedConversation] = useState(false)
   const [aiFeaturesEnabled, setAiFeaturesEnabled] = useState(true)
-  const [draftContext, setDraftContext] = useState<DraftChatContext>(() => createEmptyDraftContext())
+  const [draftContext, setDraftContext] = useState<DraftChatContext>(() => normalizedInitialContext)
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false)
   const [isDocumentDialogOpen, setIsDocumentDialogOpen] = useState(false)
   const [pendingForkContext, setPendingForkContext] = useState<DraftChatContext | null>(null)
@@ -104,6 +120,7 @@ export function Chat({
   const [localRuntimeMessagesByChatId, setLocalRuntimeMessagesByChatId] = useState<Record<string, ChatMessage[]>>({})
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const previousSelectedConversationIdRef = useRef(selectedConversationId)
+  const previousInitialContextSignatureRef = useRef(initialContextSignature)
   const activeRuntimeChatIdRef = useRef("")
   const hasManualResponseModeRef = useRef(false)
   const vaultsQuery = useChatContextVaults()
@@ -375,6 +392,29 @@ export function Chat({
       return selectedConversationId ?? null
     })
   }, [resetComposerState, runtimeHandle, selectedConversation, selectedConversationId])
+
+  useEffect(() => {
+    if (initialContextSignature === previousInitialContextSignatureRef.current) return
+
+    previousInitialContextSignatureRef.current = initialContextSignature
+    if (selectedConversationId) return
+
+    void runtimeHandle?.stop().catch(() => undefined)
+    resetComposerState()
+    setDraftContext(normalizedInitialContext)
+    setSelectedConversation(hasInitialContext ? NEW_CHAT_DRAFT_ID : null)
+    setMessagesByConversationId((current) => {
+      if (!hasInitialContext) return current
+      return { ...current, [NEW_CHAT_DRAFT_ID]: [] }
+    })
+  }, [
+    hasInitialContext,
+    initialContextSignature,
+    normalizedInitialContext,
+    resetComposerState,
+    runtimeHandle,
+    selectedConversationId,
+  ])
 
   useEffect(() => {
     if (!effectiveSelectedChatId || selectedLocalRuntimeMessages === undefined) return
@@ -711,7 +751,7 @@ export function Chat({
                 )}
                 <MessageInput
                   disabled={composerDisabled}
-                  placeholder="Ask across your documents..."
+                  placeholder={inputPlaceholder}
                   context={hydratedDraftContext}
                   contextLocked={isContextLocked}
                   onAddVaults={() => setIsVaultDialogOpen(true)}

@@ -11,6 +11,7 @@ import {
   Image as ImageIcon,
   Info,
   Loader2,
+  MessageSquare,
   MoreHorizontal,
   Pencil,
   Printer,
@@ -184,6 +185,31 @@ function isProcessingActive(status: DocumentSummary["processingStatus"]) {
 
 function canPrintPreview(previewKind: PreviewKind, selectedVersionId: string | null) {
   return selectedVersionId === null && (previewKind === "pdf" || previewKind === "image" || previewKind === "text")
+}
+
+function canUseVaultChat(vault: { aiAccessLevel?: string } | null | undefined) {
+  return vault?.aiAccessLevel === "full"
+}
+
+function getDocumentChatUrl({
+  vaultId,
+  documentId,
+  documentName,
+}: {
+  vaultId: string
+  documentId: string
+  documentName?: string
+}) {
+  const params = new URLSearchParams({
+    vaultId,
+    documentId,
+  })
+
+  if (documentName?.trim()) {
+    params.set("documentName", documentName)
+  }
+
+  return `/chat?${params.toString()}`
 }
 
 function escapeHtml(value: string) {
@@ -1153,6 +1179,10 @@ export default function DocumentViewPage() {
   const currentDownloadUrl = getDocumentDownloadUrl({ vaultId, documentId, includeDeleted: isTrashDocumentRoute })
   const inlineFileUrl = getDocumentInlineFileUrl({ vaultId, documentId, includeDeleted: isTrashDocumentRoute })
   const canPrint = !isTrashDocumentRoute && canPrintPreview(previewKind, selectedVersionId)
+  const showDocumentChatAction = !isTrashDocumentRoute && aiFeaturesEnabled && canUseVaultChat(vault)
+  const documentChatUrl = activeDocument
+    ? getDocumentChatUrl({ vaultId, documentId, documentName: activeDocument.name })
+    : ""
   const extractedContent = activeDocument?.displayContent ?? activeDocument?.content ?? ""
   const extractedTextMessage = activeDocument
     ? getProcessingMessage(activeDocument, extractedContent)
@@ -1470,6 +1500,12 @@ export default function DocumentViewPage() {
                 <RefreshCw className="size-4" />
                 Versions
               </DropdownMenuItem>
+              {showDocumentChatAction ? (
+                <DropdownMenuItem onSelect={() => navigate(documentChatUrl)}>
+                  <MessageSquare className="size-4" />
+                  Chat
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <a href={currentDownloadUrl}>
@@ -1504,10 +1540,12 @@ export default function DocumentViewPage() {
     canPrint,
     currentDownloadUrl,
     document,
+    documentChatUrl,
     documentId,
     documentReturnPath,
     errorMessage,
     handlePrintDocument,
+    showDocumentChatAction,
     isDeleteDocumentPending,
     loadingDocument,
     navigate,
@@ -1829,6 +1867,12 @@ export default function DocumentViewPage() {
                         <DropdownMenuItem onSelect={() => setTab("versions")}>
                           <RefreshCw className="size-4" />
                           Versions
+                        </DropdownMenuItem>
+                      ) : null}
+                      {showDocumentChatAction ? (
+                        <DropdownMenuItem onSelect={() => navigate(documentChatUrl)}>
+                          <MessageSquare className="size-4" />
+                          Chat
                         </DropdownMenuItem>
                       ) : null}
                       <DropdownMenuSeparator />

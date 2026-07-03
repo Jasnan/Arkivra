@@ -7,10 +7,10 @@ import {
   Folder,
   History,
   Info,
+  MessageSquare,
   MoveRight,
   Pencil,
   RotateCw,
-  Tags,
   Trash2,
 } from "lucide-react"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
@@ -45,6 +45,7 @@ export function VaultBrowserItemContextMenu({
   itemMutationPending,
   onClose,
   onDownloadDocument,
+  onOpenChat,
   onOpenInfo,
   onMoveItem,
   onOpenItem,
@@ -58,6 +59,7 @@ export function VaultBrowserItemContextMenu({
   itemMutationPending: boolean
   onClose: () => void
   onDownloadDocument: (item: Extract<FileBrowserItem, { type: "document" }>) => void
+  onOpenChat?: (item: Extract<FileBrowserItem, { type: "document" }>) => void
   onOpenInfo: (item: FileBrowserItem) => void
   onMoveItem: (item: FileBrowserItem) => void
   onOpenItem: (item: FileBrowserItem) => void
@@ -102,6 +104,16 @@ export function VaultBrowserItemContextMenu({
 
     return [
       { key: "open", label: "Preview/open", icon: Eye, onSelect: () => onOpenItem(item) },
+      ...(onOpenChat
+        ? [
+            {
+              key: "chat",
+              label: "Chat",
+              icon: MessageSquare,
+              onSelect: () => onOpenChat(item),
+            },
+          ]
+        : []),
       {
         key: "download",
         label: "Download",
@@ -129,7 +141,6 @@ export function VaultBrowserItemContextMenu({
         disabled: !canMoveItems || itemMutationPending,
         onSelect: () => onMoveItem(item),
       },
-      { key: "tags", label: "Tags", icon: Tags, disabled: true },
       { key: "info", label: "Info", icon: Info, onSelect: () => onOpenInfo(item) },
       {
         key: "trash",
@@ -145,6 +156,7 @@ export function VaultBrowserItemContextMenu({
     canMoveItems,
     itemMutationPending,
     onDownloadDocument,
+    onOpenChat,
     onOpenInfo,
     onMoveItem,
     onOpenItem,

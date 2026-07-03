@@ -421,6 +421,7 @@ export function VaultSidebarTree({
   onSelectFolder,
   onSelectDocument,
   onOpenVaultContextMenu,
+  onOpenItemContextMenu,
   canMoveItems = false,
   itemMutationPending = false,
   draggedItems: externalDraggedItems,
@@ -445,6 +446,7 @@ export function VaultSidebarTree({
   onSelectFolder: (folderId: string | null) => void
   onSelectDocument: (vaultId: string, documentId: string) => void
   onOpenVaultContextMenu?: (event: MouseEvent<HTMLElement>, vaultId: string) => void
+  onOpenItemContextMenu?: (event: MouseEvent<HTMLElement>, item: FileBrowserItem) => void
   canMoveItems?: boolean
   itemMutationPending?: boolean
   draggedItems?: FileBrowserItem[]
@@ -516,10 +518,17 @@ export function VaultSidebarTree({
     onSelectDocument(node.vaultId, node.document.id)
   }
 
-  const getContextMenuHandler = (node: VaultTreeNode) =>
-    node.type === "vault" && onOpenVaultContextMenu
+  const getContextMenuHandler = (node: VaultTreeNode) => {
+    const item = treeNodeToBrowserItem(node)
+
+    if (item && onOpenItemContextMenu) {
+      return (event: MouseEvent<HTMLElement>) => onOpenItemContextMenu(event, item)
+    }
+
+    return node.type === "vault" && onOpenVaultContextMenu
       ? (event: MouseEvent<HTMLElement>) => onOpenVaultContextMenu(event, node.vaultId)
       : undefined
+  }
 
   const setActiveDropTarget = (folderId: string | null, state: BrowserDropTargetState) => {
     setLocalDropTarget((previousDropTarget) => {

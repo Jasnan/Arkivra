@@ -76,10 +76,7 @@ function buildBreadcrumbs({
   if (parts[0] === "trash" && parts[1]) return [{ label: "Trash", to: "/trash" }, { label: currentDocumentLabel }]
   if (pathname === "/tags") return [{ label: "Tags" }]
   if (pathname === "/search") return [{ label: "Search" }]
-  if (pathname === "/tasks") return [{ label: "Tasks" }]
   if (parts[0] === "chat") return [{ label: "Chat" }]
-  if (pathname === "/calendar") return [{ label: "Calendar" }]
-  if (pathname === "/users") return [{ label: "Users" }]
 
   if (parts[0] === "settings") {
     const settingsLabels: Record<string, string> = {
@@ -96,6 +93,7 @@ function buildBreadcrumbs({
   if (parts[0] === "admin") {
     const adminLabels: Record<string, string> = {
       "ai-settings": "AI Settings",
+      users: "Users",
     }
     const sectionLabel = adminLabels[parts[1] ?? ""]
     return sectionLabel ? [{ label: "Admin", to: "/admin/ai-settings" }, { label: sectionLabel }] : [{ label: "Admin" }]

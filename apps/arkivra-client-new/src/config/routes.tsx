@@ -12,10 +12,8 @@ const DocumentView = lazy(() => import('@/app/vaults/document-view-page'))
 const Trash = lazy(() => import('@/app/vaults/trash-page'))
 const Search = lazy(() => import('@/app/search/page'))
 const Tags = lazy(() => import('@/app/tags/page'))
-const Tasks = lazy(() => import('@/app/tasks/page'))
 const Chat = lazy(() => import('@/app/chat/page'))
-const Calendar = lazy(() => import('@/app/calendar/page'))
-const Users = lazy(() => import('@/app/users/page'))
+const AdminUsers = lazy(() => import('@/app/admin/users/page'))
 
 // Auth pages
 const SignIn = lazy(() => import('@/app/auth/sign-in/page'))
@@ -130,26 +128,12 @@ export const routes: RouteConfig[] = [
     element: <Tags />
   },
   {
-    path: "/tasks",
-    element: <Tasks />
-  },
-  {
     path: "/chat",
     element: <Chat />
   },
   {
     path: "/chat/:conversationId",
     element: <Chat />
-  },
-  {
-    path: "/calendar",
-    element: <Calendar />
-  },
-
-  // Content Pages
-  {
-    path: "/users",
-    element: <Users />
   },
 
   // Error Pages
@@ -198,6 +182,10 @@ export const routes: RouteConfig[] = [
   {
     path: "/admin/ai-settings",
     element: <AdminAiSettings />
+  },
+  {
+    path: "/admin/users",
+    element: <AdminUsers />
   },
 
   // Catch-all route for 404

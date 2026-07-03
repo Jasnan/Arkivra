@@ -14,11 +14,14 @@ import {
   type SetStateAction,
 } from "react"
 import { Outlet, useNavigate, useParams } from "react-router-dom"
-import { Loader2 } from "lucide-react"
+import { FolderTree, Loader2 } from "lucide-react"
 
 import { BaseLayout } from "@/components/layouts/base-layout"
+import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { VaultSidebarTree, VAULT_TREE_ROOT_VALUE, type BrowserDropTarget } from "./components/vault-sidebar-tree"
+import { useVaultTreeVisibility } from "./use-vault-tree-visibility"
 import {
   getVault,
   listFolderTree,
@@ -45,7 +48,6 @@ interface VaultRouteSidebarConfig {
   onSelectFolder?: (folderId: string | null) => void
   onSelectDocument?: (vaultId: string, documentId: string) => void
   onOpenVaultContextMenu?: (event: MouseEvent<HTMLElement>, vaultId: string) => void
-  onOpenItemContextMenu?: (event: MouseEvent<HTMLElement>, item: FileBrowserItem) => void
   canMoveItems?: boolean
   itemMutationPending?: boolean
   draggedItems?: FileBrowserItem[]
@@ -104,6 +106,7 @@ export default function VaultRouteShell() {
   const [vaultTreeExpandedValue, setVaultTreeExpandedValue] = useState<string[]>([
     VAULT_TREE_ROOT_VALUE,
   ])
+  const [isVaultTreeVisible, setIsVaultTreeVisible] = useVaultTreeVisibility()
   const [headerConfig, setHeaderConfig] = useState<VaultRouteHeaderConfig | null>(null)
   const [sidebarConfig, setSidebarConfig] = useState<VaultRouteSidebarConfig>(defaultSidebarConfig)
 
@@ -185,6 +188,24 @@ export default function VaultRouteShell() {
   const headerContentKey =
     headerConfig?.contentKey ??
     (headerConfig && typeof headerConfig.title === "string" ? headerConfig.title : "vault-route-header-content")
+  const vaultTreeToggleLabel = isVaultTreeVisible ? "Hide file tree" : "Show file tree"
+  const vaultTreeToggleButton = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label={vaultTreeToggleLabel}
+          aria-pressed={isVaultTreeVisible}
+          onClick={() => setIsVaultTreeVisible(!isVaultTreeVisible)}
+        >
+          <FolderTree className="size-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{vaultTreeToggleLabel}</TooltipContent>
+    </Tooltip>
+  )
 
   return (
     <BaseLayout>
@@ -210,7 +231,6 @@ export default function VaultRouteShell() {
                         </div>
                       ) : null}
                     </div>
-                  {headerConfig.actions ? <div className="flex shrink-0 items-center gap-2">{headerConfig.actions}</div> : null}
                 </div>
               ) : (
                 <div className="flex min-h-12 flex-1 items-center gap-2 text-sm text-muted-foreground">
@@ -218,46 +238,51 @@ export default function VaultRouteShell() {
                   Loading vault...
                 </div>
               )}
+              <div className="flex shrink-0 items-center gap-2">
+                {vaultTreeToggleButton}
+                {headerConfig?.actions}
+              </div>
             </header>
             <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-              <aside className="flex h-56 shrink-0 flex-col border-b bg-muted/20 md:h-auto md:w-80 md:border-r md:border-b-0">
-                <ScrollArea className="min-h-0 flex-1">
-                  <div className="p-3">
-                    {loadingTree ? (
-                      <div className="px-2 py-3 text-sm text-muted-foreground">Loading tree...</div>
-                    ) : treeError ? (
-                      <div className="px-2 py-3 text-sm text-destructive">{treeError}</div>
-                    ) : (
-                      <VaultSidebarTree
-                        vaults={vault ? [{ id: vault.id, name: vault.name }] : []}
-                        activeVaultId={vaultId}
-                        activeVaultRootOnly
-                        expandedValue={vaultTreeExpandedValue}
-                        onExpandedValueChange={setVaultTreeExpandedValue}
-                        currentFolderId={sidebarConfig.currentFolderId}
-                        currentDocumentId={sidebarConfig.currentDocumentId}
-                        folders={folders}
-                        documents={treeDocuments}
-                        onSelectVault={selectVault}
-                        onSelectFolder={selectFolder}
-                        onSelectDocument={selectDocument}
-                        onOpenVaultContextMenu={sidebarConfig.onOpenVaultContextMenu}
-                        onOpenItemContextMenu={sidebarConfig.onOpenItemContextMenu}
-                        canMoveItems={sidebarConfig.canMoveItems}
-                        itemMutationPending={sidebarConfig.itemMutationPending}
-                        draggedItems={sidebarConfig.draggedItems}
-                        dropTarget={sidebarConfig.dropTarget}
-                        onDragStartItem={sidebarConfig.onDragStartItem}
-                        onDragEndItem={sidebarConfig.onDragEndItem}
-                        onDragOverFolder={sidebarConfig.onDragOverFolder}
-                        onDragLeaveFolder={sidebarConfig.onDragLeaveFolder}
-                        onDropOnFolder={sidebarConfig.onDropOnFolder}
-                        onMoveItems={sidebarConfig.onMoveItems}
-                      />
-                    )}
-                  </div>
-                </ScrollArea>
-              </aside>
+              {isVaultTreeVisible ? (
+                <aside className="flex h-56 shrink-0 flex-col border-b bg-muted/20 md:h-auto md:w-80 md:border-r md:border-b-0">
+                  <ScrollArea className="min-h-0 flex-1">
+                    <div className="p-3">
+                      {loadingTree ? (
+                        <div className="px-2 py-3 text-sm text-muted-foreground">Loading tree...</div>
+                      ) : treeError ? (
+                        <div className="px-2 py-3 text-sm text-destructive">{treeError}</div>
+                      ) : (
+                        <VaultSidebarTree
+                          vaults={vault ? [{ id: vault.id, name: vault.name }] : []}
+                          activeVaultId={vaultId}
+                          activeVaultRootOnly
+                          expandedValue={vaultTreeExpandedValue}
+                          onExpandedValueChange={setVaultTreeExpandedValue}
+                          currentFolderId={sidebarConfig.currentFolderId}
+                          currentDocumentId={sidebarConfig.currentDocumentId}
+                          folders={folders}
+                          documents={treeDocuments}
+                          onSelectVault={selectVault}
+                          onSelectFolder={selectFolder}
+                          onSelectDocument={selectDocument}
+                          onOpenVaultContextMenu={sidebarConfig.onOpenVaultContextMenu}
+                          canMoveItems={sidebarConfig.canMoveItems}
+                          itemMutationPending={sidebarConfig.itemMutationPending}
+                          draggedItems={sidebarConfig.draggedItems}
+                          dropTarget={sidebarConfig.dropTarget}
+                          onDragStartItem={sidebarConfig.onDragStartItem}
+                          onDragEndItem={sidebarConfig.onDragEndItem}
+                          onDragOverFolder={sidebarConfig.onDragOverFolder}
+                          onDragLeaveFolder={sidebarConfig.onDragLeaveFolder}
+                          onDropOnFolder={sidebarConfig.onDropOnFolder}
+                          onMoveItems={sidebarConfig.onMoveItems}
+                        />
+                      )}
+                    </div>
+                  </ScrollArea>
+                </aside>
+              ) : null}
               <main className="flex min-w-0 flex-1 flex-col">
                 <Outlet />
               </main>

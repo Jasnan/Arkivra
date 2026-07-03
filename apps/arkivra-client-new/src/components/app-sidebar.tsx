@@ -5,15 +5,12 @@ import {
   Archive,
   LayoutPanelLeft,
   LayoutDashboard,
-  CheckSquare,
   MessageCircle,
-  Calendar,
   AlertTriangle,
   Settings,
   Search,
   Tags,
   Trash2,
-  Users,
   Bot,
 } from "lucide-react"
 import { Link } from "react-router-dom"
@@ -61,21 +58,6 @@ const data = {
           title: "Chat",
           url: "/chat",
           icon: MessageCircle,
-        },
-        {
-          title: "Tasks",
-          url: "/tasks",
-          icon: CheckSquare,
-        },
-        {
-          title: "Calendar",
-          url: "/calendar",
-          icon: Calendar,
-        },
-        {
-          title: "Users",
-          url: "/users",
-          icon: Users,
         },
         {
           title: "Trash",
@@ -146,6 +128,10 @@ const data = {
           url: "#",
           icon: Bot,
           items: [
+            {
+              title: "Users",
+              url: "/admin/users",
+            },
             {
               title: "AI Settings",
               url: "/admin/ai-settings",

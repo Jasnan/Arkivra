@@ -7,13 +7,12 @@ import {
   Search,
   LayoutPanelLeft,
   LayoutDashboard,
-  CheckSquare,
   MessageCircle,
-  Calendar,
   Shield,
   AlertTriangle,
   Settings,
   User,
+  Users,
   Bell,
   Link2,
   Palette,
@@ -129,9 +128,7 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
     { title: "Dashboard 2", url: "/dashboard-2", group: "Dashboards", icon: LayoutPanelLeft },
 
     // Apps
-    { title: "Tasks", url: "/tasks", group: "Apps", icon: CheckSquare },
     { title: "Chat", url: "/chat", group: "Apps", icon: MessageCircle },
-    { title: "Calendar", url: "/calendar", group: "Apps", icon: Calendar },
 
     // Auth Pages
     { title: "Login", url: "/login", group: "Auth Pages", icon: Shield },
@@ -151,6 +148,9 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
     { title: "Appearance", url: "/settings/appearance", group: "Settings", icon: Palette },
     { title: "Notifications", url: "/settings/notifications", group: "Settings", icon: Bell },
     { title: "Connections", url: "/settings/connections", group: "Settings", icon: Link2 },
+
+    // Admin
+    { title: "Users", url: "/admin/users", group: "Admin", icon: Users },
   ]
 
   const groupedItems = searchItems.reduce((acc, item) => {

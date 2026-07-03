@@ -1012,14 +1012,35 @@ function TagPill({
         subtle ? "text-muted-foreground" : "bg-secondary text-secondary-foreground"
       )}
     >
-      <span
-        aria-hidden="true"
-        className="size-2 shrink-0 rounded-full"
-        style={{ backgroundColor: color ?? "#94a3b8" }}
-      />
+      {subtle ? null : (
+        <span
+          aria-hidden="true"
+          className="size-2 shrink-0 rounded-full"
+          style={{ backgroundColor: color ?? "#94a3b8" }}
+        />
+      )}
       <span className="truncate">{name}</span>
     </span>
   )
+}
+
+function getTagCheckboxColor(color: string | null) {
+  return color ?? DEFAULT_TAG_COLOR
+}
+
+function getTagCheckboxCheckColor(color: string | null) {
+  const hex = getTagCheckboxColor(color).replace("#", "")
+
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) {
+    return "#ffffff"
+  }
+
+  const red = Number.parseInt(hex.slice(0, 2), 16) / 255
+  const green = Number.parseInt(hex.slice(2, 4), 16) / 255
+  const blue = Number.parseInt(hex.slice(4, 6), 16) / 255
+  const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue
+
+  return luminance > 0.58 ? "#111827" : "#ffffff"
 }
 
 function DocumentTagsCell({
@@ -1120,7 +1141,7 @@ function DocumentTagsCell({
         ref={tagContentRef}
         align="start"
         avoidCollisions={false}
-        className="w-80 overflow-hidden rounded-md p-0"
+        className="w-56 overflow-hidden rounded-md p-0"
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
         onKeyDown={(event) => event.stopPropagation()}
@@ -1137,13 +1158,19 @@ function DocumentTagsCell({
             <button
               key={tag.id}
               type="button"
-              className="flex min-h-9 w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
+              className="flex min-h-9 w-full items-center gap-1 px-3 py-2 text-left text-sm hover:bg-accent"
               onClick={() => {
                 onRemoveTag(document.id, tag.id)
               }}
             >
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-md border border-primary bg-primary text-primary-foreground">
-                <Check className="size-3.5" strokeWidth={2.5} />
+              <span
+                className="flex size-4 shrink-0 items-center justify-center rounded-sm border border-input"
+                style={{
+                  backgroundColor: getTagCheckboxColor(tag.color),
+                  color: getTagCheckboxCheckColor(tag.color),
+                }}
+              >
+                <Check className="size-3" strokeWidth={2.5} />
               </span>
               <TagPill name={tag.name} color={tag.color} subtle />
             </button>
@@ -1155,12 +1182,18 @@ function DocumentTagsCell({
             <button
               key={tag.id}
               type="button"
-              className="flex min-h-9 w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
+              className="flex min-h-9 w-full items-center gap-1 px-3 py-2 text-left text-sm hover:bg-accent"
               onClick={() => {
                 onAssignTag(document.id, tag.id)
               }}
             >
-              <span aria-hidden="true" className="size-5 shrink-0 rounded-md border border-input bg-background" />
+              <span
+                aria-hidden="true"
+                className="size-4 shrink-0 rounded-sm border border-input"
+                style={{
+                  backgroundColor: `color-mix(in srgb, ${getTagCheckboxColor(tag.color)} 14%, transparent)`,
+                }}
+              />
               <TagPill name={tag.name} color={tag.color} subtle />
             </button>
           ))}
@@ -2381,7 +2414,6 @@ export default function VaultWorkspacePage() {
         navigate(`/vaults/${selectedVaultId}/${documentId}`)
       },
       onOpenVaultContextMenu: (event) => handleBackgroundContextMenu(event),
-      onOpenItemContextMenu: handleItemContextMenu,
       canMoveItems,
       itemMutationPending,
       draggedItems,
@@ -2401,7 +2433,6 @@ export default function VaultWorkspacePage() {
     handleDragLeaveFolder,
     handleDragOverFolder,
     handleDropOnFolder,
-    handleItemContextMenu,
     handleItemDragStart,
     handleMoveItems,
     itemMutationPending,

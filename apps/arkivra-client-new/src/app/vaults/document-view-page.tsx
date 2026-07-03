@@ -7,6 +7,7 @@ import {
   ClipboardCopy,
   Download,
   FileText,
+  FolderTree,
   Hash,
   Image as ImageIcon,
   Info,
@@ -46,11 +47,13 @@ import {
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { ImagePreviewFrame as ZoomableImagePreviewFrame } from "./components/image-preview-frame"
 import { PdfPreviewFrame } from "./components/pdf-preview-frame"
 import { VaultContextMenu, type VaultContextMenuState } from "./components/vault-context-menu"
 import { VAULT_TREE_ROOT_VALUE, VaultSidebarTree } from "./components/vault-sidebar-tree"
+import { useVaultTreeVisibility } from "./use-vault-tree-visibility"
 import { useOptionalVaultRouteShell } from "./vault-route-shell"
 import {
   deleteDocumentVersion,
@@ -956,6 +959,7 @@ export default function DocumentViewPage() {
   const [vaultTreeExpandedValue, setVaultTreeExpandedValue] = useState<string[]>([
     VAULT_TREE_ROOT_VALUE,
   ])
+  const [isStandaloneVaultTreeVisible, setIsStandaloneVaultTreeVisible] = useVaultTreeVisibility()
   const [renameValue, setRenameValue] = useState<string | null>(null)
   const [languageValue, setLanguageValue] = useState<string | null>(null)
   const [isNameEditing, setIsNameEditing] = useState(false)
@@ -981,6 +985,7 @@ export default function DocumentViewPage() {
   const setEffectiveTreeDocuments = usesVaultRouteShell
     ? vaultRouteShell.setTreeDocuments
     : setStandaloneTreeDocuments
+  const standaloneVaultTreeToggleLabel = isStandaloneVaultTreeVisible ? "Hide file tree" : "Show file tree"
 
   useEffect(() => {
     if (requestedTab === "versions" && !isTrashDocumentRoute) {
@@ -1842,6 +1847,21 @@ export default function DocumentViewPage() {
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        aria-label={standaloneVaultTreeToggleLabel}
+                        aria-pressed={isStandaloneVaultTreeVisible}
+                        onClick={() => setIsStandaloneVaultTreeVisible(!isStandaloneVaultTreeVisible)}
+                      >
+                        <FolderTree className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{standaloneVaultTreeToggleLabel}</TooltipContent>
+                  </Tooltip>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button type="button" variant="outline" size="icon" aria-label={`Open actions for ${activeDocument.name}`}>
@@ -1938,35 +1958,37 @@ export default function DocumentViewPage() {
               ) : null}
 
               <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-                <aside className="flex h-56 shrink-0 flex-col border-b bg-muted/20 md:h-auto md:w-80 md:border-r md:border-b-0">
-                  <ScrollArea className="min-h-0 flex-1">
-                    <div className="p-3">
-                      {vault ? (
-                        <VaultSidebarTree
-                          vaults={[{ id: vault.id, name: vault.name }]}
-                          activeVaultId={vaultId}
-                          activeVaultRootOnly
-                          expandedValue={vaultTreeExpandedValue}
-                          onExpandedValueChange={setVaultTreeExpandedValue}
-                          currentFolderId={activeDocument.folderId}
-                          currentDocumentId={documentId}
-                          folders={folders}
-                          documents={treeDocuments}
-                          onSelectVault={() => navigate(`/vaults/${vaultId}`)}
-                          onSelectFolder={(folderId) => {
-                            navigate(folderId ? `/vaults/${vaultId}?folderId=${folderId}` : `/vaults/${vaultId}`)
-                          }}
-                          onSelectDocument={(selectedVaultId, selectedDocumentId) => {
-                            navigate(`/vaults/${selectedVaultId}/${selectedDocumentId}`)
-                          }}
-                          onOpenVaultContextMenu={openVaultContextMenu}
-                        />
-                      ) : (
-                        <div className="px-2 py-3 text-sm text-muted-foreground">Loading tree...</div>
-                      )}
-                    </div>
-                  </ScrollArea>
-                </aside>
+                {isStandaloneVaultTreeVisible ? (
+                  <aside className="flex h-56 shrink-0 flex-col border-b bg-muted/20 md:h-auto md:w-80 md:border-r md:border-b-0">
+                    <ScrollArea className="min-h-0 flex-1">
+                      <div className="p-3">
+                        {vault ? (
+                          <VaultSidebarTree
+                            vaults={[{ id: vault.id, name: vault.name }]}
+                            activeVaultId={vaultId}
+                            activeVaultRootOnly
+                            expandedValue={vaultTreeExpandedValue}
+                            onExpandedValueChange={setVaultTreeExpandedValue}
+                            currentFolderId={activeDocument.folderId}
+                            currentDocumentId={documentId}
+                            folders={folders}
+                            documents={treeDocuments}
+                            onSelectVault={() => navigate(`/vaults/${vaultId}`)}
+                            onSelectFolder={(folderId) => {
+                              navigate(folderId ? `/vaults/${vaultId}?folderId=${folderId}` : `/vaults/${vaultId}`)
+                            }}
+                            onSelectDocument={(selectedVaultId, selectedDocumentId) => {
+                              navigate(`/vaults/${selectedVaultId}/${selectedDocumentId}`)
+                            }}
+                            onOpenVaultContextMenu={openVaultContextMenu}
+                          />
+                        ) : (
+                          <div className="px-2 py-3 text-sm text-muted-foreground">Loading tree...</div>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </aside>
+                ) : null}
 
                 <div className="min-h-0 flex-1">
                 {tab === "preview" ? (

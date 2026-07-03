@@ -5,6 +5,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { ThemeCustomizer, ThemeCustomizerTrigger } from "@/components/theme-customizer"
 import { useSidebarConfig } from "@/hooks/use-sidebar-config"
+import { cn } from "@/lib/utils"
 import {
   SidebarInset,
   SidebarProvider,
@@ -17,9 +18,10 @@ interface BaseLayoutProps {
   headerContent?: React.ReactNode
   headerActionsContent?: React.ReactNode
   hideHeaderSearch?: boolean
+  contentClassName?: string
 }
 
-export function BaseLayout({ children, title, description, headerContent, headerActionsContent, hideHeaderSearch }: BaseLayoutProps) {
+export function BaseLayout({ children, title, description, headerContent, headerActionsContent, hideHeaderSearch, contentClassName }: BaseLayoutProps) {
   const [themeCustomizerOpen, setThemeCustomizerOpen] = React.useState(false)
   const { config } = useSidebarConfig()
 
@@ -43,9 +45,9 @@ export function BaseLayout({ children, title, description, headerContent, header
           />
           <SidebarInset>
             <SiteHeader headerContent={headerContent} headerActionsContent={headerActionsContent} hideHeaderSearch={hideHeaderSearch} />
-            <div className="flex flex-1 flex-col">
-              <div className="@container/main flex flex-1 flex-col gap-2">
-                <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+            <div className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto", contentClassName)}>
+              <div className="@container/main flex min-h-0 flex-1 flex-col gap-2">
+                <div className="flex min-h-0 flex-col gap-4 py-4 md:gap-6 md:py-6">
                   {title && (
                     <div className="px-4 lg:px-6">
                       <div className="flex flex-col gap-2">
@@ -66,9 +68,9 @@ export function BaseLayout({ children, title, description, headerContent, header
         <>
           <SidebarInset>
             <SiteHeader headerContent={headerContent} headerActionsContent={headerActionsContent} hideHeaderSearch={hideHeaderSearch} />
-            <div className="flex flex-1 flex-col">
-              <div className="@container/main flex flex-1 flex-col gap-2">
-                <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+            <div className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto", contentClassName)}>
+              <div className="@container/main flex min-h-0 flex-1 flex-col gap-2">
+                <div className="flex min-h-0 flex-col gap-4 py-4 md:gap-6 md:py-6">
                   {title && (
                     <div className="px-4 lg:px-6">
                       <div className="flex flex-col gap-2">

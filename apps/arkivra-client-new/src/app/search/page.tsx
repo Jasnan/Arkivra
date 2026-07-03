@@ -327,10 +327,15 @@ function SearchModeControl({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="outline" className="justify-between" aria-label={`Search mode: ${selectedLabel}`}>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-9 w-9 justify-center p-0 xl:w-auto xl:px-3"
+          aria-label={`Search mode: ${selectedLabel}`}
+        >
           <Sparkles className="size-4 text-primary" />
-          <span>{selectedLabel}</span>
-          <ChevronsUpDown className="size-4 text-muted-foreground" />
+          <span className="hidden xl:inline">{selectedLabel}</span>
+          <ChevronsUpDown className="hidden size-4 text-muted-foreground xl:block" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
@@ -478,7 +483,7 @@ function SearchResultList({
   onTrash: (result: SearchResultItem) => void
 }) {
   return (
-    <div className="rounded-md border">
+    <div className="border-b bg-background">
       <Table>
         <TableHeader>
           <TableRow>
@@ -1005,8 +1010,8 @@ export default function SearchPage() {
       : []),
   ]
   const headerSearchControls = (
-    <div className="flex w-full min-w-0 flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-      <div className="relative min-w-0 flex-1">
+    <div className="flex w-full min-w-0 items-center gap-2">
+      <div className="relative min-w-0 max-w-[66.666%] flex-[1_1_66.666%]">
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={query}
@@ -1016,7 +1021,7 @@ export default function SearchPage() {
           onChange={(event) => setQuery(event.target.value)}
         />
       </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           {semanticSearchAvailable ? (
             <SearchModeControl value={selectedSearchMode} onValueChange={(value) => updateParams({ searchMode: value })} />
           ) : null}
@@ -1025,11 +1030,11 @@ export default function SearchPage() {
               <Button
                 type="button"
                 variant="ghost"
-                className={cn("relative px-3", activeFilterCount > 0 && "text-primary")}
+                className={cn("relative h-9 w-9 px-0 xl:w-auto xl:px-3", activeFilterCount > 0 && "text-primary")}
                 aria-label={activeFilterCount > 0 ? `Open filters, ${activeFilterCount} active` : "Open filters"}
               >
                 <Filter className="size-4" />
-                <span className="hidden sm:inline">Filter</span>
+                <span className="hidden xl:inline">Filter</span>
                 {activeFilterCount > 0 ? (
                   <span className="absolute -top-1 -right-1 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground">
                     {activeFilterCount}
@@ -1134,9 +1139,14 @@ export default function SearchPage() {
           </Popover>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button type="button" variant="ghost" className="justify-between px-3">
-                <span className="hidden sm:inline">Sort:</span>
-                {sortOptions.find((option) => option.value === sortBy)?.label ?? "Recent"}
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-9 w-9 justify-center px-0 xl:w-auto xl:justify-between xl:px-3"
+                aria-label={`Sort results: ${sortOptions.find((option) => option.value === sortBy)?.label ?? "Recent"}`}
+              >
+                <span className="hidden xl:inline">Sort:</span>
+                <span className="hidden xl:inline">{sortOptions.find((option) => option.value === sortBy)?.label ?? "Recent"}</span>
                 <ChevronsUpDown className="size-4 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
@@ -1175,27 +1185,34 @@ export default function SearchPage() {
       ))}
     </div>
   ) : null
+  const hasListResults = hasSearchCriteria && !searchError && !loadingSearch && results.length > 0 && view === "list"
 
   return (
     <BaseLayout hideHeaderSearch headerContent={headerSearchControls}>
-      <div className="flex h-[calc(100svh-var(--header-height)-7.5rem)] min-h-0 flex-col gap-6 px-4 lg:h-[calc(100svh-var(--header-height)-8.5rem)] lg:px-6">
-        <div className="flex min-h-0 flex-1 flex-col gap-6">
-          {activeFilters}
+      <div className="-my-4 flex h-[calc(100svh-var(--header-height))] min-h-0 flex-col md:-my-6">
+        <div className={cn("flex min-h-0 flex-1 flex-col", hasListResults ? "gap-0" : "gap-6")}>
+          {activeFilters ? (
+            <div className="px-4 lg:px-6">{activeFilters}</div>
+          ) : null}
           <div className="min-h-0 flex-1 overflow-auto">
             {!hasSearchCriteria ? (
-              <div className="flex h-full min-h-[16rem] flex-col items-center justify-center rounded-md border p-8 text-center">
+              <div className="flex h-full min-h-[16rem] flex-col items-center justify-center p-8 text-center">
                 <FileSearch className="size-10 text-muted-foreground" />
                 <h2 className="mt-4 text-lg font-semibold">Search your documents</h2>
               </div>
             ) : searchError ? (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{searchError}</div>
+              <div className="p-4 lg:p-6">
+                <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{searchError}</div>
+              </div>
             ) : loadingSearch ? (
-              <div className="flex h-full min-h-[16rem] items-center justify-center rounded-md border text-sm text-muted-foreground">Searching...</div>
+              <div className="flex h-full min-h-[16rem] items-center justify-center text-sm text-muted-foreground">Searching...</div>
             ) : results.length === 0 ? (
-              <div className="flex h-full min-h-[16rem] flex-col items-center justify-center rounded-md border p-8 text-center">
-                <SearchX className="size-8 text-muted-foreground" />
-                <h2 className="mt-4 text-lg font-semibold">No matches found</h2>
-                <p className="mt-2 max-w-md text-sm text-muted-foreground">Adjust the query or filters and try again.</p>
+              <div className="h-full p-4 lg:p-6">
+                <div className="flex h-full min-h-[16rem] flex-col items-center justify-center rounded-md border p-8 text-center">
+                  <SearchX className="size-8 text-muted-foreground" />
+                  <h2 className="mt-4 text-lg font-semibold">No matches found</h2>
+                  <p className="mt-2 max-w-md text-sm text-muted-foreground">Adjust the query or filters and try again.</p>
+                </div>
               </div>
             ) : view === "list" ? (
               <SearchResultList
@@ -1212,19 +1229,21 @@ export default function SearchPage() {
                 onTrash={setPendingTrashItem}
               />
             ) : (
-              <SearchResultGrid
-                results={results}
-                vaults={vaults}
-                onRename={(result) => {
-                  setRenameTarget(result)
-                  setRenameValue(result.name)
-                }}
-                onMove={(result) => {
-                  setMoveTarget(result)
-                  setMoveDestinationId(null)
-                }}
-                onTrash={setPendingTrashItem}
-              />
+              <div className="p-4 lg:p-6">
+                <SearchResultGrid
+                  results={results}
+                  vaults={vaults}
+                  onRename={(result) => {
+                    setRenameTarget(result)
+                    setRenameValue(result.name)
+                  }}
+                  onMove={(result) => {
+                    setMoveTarget(result)
+                    setMoveDestinationId(null)
+                  }}
+                  onTrash={setPendingTrashItem}
+                />
+              </div>
             )}
           </div>
         </div>

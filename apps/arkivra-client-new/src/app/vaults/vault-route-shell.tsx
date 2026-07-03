@@ -208,11 +208,11 @@ export default function VaultRouteShell() {
   )
 
   return (
-    <BaseLayout>
+    <BaseLayout contentClassName="overflow-hidden">
       <VaultRouteShellContext.Provider value={contextValue}>
-        <div className="-mt-4 md:-mt-6">
-          <section className="flex h-[calc(100vh-var(--header-height))] min-h-[640px] flex-col overflow-hidden bg-background">
-            <header className="flex h-20 shrink-0 items-center gap-3 overflow-hidden border-b bg-background px-3 py-2">
+        <div className="-my-4 md:-my-6">
+          <section className="flex h-[calc(100svh-var(--header-height))] min-h-0 flex-col overflow-hidden bg-background">
+            <header className="sticky top-0 z-20 flex h-20 shrink-0 items-center gap-3 overflow-hidden border-b bg-background px-3 py-2">
               {headerConfig ? (
                 <div className="flex min-w-0 flex-1 items-center gap-3">
                   <div key={headerIconKey} className="subtle-opacity-enter shrink-0">
@@ -283,7 +283,7 @@ export default function VaultRouteShell() {
                   </ScrollArea>
                 </aside>
               ) : null}
-              <main className="flex min-w-0 flex-1 flex-col">
+              <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                 <Outlet />
               </main>
             </div>

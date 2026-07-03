@@ -1774,7 +1774,7 @@ export default function DocumentViewPage() {
         />
       ) : null}
       {usesVaultRouteShell ? (
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {loadingDocument ? (
             <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
@@ -1811,8 +1811,8 @@ export default function DocumentViewPage() {
           )}
         </div>
       ) : (
-      <div className="-mt-4 md:-mt-6">
-        <section className="flex h-[calc(100vh-var(--header-height))] min-h-[640px] flex-col overflow-hidden bg-background">
+      <div className="-my-4 md:-my-6">
+        <section className="flex h-[calc(100svh-var(--header-height))] min-h-0 flex-col overflow-hidden bg-background">
           {loadingDocument ? (
             <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
@@ -1824,7 +1824,7 @@ export default function DocumentViewPage() {
             </div>
           ) : (
             <>
-              <header className="flex shrink-0 items-start gap-3 border-b bg-background p-3">
+              <header className="sticky top-0 z-20 flex shrink-0 items-start gap-3 border-b bg-background p-3">
                 <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-red-500/10 text-xs font-semibold text-red-600 dark:text-red-300 md:size-12">
                   {activeDocument.mimeType === "application/pdf" ? "PDF" : <FileText className="size-5" />}
                 </div>

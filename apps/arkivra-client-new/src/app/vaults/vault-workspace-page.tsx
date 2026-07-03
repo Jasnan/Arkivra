@@ -2569,7 +2569,7 @@ export default function VaultWorkspacePage() {
           onVersions={openDocumentVersions}
         />
       ) : null}
-      <div className="flex min-w-0 flex-1 flex-col" onContextMenu={handleBackgroundContextMenu}>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" onContextMenu={handleBackgroundContextMenu}>
               <div
                 className={cn(
                   "min-h-0 flex-1 overflow-auto",

@@ -3,7 +3,6 @@
 import * as React from "react"
 import {
   Archive,
-  LayoutPanelLeft,
   LayoutDashboard,
   MessageCircle,
   Settings,
@@ -74,12 +73,12 @@ const data = {
           icon: Settings,
           items: [
             {
-              title: "User Settings",
-              url: "/settings/user",
+              title: "Profile",
+              url: "/settings/account",
             },
             {
-              title: "Account Settings",
-              url: "/settings/account",
+              title: "Security",
+              url: "/settings/security",
             },
             {
               title: "Appearance",
@@ -124,14 +123,9 @@ const data = {
       label: "Dashboards",
       items: [
         {
-          title: "Dashboard 1",
+          title: "Dashboard",
           url: "/dashboard",
           icon: LayoutDashboard,
-        },
-        {
-          title: "Dashboard 2",
-          url: "/dashboard-2",
-          icon: LayoutPanelLeft,
         },
       ],
     },

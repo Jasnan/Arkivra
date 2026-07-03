@@ -60,10 +60,6 @@ export function ThemeCustomizer({ open, onOpenChange }: ThemeCustomizerProps) {
     applyImportedTheme(themeData, isDarkMode)
   }
 
-  const handleImportClick = () => {
-    setImportModalOpen(true)
-  }
-
   // Re-apply themes when theme mode changes
   React.useEffect(() => {
     if (importedTheme) {
@@ -132,8 +128,6 @@ export function ThemeCustomizer({ open, onOpenChange }: ThemeCustomizerProps) {
                   setSelectedTweakcnTheme={setSelectedTweakcnTheme}
                   selectedRadius={selectedRadius}
                   setSelectedRadius={setSelectedRadius}
-                  setImportedTheme={setImportedTheme}
-                  onImportClick={handleImportClick}
                 />
               </TabsContent>
 

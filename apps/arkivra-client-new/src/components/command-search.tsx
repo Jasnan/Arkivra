@@ -5,11 +5,10 @@ import { useNavigate } from "react-router-dom"
 import { Command as CommandPrimitive } from "cmdk"
 import {
   Search,
-  LayoutPanelLeft,
   LayoutDashboard,
   MessageCircle,
   Shield,
-  Settings,
+  ShieldCheck,
   User,
   Users,
   Bell,
@@ -125,8 +124,7 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
 
   const searchItems: SearchItem[] = [
     // Dashboards
-    { title: "Dashboard 1", url: "/dashboard", group: "Dashboards", icon: LayoutDashboard },
-    { title: "Dashboard 2", url: "/dashboard-2", group: "Dashboards", icon: LayoutPanelLeft },
+    { title: "Dashboard", url: "/dashboard", group: "Dashboards", icon: LayoutDashboard },
 
     // Apps
     { title: "Chat", url: "/chat", group: "Apps", icon: MessageCircle },
@@ -137,8 +135,8 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
     { title: "Request Password Reset", url: "/request-password-reset", group: "Auth Pages", icon: Shield },
 
     // Settings
-    { title: "User Settings", url: "/settings/user", group: "Settings", icon: User },
-    { title: "Account Settings", url: "/settings/account", group: "Settings", icon: Settings },
+    { title: "Profile", url: "/settings/account", group: "Settings", icon: User },
+    { title: "Security", url: "/settings/security", group: "Settings", icon: ShieldCheck },
     { title: "Appearance", url: "/settings/appearance", group: "Settings", icon: Palette },
     { title: "Notifications", url: "/settings/notifications", group: "Settings", icon: Bell },
     { title: "Connections", url: "/settings/connections", group: "Settings", icon: Link2 },

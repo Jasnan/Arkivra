@@ -1,6 +1,6 @@
 "use client"
 
-import { Palette, Dices, Upload, ExternalLink, Sun, Moon } from 'lucide-react'
+import { Dices, Sun, Moon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -11,7 +11,6 @@ import { useCircularTransition } from '@/hooks/use-circular-transition'
 import { colorThemes, tweakcnThemes } from '@/config/theme-data'
 import { radiusOptions, baseColors } from '@/config/theme-customizer-constants'
 import { ColorPicker } from '@/components/color-picker'
-import type { ImportedTheme } from '@/types/theme-customizer'
 import React from 'react'
 import "./circular-transition.css"
 
@@ -22,8 +21,6 @@ interface ThemeTabProps {
   setSelectedTweakcnTheme: (theme: string) => void
   selectedRadius: string
   setSelectedRadius: (radius: string) => void
-  setImportedTheme: (theme: ImportedTheme | null) => void
-  onImportClick: () => void
 }
 
 export function ThemeTab({
@@ -33,8 +30,6 @@ export function ThemeTab({
   setSelectedTweakcnTheme,
   selectedRadius,
   setSelectedRadius,
-  setImportedTheme,
-  onImportClick
 }: ThemeTabProps) {
   const {
     isDarkMode,
@@ -54,7 +49,6 @@ export function ThemeTab({
     setSelectedTheme(randomTheme.value)
     setSelectedTweakcnTheme("") // Clear tweakcn selection
     setBrandColorsValues({}) // Clear brand colors state
-    setImportedTheme(null) // Clear imported theme
     applyTheme(randomTheme.value, isDarkMode)
   }
 
@@ -64,7 +58,6 @@ export function ThemeTab({
     setSelectedTweakcnTheme(randomTheme.value)
     setSelectedTheme("") // Clear shadcn selection
     setBrandColorsValues({}) // Clear brand colors state
-    setImportedTheme(null) // Clear imported theme
     applyTweakcnTheme(randomTheme.preset, isDarkMode)
   }
 
@@ -83,117 +76,140 @@ export function ThemeTab({
     toggleTheme(event)
   }
 
+  const activePresetSource = selectedTweakcnTheme
+    ? "Tweakcn preset active"
+    : selectedTheme
+      ? "Shadcn UI preset active"
+      : "No preset selected"
+
   return (
     <div className="p-4 space-y-6">
 
-
-      {/* Shadcn UI Theme Presets */}
+      {/* Theme Presets */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium">Shadcn UI Theme Presets</Label>
-          <Button variant="outline" size="sm" onClick={handleRandomShadcn} className="cursor-pointer">
-            <Dices className="h-3.5 w-3.5 mr-1.5" />
-            Random
-          </Button>
+        <div className="space-y-1">
+          <Label className="text-sm font-medium">Theme presets</Label>
+          <p className="text-xs text-muted-foreground">
+            Choose one preset source. Selecting a Shadcn UI preset clears Tweakcn, and selecting a Tweakcn preset clears Shadcn UI.
+          </p>
         </div>
 
-        <Select value={selectedTheme} onValueChange={(value) => {
-          setSelectedTheme(value)
-          setSelectedTweakcnTheme("") // Clear tweakcn selection
-          setBrandColorsValues({}) // Clear brand colors state
-          setImportedTheme(null) // Clear imported theme
-          applyTheme(value, isDarkMode)
-        }}>
-          <SelectTrigger className="w-full cursor-pointer">
-            <SelectValue placeholder="Choose Shadcn Theme" />
-          </SelectTrigger>
-          <SelectContent className="max-h-60">
-            <div className="p-2">
-              {colorThemes.map((theme) => (
-                <SelectItem key={theme.value} value={theme.value} className="cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-1">
-                      <div
-                        className="w-3 h-3 rounded-full border border-border/20"
-                        style={{ backgroundColor: theme.preset.styles.light.primary }}
-                      />
-                      <div
-                        className="w-3 h-3 rounded-full border border-border/20"
-                        style={{ backgroundColor: theme.preset.styles.light.secondary }}
-                      />
-                      <div
-                        className="w-3 h-3 rounded-full border border-border/20"
-                        style={{ backgroundColor: theme.preset.styles.light.accent }}
-                      />
-                      <div
-                        className="w-3 h-3 rounded-full border border-border/20"
-                        style={{ backgroundColor: theme.preset.styles.light.muted }}
-                      />
-                    </div>
-                    <span>{theme.name}</span>
-                  </div>
-                </SelectItem>
-              ))}
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className={`rounded-md border p-4 transition-colors ${
+            selectedTheme ? "border-primary bg-primary/5" : "border-border"
+          }`}>
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <Label className="text-sm font-medium">Shadcn UI</Label>
+                <p className="text-xs text-muted-foreground">Core shadcn palette presets.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleRandomShadcn} className="cursor-pointer">
+                <Dices className="h-3.5 w-3.5 mr-1.5" />
+                Random
+              </Button>
             </div>
-          </SelectContent>
-        </Select>
-      </div>
 
-      <Separator />
+            <Select value={selectedTheme} onValueChange={(value) => {
+              setSelectedTheme(value)
+              setSelectedTweakcnTheme("") // Clear tweakcn selection
+              setBrandColorsValues({}) // Clear brand colors state
+              applyTheme(value, isDarkMode)
+            }}>
+              <SelectTrigger className="w-full cursor-pointer">
+                <SelectValue placeholder="Choose Shadcn Theme" />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                <div className="p-2">
+                  {colorThemes.map((theme) => (
+                    <SelectItem key={theme.value} value={theme.value} className="cursor-pointer">
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          <div
+                            className="w-3 h-3 rounded-full border border-border/20"
+                            style={{ backgroundColor: theme.preset.styles.light.primary }}
+                          />
+                          <div
+                            className="w-3 h-3 rounded-full border border-border/20"
+                            style={{ backgroundColor: theme.preset.styles.light.secondary }}
+                          />
+                          <div
+                            className="w-3 h-3 rounded-full border border-border/20"
+                            style={{ backgroundColor: theme.preset.styles.light.accent }}
+                          />
+                          <div
+                            className="w-3 h-3 rounded-full border border-border/20"
+                            style={{ backgroundColor: theme.preset.styles.light.muted }}
+                          />
+                        </div>
+                        <span>{theme.name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </div>
+              </SelectContent>
+            </Select>
+          </div>
 
-      {/* Tweakcn Theme Presets */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium">Tweakcn Theme Presets</Label>
-          <Button variant="outline" size="sm" onClick={handleRandomTweakcn} className="cursor-pointer">
-            <Dices className="h-3.5 w-3.5 mr-1.5" />
-            Random
-          </Button>
+          <div className={`rounded-md border p-4 transition-colors ${
+            selectedTweakcnTheme ? "border-primary bg-primary/5" : "border-border"
+          }`}>
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <Label className="text-sm font-medium">Tweakcn</Label>
+                <p className="text-xs text-muted-foreground">Community theme presets.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleRandomTweakcn} className="cursor-pointer">
+                <Dices className="h-3.5 w-3.5 mr-1.5" />
+                Random
+              </Button>
+            </div>
+
+            <Select value={selectedTweakcnTheme} onValueChange={(value) => {
+              setSelectedTweakcnTheme(value)
+              setSelectedTheme("") // Clear shadcn selection
+              setBrandColorsValues({}) // Clear brand colors state
+              const selectedPreset = tweakcnThemes.find(t => t.value === value)?.preset
+              if (selectedPreset) {
+                applyTweakcnTheme(selectedPreset, isDarkMode)
+              }
+            }}>
+              <SelectTrigger className="w-full cursor-pointer">
+                <SelectValue placeholder="Choose Tweakcn Theme" />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                <div className="p-2">
+                  {tweakcnThemes.map((theme) => (
+                    <SelectItem key={theme.value} value={theme.value} className="cursor-pointer">
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          <div
+                            className="w-3 h-3 rounded-full border border-border/20"
+                            style={{ backgroundColor: theme.preset.styles.light.primary }}
+                          />
+                          <div
+                            className="w-3 h-3 rounded-full border border-border/20"
+                            style={{ backgroundColor: theme.preset.styles.light.secondary }}
+                          />
+                          <div
+                            className="w-3 h-3 rounded-full border border-border/20"
+                            style={{ backgroundColor: theme.preset.styles.light.accent }}
+                          />
+                          <div
+                            className="w-3 h-3 rounded-full border border-border/20"
+                            style={{ backgroundColor: theme.preset.styles.light.muted }}
+                          />
+                        </div>
+                        <span>{theme.name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </div>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        <Select value={selectedTweakcnTheme} onValueChange={(value) => {
-          setSelectedTweakcnTheme(value)
-          setSelectedTheme("") // Clear shadcn selection
-          setBrandColorsValues({}) // Clear brand colors state
-          setImportedTheme(null) // Clear imported theme
-          const selectedPreset = tweakcnThemes.find(t => t.value === value)?.preset
-          if (selectedPreset) {
-            applyTweakcnTheme(selectedPreset, isDarkMode)
-          }
-        }}>
-          <SelectTrigger className="w-full cursor-pointer">
-            <SelectValue placeholder="Choose Tweakcn Theme" />
-          </SelectTrigger>
-          <SelectContent className="max-h-60">
-            <div className="p-2">
-              {tweakcnThemes.map((theme) => (
-                <SelectItem key={theme.value} value={theme.value} className="cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-1">
-                      <div
-                        className="w-3 h-3 rounded-full border border-border/20"
-                        style={{ backgroundColor: theme.preset.styles.light.primary }}
-                      />
-                      <div
-                        className="w-3 h-3 rounded-full border border-border/20"
-                        style={{ backgroundColor: theme.preset.styles.light.secondary }}
-                      />
-                      <div
-                        className="w-3 h-3 rounded-full border border-border/20"
-                        style={{ backgroundColor: theme.preset.styles.light.accent }}
-                      />
-                      <div
-                        className="w-3 h-3 rounded-full border border-border/20"
-                        style={{ backgroundColor: theme.preset.styles.light.muted }}
-                      />
-                    </div>
-                    <span>{theme.name}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </div>
-          </SelectContent>
-        </Select>
+        <p className="text-xs font-medium text-muted-foreground">{activePresetSource}</p>
       </div>
 
       <Separator />
@@ -248,20 +264,6 @@ export function ThemeTab({
       </div>
 
       <Separator />
-
-      {/* Import Theme Button */}
-      <div className="space-y-3">
-        <Button
-          variant="outline"
-          size="lg"
-          onClick={onImportClick}
-          className="w-full cursor-pointer"
-        >
-          <Upload className="h-3.5 w-3.5 mr-1.5" />
-          Import Theme
-        </Button>
-      </div>
-
       {/* Brand Colors Section */}
       <Accordion type="single" collapsible className="w-full border-b rounded-lg">
         <AccordionItem value="brand-colors" className="border border-border rounded-lg overflow-hidden">
@@ -283,33 +285,6 @@ export function ThemeTab({
         </AccordionItem>
       </Accordion>
 
-      {/* Tweakcn */}
-      <div className="p-4 bg-muted rounded-lg space-y-3">
-        <div className="flex items-center gap-2">
-          <Palette className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium">Advanced Customization</span>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          For advanced theme customization with real-time preview, visual color picker, and hundreds of prebuilt themes, visit{" "}
-          <a
-            href="https://tweakcn.com/editor/theme"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary hover:underline font-medium cursor-pointer"
-          >
-            tweakcn.com
-          </a>
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full cursor-pointer"
-          onClick={() => window.open('https://tweakcn.com/editor/theme', '_blank')}
-        >
-          <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-          Open Tweakcn
-        </Button>
-      </div>
     </div>
   )
 }

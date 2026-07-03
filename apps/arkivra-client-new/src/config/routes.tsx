@@ -4,7 +4,6 @@ import { Navigate } from 'react-router-dom'
 // Lazy load components for better performance
 const Landing = lazy(() => import('@/app/landing/page'))
 const Dashboard = lazy(() => import('@/app/dashboard/page'))
-const Dashboard2 = lazy(() => import('@/app/dashboard-2/page'))
 const Vaults = lazy(() => import('@/app/vaults/page'))
 const VaultRouteShell = lazy(() => import('@/app/vaults/vault-route-shell'))
 const VaultWorkspace = lazy(() => import('@/app/vaults/vault-workspace-page'))
@@ -26,8 +25,8 @@ const RequestPasswordReset = lazy(() => import('@/app/auth/request-password-rese
 const NotFound = lazy(() => import('@/app/errors/not-found/page'))
 
 // Settings pages
-const UserSettings = lazy(() => import('@/app/settings/user/page'))
 const AccountSettings = lazy(() => import('@/app/settings/account/page'))
+const SecuritySettings = lazy(() => import('@/app/settings/security/page'))
 const AppearanceSettings = lazy(() => import('@/app/settings/appearance/page'))
 const NotificationSettings = lazy(() => import('@/app/settings/notifications/page'))
 const ConnectionSettings = lazy(() => import('@/app/settings/connections/page'))
@@ -84,11 +83,6 @@ export const routes: RouteConfig[] = [
     path: "/dashboard",
     element: <Dashboard />
   },
-  {
-    path: "/dashboard-2",
-    element: <Dashboard2 />
-  },
-
   // Application Routes
   {
     path: "/vaults",
@@ -135,12 +129,12 @@ export const routes: RouteConfig[] = [
 
   // Settings Routes
   {
-    path: "/settings/user",
-    element: <UserSettings />
-  },
-  {
     path: "/settings/account",
     element: <AccountSettings />
+  },
+  {
+    path: "/settings/security",
+    element: <SecuritySettings />
   },
   {
     path: "/settings/appearance",

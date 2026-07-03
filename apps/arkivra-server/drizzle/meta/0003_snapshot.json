@@ -4187,13 +4187,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "ai_access_level": {
-          "name": "ai_access_level",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'none'"
-        },
         "system_role": {
           "name": "system_role",
           "type": "text",
@@ -5796,13 +5789,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "ai_access_level": {
-          "name": "ai_access_level",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'none'"
         }
       },
       "indexes": {

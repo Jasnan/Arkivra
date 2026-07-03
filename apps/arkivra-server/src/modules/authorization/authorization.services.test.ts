@@ -16,7 +16,6 @@ describe('authorization services', () => {
       payload: {
         email: 'Invitee@Example.com',
         role: 'editor',
-        aiAccessLevel: 'full',
         expiresAt: '2026-02-01T00:00:00.000Z',
       },
       result: null,
@@ -48,7 +47,6 @@ describe('authorization services', () => {
         invitationId: 'invite_1',
         email: 'invitee@example.com',
         role: 'editor',
-        aiAccessLevel: 'full',
       },
     };
     const updateQuery: {
@@ -83,12 +81,8 @@ describe('authorization services', () => {
       invitedBy: 'usr_owner',
       vaultId: 'vlt_1',
       vaultRole: 'editor',
-      aiAccessLevel: 'full',
-      systemRole: 'member',
       expiresAt: new Date('2026-02-01T00:00:00.000Z'),
       payload: {
-        systemCapabilities: [],
-        vaultMemberships: [],
         permissionRequestId: 'perm_invite_1',
       },
     });
@@ -100,7 +94,6 @@ describe('authorization services', () => {
         invitationId: 'invite_1',
         email: 'invitee@example.com',
         role: 'editor',
-        aiAccessLevel: 'full',
       },
     }));
   });

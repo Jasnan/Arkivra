@@ -1,6 +1,5 @@
 import type { Database } from '../database/database.js';
 import type {
-  AiAccessLevel,
   EmailInvitationType,
   SystemCapability,
   SystemRole,
@@ -18,17 +17,12 @@ import {
 } from '../database/schema/index.js';
 import { createPermissionRequestServices } from './authorization.permission-requests.js';
 import {
-  canUseDocumentChatLevel,
-  canUseSemanticRetrievalLevel,
-  canVaultRoleManageMembers,
-  canVaultRoleMutateDocuments,
   canVaultRoleRead,
   CREATE_VAULTS_CAPABILITY,
-  getAiAccessRank,
   getInvitationSystemCapabilities,
-  getInvitationVaultMemberships,
   isAdminRole,
   normalizeEmail,
+  USE_AI_CAPABILITY,
 } from './authorization.rules.js';
 
 export function createAuthorizationServices({ db }: { db: Database }) {
@@ -96,6 +90,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     const systemCapabilities = await listSystemCapabilitiesForUser({ userId });
     const isAdmin = isAdminRole(user.systemRole as SystemRole);
     const canCreateVault = isAdmin || systemCapabilities.includes(CREATE_VAULTS_CAPABILITY);
+    const canUseAI = isAdmin || systemCapabilities.includes(USE_AI_CAPABILITY);
 
     return {
       userId: user.id,
@@ -104,6 +99,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       systemCapabilities,
       isAdmin,
       canCreateVault,
+      canUseAI,
     };
   }
 
@@ -186,6 +182,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       const systemCapabilities = capabilitiesByUserId.get(user.id) ?? [];
       const isAdmin = isAdminRole(systemRole);
       const canCreateVault = isAdmin || systemCapabilities.includes(CREATE_VAULTS_CAPABILITY);
+      const canUseAI = isAdmin || systemCapabilities.includes(USE_AI_CAPABILITY);
 
       return {
         ...user,
@@ -193,6 +190,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
         systemCapabilities,
         isAdmin,
         canCreateVault,
+        canUseAI,
         authMethods: {
           hasPassword: (accountsByUserId.get(user.id) ?? []).some(account => account.providerId === 'credential' && account.password),
           oauthProviders: (accountsByUserId.get(user.id) ?? [])
@@ -329,7 +327,6 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     invitedBy,
     vaultId = null,
     vaultRole = null,
-    aiAccessLevel = 'none',
     systemRole = null,
     expiresAt = null,
     payload = {},
@@ -339,7 +336,6 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     invitedBy?: string | null;
     vaultId?: string | null;
     vaultRole?: VaultRole | null;
-    aiAccessLevel?: AiAccessLevel;
     systemRole?: SystemRole | null;
     expiresAt?: Date | null;
     payload?: Record<string, unknown>;
@@ -352,7 +348,6 @@ export function createAuthorizationServices({ db }: { db: Database }) {
         invitedBy: invitedBy ?? null,
         vaultId,
         vaultRole,
-        aiAccessLevel,
         systemRole,
         expiresAt,
         payload,
@@ -415,8 +410,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     return db.transaction(async (tx) => {
       let vaultMemberId: string | null = null;
 
-      const invitationSystemRole = invitation.systemRole ?? (invitation.type === 'admin_account' ? 'admin' : null);
-      if (invitationSystemRole === 'admin') {
+      if (invitation.type === 'platform_account' && invitation.systemRole === 'admin') {
         await tx
           .update(usersTable)
           .set({ systemRole: 'admin', updatedAt: sql`now()` })
@@ -442,42 +436,17 @@ export function createAuthorizationServices({ db }: { db: Database }) {
             vaultId: invitation.vaultId,
             userId,
             role: invitation.vaultRole,
-            aiAccessLevel: invitation.aiAccessLevel as AiAccessLevel,
           })
           .onConflictDoUpdate({
             target: [vaultMembersTable.vaultId, vaultMembersTable.userId],
             set: {
               role: invitation.vaultRole,
-              aiAccessLevel: invitation.aiAccessLevel as AiAccessLevel,
               updatedAt: sql`now()`,
             },
           })
           .returning({ id: vaultMembersTable.id });
 
         vaultMemberId = member?.id ?? null;
-      }
-
-      const vaultMemberships = getInvitationVaultMemberships(invitation.payload);
-      for (const membership of vaultMemberships) {
-        const [member] = await tx
-          .insert(vaultMembersTable)
-          .values({
-            vaultId: membership.vaultId,
-            userId,
-            role: membership.role,
-            aiAccessLevel: membership.aiAccessLevel,
-          })
-          .onConflictDoUpdate({
-            target: [vaultMembersTable.vaultId, vaultMembersTable.userId],
-            set: {
-              role: membership.role,
-              aiAccessLevel: membership.aiAccessLevel,
-              updatedAt: sql`now()`,
-            },
-          })
-          .returning({ id: vaultMembersTable.id });
-
-        vaultMemberId ??= member?.id ?? null;
       }
 
       const [accepted] = await tx
@@ -533,7 +502,6 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       .select({
         vaultId: vaultsTable.id,
         role: vaultMembersTable.role,
-        aiAccessLevel: vaultMembersTable.aiAccessLevel,
       })
       .from(vaultsTable)
       .leftJoin(
@@ -548,7 +516,6 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     }
 
     const role = member.role as VaultRole | null;
-    const aiAccessLevel = (member.aiAccessLevel ?? 'none') as AiAccessLevel;
 
     if (!userState.isAdmin && role === null) {
       return null;
@@ -559,38 +526,12 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       vaultId,
       isAdmin: userState.isAdmin,
       role,
-      aiAccessLevel,
       isMember: role !== null,
-      accessMode: role !== null ? 'member' : 'admin',
     };
-  }
-
-  function canAdministrativelyViewVault(state: VaultAuthorizationState | null) {
-    return state !== null && (state.isAdmin || canVaultRoleRead(state.role));
-  }
-
-  function canParticipateInVault(state: VaultAuthorizationState | null) {
-    return state !== null && state.role !== null;
-  }
-
-  function canAccessVault(state: VaultAuthorizationState | null) {
-    return canAdministrativelyViewVault(state);
   }
 
   function canReadVault(state: VaultAuthorizationState | null) {
     return state !== null && canVaultRoleRead(state.role);
-  }
-
-  function canManageVault(state: VaultAuthorizationState | null) {
-    return state !== null && state.role === 'owner';
-  }
-
-  function canManageVaultMembers(state: VaultAuthorizationState | null) {
-    return state !== null && canVaultRoleManageMembers(state.role);
-  }
-
-  function canMutateVaultDocuments(state: VaultAuthorizationState | null) {
-    return state !== null && canVaultRoleMutateDocuments(state.role);
   }
 
   async function canCreateVault({ userId }: { userId: string }) {
@@ -598,78 +539,21 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     return state?.disabledAt === null && state.canCreateVault;
   }
 
-  function canUseDocumentChat(state: VaultAuthorizationState | null) {
-    return state !== null && canUseDocumentChatLevel(state.aiAccessLevel);
-  }
-
-  async function getReadableVaultIdsForUser({ userId }: { userId: string }) {
+  async function canUseAI({ userId }: { userId: string }) {
     const state = await getUserAuthorizationState({ userId });
-
-    if (state === null || state.disabledAt !== null) {
-      return [];
-    }
-
-    const rows = await db
-      .select({ id: vaultMembersTable.vaultId })
-      .from(vaultMembersTable)
-      .innerJoin(vaultsTable, eq(vaultMembersTable.vaultId, vaultsTable.id))
-      .where(and(eq(vaultMembersTable.userId, userId), isNull(vaultsTable.deletedAt)));
-
-    return rows.map(row => row.id);
-  }
-
-  async function getAiAuthorizedVaultIdsForUser({ userId }: { userId: string }) {
-    const state = await getUserAuthorizationState({ userId });
-
-    if (state === null || state.disabledAt !== null) {
-      return [];
-    }
-
-    const rows = await db
-      .select({ id: vaultMembersTable.vaultId })
-      .from(vaultMembersTable)
-      .innerJoin(vaultsTable, eq(vaultMembersTable.vaultId, vaultsTable.id))
-      .where(
-        and(
-          eq(vaultMembersTable.userId, userId),
-          eq(vaultMembersTable.aiAccessLevel, 'full'),
-          isNull(vaultsTable.deletedAt),
-        ),
-      );
-
-    return rows.map(row => row.id);
-  }
-
-  async function canUseGlobalChat({ userId }: { userId: string }) {
-    const vaultIds = await getAiAuthorizedVaultIdsForUser({ userId });
-    return vaultIds.length > 0;
-  }
-
-  function canUseSemanticRetrieval(state: VaultAuthorizationState | null) {
-    return state !== null && canUseSemanticRetrievalLevel(state.aiAccessLevel);
+    return state?.disabledAt === null && state.canUseAI;
   }
 
   return {
-    canAdministrativelyViewVault,
-    canAccessVault,
     canCreateVault,
-    canManageVault,
-    canManageVaultMembers,
-    canMutateVaultDocuments,
-    canParticipateInVault,
+    canUseAI,
     canReadVault,
-    canUseDocumentChat,
-    canUseGlobalChat,
-    canUseSemanticRetrieval,
     countActiveAdmins,
     acceptEmailInvitation,
     acceptEmailInvitationForRegisteredUser,
     createEmailInvitation,
     ensureBootstrapAdmin,
-    getAiAuthorizedVaultIdsForUser,
-    getAiAccessRank,
     getPendingEmailInvitation,
-    getReadableVaultIdsForUser,
     getUserAuthorizationState,
     getUserWithAuthorization,
     getVaultAuthorizationState,

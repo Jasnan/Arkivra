@@ -10,6 +10,7 @@ export interface MeResponse {
   systemRole?: "admin" | "member" | null
   isAdmin: boolean
   canCreateVault?: boolean
+  canUseAI?: boolean
   aiFeaturesEnabled: boolean
 }
 

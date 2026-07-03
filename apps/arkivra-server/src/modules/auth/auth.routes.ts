@@ -137,6 +137,7 @@ export function registerAuthRoutes({
         context.set('systemCapabilities', authorizationState?.systemCapabilities ?? []);
         context.set('isAdmin', authorizationState?.isAdmin ?? false);
         context.set('canCreateVault', authorizationState?.canCreateVault ?? false);
+        context.set('canUseAI', authorizationState?.canUseAI ?? false);
       }
     }
 

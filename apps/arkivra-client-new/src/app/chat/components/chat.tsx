@@ -199,20 +199,22 @@ export function Chat({
     currentConversation && !isDraftConversation && isContextLocked
       ? currentConversation.contextSnapshot
       : contextSnapshotFromDraft(hydratedDraftContext)
-  const aiAccessByVaultId = useMemo(() => {
-    const access = new Map<string, "none" | "full">()
+  const readableVaultIds = useMemo(() => {
+    const ids = new Set<string>()
     for (const vault of vaultsQuery.vaults) {
-      access.set(vault.id, vault.aiAccessLevel)
+      if (vault.role === "owner" || vault.role === "editor" || vault.role === "viewer") {
+        ids.add(vault.id)
+      }
     }
-    return access
+    return ids
   }, [vaultsQuery.vaults])
-  const hasFullAiVault = vaultsQuery.vaults.some((vault) => vault.aiAccessLevel === "full")
+  const hasReadableVault = readableVaultIds.size > 0
   const canUseSelectedContext =
     vaultsQuery.isLoading ||
     canUseContextSnapshot({
       snapshot: activeContextSnapshot,
-      aiAccessByVaultId,
-      hasFullAiVault,
+      readableVaultIds,
+      hasReadableVault,
     })
   const contextSummary = getDraftContextSummary(hydratedDraftContext)
   const contextLabel = contextSummary.label
@@ -316,14 +318,14 @@ export function Chat({
           listChatConversations(),
           getChatModelOptions(),
           getUserUiPreferences().catch(() => ({ preferences: {} as { defaultChatAnswerMode?: ChatResponseMode } })),
-          getMe().catch(() => ({ aiFeaturesEnabled: true, canCreateVault: false })),
+          getMe().catch(() => ({ aiFeaturesEnabled: true, canCreateVault: false, canUseAI: true })),
         ])
         if (!isCurrent) return
 
         setConversations(conversationResult.conversations)
         setAvailableModels(modelResult.options.models)
         setDefaultModel(modelResult.options.defaultModel)
-        setAiFeaturesEnabled(meResult.aiFeaturesEnabled !== false)
+        setAiFeaturesEnabled(meResult.aiFeaturesEnabled !== false && meResult.canUseAI !== false)
 
         const defaultChatAnswerMode = preferencesResult.preferences.defaultChatAnswerMode
         if (!hasManualResponseModeRef.current && isChatResponseMode(defaultChatAnswerMode)) {
@@ -578,7 +580,7 @@ export function Chat({
     const trimmedContent = content.trim()
     if (!trimmedContent || isStreaming) return
     if (!aiFeaturesEnabled) {
-      toast.error("AI features are disabled.")
+      toast.error("Use AI privilege is required.")
       return
     }
     if (!resolvedSelectedModel) {
@@ -610,9 +612,9 @@ export function Chat({
         <div className="flex h-full min-h-[600px] items-center justify-center rounded-lg border bg-background px-6 text-center">
           <div className="max-w-md">
             <MessageSquareOff className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-            <h2 className="mb-2 text-lg font-semibold">AI features are disabled</h2>
+            <h2 className="mb-2 text-lg font-semibold">Use AI privilege required</h2>
             <p className="text-sm text-muted-foreground">
-              Document management and keyword search remain available.
+              Ask an administrator to enable the platform Use AI privilege for your account.
             </p>
           </div>
         </div>

@@ -40,6 +40,7 @@ const inviteUserSchema = z.object({
     message: "Please enter a valid email address.",
   }),
   systemRole: z.enum(["member", "admin"]),
+  canUseAI: z.boolean(),
   canCreateVaults: z.boolean(),
 })
 
@@ -48,6 +49,22 @@ type InviteUserFormValues = z.infer<typeof inviteUserSchema>
 interface UserFormDialogProps {
   disabled?: boolean
   onInviteUser: (input: InviteUserInput) => Promise<EmailInvitation>
+}
+
+function getInvitationPrivilegeText(invitation: EmailInvitation) {
+  if (invitation.systemRole === "admin") {
+    return "Use AI, Create vaults without approval"
+  }
+
+  const capabilities = Array.isArray(invitation.payload.systemCapabilities)
+    ? invitation.payload.systemCapabilities
+    : []
+  const labels = [
+    ...(capabilities.includes("system.use_ai") ? ["Use AI"] : []),
+    ...(capabilities.includes("system.create_vaults") ? ["Create vaults without approval"] : []),
+  ]
+
+  return labels.length > 0 ? labels.join(", ") : "None"
 }
 
 export function UserFormDialog({ disabled = false, onInviteUser }: UserFormDialogProps) {
@@ -59,9 +76,11 @@ export function UserFormDialog({ disabled = false, onInviteUser }: UserFormDialo
     defaultValues: {
       email: "",
       systemRole: "member",
+      canUseAI: false,
       canCreateVaults: false,
     },
   })
+  const isAdministrator = form.watch("systemRole") === "admin"
 
   async function onSubmit(data: InviteUserFormValues) {
     const invitation = await onInviteUser(data)
@@ -82,16 +101,16 @@ export function UserFormDialog({ disabled = false, onInviteUser }: UserFormDialo
       <DialogTrigger asChild>
         <Button className="cursor-pointer" disabled={disabled}>
           <Plus className="mr-2 size-4" />
-          Invite User
+          Invite user
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{createdInvitation ? "Invitation Created" : "Invite User"}</DialogTitle>
+          <DialogTitle>{createdInvitation ? "Invitation created" : "Invite platform user"}</DialogTitle>
           <DialogDescription>
             {createdInvitation
               ? "The invitation is ready for the user to accept."
-              : "Send an account invitation with the right system access."}
+              : "Send a platform account invitation with the right role and privileges."}
           </DialogDescription>
         </DialogHeader>
 
@@ -106,7 +125,10 @@ export function UserFormDialog({ disabled = false, onInviteUser }: UserFormDialo
                   <p className="font-medium">Invitation is pending acceptance</p>
                   <p className="break-all text-sm text-muted-foreground">{createdInvitation.email}</p>
                   <p className="text-sm text-muted-foreground">
-                    Role: {createdInvitation.systemRole === "admin" ? "Admin" : "Member"}
+                    Platform: {createdInvitation.systemRole === "admin" ? "Administrator" : "Member"}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Privileges: {getInvitationPrivilegeText(createdInvitation)}
                   </p>
                 </div>
               </div>
@@ -142,7 +164,7 @@ export function UserFormDialog({ disabled = false, onInviteUser }: UserFormDialo
                 name="systemRole"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>System Role</FormLabel>
+                    <FormLabel>Platform role</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger className="w-full cursor-pointer">
@@ -150,11 +172,35 @@ export function UserFormDialog({ disabled = false, onInviteUser }: UserFormDialo
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
+                        <SelectItem value="admin">Administrator</SelectItem>
                         <SelectItem value="member">Member</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="canUseAI"
+                render={({ field }) => (
+                  <FormItem className="flex items-start gap-3 rounded-md border p-3">
+                    <FormControl>
+                      <Checkbox
+                        checked={isAdministrator || field.value}
+                        disabled={isAdministrator}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Use AI privilege</FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        {isAdministrator
+                          ? "Administrators inherit this privilege."
+                          : "Allow chat and AI-assisted retrieval."}
+                      </p>
+                    </div>
                   </FormItem>
                 )}
               />
@@ -165,11 +211,19 @@ export function UserFormDialog({ disabled = false, onInviteUser }: UserFormDialo
                 render={({ field }) => (
                   <FormItem className="flex items-start gap-3 rounded-md border p-3">
                     <FormControl>
-                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                      <Checkbox
+                        checked={isAdministrator || field.value}
+                        disabled={isAdministrator}
+                        onCheckedChange={field.onChange}
+                      />
                     </FormControl>
                     <div className="space-y-1 leading-none">
-                      <FormLabel>Can create vaults</FormLabel>
-                      <p className="text-sm text-muted-foreground">Allow this user to create new vaults.</p>
+                      <FormLabel>Create vaults without approval</FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        {isAdministrator
+                          ? "Administrators inherit this privilege."
+                          : "Allow creating vaults without approval."}
+                      </p>
                     </div>
                   </FormItem>
                 )}

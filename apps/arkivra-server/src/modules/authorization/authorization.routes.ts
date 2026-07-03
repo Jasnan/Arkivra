@@ -8,7 +8,6 @@ import { requireAdmin } from './authorization.middleware.js';
 import { ACTIVITY_EVENT_TYPES } from '../activity/activity.types.js';
 import { getAuditActorFromContext, getAuditRequestContext } from '../audit/audit.http.js';
 import {
-  isAiAccessLevel,
   isEmailInvitationType,
   isSystemCapability,
   isSystemRole,
@@ -45,38 +44,6 @@ function parseSystemCapabilities(value: unknown) {
   return capabilities.length === value.length ? [...new Set(capabilities)] : null;
 }
 
-function parseInitialVaultMemberships(value: unknown) {
-  if (value === undefined || value === null) {
-    return [] as Array<{ vaultId: string; role: 'owner' | 'editor' | 'viewer'; aiAccessLevel: 'none' | 'full' }>;
-  }
-
-  if (!Array.isArray(value)) {
-    return null;
-  }
-
-  const memberships = value.map((item) => {
-    if (item === null || typeof item !== 'object') {
-      return null;
-    }
-
-    const candidate = item as { vaultId?: unknown; role?: unknown; aiAccessLevel?: unknown };
-    const vaultId = typeof candidate.vaultId === 'string' && candidate.vaultId.trim().length > 0
-      ? candidate.vaultId.trim()
-      : null;
-    const aiAccessLevel = candidate.aiAccessLevel ?? 'none';
-
-    if (vaultId === null || !isVaultRole(candidate.role) || !isAiAccessLevel(aiAccessLevel)) {
-      return null;
-    }
-
-    return { vaultId, role: candidate.role, aiAccessLevel };
-  });
-
-  return memberships.every((membership): membership is NonNullable<typeof membership> => membership !== null)
-    ? memberships
-    : null;
-}
-
 function parseOptionalDate(value: unknown) {
   if (value === undefined || value === null || value === '') {
     return null;
@@ -92,14 +59,12 @@ function parseOptionalDate(value: unknown) {
 
 function getApprovalAuditEventType(type: string) {
   if (type === 'vault.owner_promote') return 'vault.owner_promotion_approved';
-  if (type === 'vault.ai_access_grant') return 'vault.ai_access_approved';
   if (type === 'vault.external_invite') return 'vault.external_invitation_approved';
   return 'permission_request.approved';
 }
 
 function getRejectionAuditEventType(type: string) {
   if (type === 'vault.owner_promote') return 'vault.owner_promotion_rejected';
-  if (type === 'vault.ai_access_grant') return 'vault.ai_access_rejected';
   if (type === 'vault.external_invite') return 'vault.external_invitation_rejected';
   return 'permission_request.rejected';
 }
@@ -333,10 +298,8 @@ export function registerAuthorizationRoutes({
       email?: unknown;
       vaultId?: unknown;
       role?: unknown;
-      aiAccessLevel?: unknown;
       systemRole?: unknown;
       systemCapabilities?: unknown;
-      vaultMemberships?: unknown;
       expiresAt?: unknown;
     } | null;
     const type = body?.type;
@@ -351,20 +314,18 @@ export function registerAuthorizationRoutes({
     }
 
     const role = body?.role;
-    const aiAccessLevel = body?.aiAccessLevel ?? 'none';
-    const systemRole = body?.systemRole ?? (type === 'admin_account' ? 'admin' : 'member');
-    const systemCapabilities = parseSystemCapabilities(body?.systemCapabilities);
-    const vaultMemberships = parseInitialVaultMemberships(body?.vaultMemberships);
+    const systemRole = type === 'platform_account' ? body?.systemRole ?? 'admin' : null;
+    const systemCapabilities = type === 'platform_account'
+      ? parseSystemCapabilities(body?.systemCapabilities)
+      : [];
     const vaultId = typeof body?.vaultId === 'string' && body.vaultId.trim().length > 0
       ? body.vaultId.trim()
       : null;
 
     if (
-      (type === 'vault_member' && (vaultId === null || !isVaultRole(role)))
-      || !isAiAccessLevel(aiAccessLevel)
-      || !isSystemRole(systemRole)
+      (type === 'platform_account' && !isSystemRole(systemRole))
+      || (type === 'vault_member' && (vaultId === null || !isVaultRole(role)))
       || systemCapabilities === null
-      || vaultMemberships === null
     ) {
       return context.json(
         { error: { code: 'authorization.invalid_invitation_payload', message: 'Invalid invitation payload' } },
@@ -373,19 +334,16 @@ export function registerAuthorizationRoutes({
     }
 
     const vaultRole = type === 'vault_member' && isVaultRole(role) ? role : null;
+    const invitationSystemRole = type === 'platform_account' && isSystemRole(systemRole) ? systemRole : null;
     const invitation = await authorizationServices.createEmailInvitation({
       type,
       email,
       invitedBy,
       vaultId,
       vaultRole,
-      aiAccessLevel,
-      systemRole,
+      systemRole: invitationSystemRole,
       expiresAt,
-      payload: {
-        systemCapabilities,
-        vaultMemberships,
-      },
+      payload: type === 'platform_account' ? { systemCapabilities } : {},
     });
 
     return context.json({ invitation }, 201);

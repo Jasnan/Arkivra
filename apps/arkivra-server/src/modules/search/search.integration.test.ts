@@ -95,7 +95,6 @@ function createMockVaultsServices() {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      aiAccessLevel: 'full',
       isAdmin: false,
     })),
     listMembers: vi.fn(async () => []),
@@ -121,6 +120,7 @@ function createTestApp({
     context.set('session', null);
     context.set('userDisabled', false);
     context.set('canCreateVault', false);
+    context.set('canUseAI', context.req.header('x-test-can-use-ai') !== 'false');
     context.set('vaultId', null);
     context.set('vaultRole', null);
 
@@ -183,7 +183,6 @@ describe('search integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: null,
-      aiAccessLevel: 'none',
       isAdmin: false,
     }));
 
@@ -287,6 +286,34 @@ describe('search integration', () => {
     });
   });
 
+  test('returns 403 for hybrid search without the platform Use AI privilege', async () => {
+    const searchServices = createMockSearchServices();
+    const app = createTestApp({ searchServices });
+
+    const response = await app.request('/api/vaults/vlt_1/search/hybrid', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_1',
+        'x-test-can-use-ai': 'false',
+      },
+      body: JSON.stringify({
+        query: 'arkivra',
+        limit: 5,
+        mode: 'hybrid',
+      }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'authorization.use_ai_required',
+        message: 'Use AI privilege required',
+      },
+    });
+    expect((searchServices as any).searchHybrid).not.toHaveBeenCalled();
+  });
+
   test('returns 401 for unauthenticated hybrid search', async () => {
     const searchServices = createMockSearchServices();
     const app = createTestApp({ searchServices });
@@ -318,7 +345,7 @@ describe('search integration', () => {
     expect(response.status).toBe(403);
   });
 
-  test('returns 403 for hybrid search without semantic retrieval access', async () => {
+  test('allows hybrid search for readable vaults with the platform Use AI privilege', async () => {
     const searchServices = createMockSearchServices();
     const vaultServices = createMockVaultsServices();
     (vaultServices as any).getVaultForUser = vi.fn(async () => ({
@@ -328,7 +355,6 @@ describe('search integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'viewer',
-      aiAccessLevel: 'none',
       isAdmin: false,
     }));
     const app = createTestApp({ searchServices, vaultServices });
@@ -342,7 +368,14 @@ describe('search integration', () => {
       body: JSON.stringify({ query: 'arkivra' }),
     });
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(200);
+    expect((searchServices as any).searchHybrid).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      documentVersionIds: undefined,
+      query: 'arkivra',
+      limit: 10,
+      mode: 'hybrid',
+    });
   });
 
   test('returns 400 for invalid hybrid search payload', async () => {
@@ -539,14 +572,12 @@ describe('search integration', () => {
         id: 'vlt_1',
         name: 'Alpha',
         role: 'owner',
-        aiAccessLevel: 'none',
         isAdmin: false,
       },
       {
         id: 'vlt_2',
         name: 'Beta',
         role: 'viewer',
-        aiAccessLevel: 'none',
         isAdmin: false,
       },
     ]);
@@ -580,7 +611,6 @@ describe('search integration', () => {
         id: 'vlt_1',
         name: 'Alpha',
         role: 'owner',
-        aiAccessLevel: 'full',
         isAdmin: false,
       },
     ]);
@@ -615,7 +645,6 @@ describe('search integration', () => {
         id: 'vlt_1',
         name: 'Alpha',
         role: 'owner',
-        aiAccessLevel: 'none',
         isAdmin: false,
       },
     ]);

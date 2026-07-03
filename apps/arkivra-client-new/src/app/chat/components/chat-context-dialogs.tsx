@@ -87,7 +87,7 @@ export function VaultSelectionDialog({
   const [query, setQuery] = useState("")
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const availableVaults = useMemo(
-    () => vaults.filter((vault) => vault.aiAccessLevel === "full"),
+    () => vaults.filter((vault) => vault.role === "owner" || vault.role === "editor" || vault.role === "viewer"),
     [vaults]
   )
   const selectedVaultById = useMemo(
@@ -154,7 +154,7 @@ export function VaultSelectionDialog({
             </div>
             <div className="min-w-0">
               <DialogTitle>Add vaults</DialogTitle>
-              <DialogDescription>Only vaults with full AI access are shown.</DialogDescription>
+              <DialogDescription>Only vaults you can read are shown.</DialogDescription>
             </div>
           </div>
         </DialogHeader>
@@ -296,7 +296,7 @@ export function DocumentSelectionDialog({
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const selectableVaults = useMemo(
-    () => vaults.filter((vault) => vault.aiAccessLevel === "full"),
+    () => vaults.filter((vault) => vault.role === "owner" || vault.role === "editor" || vault.role === "viewer"),
     [vaults]
   )
   const selectedVaultById = useMemo(
@@ -411,7 +411,7 @@ export function DocumentSelectionDialog({
             <div className="min-w-0">
               <DialogTitle>Add documents</DialogTitle>
               <DialogDescription>
-                Only indexed documents from vaults with AI access are shown.
+                Only documents from vaults you can read are shown.
               </DialogDescription>
             </div>
           </div>

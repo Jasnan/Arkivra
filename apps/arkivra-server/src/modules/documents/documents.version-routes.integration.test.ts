@@ -684,10 +684,8 @@ describe('document version and lifecycle routes', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'viewer',
-      aiAccessLevel: 'none',
       isAdmin: false,
       isMember: true,
-      accessMode: 'member',
     }));
     const app = createTestApp({ docServices, vaultServices, auditServices });
 
@@ -720,10 +718,8 @@ describe('document version and lifecycle routes', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'viewer',
-      aiAccessLevel: 'none',
       isAdmin: false,
       isMember: true,
-      accessMode: 'member',
     }));
     const app = createTestApp({ docServices, vaultServices, auditServices, activityServices });
 
@@ -749,10 +745,8 @@ describe('document version and lifecycle routes', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      aiAccessLevel: 'none',
       isAdmin: false,
       isMember: true,
-      accessMode: 'member',
     }));
     const app = createTestApp({ docServices, vaultServices, auditServices });
 
@@ -777,10 +771,8 @@ describe('document version and lifecycle routes', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      aiAccessLevel: 'none',
       isAdmin: false,
       isMember: true,
-      accessMode: 'member',
     }));
     const app = createTestApp({ docServices, vaultServices, auditServices });
 
@@ -806,10 +798,8 @@ describe('document version and lifecycle routes', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'viewer',
-      aiAccessLevel: 'none',
       isAdmin: false,
       isMember: true,
-      accessMode: 'member',
     }));
     const app = createTestApp({ docServices, vaultServices, auditServices });
 
@@ -997,7 +987,6 @@ describe('document version and lifecycle routes', () => {
         updatedAt: new Date('2025-01-01T00:00:00.000Z'),
         deletedAt: null,
         role: 'viewer',
-        aiAccessLevel: 'none',
         isAdmin: false,
       }));
       const app = createTestApp({ docServices, vaultServices });
@@ -1279,7 +1268,6 @@ describe('document version and lifecycle routes', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      aiAccessLevel: 'none',
       isAdmin: false,
     }));
 
@@ -1320,7 +1308,6 @@ describe('document version and lifecycle routes', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'viewer',
-      aiAccessLevel: 'none',
       isAdmin: false,
     }));
 

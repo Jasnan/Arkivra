@@ -1,11 +1,12 @@
 import { fetchJson } from "@/lib/api"
 
-export type SystemCapability = "system.create_vaults"
+export type SystemCapability = "system.create_vaults" | "system.use_ai"
 
 export interface InviteUserInput {
   email: string
   systemRole: "admin" | "member"
   canCreateVaults: boolean
+  canUseAI: boolean
 }
 
 export interface AdminUser {
@@ -21,6 +22,7 @@ export interface AdminUser {
   systemCapabilities: SystemCapability[]
   isAdmin: boolean
   canCreateVault: boolean
+  canUseAI: boolean
   authMethods?: {
     hasPassword: boolean
     oauthProviders: string[]
@@ -30,7 +32,7 @@ export interface AdminUser {
 
 export interface EmailInvitation {
   id: string
-  type: "admin_account" | "vault_member"
+  type: "platform_account" | "vault_member"
   status: "pending" | "accepted" | "revoked" | "expired"
   email: string
   invitedBy: string | null
@@ -40,7 +42,6 @@ export interface EmailInvitation {
   vaultId: string | null
   vaultMemberId: string | null
   vaultRole: "owner" | "editor" | "viewer" | null
-  aiAccessLevel: "none" | "full"
   systemRole: "admin" | "member" | null
   payload: Record<string, unknown>
   createdAt: string
@@ -101,32 +102,25 @@ export async function revokeSystemCapability({
   })
 }
 
-export async function createAdminEmailInvitation({
+export async function createPlatformAccountInvitation({
   email,
   systemRole = "admin",
   systemCapabilities = [],
-  vaultMemberships = [],
   expiresAt,
 }: {
   email: string
   systemRole?: "admin" | "member"
   systemCapabilities?: SystemCapability[]
-  vaultMemberships?: Array<{
-    vaultId: string
-    role: "owner" | "editor" | "viewer"
-    aiAccessLevel: "none" | "full"
-  }>
   expiresAt?: string | null
 }) {
   return fetchJson<{ invitation: EmailInvitation }>("/api/admin/email-invitations", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      type: "admin_account",
+      type: "platform_account",
       email,
       systemRole,
       systemCapabilities,
-      vaultMemberships,
       expiresAt: expiresAt ?? null,
     }),
   })

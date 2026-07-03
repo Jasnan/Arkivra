@@ -27,7 +27,6 @@ function createMockVaultsServices() {
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      aiAccessLevel: 'full',
       isAdmin: false,
     })),
     listUserVaults: vi.fn(async () => []),
@@ -100,6 +99,7 @@ function createTestApp({
     context.set('userId', null);
     context.set('session', null);
     context.set('userDisabled', false);
+    context.set('canUseAI', context.req.header('x-test-can-use-ai') !== 'false');
     context.set('vaultId', null);
     context.set('vaultRole', null);
 
@@ -125,6 +125,30 @@ function createTestApp({
 }
 
 describe('chat routes', () => {
+  test('rejects chat creation without the platform Use AI privilege', async () => {
+    const { app } = createTestApp({ db: createMockDb([{ id: 'doc_1', name: 'Report.pdf' }]) });
+
+    const response = await app.request('/api/chats', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_1',
+        'x-test-can-use-ai': 'false',
+      },
+      body: JSON.stringify({
+        context: { type: 'vault', vaultId: 'vlt_1' },
+      }),
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: 'authorization.use_ai_required',
+        message: 'Use AI privilege required',
+      },
+    });
+  });
+
   test('opens deleted-source conversations as read-only history', async () => {
     const { app } = createTestApp({ db: createMockDb([]) });
 

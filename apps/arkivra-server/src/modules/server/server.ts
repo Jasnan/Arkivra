@@ -312,11 +312,10 @@ export function createServer({
     context.set('systemCapabilities', []);
     context.set('isAdmin', false);
     context.set('canCreateVault', false);
+    context.set('canUseAI', false);
     context.set('vaultId', null);
     context.set('vaultRole', null);
-    context.set('vaultAiAccessLevel', 'none');
     context.set('vaultIsMember', false);
-    context.set('vaultAccessMode', null);
     await next();
   });
 
@@ -450,6 +449,7 @@ export function createServer({
       systemCapabilities: c.get('systemCapabilities'),
       isAdmin: c.get('isAdmin'),
       canCreateVault: c.get('canCreateVault'),
+      canUseAI: c.get('canUseAI'),
       aiFeaturesEnabled: aiSettings?.aiFeaturesEnabled ?? false,
       authMethods: sensitiveActionServices.summarizeAuthMethods(accounts),
       twoFactor,

@@ -750,11 +750,11 @@ export default function SearchPage() {
   const sortBy: SearchSortBy = isSearchSortBy(sortByParam) ? sortByParam : "created_desc"
   const searchModeParam = searchParams.get("searchMode")
   const requestedSearchMode: SearchMode | null = isSearchMode(searchModeParam) ? searchModeParam : null
-  const fullAiVaultIds = useMemo(
+  const readableVaultIds = useMemo(
     () =>
       new Set(
         vaults
-          .filter((vault) => vault.aiAccessLevel === "full" || !("aiAccessLevel" in vault))
+          .filter((vault) => vault.role === "owner" || vault.role === "editor" || vault.role === "viewer")
           .map((vault) => vault.id)
       ),
     [vaults]
@@ -762,8 +762,8 @@ export default function SearchPage() {
   const semanticSearchAvailable =
     aiFeaturesEnabled &&
     (selectedVaultIds.length > 0
-      ? selectedVaultIds.every((vaultId) => fullAiVaultIds.has(vaultId))
-      : fullAiVaultIds.size > 0 || vaults.length === 0)
+      ? selectedVaultIds.every((vaultId) => readableVaultIds.has(vaultId))
+      : readableVaultIds.size > 0 || vaults.length === 0)
   const selectedSearchMode: SearchMode = semanticSearchAvailable ? requestedSearchMode ?? "hybrid" : "keyword"
   const effectiveSearchMode: SearchMode = selectedSearchMode === "hybrid" && debouncedQuery.length > 0 ? "hybrid" : "keyword"
   const hasSearchCriteria =
@@ -851,7 +851,7 @@ export default function SearchPage() {
         if (!ignore) {
           setVaults(vaultResult.vaults)
           setTags(tagResult.tags)
-          setAiFeaturesEnabled(Boolean(meResult.aiFeaturesEnabled))
+          setAiFeaturesEnabled(Boolean(meResult.aiFeaturesEnabled && meResult.canUseAI !== false))
         }
       } catch (error) {
         if (!ignore) {

@@ -241,7 +241,6 @@ describe.sequential('vault hard deletion services e2e', () => {
       invitedBy: ids.user,
       vaultId: ids.vault,
       vaultRole: 'viewer',
-      systemRole: 'member',
       payload: {},
     });
     await db.insert(chatConversationsTable).values({

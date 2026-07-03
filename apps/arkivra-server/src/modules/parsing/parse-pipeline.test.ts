@@ -200,22 +200,22 @@ describe('parse pipeline', () => {
     const fileText = [
       '# Renewal policy',
       '',
-      '1. Give member `full` AI access on one vault.',
+      '1. Grant the member the platform Use AI privilege.',
       '2. Go to `/chat`.',
       '3. Expected: global chat is available.',
     ].join('\n');
-    const startOffset = fileText.indexOf('1. Give member');
+    const startOffset = fileText.indexOf('1. Grant the member');
     const endOffset = fileText.length;
     const { pipeline } = makePipeline({
       chunks: [
         makeChunk({
           text: [
-            '1. Give member full AI access on one vault.',
+            '1. Grant the member the platform Use AI privilege.',
             '2. Go to /chat.',
             '3. Expected: global chat is available.',
           ].join(' '),
           originalText: [
-            '1. Give member full AI access on one vault.',
+            '1. Grant the member the platform Use AI privilege.',
             '2. Go to /chat.',
             '3. Expected: global chat is available.',
           ].join(' '),
@@ -352,7 +352,7 @@ describe('parse pipeline', () => {
       '',
       '## Global Chat',
       '',
-      '1. Give member `full` AI access on one vault.',
+      '1. Grant the member the platform Use AI privilege.',
       '2. Go to `/chat`.',
     ].join('\n');
     const firstEndOffset = fileText.indexOf('Invite Acceptance') - 1;

@@ -17,13 +17,19 @@ import {
 import {
   ChevronDown,
   EllipsisVertical,
+  Folder,
   RefreshCw,
   Search,
+  Shield,
   ShieldCheck,
   ShieldX,
+  Sparkles,
+  Trash2,
+  UserRound,
   UserRoundCheck,
   UserRoundCog,
   UserRoundX,
+  X,
 } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -71,6 +77,8 @@ interface DataTableProps {
   onRevokeAdmin: (user: AdminUser) => void | Promise<void>
   onGrantCreateVaults: (user: AdminUser) => void | Promise<void>
   onRevokeCreateVaults: (user: AdminUser) => void | Promise<void>
+  onGrantUseAI: (user: AdminUser) => void | Promise<void>
+  onRevokeUseAI: (user: AdminUser) => void | Promise<void>
 }
 
 function getUserInitials(user: AdminUser) {
@@ -89,7 +97,7 @@ function getUserDisplayName(user: AdminUser) {
 }
 
 function getUserRole(user: AdminUser) {
-  return user.isAdmin ? "Admin" : "Member"
+  return user.isAdmin ? "Administrator" : "Member"
 }
 
 function getUserStatus(user: AdminUser) {
@@ -97,9 +105,12 @@ function getUserStatus(user: AdminUser) {
 }
 
 function getUserAccess(user: AdminUser) {
-  if (user.isAdmin) return "All vaults"
-  if (user.canCreateVault) return "Can create vaults"
-  return "Member access"
+  const privileges = [
+    ...(user.canUseAI ? ["Use AI"] : []),
+    ...(user.canCreateVault ? ["Create vaults without approval"] : []),
+  ]
+
+  return privileges.length > 0 ? privileges.join(", ") : "None"
 }
 
 function getUserAuth(user: AdminUser) {
@@ -145,7 +156,7 @@ function getStatusColor(status: string) {
 
 function getRoleColor(role: string) {
   switch (role) {
-    case "Admin":
+    case "Administrator":
       return "text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-900/20"
     case "Member":
       return "text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/20"
@@ -156,6 +167,47 @@ function getRoleColor(role: string) {
 
 const exactAdminUserFilter: FilterFn<AdminUser> = (row, columnId, value) => {
   return row.getValue(columnId) === value
+}
+
+type PlatformPrivilegeFilters = {
+  useAI: boolean
+  createVaults: boolean
+}
+
+const emptyPlatformPrivilegeFilters: PlatformPrivilegeFilters = {
+  useAI: false,
+  createVaults: false,
+}
+
+function isPlatformPrivilegeFilters(value: unknown): value is PlatformPrivilegeFilters {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "useAI" in value &&
+    "createVaults" in value
+  )
+}
+
+function hasActivePrivilegeFilter(value: PlatformPrivilegeFilters) {
+  return value.useAI || value.createVaults
+}
+
+function getPrivilegeFilterLabel(value: PlatformPrivilegeFilters) {
+  const count = Number(value.useAI) + Number(value.createVaults)
+  return count > 0 ? `${count} selected` : "Any privileges"
+}
+
+const platformPrivilegeFilter: FilterFn<AdminUser> = (row, _columnId, value) => {
+  if (!isPlatformPrivilegeFilters(value) || !hasActivePrivilegeFilter(value)) {
+    return true
+  }
+
+  const user = row.original
+
+  if (value.useAI && !user.canUseAI) return false
+  if (value.createVaults && !user.canCreateVault) return false
+
+  return true
 }
 
 export function DataTable({
@@ -171,6 +223,8 @@ export function DataTable({
   onRevokeAdmin,
   onGrantCreateVaults,
   onRevokeCreateVaults,
+  onGrantUseAI,
+  onRevokeUseAI,
 }: DataTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -245,7 +299,7 @@ export function DataTable({
     {
       accessorFn: getUserRole,
       id: "role",
-      header: "Role",
+      header: "Platform role",
       cell: ({ row }) => {
         const role = row.getValue("role") as string
         return (
@@ -259,9 +313,9 @@ export function DataTable({
     {
       accessorFn: getUserAccess,
       id: "access",
-      header: "Access",
+      header: "Platform privileges",
       cell: ({ row }) => <span className="text-sm font-medium">{row.getValue("access") as string}</span>,
-      filterFn: exactAdminUserFilter,
+      filterFn: platformPrivilegeFilter,
     },
     {
       accessorFn: getUserStatus,
@@ -322,23 +376,34 @@ export function DataTable({
                 {user.isAdmin ? (
                   <DropdownMenuItem className="cursor-pointer" disabled={disabled} onSelect={() => onRevokeAdmin(user)}>
                     <UserRoundX className="mr-2 size-4" />
-                    Revoke admin
+                    Revoke platform administrator
                   </DropdownMenuItem>
                 ) : (
                   <DropdownMenuItem className="cursor-pointer" disabled={disabled} onSelect={() => onGrantAdmin(user)}>
                     <UserRoundCheck className="mr-2 size-4" />
-                    Grant admin
+                    Grant platform administrator
+                  </DropdownMenuItem>
+                )}
+                {user.canUseAI ? (
+                  <DropdownMenuItem className="cursor-pointer" disabled={disabled || user.isAdmin} onSelect={() => onRevokeUseAI(user)}>
+                    <UserRoundX className="mr-2 size-4" />
+                    Revoke Use AI privilege
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem className="cursor-pointer" disabled={disabled || user.isAdmin} onSelect={() => onGrantUseAI(user)}>
+                    <UserRoundCog className="mr-2 size-4" />
+                    Grant Use AI privilege
                   </DropdownMenuItem>
                 )}
                 {user.canCreateVault ? (
-                  <DropdownMenuItem className="cursor-pointer" disabled={disabled} onSelect={() => onRevokeCreateVaults(user)}>
+                  <DropdownMenuItem className="cursor-pointer" disabled={disabled || user.isAdmin} onSelect={() => onRevokeCreateVaults(user)}>
                     <UserRoundX className="mr-2 size-4" />
-                    Revoke vault creation
+                    Revoke create vaults without approval
                   </DropdownMenuItem>
                 ) : (
-                  <DropdownMenuItem className="cursor-pointer" disabled={disabled} onSelect={() => onGrantCreateVaults(user)}>
+                  <DropdownMenuItem className="cursor-pointer" disabled={disabled || user.isAdmin} onSelect={() => onGrantCreateVaults(user)}>
                     <UserRoundCog className="mr-2 size-4" />
-                    Allow vault creation
+                    Grant create vaults without approval
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
@@ -372,8 +437,10 @@ export function DataTable({
     onEnableUser,
     onGrantAdmin,
     onGrantCreateVaults,
+    onGrantUseAI,
     onRevokeAdmin,
     onRevokeCreateVaults,
+    onRevokeUseAI,
   ])
 
   const table = useReactTable({
@@ -399,13 +466,21 @@ export function DataTable({
   })
 
   const roleFilter = table.getColumn("role")?.getFilterValue() as string
-  const accessFilter = table.getColumn("access")?.getFilterValue() as string
+  const privilegeFilterValue = table.getColumn("access")?.getFilterValue()
+  const privilegeFilters = isPlatformPrivilegeFilters(privilegeFilterValue)
+    ? privilegeFilterValue
+    : emptyPlatformPrivilegeFilters
   const statusFilter = table.getColumn("status")?.getFilterValue() as string
+  const setPrivilegeFilter = (nextFilters: PlatformPrivilegeFilters) => {
+    table.getColumn("access")?.setFilterValue(
+      hasActivePrivilegeFilter(nextFilters) ? nextFilters : undefined
+    )
+  }
   const columnLabel = (id: string): ReactNode => {
     const labels: Record<string, string> = {
       user: "User",
-      role: "Role",
-      access: "Access",
+      role: "Platform role",
+      access: "Platform privileges",
       status: "Status",
       twoFactor: "2FA",
       auth: "Auth",
@@ -439,64 +514,199 @@ export function DataTable({
       <div className="grid gap-2 sm:grid-cols-4 sm:gap-4">
         <div className="space-y-2">
           <Label htmlFor="role-filter" className="text-sm font-medium">
-            Role
+            Platform role
           </Label>
-          <Select
-            value={roleFilter || ""}
-            onValueChange={(value) =>
-              table.getColumn("role")?.setFilterValue(value === "all" ? "" : value)
-            }
-          >
-            <SelectTrigger className="w-full cursor-pointer" id="role-filter">
-              <SelectValue placeholder="Select Role" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Roles</SelectItem>
-              <SelectItem value="Admin">Admin</SelectItem>
-              <SelectItem value="Member">Member</SelectItem>
-            </SelectContent>
-          </Select>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                id="role-filter"
+                type="button"
+                variant="outline"
+                className="h-10 w-full justify-between px-3 font-normal"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <UserRound className="size-4 text-muted-foreground" />
+                  <span className="truncate">{roleFilter || "Any role"}</span>
+                </span>
+                <span className="ml-2 flex items-center gap-1">
+                  {roleFilter ? (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      aria-label="Clear platform role filter"
+                      className="rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        table.getColumn("role")?.setFilterValue(undefined)
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          table.getColumn("role")?.setFilterValue(undefined)
+                        }
+                      }}
+                    >
+                      <X className="size-4" />
+                    </span>
+                  ) : null}
+                  <ChevronDown className="size-4 text-muted-foreground" />
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
+              <DropdownMenuCheckboxItem
+                checked={roleFilter === "Administrator"}
+                onCheckedChange={(checked) =>
+                  table.getColumn("role")?.setFilterValue(checked === true ? "Administrator" : undefined)
+                }
+              >
+                Administrator
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={roleFilter === "Member"}
+                onCheckedChange={(checked) =>
+                  table.getColumn("role")?.setFilterValue(checked === true ? "Member" : undefined)
+                }
+              >
+                Member
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="access-filter" className="text-sm font-medium">
-            Access
+          <Label className="text-sm font-medium">
+            Platform privileges
           </Label>
-          <Select
-            value={accessFilter || ""}
-            onValueChange={(value) =>
-              table.getColumn("access")?.setFilterValue(value === "all" ? "" : value)
-            }
-          >
-            <SelectTrigger className="w-full cursor-pointer" id="access-filter">
-              <SelectValue placeholder="Select Access" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Access</SelectItem>
-              <SelectItem value="All vaults">All vaults</SelectItem>
-              <SelectItem value="Can create vaults">Can create vaults</SelectItem>
-              <SelectItem value="Member access">Member access</SelectItem>
-            </SelectContent>
-          </Select>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 w-full justify-between px-3 font-normal"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <Shield className="size-4 text-muted-foreground" />
+                  <span className="truncate">{getPrivilegeFilterLabel(privilegeFilters)}</span>
+                </span>
+                <ChevronDown className="ml-2 size-4 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
+              <DropdownMenuCheckboxItem
+                checked={privilegeFilters.useAI}
+                onCheckedChange={(checked) =>
+                  setPrivilegeFilter({
+                    ...privilegeFilters,
+                    useAI: checked === true,
+                  })
+                }
+                onSelect={(event) => event.preventDefault()}
+              >
+                <Sparkles className="size-4 text-muted-foreground" />
+                Use AI
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={privilegeFilters.createVaults}
+                onCheckedChange={(checked) =>
+                  setPrivilegeFilter({
+                    ...privilegeFilters,
+                    createVaults: checked === true,
+                  })
+                }
+                onSelect={(event) => event.preventDefault()}
+              >
+                <Folder className="size-4 text-muted-foreground" />
+                Create vaults without approval
+              </DropdownMenuCheckboxItem>
+              {hasActivePrivilegeFilter(privilegeFilters) ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="cursor-pointer"
+                    onSelect={() => setPrivilegeFilter(emptyPlatformPrivilegeFilters)}
+                  >
+                    <Trash2 className="size-4" />
+                    Clear selection
+                  </DropdownMenuItem>
+                </>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <div className="space-y-2">
           <Label htmlFor="status-filter" className="text-sm font-medium">
             Status
           </Label>
-          <Select
-            value={statusFilter || ""}
-            onValueChange={(value) =>
-              table.getColumn("status")?.setFilterValue(value === "all" ? "" : value)
-            }
-          >
-            <SelectTrigger className="w-full cursor-pointer" id="status-filter">
-              <SelectValue placeholder="Select Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="Active">Active</SelectItem>
-              <SelectItem value="Disabled">Disabled</SelectItem>
-            </SelectContent>
-          </Select>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                id="status-filter"
+                type="button"
+                variant="outline"
+                className="h-10 w-full justify-between px-3 font-normal"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span
+                    className={
+                      statusFilter === "Active"
+                        ? "size-2.5 rounded-full bg-green-600"
+                        : statusFilter === "Disabled"
+                          ? "size-2.5 rounded-full bg-orange-500"
+                          : "size-2.5 rounded-full border border-muted-foreground/50"
+                    }
+                  />
+                  <span className="truncate">{statusFilter || "Any status"}</span>
+                </span>
+                <span className="ml-2 flex items-center gap-1">
+                  {statusFilter ? (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      aria-label="Clear status filter"
+                      className="rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        table.getColumn("status")?.setFilterValue(undefined)
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          table.getColumn("status")?.setFilterValue(undefined)
+                        }
+                      }}
+                    >
+                      <X className="size-4" />
+                    </span>
+                  ) : null}
+                  <ChevronDown className="size-4 text-muted-foreground" />
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
+              <DropdownMenuCheckboxItem
+                checked={statusFilter === "Active"}
+                onCheckedChange={(checked) =>
+                  table.getColumn("status")?.setFilterValue(checked === true ? "Active" : undefined)
+                }
+              >
+                <span className="size-2.5 rounded-full bg-green-600" />
+                Active
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={statusFilter === "Disabled"}
+                onCheckedChange={(checked) =>
+                  table.getColumn("status")?.setFilterValue(checked === true ? "Disabled" : undefined)
+                }
+              >
+                <span className="size-2.5 rounded-full bg-orange-500" />
+                Disabled
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <div className="space-y-2">
           <Label htmlFor="column-visibility" className="text-sm font-medium">

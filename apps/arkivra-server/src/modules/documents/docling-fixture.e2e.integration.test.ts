@@ -616,7 +616,6 @@ describe.sequential('docling fixture worker e2e', () => {
       vaultId: createdVault.id,
       userId: testContext.userId,
       role: 'owner',
-      aiAccessLevel: 'full',
     });
     testContext.vaultId = createdVault.id;
 

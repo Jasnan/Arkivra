@@ -329,6 +329,7 @@ describe('auth integration', () => {
       systemCapabilities: [],
       isAdmin: false,
       canCreateVault: false,
+      canUseAI: false,
       aiFeaturesEnabled: false,
       authMethods: {
         hasPassword: true,

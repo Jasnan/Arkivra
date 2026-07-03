@@ -8,9 +8,7 @@ import { getAuditActorFromContext, getAuditRequestContext } from '../audit/audit
 type VaultAuthorizationPredicate = (args: {
   isAdmin: boolean;
   role: VaultRole | null;
-  aiAccessLevel: 'none' | 'full';
   isMember: boolean;
-  accessMode: 'member' | 'admin' | null;
 }) => boolean;
 
 function forbidden(context: Parameters<Parameters<typeof createMiddleware>[0]>[0]) {
@@ -50,11 +48,9 @@ function requireVaultAuthorization(
   return createMiddleware(async (context, next) => {
     const isAdmin = context.get('isAdmin');
     const role = context.get('vaultRole');
-    const aiAccessLevel = context.get('vaultAiAccessLevel');
     const isMember = context.get('vaultIsMember');
-    const accessMode = context.get('vaultAccessMode');
 
-    if (!predicate({ isAdmin, role, aiAccessLevel, isMember, accessMode })) {
+    if (!predicate({ isAdmin, role, isMember })) {
       const action = getDocumentAccessDeniedAction(context.req.method, context.req.path);
       const vaultId = context.get('vaultId') ?? context.req.param('vaultId') ?? null;
       const documentId = context.req.param('documentId') || null;
@@ -160,9 +156,7 @@ export function requireVaultAccess({
 
     context.set('vaultId', vaultId);
     context.set('vaultRole', vault.role);
-    context.set('vaultAiAccessLevel', vault.aiAccessLevel);
     context.set('vaultIsMember', vault.isMember);
-    context.set('vaultAccessMode', vault.accessMode);
     context.set('isAdmin', vault.isAdmin || context.get('isAdmin'));
 
     await next();
@@ -194,9 +188,7 @@ export function requireCanReadVault(options: { auditServices?: AuditServices } =
 }
 
 export function requireCanViewVaultManagement() {
-  return requireVaultAuthorization(({ isAdmin, role, accessMode }) =>
-    role === 'owner' || isAdmin || accessMode === 'admin',
-  );
+  return requireVaultAuthorization(({ isAdmin, role }) => role === 'owner' || isAdmin);
 }
 
 export function requireCanMutateVaultDocuments(options: { auditServices?: AuditServices } = {}) {
@@ -209,12 +201,4 @@ export function requireCanManageVaultMembers() {
 
 export function requireCanManageVault() {
   return requireVaultAuthorization(({ role }) => role === 'owner');
-}
-
-export function requireCanUseDocumentChat() {
-  return requireVaultAuthorization(({ aiAccessLevel }) => aiAccessLevel === 'full');
-}
-
-export function requireCanUseSemanticRetrieval() {
-  return requireVaultAuthorization(({ aiAccessLevel }) => aiAccessLevel === 'full');
 }

@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card"
-import { CheckCircle2, ShieldCheck, UserRoundPlus, Users } from "lucide-react"
+import { Bot, FolderPlus, ShieldCheck, Users } from "lucide-react"
 import type { AdminUser } from "../admin-users.api"
 
 interface StatCardsProps {
@@ -14,19 +14,19 @@ export function StatCards({ users }: StatCardsProps) {
       icon: Users,
     },
     {
-      title: "Admins",
+      title: "Platform admins",
       current: users.filter((user) => user.isAdmin).length.toLocaleString(),
       icon: ShieldCheck,
     },
     {
-      title: "Active Users",
-      current: users.filter((user) => user.disabledAt === null).length.toLocaleString(),
-      icon: CheckCircle2,
+      title: "Create vaults without approval",
+      current: users.filter((user) => user.canCreateVault).length.toLocaleString(),
+      icon: FolderPlus,
     },
     {
-      title: "Vault Creators",
-      current: users.filter((user) => user.canCreateVault).length.toLocaleString(),
-      icon: UserRoundPlus,
+      title: "Use AI privilege",
+      current: users.filter((user) => user.canUseAI).length.toLocaleString(),
+      icon: Bot,
     },
   ]
 

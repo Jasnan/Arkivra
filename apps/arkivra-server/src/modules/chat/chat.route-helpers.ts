@@ -17,7 +17,7 @@ import type {
 
 export type ChatRouteErrorCode =
   | 'auth.unauthorized'
-  | 'authorization.ai_access_required'
+  | 'authorization.use_ai_required'
   | 'chat.invalid_content'
   | 'chat.invalid_context'
   | 'chat.invalid_intent'
@@ -261,14 +261,6 @@ export function canReadVault(vault: VaultAccess) {
   return vault.role === 'owner' || vault.role === 'editor' || vault.role === 'viewer';
 }
 
-export function canUseVaultChat(vault: VaultAccess) {
-  return canReadVault(vault) && vault.aiAccessLevel === 'full';
-}
-
-export function canUseDocumentChat(vault: VaultAccess) {
-  return canReadVault(vault) && vault.aiAccessLevel === 'full';
-}
-
 export function getRawRequestedContext(body: Record<string, unknown>) {
   return isRecord(body.contextSnapshot)
     ? body.contextSnapshot
@@ -380,18 +372,27 @@ export async function resolveCreatableContext({
     return { ok: false, status: 401, code: 'auth.unauthorized', message: 'Unauthorized' };
   }
 
+  if (!context.get('canUseAI')) {
+    return {
+      ok: false,
+      status: 403,
+      code: 'authorization.use_ai_required',
+      message: 'Use AI privilege required',
+    };
+  }
+
   if (requestedContext.type === 'global') {
     const vaults = await vaultServices.listUserVaults({ userId });
     const vaultIds = vaults
-      .filter((vault) => vault.aiAccessLevel === 'full')
+      .filter(canReadVault)
       .map((vault) => vault.id);
 
     if (vaultIds.length === 0) {
       return {
         ok: false,
         status: 403,
-        code: 'authorization.ai_access_required',
-        message: 'AI access required',
+        code: 'vault.forbidden',
+        message: 'No readable vaults available',
       };
     }
 
@@ -412,12 +413,12 @@ export async function resolveCreatableContext({
         return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };
       }
 
-      if (!canUseVaultChat(vault)) {
+      if (!canReadVault(vault)) {
         return {
           ok: false,
           status: 403,
-          code: 'authorization.ai_access_required',
-          message: 'Vault chat requires full AI access',
+          code: 'vault.forbidden',
+          message: 'Forbidden',
         };
       }
 
@@ -439,12 +440,12 @@ export async function resolveCreatableContext({
         return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };
       }
 
-      if (!canUseDocumentChat(vault)) {
+      if (!canReadVault(vault)) {
         return {
           ok: false,
           status: 403,
-          code: 'authorization.ai_access_required',
-          message: 'Document chat requires document chat or full AI access',
+          code: 'vault.forbidden',
+          message: 'Forbidden',
         };
       }
 
@@ -490,13 +491,13 @@ export async function resolveCreatableContext({
   }
 
   if (requestedContext.type === 'vault') {
-    return canUseVaultChat(vault)
+    return canReadVault(vault)
       ? { ok: true, scope: { type: 'vault', vaultId: vault.id, vaultName: vault.name } }
       : {
           ok: false,
           status: 403,
-          code: 'authorization.ai_access_required',
-          message: 'Vault chat requires full AI access',
+          code: 'vault.forbidden',
+          message: 'Forbidden',
         };
   }
 
@@ -509,12 +510,12 @@ export async function resolveCreatableContext({
     };
   }
 
-  if (!canUseDocumentChat(vault)) {
+  if (!canReadVault(vault)) {
     return {
       ok: false,
       status: 403,
-      code: 'authorization.ai_access_required',
-      message: 'Document chat requires document chat or full AI access',
+      code: 'vault.forbidden',
+      message: 'Forbidden',
     };
   }
 
@@ -555,10 +556,19 @@ export async function resolveUsableContext({
     return { ok: false, status: 401, code: 'auth.unauthorized', message: 'Unauthorized' };
   }
 
+  if (!context.get('canUseAI')) {
+    return {
+      ok: false,
+      status: 403,
+      code: 'authorization.use_ai_required',
+      message: 'Use AI privilege required',
+    };
+  }
+
   if (snapshot.type === 'global') {
     for (const vaultId of snapshot.vaultIds) {
       const vault = await vaultServices.getVaultForUser({ vaultId, userId });
-      if (vault === null || !canUseVaultChat(vault)) {
+      if (vault === null || !canReadVault(vault)) {
         return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };
       }
     }
@@ -568,8 +578,8 @@ export async function resolveUsableContext({
       : {
           ok: false,
           status: 403,
-          code: 'authorization.ai_access_required',
-          message: 'AI access required',
+          code: 'vault.forbidden',
+          message: 'No readable vaults available',
         };
   }
 
@@ -578,14 +588,14 @@ export async function resolveUsableContext({
       return {
         ok: false,
         status: 403,
-        code: 'authorization.ai_access_required',
-        message: 'AI access required',
+        code: 'vault.forbidden',
+        message: 'Forbidden',
       };
     }
 
     for (const vaultRef of dedupeVaultRefs(snapshot.vaults)) {
       const vault = await vaultServices.getVaultForUser({ vaultId: vaultRef.vaultId, userId });
-      if (vault === null || !canUseVaultChat(vault)) {
+      if (vault === null || !canReadVault(vault)) {
         return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };
       }
     }
@@ -596,7 +606,7 @@ export async function resolveUsableContext({
 
     for (const documentRef of dedupeDocumentRefs(snapshot.documents, selectedVaultIds)) {
       const vault = await vaultServices.getVaultForUser({ vaultId: documentRef.vaultId, userId });
-      if (vault === null || !canUseDocumentChat(vault)) {
+      if (vault === null || !canReadVault(vault)) {
         return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };
       }
 
@@ -621,22 +631,22 @@ export async function resolveUsableContext({
   }
 
   if (snapshot.type === 'vault') {
-    return canUseVaultChat(vault)
+    return canReadVault(vault)
       ? { ok: true, scope: snapshot }
       : {
           ok: false,
           status: 403,
-          code: 'authorization.ai_access_required',
-          message: 'AI access required',
+          code: 'vault.forbidden',
+          message: 'Forbidden',
         };
   }
 
-  if (!canUseDocumentChat(vault)) {
+  if (!canReadVault(vault)) {
     return {
       ok: false,
       status: 403,
-      code: 'authorization.ai_access_required',
-      message: 'AI access required',
+      code: 'vault.forbidden',
+      message: 'Forbidden',
     };
   }
 
@@ -649,4 +659,3 @@ export async function resolveUsableContext({
     ? { ok: true, scope: snapshot }
     : { ok: false, status: 404, code: 'chat.not_found', message: 'Document not found' };
 }
-

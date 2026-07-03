@@ -62,7 +62,7 @@ Confirm:
 - The embedding provider points to a reachable Ollama-compatible endpoint.
 - The selected embedding model is available.
 - An embedding index has completed and is active.
-- The user has full AI access for the relevant vault.
+- The user has the platform Use AI privilege and can read the relevant vault.
 
 Without an active embedding index, Arkivra falls back to full-text search.
 

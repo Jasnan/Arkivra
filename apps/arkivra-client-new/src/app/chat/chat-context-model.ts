@@ -277,41 +277,41 @@ export function draftContextFromSnapshot(snapshot: ChatContextSnapshot): DraftCh
 
 export function canUseContextSnapshot({
   snapshot,
-  aiAccessByVaultId,
-  hasFullAiVault,
+  readableVaultIds,
+  hasReadableVault,
 }: {
   snapshot: ChatContextSnapshot
-  aiAccessByVaultId: Map<string, "none" | "full">
-  hasFullAiVault: boolean
+  readableVaultIds: Set<string>
+  hasReadableVault: boolean
 }) {
   if (snapshot.type === "global") {
-    if (snapshot.vaultIds.length === 0) return hasFullAiVault
-    return snapshot.vaultIds.every((vaultId) => aiAccessByVaultId.get(vaultId) === "full")
+    if (snapshot.vaultIds.length === 0) return hasReadableVault
+    return snapshot.vaultIds.every((vaultId) => readableVaultIds.has(vaultId))
   }
 
-  if (snapshot.type === "vault") return aiAccessByVaultId.get(snapshot.vaultId) === "full"
-  if (snapshot.type === "document") return aiAccessByVaultId.get(snapshot.vaultId) === "full"
+  if (snapshot.type === "vault") return readableVaultIds.has(snapshot.vaultId)
+  if (snapshot.type === "document") return readableVaultIds.has(snapshot.vaultId)
 
   if (snapshot.vaults.length === 0 && snapshot.documents.length === 0) return false
 
   return (
-    snapshot.vaults.every((vault) => aiAccessByVaultId.get(vault.vaultId) === "full") &&
-    snapshot.documents.every((document) => aiAccessByVaultId.get(document.vaultId) === "full")
+    snapshot.vaults.every((vault) => readableVaultIds.has(vault.vaultId)) &&
+    snapshot.documents.every((document) => readableVaultIds.has(document.vaultId))
   )
 }
 
 export function getContextAccessMessage(snapshot: ChatContextSnapshot) {
   if (snapshot.type === "document") {
-    return "Document chat requires full AI access on this vault."
+    return "Document chat requires access to this document."
   }
 
   if (snapshot.type === "vault") {
-    return "To chat with this vault, join it as a member with full AI access. Admin access alone is not enough."
+    return "To chat with this vault, join it as a member. Admin access alone is not document access."
   }
 
   if (snapshot.type === "selection") {
-    return "Selected context includes vaults or documents without the required AI access."
+    return "Selected context includes vaults or documents you cannot read."
   }
 
-  return "To start using chat, join at least one vault as a member with full AI access. Admin access alone is not enough."
+  return "To start using chat, join at least one vault as a member. Admin access alone is not document access."
 }

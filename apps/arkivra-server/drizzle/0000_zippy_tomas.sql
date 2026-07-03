@@ -367,7 +367,6 @@ CREATE TABLE "email_invitations" (
 	"vault_id" text,
 	"vault_member_id" text,
 	"vault_role" text,
-	"ai_access_level" text DEFAULT 'none' NOT NULL,
 	"system_role" text,
 	"payload" jsonb DEFAULT '{}'::jsonb NOT NULL
 );
@@ -522,7 +521,6 @@ CREATE TABLE "vault_members" (
 	"vault_id" text NOT NULL,
 	"user_id" text NOT NULL,
 	"role" text NOT NULL,
-	"ai_access_level" text DEFAULT 'none' NOT NULL,
 	CONSTRAINT "vault_members_vault_user_unique" UNIQUE("vault_id","user_id")
 );
 --> statement-breakpoint

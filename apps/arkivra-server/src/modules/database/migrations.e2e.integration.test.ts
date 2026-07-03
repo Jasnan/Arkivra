@@ -1252,7 +1252,7 @@ describe.sequential('migrations smoke', () => {
     expect(rows).toEqual([]);
   });
 
-  test('baseline includes admin, capability, vault role, and AI access schema', async () => {
+  test('baseline includes platform privileges and vault role schema', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -1271,7 +1271,7 @@ describe.sequential('migrations smoke', () => {
           AND (
             (table_name = 'users' AND column_name = 'system_role')
             OR (table_name = 'vaults' AND column_name = 'created_by')
-            OR (table_name = 'vault_members' AND column_name IN ('role', 'ai_access_level'))
+            OR (table_name = 'vault_members' AND column_name = 'role')
             OR table_name IN ('system_capabilities', 'permission_requests', 'email_invitations')
           )
       `,
@@ -1286,16 +1286,12 @@ describe.sequential('migrations smoke', () => {
     expect(byKey['users.system_role']?.column_default).toContain("'member'");
 
     expect(byKey['vaults.created_by']?.data_type).toBe('text');
-    expect(byKey['vault_members.ai_access_level']?.data_type).toBe('text');
-    expect(byKey['vault_members.ai_access_level']?.is_nullable).toBe('NO');
-    expect(byKey['vault_members.ai_access_level']?.column_default).toContain("'none'");
 
     expect(byKey['system_capabilities.user_id']?.is_nullable).toBe('NO');
     expect(byKey['system_capabilities.capability']?.is_nullable).toBe('NO');
     expect(byKey['permission_requests.type']?.is_nullable).toBe('NO');
     expect(byKey['permission_requests.status']?.column_default).toContain("'pending'");
     expect(byKey['email_invitations.type']?.is_nullable).toBe('NO');
-    expect(byKey['email_invitations.ai_access_level']?.column_default).toContain("'none'");
 
     const { rows: tableRows } = await pool.query<{ table_name: string }>(
       `

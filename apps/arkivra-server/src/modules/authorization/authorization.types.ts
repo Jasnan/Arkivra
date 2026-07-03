@@ -1,20 +1,16 @@
 export const SYSTEM_ROLES = ['admin', 'member'] as const;
 export type SystemRole = (typeof SYSTEM_ROLES)[number];
 
-export const SYSTEM_CAPABILITIES = ['system.create_vaults'] as const;
+export const SYSTEM_CAPABILITIES = ['system.create_vaults', 'system.use_ai'] as const;
 export type SystemCapability = (typeof SYSTEM_CAPABILITIES)[number];
 
 export const VAULT_ROLES = ['owner', 'editor', 'viewer'] as const;
 export type VaultRole = (typeof VAULT_ROLES)[number];
 
-export const AI_ACCESS_LEVELS = ['none', 'full'] as const;
-export type AiAccessLevel = (typeof AI_ACCESS_LEVELS)[number];
-
 export const PERMISSION_REQUEST_TYPES = [
   'vault.create',
   'vault.delete',
   'vault.owner_promote',
-  'vault.ai_access_grant',
   'vault.external_invite',
 ] as const;
 export type PermissionRequestType = (typeof PERMISSION_REQUEST_TYPES)[number];
@@ -22,7 +18,7 @@ export type PermissionRequestType = (typeof PERMISSION_REQUEST_TYPES)[number];
 export const PERMISSION_REQUEST_STATUSES = ['pending', 'approved', 'rejected', 'cancelled'] as const;
 export type PermissionRequestStatus = (typeof PERMISSION_REQUEST_STATUSES)[number];
 
-export const EMAIL_INVITATION_TYPES = ['admin_account', 'vault_member'] as const;
+export const EMAIL_INVITATION_TYPES = ['platform_account', 'vault_member'] as const;
 export type EmailInvitationType = (typeof EMAIL_INVITATION_TYPES)[number];
 
 export const EMAIL_INVITATION_STATUSES = ['pending', 'accepted', 'revoked', 'expired'] as const;
@@ -33,9 +29,7 @@ export type VaultAuthorizationState = {
   vaultId: string;
   isAdmin: boolean;
   role: VaultRole | null;
-  aiAccessLevel: AiAccessLevel;
   isMember: boolean;
-  accessMode: 'member' | 'admin';
 };
 
 export function isSystemRole(value: unknown): value is SystemRole {
@@ -50,18 +44,6 @@ export function isVaultRole(value: unknown): value is VaultRole {
   return typeof value === 'string' && (VAULT_ROLES as readonly string[]).includes(value);
 }
 
-export function isAiAccessLevel(value: unknown): value is AiAccessLevel {
-  return typeof value === 'string' && (AI_ACCESS_LEVELS as readonly string[]).includes(value);
-}
-
-export function isPermissionRequestType(value: unknown): value is PermissionRequestType {
-  return typeof value === 'string' && (PERMISSION_REQUEST_TYPES as readonly string[]).includes(value);
-}
-
 export function isEmailInvitationType(value: unknown): value is EmailInvitationType {
   return typeof value === 'string' && (EMAIL_INVITATION_TYPES as readonly string[]).includes(value);
-}
-
-export function normalizeSystemCapabilities(capabilities: readonly SystemCapability[]) {
-  return [...new Set(capabilities)];
 }

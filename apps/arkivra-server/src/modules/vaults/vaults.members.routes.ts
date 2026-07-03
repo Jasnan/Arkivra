@@ -8,14 +8,11 @@ import {
   requireCanViewVaultManagement,
 } from './vaults.middleware.js';
 import {
-  getValidAiAccessLevel,
   getValidEmail,
   getValidName,
   getValidRole,
-  isAiEscalation,
 } from './vaults.route-helpers.js';
 import {
-  emitVaultAiAccessRequested,
   emitVaultExternalInvitationRequested,
   emitVaultMemberAdded,
   emitVaultMemberRemoved,
@@ -96,7 +93,6 @@ export function registerVaultMemberRoutes({
       const body = await context.req.json().catch(() => ({}));
       const email = getValidEmail(body.email);
       const role = getValidRole(body.role);
-      const aiAccessLevel = getValidAiAccessLevel(body.aiAccessLevel);
       const expiresAt = typeof body.expiresAt === 'string' && body.expiresAt.trim().length > 0
         ? new Date(body.expiresAt)
         : null;
@@ -104,14 +100,13 @@ export function registerVaultMemberRoutes({
       if (
         email === null
         || role === null
-        || aiAccessLevel === null
         || (expiresAt !== null && Number.isNaN(expiresAt.getTime()))
       ) {
         return context.json(
           {
             error: {
               code: 'vault.invalid_invitation_payload',
-              message: 'Valid email, role, and aiAccessLevel are required',
+              message: 'Valid email and role are required',
             },
           },
           400,
@@ -143,43 +138,10 @@ export function registerVaultMemberRoutes({
             return context.json({ request }, 202);
           }
 
-          if (aiAccessLevel === 'full') {
-            const existingMember = await vaultsServices.getMember({ vaultId, userId: existingUser.id });
-
-            if (existingMember === null || existingMember.role !== role) {
-              await vaultsServices.upsertMember({
-                vaultId,
-                userId: existingUser.id,
-                role,
-                aiAccessLevel: existingMember?.aiAccessLevel ?? 'none',
-              });
-            }
-
-            const request = await vaultsServices.createPermissionRequest({
-              type: 'vault.ai_access_grant',
-              requestedBy,
-              vaultId,
-              targetUserId: existingUser.id,
-              payload: { aiAccessLevel: 'full', role },
-            });
-
-            await emitVaultAiAccessRequested({
-              context,
-              auditServices,
-              vaultId,
-              memberUserId: existingUser.id,
-              requestId: request.id,
-              displayName: existingUser.email,
-            });
-
-            return context.json({ request }, 202);
-          }
-
           const member = await vaultsServices.upsertMember({
             vaultId,
             userId: existingUser.id,
             role,
-            aiAccessLevel: 'none',
           });
 
           await emitVaultMemberAdded({
@@ -189,7 +151,6 @@ export function registerVaultMemberRoutes({
             vaultId,
             memberUserId: existingUser.id,
             role,
-            aiAccessLevel: 'none',
             displayName: existingUser.email,
           });
 
@@ -203,7 +164,6 @@ export function registerVaultMemberRoutes({
           payload: {
             email,
             role,
-            aiAccessLevel,
             expiresAt: expiresAt?.toISOString() ?? null,
           },
         });
@@ -216,7 +176,6 @@ export function registerVaultMemberRoutes({
           requestId: request.id,
           email,
           role,
-          aiAccessLevel,
         });
 
         return context.json({ request }, 202);
@@ -227,7 +186,6 @@ export function registerVaultMemberRoutes({
         invitedBy: requestedBy,
         vaultId,
         role,
-        aiAccessLevel,
         expiresAt,
       });
 
@@ -264,14 +222,13 @@ export function registerVaultMemberRoutes({
       const body = await context.req.json();
       const memberUserId = getValidName(body.userId);
       const role = getValidRole(body.role);
-      const aiAccessLevel = getValidAiAccessLevel(body.aiAccessLevel);
 
-      if (memberUserId === null || role === null || aiAccessLevel === null) {
+      if (memberUserId === null || role === null) {
         return context.json(
           {
             error: {
               code: 'vault.invalid_member_payload',
-              message: 'userId, role, and aiAccessLevel are required',
+              message: 'userId and role are required',
             },
           },
           400,
@@ -298,44 +255,12 @@ export function registerVaultMemberRoutes({
         return context.json({ request }, 202);
       }
 
-      if (!isAdmin && aiAccessLevel !== 'none') {
-        const existingMember = await vaultsServices.getMember({ vaultId, userId: memberUserId });
-
-        if (existingMember === null) {
-          await vaultsServices.upsertMember({
-            vaultId,
-            userId: memberUserId,
-            role,
-            aiAccessLevel: 'none',
-          });
-        }
-
-        const request = await vaultsServices.createPermissionRequest({
-          type: 'vault.ai_access_grant',
-          requestedBy,
-          vaultId,
-          targetUserId: memberUserId,
-          payload: { aiAccessLevel, role },
-        });
-
-        await emitVaultAiAccessRequested({
-          context,
-          auditServices,
-          vaultId,
-          memberUserId,
-          requestId: request.id,
-        });
-
-        return context.json({ request }, 202);
-      }
-
       let member;
       try {
         member = await vaultsServices.upsertMember({
           vaultId,
           userId: memberUserId,
           role,
-          aiAccessLevel,
         });
       } catch (error) {
         if (error instanceof Error && error.message === 'authorization.last_vault_owner') {
@@ -360,7 +285,6 @@ export function registerVaultMemberRoutes({
         vaultId,
         memberUserId,
         role,
-        aiAccessLevel,
       });
 
       return context.json({ member }, 201);
@@ -390,14 +314,13 @@ export function registerVaultMemberRoutes({
       const memberUserId = context.req.param('memberUserId').trim();
       const body = await context.req.json();
       const role = getValidRole(body.role);
-      const aiAccessLevel = getValidAiAccessLevel(body.aiAccessLevel);
 
-      if (memberUserId.length === 0 || role === null || aiAccessLevel === null) {
+      if (memberUserId.length === 0 || role === null) {
         return context.json(
           {
             error: {
               code: 'vault.invalid_member_payload',
-              message: 'Valid memberUserId, role, and aiAccessLevel are required',
+              message: 'Valid memberUserId and role are required',
             },
           },
           400,
@@ -441,58 +364,12 @@ export function registerVaultMemberRoutes({
         return context.json({ request }, 202);
       }
 
-      if (!isAdmin && isAiEscalation(targetMember.aiAccessLevel, aiAccessLevel)) {
-        if (role !== targetMember.role) {
-          try {
-            await vaultsServices.upsertMember({
-              vaultId,
-              userId: memberUserId,
-              role,
-              aiAccessLevel: targetMember.aiAccessLevel,
-            });
-          } catch (error) {
-            if (error instanceof Error && error.message === 'authorization.last_vault_owner') {
-              return context.json(
-                {
-                  error: {
-                    code: 'vault.last_owner',
-                    message: 'At least one owner is required',
-                  },
-                },
-                403,
-              );
-            }
-
-            throw error;
-          }
-        }
-
-        const request = await vaultsServices.createPermissionRequest({
-          type: 'vault.ai_access_grant',
-          requestedBy,
-          vaultId,
-          targetUserId: memberUserId,
-          payload: { aiAccessLevel, role },
-        });
-
-        await emitVaultAiAccessRequested({
-          context,
-          auditServices,
-          vaultId,
-          memberUserId,
-          requestId: request.id,
-        });
-
-        return context.json({ request }, 202);
-      }
-
       let member;
       try {
         member = await vaultsServices.upsertMember({
           vaultId,
           userId: memberUserId,
           role,
-          aiAccessLevel,
         });
       } catch (error) {
         if (error instanceof Error && error.message === 'authorization.last_vault_owner') {
@@ -518,8 +395,6 @@ export function registerVaultMemberRoutes({
         memberUserId,
         previousRole: targetMember.role,
         nextRole: role,
-        previousAiAccessLevel: targetMember.aiAccessLevel,
-        nextAiAccessLevel: aiAccessLevel,
       });
 
       return context.json({ member });

@@ -245,7 +245,6 @@ describe.sequential('authorization e2e', () => {
       vault: {
         id: vaultId,
         role: null,
-        aiAccessLevel: 'none',
         isAdmin: true,
       },
     });
@@ -270,7 +269,6 @@ describe.sequential('authorization e2e', () => {
       body: JSON.stringify({
         userId: member.userId,
         role: 'viewer',
-        aiAccessLevel: 'none',
       }),
     });
     expect(addMemberResponse.status).toBe(201);
@@ -278,7 +276,6 @@ describe.sequential('authorization e2e', () => {
       member: {
         userId: member.userId,
         role: 'viewer',
-        aiAccessLevel: 'none',
       },
     });
 
@@ -307,7 +304,6 @@ describe.sequential('authorization e2e', () => {
         },
         body: JSON.stringify({
           role: 'editor',
-          aiAccessLevel: 'none',
         }),
       },
     );
@@ -316,7 +312,6 @@ describe.sequential('authorization e2e', () => {
       member: {
         userId: member.userId,
         role: 'editor',
-        aiAccessLevel: 'none',
       },
     });
 

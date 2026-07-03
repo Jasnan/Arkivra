@@ -9,7 +9,7 @@ export const systemCapabilitiesTable = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => usersTable.id, { onDelete: 'cascade' }),
-    capability: text('capability', { enum: ['system.create_vaults'] }).notNull(),
+    capability: text('capability', { enum: ['system.create_vaults', 'system.use_ai'] }).notNull(),
     createdBy: text('created_by').references(() => usersTable.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { mode: 'date', withTimezone: true }).notNull().defaultNow(),
   },
@@ -26,7 +26,7 @@ export const permissionRequestsTable = pgTable(
     ...createTimestampColumns(),
 
     type: text('type', {
-      enum: ['vault.create', 'vault.delete', 'vault.owner_promote', 'vault.ai_access_grant', 'vault.external_invite'],
+      enum: ['vault.create', 'vault.delete', 'vault.owner_promote', 'vault.external_invite'],
     }).notNull(),
     status: text('status', { enum: ['pending', 'approved', 'rejected', 'cancelled'] })
       .notNull()
@@ -54,7 +54,7 @@ export const emailInvitationsTable = pgTable(
     ...createPrimaryKeyField({ prefix: 'invite' }),
     ...createTimestampColumns(),
 
-    type: text('type', { enum: ['admin_account', 'vault_member'] }).notNull(),
+    type: text('type', { enum: ['platform_account', 'vault_member'] }).notNull(),
     status: text('status', { enum: ['pending', 'accepted', 'revoked', 'expired'] })
       .notNull()
       .default('pending'),
@@ -66,9 +66,6 @@ export const emailInvitationsTable = pgTable(
     vaultId: text('vault_id').references(() => vaultsTable.id, { onDelete: 'cascade' }),
     vaultMemberId: text('vault_member_id').references(() => vaultMembersTable.id, { onDelete: 'set null' }),
     vaultRole: text('vault_role', { enum: ['owner', 'editor', 'viewer'] }),
-    aiAccessLevel: text('ai_access_level', { enum: ['none', 'full'] })
-      .notNull()
-      .default('none'),
     systemRole: text('system_role', { enum: ['admin', 'member'] }),
     payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
   },

@@ -33,9 +33,6 @@ export const vaultMembersTable = pgTable(
       .references(() => usersTable.id, { onDelete: 'cascade' }),
 
     role: text('role', { enum: ['owner', 'editor', 'viewer'] }).notNull(),
-    aiAccessLevel: text('ai_access_level', { enum: ['none', 'full'] })
-      .notNull()
-      .default('none'),
   },
   (table) => [
     unique('vault_members_vault_user_unique').on(table.vaultId, table.userId),

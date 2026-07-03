@@ -3,7 +3,7 @@ import type { createActivityServices } from '../activity/activity.services.js';
 import { ACTIVITY_EVENT_TYPES } from '../activity/activity.types.js';
 import { getAuditActorFromContext } from '../audit/audit.http.js';
 import type { ServerContext } from '../server/server.types.js';
-import { getValidAiAccessLevel, getValidName, getValidRole } from './vaults.route-helpers.js';
+import { getValidName, getValidRole } from './vaults.route-helpers.js';
 import { requireVaultRole } from './vaults.middleware.js';
 import type { VaultsServices } from './vaults.services.js';
 
@@ -35,14 +35,13 @@ export function registerVaultMemberSelfRoutes({
 
     const body = await context.req.json().catch(() => ({}));
     const role = getValidRole(body.role);
-    const aiAccessLevel = getValidAiAccessLevel(body.aiAccessLevel);
 
-    if (role === null || aiAccessLevel === null) {
+    if (role === null) {
       return context.json(
         {
           error: {
             code: 'vault.invalid_member_payload',
-            message: 'role and aiAccessLevel are required',
+            message: 'role is required',
           },
         },
         400,
@@ -53,7 +52,6 @@ export function registerVaultMemberSelfRoutes({
       vaultId,
       userId,
       role,
-      aiAccessLevel,
     });
 
     return context.json({ member }, 201);
@@ -181,7 +179,6 @@ export function registerVaultMemberSelfRoutes({
       vaultId,
       userId: memberUserId,
       role: 'owner',
-      aiAccessLevel: 'none',
     });
 
     await activityServices?.emitActivityEvent({
@@ -192,7 +189,7 @@ export function registerVaultMemberSelfRoutes({
       vaultId,
       target: { type: 'user', id: memberUserId },
       source: 'web',
-      metadata: { member_user_id: memberUserId, next_role: 'owner', next_ai_access_level: 'none' },
+      metadata: { member_user_id: memberUserId, next_role: 'owner' },
     });
 
     return context.json({ member });

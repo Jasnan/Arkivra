@@ -22,7 +22,6 @@ import { validateRequestInput } from '../http/http.validation.js';
 import { requireAuthentication } from '../auth/auth.middleware.js';
 import {
   requireCanReadVault,
-  requireCanUseSemanticRetrieval,
   requireVaultAccess,
 } from '../vaults/vaults.middleware.js';
 import { createVaultsServices } from '../vaults/vaults.services.js';
@@ -389,10 +388,10 @@ export function registerSearchRoutes({
       includeVersions,
     } = parsedQuery.data;
 
-    if (searchMode === 'hybrid' && context.get('vaultAiAccessLevel') !== 'full') {
+    if (searchMode === 'hybrid' && !context.get('canUseAI')) {
       return forbiddenResponse(context, {
-        code: 'authorization.ai_access_required',
-        message: 'AI access required',
+        code: 'authorization.use_ai_required',
+        message: 'Use AI privilege required',
       });
     }
 
@@ -415,8 +414,15 @@ export function registerSearchRoutes({
 
   app.post(
     '/api/vaults/:vaultId/search/hybrid',
-    requireCanUseSemanticRetrieval(),
+    requireCanReadVault(),
     async (context) => {
+      if (!context.get('canUseAI')) {
+        return forbiddenResponse(context, {
+          code: 'authorization.use_ai_required',
+          message: 'Use AI privilege required',
+        });
+      }
+
       const vaultId = context.get('vaultId');
 
       if (vaultId === null) {
@@ -487,10 +493,14 @@ export function registerSearchRoutes({
       (vault) => vault.role === 'owner' || vault.role === 'editor' || vault.role === 'viewer',
     );
 
-    const allowedVaultIds =
-      searchMode === 'hybrid'
-        ? readableVaults.filter((vault) => vault.aiAccessLevel === 'full').map((vault) => vault.id)
-        : readableVaults.map((vault) => vault.id);
+    if (searchMode === 'hybrid' && !context.get('canUseAI')) {
+      return forbiddenResponse(context, {
+        code: 'authorization.use_ai_required',
+        message: 'Use AI privilege required',
+      });
+    }
+
+    const allowedVaultIds = readableVaults.map((vault) => vault.id);
 
     if (requestedVaultId && !allowedVaultIds.includes(requestedVaultId)) {
       return forbiddenResponse(context);

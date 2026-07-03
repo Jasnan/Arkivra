@@ -1,9 +1,8 @@
 import type {
-  AiAccessLevel,
   VaultRole,
 } from '../authorization/authorization.types.js';
 
-export type { AiAccessLevel, VaultRole };
+export type { VaultRole };
 
 export type VaultAccess = {
   id: string;
@@ -15,8 +14,6 @@ export type VaultAccess = {
   updatedAt: Date;
   deletedAt: Date | null;
   role: VaultRole | null;
-  aiAccessLevel: AiAccessLevel;
   isAdmin: boolean;
   isMember: boolean;
-  accessMode: 'member' | 'admin';
 };

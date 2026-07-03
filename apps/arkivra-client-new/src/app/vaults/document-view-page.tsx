@@ -190,8 +190,8 @@ function canPrintPreview(previewKind: PreviewKind, selectedVersionId: string | n
   return selectedVersionId === null && (previewKind === "pdf" || previewKind === "image" || previewKind === "text")
 }
 
-function canUseVaultChat(vault: { aiAccessLevel?: string } | null | undefined) {
-  return vault?.aiAccessLevel === "full"
+function canReadVault(vault: { role?: string | null } | null | undefined) {
+  return vault?.role === "owner" || vault?.role === "editor" || vault?.role === "viewer"
 }
 
 function getDocumentChatUrl({
@@ -1072,7 +1072,7 @@ export default function DocumentViewPage() {
     void getMe()
       .then((result) => {
         if (!ignore) {
-          setAiFeaturesEnabled(result.aiFeaturesEnabled !== false)
+          setAiFeaturesEnabled(result.aiFeaturesEnabled !== false && result.canUseAI !== false)
         }
       })
       .catch(() => {
@@ -1184,7 +1184,7 @@ export default function DocumentViewPage() {
   const currentDownloadUrl = getDocumentDownloadUrl({ vaultId, documentId, includeDeleted: isTrashDocumentRoute })
   const inlineFileUrl = getDocumentInlineFileUrl({ vaultId, documentId, includeDeleted: isTrashDocumentRoute })
   const canPrint = !isTrashDocumentRoute && canPrintPreview(previewKind, selectedVersionId)
-  const showDocumentChatAction = !isTrashDocumentRoute && aiFeaturesEnabled && canUseVaultChat(vault)
+  const showDocumentChatAction = !isTrashDocumentRoute && aiFeaturesEnabled && canReadVault(vault)
   const documentChatUrl = activeDocument
     ? getDocumentChatUrl({ vaultId, documentId, documentName: activeDocument.name })
     : ""

@@ -257,8 +257,8 @@ function getMoveDestinations({
   ]
 }
 
-function canUseVaultChat(vault: { aiAccessLevel?: string } | null | undefined) {
-  return vault?.aiAccessLevel === "full"
+function canReadVault(vault: { role?: string | null } | null | undefined) {
+  return vault?.role === "owner" || vault?.role === "editor" || vault?.role === "viewer"
 }
 
 function getVaultChatUrl(vaultId: string) {
@@ -1608,7 +1608,7 @@ export default function VaultWorkspacePage() {
   const canMoveItems = vault?.role === "owner" || vault?.role === "editor"
   const canCreateItems = canMoveItems
   const canDeleteItems = canMoveItems
-  const showVaultChatAction = aiFeaturesEnabled && canUseVaultChat(vault)
+  const showVaultChatAction = aiFeaturesEnabled && canReadVault(vault)
 
   const hydrateItemsWithDocumentTags = useCallback(async (nextItems: FileBrowserItem[]) => {
     const documentItems = nextItems.filter((item) => item.type === "document")
@@ -2193,7 +2193,7 @@ export default function VaultWorkspacePage() {
     void getMe()
       .then((result) => {
         if (!ignore) {
-          setAiFeaturesEnabled(result.aiFeaturesEnabled !== false)
+          setAiFeaturesEnabled(result.aiFeaturesEnabled !== false && result.canUseAI !== false)
         }
       })
       .catch(() => {

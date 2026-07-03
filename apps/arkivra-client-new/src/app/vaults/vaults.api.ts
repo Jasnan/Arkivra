@@ -9,7 +9,6 @@ interface PermissionRequestResponse {
 }
 
 export type VaultRole = "owner" | "editor" | "viewer"
-export type AiAccessLevel = "none" | "full"
 export type UploadConflictStrategy = "skip" | "keep_both" | "new_version"
 
 export interface DocumentDuplicateConflict {
@@ -63,10 +62,8 @@ export interface VaultSummary {
   createdAt: string
   updatedAt?: string
   role: VaultRole | null
-  aiAccessLevel: AiAccessLevel
   isAdmin: boolean
   isMember: boolean
-  accessMode: "member" | "admin"
 }
 
 export interface VaultDetail {
@@ -77,10 +74,8 @@ export interface VaultDetail {
   totalSize?: number
   createdAt?: string
   role?: VaultRole | null
-  aiAccessLevel?: AiAccessLevel
   isAdmin?: boolean
   isMember?: boolean
-  accessMode?: "member" | "admin"
 }
 
 interface VaultsListResponse {
@@ -93,6 +88,7 @@ interface VaultDetailResponse {
 
 interface MeResponse {
   canCreateVault: boolean
+  canUseAI?: boolean
   aiFeaturesEnabled?: boolean
 }
 

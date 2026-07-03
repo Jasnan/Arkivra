@@ -7,7 +7,7 @@ import { BaseLayout } from "@/components/layouts/base-layout"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { getMe } from "../ai-settings/ai-settings.api"
 import {
-  createAdminEmailInvitation,
+  createPlatformAccountInvitation,
   grantAdmin,
   grantSystemCapability,
   listAdminUsers,
@@ -128,11 +128,13 @@ export default function UsersPage() {
     setMutationPending(true)
 
     try {
-      const result = await createAdminEmailInvitation({
+      const result = await createPlatformAccountInvitation({
         email: input.email,
         systemRole: input.systemRole,
-        systemCapabilities: input.canCreateVaults ? ["system.create_vaults"] : [],
-        vaultMemberships: [],
+        systemCapabilities: [
+          ...(input.canUseAI ? ["system.use_ai" as const] : []),
+          ...(input.canCreateVaults ? ["system.create_vaults" as const] : []),
+        ],
       })
       toast.success(`Invitation created for ${result.invitation.email}.`)
       return result.invitation
@@ -146,7 +148,7 @@ export default function UsersPage() {
 
   if (meState.isLoading) {
     return (
-      <BaseLayout title="Users" description="Manage users, roles, and permissions.">
+      <BaseLayout title="Users" description="Manage platform administrators and platform privileges.">
         <div className="px-4 lg:px-6">
           <div className="rounded-md border p-4 text-sm text-muted-foreground">Loading account...</div>
         </div>
@@ -156,7 +158,7 @@ export default function UsersPage() {
 
   if (meState.error) {
     return (
-      <BaseLayout title="Users" description="Manage users, roles, and permissions.">
+      <BaseLayout title="Users" description="Manage platform administrators and platform privileges.">
         <div className="px-4 lg:px-6">
           <Card>
             <CardHeader>
@@ -171,12 +173,12 @@ export default function UsersPage() {
 
   if (!isAdmin) {
     return (
-      <BaseLayout title="Users" description="Manage users, roles, and permissions.">
+      <BaseLayout title="Users" description="Manage platform administrators and platform privileges.">
         <div className="px-4 lg:px-6">
           <Card>
             <CardHeader>
-              <CardTitle>Admin access required</CardTitle>
-              <CardDescription>Only administrators can manage users.</CardDescription>
+              <CardTitle>Platform administrator required</CardTitle>
+              <CardDescription>Only platform administrators can manage users and platform privileges.</CardDescription>
             </CardHeader>
           </Card>
         </div>
@@ -187,7 +189,7 @@ export default function UsersPage() {
   return (
     <BaseLayout
       title="Users"
-      description="Manage users, roles, and permissions."
+      description="Manage platform administrators and platform privileges."
     >
       <div className="flex flex-col gap-4">
         <div className="@container/main px-4 lg:px-6">
@@ -219,15 +221,15 @@ export default function UsersPage() {
             onGrantAdmin={(user) =>
               runUserMutation(
                 () => grantAdmin({ userId: user.id }),
-                "Admin role granted.",
-                "Could not grant admin role."
+                "Platform administrator granted.",
+                "Could not grant platform administrator."
               )
             }
             onRevokeAdmin={(user) =>
               runUserMutation(
                 () => revokeAdmin({ userId: user.id }),
-                "Admin role revoked.",
-                "Could not revoke admin role."
+                "Platform administrator revoked.",
+                "Could not revoke platform administrator."
               )
             }
             onGrantCreateVaults={(user) =>
@@ -242,6 +244,20 @@ export default function UsersPage() {
                 () => revokeSystemCapability({ userId: user.id, capability: "system.create_vaults" }),
                 "Vault creation permission revoked.",
                 "Could not revoke vault creation permission."
+              )
+            }
+            onGrantUseAI={(user) =>
+              runUserMutation(
+                () => grantSystemCapability({ userId: user.id, capability: "system.use_ai" }),
+                "Use AI privilege granted.",
+                "Could not grant Use AI privilege."
+              )
+            }
+            onRevokeUseAI={(user) =>
+              runUserMutation(
+                () => revokeSystemCapability({ userId: user.id, capability: "system.use_ai" }),
+                "Use AI privilege revoked.",
+                "Could not revoke Use AI privilege."
               )
             }
           />

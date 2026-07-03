@@ -23,12 +23,7 @@ const SignUp = lazy(() => import('@/app/auth/sign-up/page'))
 const EmailVerification = lazy(() => import('@/app/auth/verify-email/page'))
 const RequestPasswordReset = lazy(() => import('@/app/auth/request-password-reset/page'))
 
-// Error pages
-const Unauthorized = lazy(() => import('@/app/errors/unauthorized/page'))
-const Forbidden = lazy(() => import('@/app/errors/forbidden/page'))
 const NotFound = lazy(() => import('@/app/errors/not-found/page'))
-const InternalServerError = lazy(() => import('@/app/errors/internal-server-error/page'))
-const UnderMaintenance = lazy(() => import('@/app/errors/under-maintenance/page'))
 
 // Settings pages
 const UserSettings = lazy(() => import('@/app/settings/user/page'))
@@ -136,28 +131,6 @@ export const routes: RouteConfig[] = [
   {
     path: "/chat/:conversationId",
     element: <Chat />
-  },
-
-  // Error Pages
-  {
-    path: "/errors/unauthorized",
-    element: <Unauthorized />
-  },
-  {
-    path: "/errors/forbidden",
-    element: <Forbidden />
-  },
-  {
-    path: "/errors/not-found",
-    element: <NotFound />
-  },
-  {
-    path: "/errors/internal-server-error",
-    element: <InternalServerError />
-  },
-  {
-    path: "/errors/under-maintenance",
-    element: <UnderMaintenance />
   },
 
   // Settings Routes

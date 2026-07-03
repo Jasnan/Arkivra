@@ -9,7 +9,6 @@ import {
   LayoutDashboard,
   MessageCircle,
   Shield,
-  AlertTriangle,
   Settings,
   User,
   Users,
@@ -136,13 +135,6 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
     { title: "Login", url: "/login", group: "Auth Pages", icon: Shield },
     { title: "Register", url: "/register", group: "Auth Pages", icon: Shield },
     { title: "Request Password Reset", url: "/request-password-reset", group: "Auth Pages", icon: Shield },
-
-    // Errors
-    { title: "Unauthorized", url: "/errors/unauthorized", group: "Errors", icon: AlertTriangle },
-    { title: "Forbidden", url: "/errors/forbidden", group: "Errors", icon: AlertTriangle },
-    { title: "Not Found", url: "/errors/not-found", group: "Errors", icon: AlertTriangle },
-    { title: "Internal Server Error", url: "/errors/internal-server-error", group: "Errors", icon: AlertTriangle },
-    { title: "Under Maintenance", url: "/errors/under-maintenance", group: "Errors", icon: AlertTriangle },
 
     // Settings
     { title: "User Settings", url: "/settings/user", group: "Settings", icon: User },

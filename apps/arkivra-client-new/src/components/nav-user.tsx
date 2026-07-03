@@ -8,7 +8,7 @@ import {
 } from "lucide-react"
 import { Link } from "react-router-dom"
 
-import { Logo } from "@/components/logo"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +27,45 @@ import {
 import { authClient } from "@/lib/auth-client"
 import { useNavigate } from "react-router-dom"
 
+interface SessionUserMetadata {
+  name?: string | null
+  email?: string | null
+  image?: string | null
+}
+
+function getUserInitials(name: string, email: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+
+  if (parts.length >= 2) {
+    return `${parts[0]?.[0] ?? ""}${parts[parts.length - 1]?.[0] ?? ""}`.toUpperCase()
+  }
+
+  if (parts.length === 1) {
+    return (parts[0]?.[0] ?? "A").toUpperCase()
+  }
+
+  return (email[0] ?? "A").toUpperCase()
+}
+
+function SidebarUserAvatar({
+  email,
+  image,
+  name,
+}: {
+  email: string
+  image: string | null
+  name: string
+}) {
+  return (
+    <Avatar className="h-8 w-8 rounded-lg">
+      <AvatarImage src={image ?? undefined} alt={name || email || "Profile photo"} />
+      <AvatarFallback className="rounded-lg text-xs font-semibold">
+        {getUserInitials(name, email)}
+      </AvatarFallback>
+    </Avatar>
+  )
+}
+
 export function NavUser({
   user,
 }: {
@@ -38,6 +77,11 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const navigate = useNavigate()
+  const { data: sessionData } = authClient.useSession()
+  const sessionUser = sessionData?.user as SessionUserMetadata | undefined
+  const name = sessionUser?.name?.trim() || user.name
+  const email = sessionUser?.email?.trim() || user.email
+  const image = sessionUser?.image?.trim() || user.avatar || null
 
   async function handleSignOut() {
     await authClient.signOut()
@@ -53,13 +97,11 @@ export function NavUser({
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground cursor-pointer"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg">
-                < Logo size={28} />
-              </div>
+              <SidebarUserAvatar name={name} email={email} image={image} />
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user.name}</span>
+                <span className="truncate font-medium">{name}</span>
                 <span className="text-muted-foreground truncate text-xs">
-                  {user.email}
+                  {email}
                 </span>
               </div>
               <EllipsisVertical className="ml-auto size-4" />
@@ -73,13 +115,11 @@ export function NavUser({
           >
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <div className="h-8 w-8 rounded-lg">
-                  < Logo size={28} />
-                </div>
+                <SidebarUserAvatar name={name} email={email} image={image} />
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{user.name}</span>
+                  <span className="truncate font-medium">{name}</span>
                   <span className="text-muted-foreground truncate text-xs">
-                    {user.email}
+                    {email}
                   </span>
                 </div>
               </div>

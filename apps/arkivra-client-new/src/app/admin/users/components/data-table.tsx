@@ -24,7 +24,6 @@ import {
   ShieldCheck,
   ShieldX,
   Sparkles,
-  Trash2,
   UserRound,
   UserRoundCheck,
   UserRoundCog,
@@ -41,6 +40,9 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -507,214 +509,9 @@ export function DataTable({
           </Button>
         </div>
         <div className="flex items-center space-x-2">
-          <UserFormDialog disabled={mutationPending} onInviteUser={onInviteUser} />
-        </div>
-      </div>
-
-      <div className="grid gap-2 sm:grid-cols-4 sm:gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="role-filter" className="text-sm font-medium">
-            Platform role
-          </Label>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                id="role-filter"
-                type="button"
-                variant="outline"
-                className="h-10 w-full justify-between px-3 font-normal"
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <UserRound className="size-4 text-muted-foreground" />
-                  <span className="truncate">{roleFilter || "Any role"}</span>
-                </span>
-                <span className="ml-2 flex items-center gap-1">
-                  {roleFilter ? (
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      aria-label="Clear platform role filter"
-                      className="rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                      onClick={(event) => {
-                        event.preventDefault()
-                        event.stopPropagation()
-                        table.getColumn("role")?.setFilterValue(undefined)
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          table.getColumn("role")?.setFilterValue(undefined)
-                        }
-                      }}
-                    >
-                      <X className="size-4" />
-                    </span>
-                  ) : null}
-                  <ChevronDown className="size-4 text-muted-foreground" />
-                </span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
-              <DropdownMenuCheckboxItem
-                checked={roleFilter === "Administrator"}
-                onCheckedChange={(checked) =>
-                  table.getColumn("role")?.setFilterValue(checked === true ? "Administrator" : undefined)
-                }
-              >
-                Administrator
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={roleFilter === "Member"}
-                onCheckedChange={(checked) =>
-                  table.getColumn("role")?.setFilterValue(checked === true ? "Member" : undefined)
-                }
-              >
-                Member
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">
-            Platform privileges
-          </Label>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-10 w-full justify-between px-3 font-normal"
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <Shield className="size-4 text-muted-foreground" />
-                  <span className="truncate">{getPrivilegeFilterLabel(privilegeFilters)}</span>
-                </span>
-                <ChevronDown className="ml-2 size-4 text-muted-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
-              <DropdownMenuCheckboxItem
-                checked={privilegeFilters.useAI}
-                onCheckedChange={(checked) =>
-                  setPrivilegeFilter({
-                    ...privilegeFilters,
-                    useAI: checked === true,
-                  })
-                }
-                onSelect={(event) => event.preventDefault()}
-              >
-                <Sparkles className="size-4 text-muted-foreground" />
-                Use AI
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={privilegeFilters.createVaults}
-                onCheckedChange={(checked) =>
-                  setPrivilegeFilter({
-                    ...privilegeFilters,
-                    createVaults: checked === true,
-                  })
-                }
-                onSelect={(event) => event.preventDefault()}
-              >
-                <Folder className="size-4 text-muted-foreground" />
-                Create vaults without approval
-              </DropdownMenuCheckboxItem>
-              {hasActivePrivilegeFilter(privilegeFilters) ? (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="cursor-pointer"
-                    onSelect={() => setPrivilegeFilter(emptyPlatformPrivilegeFilters)}
-                  >
-                    <Trash2 className="size-4" />
-                    Clear selection
-                  </DropdownMenuItem>
-                </>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="status-filter" className="text-sm font-medium">
-            Status
-          </Label>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                id="status-filter"
-                type="button"
-                variant="outline"
-                className="h-10 w-full justify-between px-3 font-normal"
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span
-                    className={
-                      statusFilter === "Active"
-                        ? "size-2.5 rounded-full bg-green-600"
-                        : statusFilter === "Disabled"
-                          ? "size-2.5 rounded-full bg-orange-500"
-                          : "size-2.5 rounded-full border border-muted-foreground/50"
-                    }
-                  />
-                  <span className="truncate">{statusFilter || "Any status"}</span>
-                </span>
-                <span className="ml-2 flex items-center gap-1">
-                  {statusFilter ? (
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      aria-label="Clear status filter"
-                      className="rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                      onClick={(event) => {
-                        event.preventDefault()
-                        event.stopPropagation()
-                        table.getColumn("status")?.setFilterValue(undefined)
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          table.getColumn("status")?.setFilterValue(undefined)
-                        }
-                      }}
-                    >
-                      <X className="size-4" />
-                    </span>
-                  ) : null}
-                  <ChevronDown className="size-4 text-muted-foreground" />
-                </span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
-              <DropdownMenuCheckboxItem
-                checked={statusFilter === "Active"}
-                onCheckedChange={(checked) =>
-                  table.getColumn("status")?.setFilterValue(checked === true ? "Active" : undefined)
-                }
-              >
-                <span className="size-2.5 rounded-full bg-green-600" />
-                Active
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={statusFilter === "Disabled"}
-                onCheckedChange={(checked) =>
-                  table.getColumn("status")?.setFilterValue(checked === true ? "Disabled" : undefined)
-                }
-              >
-                <span className="size-2.5 rounded-full bg-orange-500" />
-                Disabled
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="column-visibility" className="text-sm font-medium">
-            Column Visibility
-          </Label>
           <DropdownMenu>
             <DropdownMenuTrigger asChild id="column-visibility">
-              <Button variant="outline" className="w-full cursor-pointer">
+              <Button variant="outline" className="cursor-pointer">
                 Columns <ChevronDown className="ml-2 size-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -733,7 +530,215 @@ export function DataTable({
                 ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          <UserFormDialog disabled={mutationPending} onInviteUser={onInviteUser} />
         </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+          <div className="space-y-2">
+            <Label htmlFor="role-filter" className="text-sm font-medium">
+              Platform role
+            </Label>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="h-10 w-full justify-between px-3 font-normal"
+                >
+                  <div id="role-filter">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <UserRound className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate">{roleFilter || "Any role"}</span>
+                    </span>
+                    <span className="ml-2 flex shrink-0 items-center gap-1">
+                      {roleFilter ? (
+                        <button
+                          type="button"
+                          aria-label="Clear platform role filter"
+                          className="rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          onPointerDown={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            table.getColumn("role")?.setFilterValue(undefined)
+                          }}
+                          onClick={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            table.getColumn("role")?.setFilterValue(undefined)
+                          }}
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      ) : null}
+                      <ChevronDown className="size-4 text-muted-foreground" />
+                    </span>
+                  </div>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" sideOffset={6} className="w-[var(--radix-dropdown-menu-trigger-width)] rounded-md p-2 shadow-lg">
+                <DropdownMenuLabel className="px-2 pb-2 pt-1 text-sm font-medium">
+                  Platform role
+                </DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={roleFilter || ""}
+                  onValueChange={(value) => table.getColumn("role")?.setFilterValue(value || undefined)}
+                >
+                  <DropdownMenuRadioItem value="Administrator" className="cursor-pointer py-2">
+                    Administrator
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="Member" className="cursor-pointer py-2">
+                    Member
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">
+              Platform privileges
+            </Label>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="h-10 w-full justify-between px-3 font-normal"
+                >
+                  <div>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <Shield className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate">{getPrivilegeFilterLabel(privilegeFilters)}</span>
+                    </span>
+                    <span className="ml-2 flex shrink-0 items-center gap-1">
+                      {hasActivePrivilegeFilter(privilegeFilters) ? (
+                        <button
+                          type="button"
+                          aria-label="Clear platform privileges filter"
+                          className="rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          onPointerDown={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            setPrivilegeFilter(emptyPlatformPrivilegeFilters)
+                          }}
+                          onClick={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            setPrivilegeFilter(emptyPlatformPrivilegeFilters)
+                          }}
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      ) : null}
+                      <ChevronDown className="size-4 text-muted-foreground" />
+                    </span>
+                  </div>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" sideOffset={6} className="w-[var(--radix-dropdown-menu-trigger-width)] rounded-md p-2 shadow-lg">
+                <DropdownMenuLabel className="px-2 pb-2 pt-1 text-sm font-medium">
+                  Platform privileges
+                </DropdownMenuLabel>
+                <DropdownMenuCheckboxItem
+                  checked={privilegeFilters.useAI}
+                  className="cursor-pointer py-2"
+                  onCheckedChange={(checked) =>
+                    setPrivilegeFilter({
+                      ...privilegeFilters,
+                      useAI: checked === true,
+                    })
+                  }
+                  onSelect={(event) => event.preventDefault()}
+                >
+                  <Sparkles className="size-4 text-muted-foreground" />
+                  Use AI
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={privilegeFilters.createVaults}
+                  className="cursor-pointer py-2"
+                  onCheckedChange={(checked) =>
+                    setPrivilegeFilter({
+                      ...privilegeFilters,
+                      createVaults: checked === true,
+                    })
+                  }
+                  onSelect={(event) => event.preventDefault()}
+                >
+                  <Folder className="size-4 text-muted-foreground" />
+                  Create vaults without approval
+                </DropdownMenuCheckboxItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="status-filter" className="text-sm font-medium">
+              Status
+            </Label>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="h-10 w-full justify-between px-3 font-normal"
+                >
+                  <div id="status-filter">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span
+                        className={
+                          statusFilter === "Active"
+                            ? "size-2.5 shrink-0 rounded-full bg-green-600"
+                            : statusFilter === "Disabled"
+                              ? "size-2.5 shrink-0 rounded-full bg-orange-500"
+                              : "size-2.5 shrink-0 rounded-full border border-muted-foreground/50"
+                        }
+                      />
+                      <span className="truncate">{statusFilter || "Any status"}</span>
+                    </span>
+                    <span className="ml-2 flex shrink-0 items-center gap-1">
+                      {statusFilter ? (
+                        <button
+                          type="button"
+                          aria-label="Clear status filter"
+                          className="rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          onPointerDown={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            table.getColumn("status")?.setFilterValue(undefined)
+                          }}
+                          onClick={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            table.getColumn("status")?.setFilterValue(undefined)
+                          }}
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      ) : null}
+                      <ChevronDown className="size-4 text-muted-foreground" />
+                    </span>
+                  </div>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" sideOffset={6} className="w-[var(--radix-dropdown-menu-trigger-width)] rounded-md p-2 shadow-lg">
+                <DropdownMenuLabel className="px-2 pb-2 pt-1 text-sm font-medium">
+                  Status
+                </DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={statusFilter || ""}
+                  onValueChange={(value) => table.getColumn("status")?.setFilterValue(value || undefined)}
+                >
+                  <DropdownMenuRadioItem value="Active" className="cursor-pointer py-2">
+                    Active
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="Disabled" className="cursor-pointer py-2">
+                    Disabled
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
       </div>
 
       {error ? (

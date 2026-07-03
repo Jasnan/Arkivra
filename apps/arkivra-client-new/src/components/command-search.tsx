@@ -16,6 +16,7 @@ import {
   Bell,
   Link2,
   Palette,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react"
 
@@ -151,6 +152,7 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
 
     // Admin
     { title: "Users", url: "/admin/users", group: "Admin", icon: Users },
+    { title: "Audit Log", url: "/admin/audit-log", group: "Admin", icon: ClipboardList },
   ]
 
   const groupedItems = searchItems.reduce((acc, item) => {

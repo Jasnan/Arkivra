@@ -133,6 +133,10 @@ const data = {
               url: "/admin/users",
             },
             {
+              title: "Audit Log",
+              url: "/admin/audit-log",
+            },
+            {
               title: "AI Settings",
               url: "/admin/ai-settings",
             },

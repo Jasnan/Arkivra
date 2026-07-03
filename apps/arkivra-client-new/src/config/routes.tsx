@@ -14,6 +14,7 @@ const Search = lazy(() => import('@/app/search/page'))
 const Tags = lazy(() => import('@/app/tags/page'))
 const Chat = lazy(() => import('@/app/chat/page'))
 const AdminUsers = lazy(() => import('@/app/admin/users/page'))
+const AdminAuditLog = lazy(() => import('@/app/admin/audit-log/page'))
 
 // Auth pages
 const SignIn = lazy(() => import('@/app/auth/sign-in/page'))
@@ -186,6 +187,10 @@ export const routes: RouteConfig[] = [
   {
     path: "/admin/users",
     element: <AdminUsers />
+  },
+  {
+    path: "/admin/audit-log",
+    element: <AdminAuditLog />
   },
 
   // Catch-all route for 404

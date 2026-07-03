@@ -27,6 +27,7 @@ import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DatePicker } from "@/components/date-picker"
 import {
   Dialog,
   DialogContent,
@@ -1098,25 +1099,29 @@ export default function SearchPage() {
                       <div className="grid gap-2 sm:grid-cols-2">
                         <div className="space-y-1">
                           <label htmlFor="search-date-from" className="text-xs text-muted-foreground">From</label>
-                          <Input
+                          <DatePicker
                             id="search-date-from"
-                            type="date"
                             value={dateFrom}
-                            onChange={(event) => {
+                            max={dateTo}
+                            placeholder="From date"
+                            ariaLabel="Search from date"
+                            onChange={(value) => {
                               setDatePreset("custom")
-                              updateParams({ dateFrom: event.target.value })
+                              updateParams({ dateFrom: value })
                             }}
                           />
                         </div>
                         <div className="space-y-1">
                           <label htmlFor="search-date-to" className="text-xs text-muted-foreground">To</label>
-                          <Input
+                          <DatePicker
                             id="search-date-to"
-                            type="date"
                             value={dateTo}
-                            onChange={(event) => {
+                            min={dateFrom}
+                            placeholder="To date"
+                            ariaLabel="Search to date"
+                            onChange={(value) => {
                               setDatePreset("custom")
-                              updateParams({ dateTo: event.target.value })
+                              updateParams({ dateTo: value })
                             }}
                           />
                         </div>

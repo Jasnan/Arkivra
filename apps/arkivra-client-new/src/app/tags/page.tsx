@@ -24,7 +24,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 import {
   DEFAULT_TAG_COLOR,
@@ -249,6 +248,84 @@ function TagActions({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+function TagsList({
+  tags,
+  selectedTagIds,
+  allVisibleSelected,
+  someVisibleSelected,
+  mutationPending,
+  onToggleAll,
+  onToggleTag,
+  onOpenDocuments,
+  onEdit,
+  onDelete,
+  onOpenContextMenu,
+}: {
+  tags: Tag[]
+  selectedTagIds: string[]
+  allVisibleSelected: boolean
+  someVisibleSelected: boolean
+  mutationPending: boolean
+  onToggleAll: (checked: boolean) => void
+  onToggleTag: (tagId: string, checked: boolean) => void
+  onOpenDocuments: (tag: Tag, trigger: HTMLElement) => void
+  onEdit: (tag: Tag) => void
+  onDelete: (tag: Tag) => void
+  onOpenContextMenu: (event: MouseEvent<HTMLElement>, tag: Tag) => void
+}) {
+  return (
+    <div className="-mt-4 overflow-hidden border-b bg-background md:-mt-6">
+      <div className="hidden grid-cols-[auto_minmax(0,1fr)_minmax(12rem,20rem)_7rem_7.5rem_3rem] gap-2 border-b bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground md:grid lg:px-6">
+        <Checkbox
+          checked={someVisibleSelected ? "indeterminate" : allVisibleSelected}
+          aria-label="Select all visible tags"
+          onCheckedChange={(checked) => onToggleAll(checked === true)}
+        />
+        <span>Tag</span>
+        <span>Description</span>
+        <span>Documents</span>
+        <span>Created</span>
+        <span />
+      </div>
+      <div>
+        {tags.map((tag) => {
+          const isSelected = selectedTagIds.includes(tag.id)
+
+          return (
+            <div
+              key={tag.id}
+              data-state={isSelected ? "selected" : undefined}
+              className={cn(
+                "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b px-4 py-2 transition-colors last:border-b-0 hover:bg-accent/40 md:grid-cols-[auto_minmax(0,1fr)_minmax(12rem,20rem)_7rem_7.5rem_3rem] lg:px-6",
+                isSelected && "bg-accent/40"
+              )}
+              onContextMenu={(event) => onOpenContextMenu(event, tag)}
+            >
+              <Checkbox
+                checked={isSelected}
+                aria-label={`Select ${tag.name}`}
+                onCheckedChange={(checked) => onToggleTag(tag.id, checked === true)}
+              />
+              <div className="flex min-w-0 flex-col gap-1">
+                <TagBadge tag={tag} />
+                <div className="truncate text-xs text-muted-foreground md:hidden">
+                  {(tag.documentsCount ?? 0)} document{(tag.documentsCount ?? 0) === 1 ? "" : "s"} · {formatShortDate(tag.createdAt)}
+                </div>
+              </div>
+              <span className="hidden truncate text-sm text-muted-foreground md:block">{getTagDescription(tag)}</span>
+              <div className="hidden md:block">
+                <TagDocumentsButton tag={tag} onOpen={onOpenDocuments} />
+              </div>
+              <span className="hidden truncate text-sm text-muted-foreground md:block">{formatShortDate(tag.createdAt)}</span>
+              <TagActions tag={tag} disabled={mutationPending} onEdit={onEdit} onDelete={onDelete} />
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -515,77 +592,42 @@ export default function TagsPage() {
 
   return (
     <BaseLayout hideHeaderSearch headerContent={tagControls}>
-      <div className="flex h-[calc(100svh-var(--header-height)-7.5rem)] min-h-0 flex-col gap-6 px-4 lg:h-[calc(100svh-var(--header-height)-8.5rem)] lg:px-6">
-        <div className="flex min-h-0 flex-1 flex-col gap-6">
-          <div className="min-h-0 flex-1 overflow-auto">
-            {loadingTags ? (
-              <div className="flex h-full min-h-[16rem] items-center justify-center rounded-md border text-sm text-muted-foreground">Loading tags...</div>
-            ) : tagsError ? (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{tagsError}</div>
-            ) : tags.length === 0 ? (
-              <div className="flex h-full min-h-[16rem] flex-col items-center justify-center rounded-md border p-8 text-center">
-                <Tags className="size-10 text-muted-foreground" />
-                <h2 className="mt-4 text-lg font-semibold">No tags yet</h2>
-                <p className="mt-2 max-w-md text-sm text-muted-foreground">Create the first one to start organizing documents.</p>
-              </div>
-            ) : filteredTags.length === 0 ? (
-              <div className="flex h-full min-h-[16rem] flex-col items-center justify-center rounded-md border p-8 text-center">
-                <Tags className="size-8 text-muted-foreground" />
-                <h2 className="mt-4 text-lg font-semibold">No tags found</h2>
-                <p className="mt-2 max-w-md text-sm text-muted-foreground">No tags match that search.</p>
-              </div>
-            ) : (
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12">
-                        <Checkbox
-                          checked={someVisibleSelected ? "indeterminate" : allVisibleSelected}
-                          aria-label="Select all visible tags"
-                          onCheckedChange={(checked) => toggleAllVisibleTags(checked === true)}
-                        />
-                      </TableHead>
-                      <TableHead>Tag</TableHead>
-                      <TableHead className="hidden md:table-cell">Description</TableHead>
-                      <TableHead className="hidden w-28 text-left md:table-cell">Documents</TableHead>
-                      <TableHead className="hidden w-36 md:table-cell">Created</TableHead>
-                      <TableHead className="w-12" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredTags.map((tag) => {
-                      const isSelected = selectedTagIds.includes(tag.id)
-                      return (
-                        <TableRow key={tag.id} data-state={isSelected ? "selected" : undefined} onContextMenu={(event) => openContextMenu(event, tag)}>
-                          <TableCell>
-                            <Checkbox checked={isSelected} aria-label={`Select ${tag.name}`} onCheckedChange={(checked) => toggleTagSelection(tag.id, checked === true)} />
-                          </TableCell>
-                          <TableCell className="min-w-0">
-                            <div className="flex min-w-0 flex-col gap-1">
-                              <TagBadge tag={tag} />
-                              <div className="truncate text-xs text-muted-foreground md:hidden">
-                                {(tag.documentsCount ?? 0)} document{(tag.documentsCount ?? 0) === 1 ? "" : "s"} · {formatShortDate(tag.createdAt)}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="hidden max-w-[24rem] truncate md:table-cell">{getTagDescription(tag)}</TableCell>
-                          <TableCell className="hidden text-left md:table-cell">
-                            <TagDocumentsButton tag={tag} onOpen={setDocumentsTag} />
-                          </TableCell>
-                          <TableCell className="hidden text-muted-foreground md:table-cell">{formatShortDate(tag.createdAt)}</TableCell>
-                          <TableCell>
-                            <TagActions tag={tag} disabled={mutationPending} onEdit={openEditDialog} onDelete={setTagPendingDelete} />
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+      <div className="flex min-h-0 flex-col">
+        {loadingTags ? (
+          <div className="px-4 lg:px-6">
+            <div className="flex h-64 items-center justify-center rounded-lg border bg-muted/20 text-sm text-muted-foreground">Loading tags...</div>
           </div>
-        </div>
+        ) : tagsError ? (
+          <div className="px-4 lg:px-6">
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{tagsError}</div>
+          </div>
+        ) : tags.length === 0 ? (
+          <div className="flex min-h-80 flex-col items-center justify-center px-4 py-8 text-center lg:px-6">
+            <Tags className="size-10 text-muted-foreground" />
+            <h2 className="mt-4 text-lg font-semibold">No tags yet</h2>
+            <p className="mt-2 max-w-md text-sm text-muted-foreground">Create the first one to start organizing documents.</p>
+          </div>
+        ) : filteredTags.length === 0 ? (
+          <div className="flex min-h-80 flex-col items-center justify-center px-4 py-8 text-center lg:px-6">
+            <Tags className="size-8 text-muted-foreground" />
+            <h2 className="mt-4 text-lg font-semibold">No tags found</h2>
+            <p className="mt-2 max-w-md text-sm text-muted-foreground">No tags match that search.</p>
+          </div>
+        ) : (
+          <TagsList
+            tags={filteredTags}
+            selectedTagIds={selectedTagIds}
+            allVisibleSelected={allVisibleSelected}
+            someVisibleSelected={someVisibleSelected}
+            mutationPending={mutationPending}
+            onToggleAll={toggleAllVisibleTags}
+            onToggleTag={toggleTagSelection}
+            onOpenDocuments={setDocumentsTag}
+            onEdit={openEditDialog}
+            onDelete={setTagPendingDelete}
+            onOpenContextMenu={openContextMenu}
+          />
+        )}
       </div>
 
       {selectedTags.length > 0 ? (

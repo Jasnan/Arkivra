@@ -2,6 +2,14 @@ import { fetchJson } from "@/lib/api"
 
 export type SystemCapability = "system.create_vaults" | "system.use_ai"
 
+export type PermissionRequestType =
+  | "vault.create"
+  | "vault.delete"
+  | "vault.owner_promote"
+  | "vault.external_invite"
+
+export type PermissionRequestStatus = "pending" | "approved" | "rejected" | "cancelled"
+
 export interface InviteUserInput {
   email: string
   systemRole: "admin" | "member"
@@ -44,6 +52,21 @@ export interface EmailInvitation {
   vaultRole: "owner" | "editor" | "viewer" | null
   systemRole: "admin" | "member" | null
   payload: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PermissionRequest {
+  id: string
+  type: PermissionRequestType
+  status: PermissionRequestStatus
+  requestedBy: string
+  reviewedBy: string | null
+  reviewedAt: string | null
+  vaultId: string | null
+  targetUserId: string | null
+  payload: Record<string, unknown>
+  result: Record<string, unknown> | null
   createdAt: string
   updatedAt: string
 }
@@ -123,5 +146,35 @@ export async function createPlatformAccountInvitation({
       systemCapabilities,
       expiresAt: expiresAt ?? null,
     }),
+  })
+}
+
+export async function listPermissionRequests({
+  status = "pending",
+}: {
+  status?: PermissionRequestStatus
+} = {}) {
+  return fetchJson<{ requests: PermissionRequest[] }>(
+    `/api/admin/permission-requests?status=${encodeURIComponent(status)}`
+  )
+}
+
+export async function approvePermissionRequest({ requestId }: { requestId: string }) {
+  return fetchJson<{ request: PermissionRequest }>(`/api/admin/permission-requests/${requestId}/approve`, {
+    method: "POST",
+  })
+}
+
+export async function rejectPermissionRequest({
+  requestId,
+  reason,
+}: {
+  requestId: string
+  reason?: string | null
+}) {
+  return fetchJson<{ request: PermissionRequest }>(`/api/admin/permission-requests/${requestId}/reject`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ reason: reason ?? null }),
   })
 }

@@ -4,9 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } fr
 import { createPortal } from "react-dom"
 import {
   AlertCircle,
-  Archive,
-  Check,
-  ChevronDown,
+  ChevronsUpDown,
   Eye,
   Loader2,
   MoreHorizontal,
@@ -20,6 +18,7 @@ import { BaseLayout } from "@/components/layouts/base-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useHeaderActions } from "@/contexts/header-actions-context"
 import {
   Dialog,
   DialogContent,
@@ -30,11 +29,12 @@ import {
 } from "@/components/ui/dialog"
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { getDocumentFileIcon } from "./document-file-icons"
@@ -248,6 +248,58 @@ export default function TrashPage() {
     [clearSelection, setSearchParams]
   )
 
+  const headerActions = useMemo(
+    () => (
+      <div className="flex max-w-[calc(100vw-9rem)] items-center gap-2 overflow-x-auto">
+        <VaultFilter
+          vaults={vaults}
+          selectedVaultIds={selectedVaultIds}
+          label={selectedVaultsLabel}
+          isLoading={loading}
+          onChange={updateVaultFilter}
+          onClear={() => updateVaultFilter([])}
+        />
+        <Select value={browserSort} onValueChange={(value) => setBrowserSort(value as TrashSort)}>
+          <SelectTrigger className="h-9 w-36 shrink-0">
+            <SelectValue aria-label="Sort trashed documents" />
+          </SelectTrigger>
+          <SelectContent>
+            {trashSortOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          size="sm"
+          variant="destructive"
+          className="shrink-0"
+          disabled={visibleDocuments.length === 0 || itemMutationPending}
+          onClick={() => openPermanentDeleteDialog(visibleDocuments)}
+        >
+          Empty trash
+        </Button>
+        <div className="shrink-0">
+          <VaultsViewToggle />
+        </div>
+      </div>
+    ),
+    [
+      browserSort,
+      itemMutationPending,
+      loading,
+      selectedVaultIds,
+      selectedVaultsLabel,
+      updateVaultFilter,
+      vaults,
+      visibleDocuments,
+    ]
+  )
+
+  useHeaderActions(headerActions)
+
   function toggleDocument(document: DeletedDocumentSummary, checked: boolean) {
     const key = getDocumentKey(document)
     setSelection((current) => {
@@ -406,87 +458,53 @@ export default function TrashPage() {
 
   return (
     <BaseLayout>
-      <section className="flex h-[calc(100vh-6rem)] min-h-[620px] flex-col overflow-hidden border bg-background">
-        <header className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-b px-4 py-4 md:px-6">
-            {selectedCount > 0 ? (
-              <Button type="button" size="sm" variant="outline" onClick={clearSelection}>
-                Clear
-              </Button>
-            ) : null}
-            <VaultFilter
-              vaults={vaults}
-              selectedVaultIds={selectedVaultIds}
-              label={selectedVaultsLabel}
-              onChange={updateVaultFilter}
-            />
-            <Select value={browserSort} onValueChange={(value) => setBrowserSort(value as TrashSort)}>
-              <SelectTrigger className="h-9 w-36">
-                <SelectValue aria-label="Sort trashed documents" />
-              </SelectTrigger>
-              <SelectContent>
-                {trashSortOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              type="button"
-              size="sm"
-              variant="destructive"
-              disabled={visibleDocuments.length === 0 || itemMutationPending}
-              onClick={() => openPermanentDeleteDialog(visibleDocuments)}
-            >
-              Empty trash
-            </Button>
-            <VaultsViewToggle />
-        </header>
-
-        {loading ? (
-          <div className="flex h-20 shrink-0 items-center gap-2 border-b px-6 text-sm text-muted-foreground">
+      {loading ? (
+        <div className="px-4 lg:px-6">
+          <div className="flex h-64 items-center justify-center gap-2 rounded-lg border bg-muted/20 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" />
             Loading trash...
           </div>
-        ) : null}
+        </div>
+      ) : null}
 
-        {errorMessage ? (
-          <div className="m-4 rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive md:m-6">
+      {errorMessage ? (
+        <div className="px-4 lg:px-6">
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
             {errorMessage}
           </div>
-        ) : null}
+        </div>
+      ) : null}
 
-        {emptyState ? (
-          <div className="flex min-h-0 flex-1 items-center justify-center p-8 text-center">
-            <div>
-              <div className="mx-auto flex size-12 items-center justify-center rounded-md border bg-muted/30 text-muted-foreground">
-                <Trash2 className="size-6" />
-              </div>
-              <h2 className="mt-4 text-lg font-semibold">Trash is empty</h2>
-              <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                Deleted documents will appear here until their retention window ends.
-              </p>
-            </div>
+      {emptyState ? (
+        <div className="flex min-h-80 flex-col items-center justify-center px-4 py-8 text-center lg:px-6">
+          <div className="flex size-14 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+            <Trash2 className="size-7" />
           </div>
-        ) : null}
+          <h2 className="mt-4 text-lg font-semibold">Trash is empty</h2>
+          <p className="mt-2 max-w-md text-sm text-muted-foreground">
+            Deleted documents will appear here until their retention window ends.
+          </p>
+        </div>
+      ) : null}
 
-        {!loading && !errorMessage && !emptyState ? (
-          <div className="min-h-0 flex-1 overflow-auto p-4 md:p-6">
-            {browserView === "list" ? (
-              <TrashList
-                documents={visibleDocuments}
-                selectedKeys={selectedKeys}
-                allItemsSelected={allItemsSelected}
-                someItemsSelected={someItemsSelected}
-                itemMutationPending={itemMutationPending}
-                onToggleAll={toggleAllDocuments}
-                onToggleDocument={toggleDocument}
-                onOpenDocument={openDocument}
-                onOpenContextMenu={openContextMenu}
-                onRestore={(document) => void restoreDocuments({ documents: [document] })}
-                onDelete={(document) => openPermanentDeleteDialog([document])}
-              />
-            ) : (
+      {!loading && !errorMessage && !emptyState ? (
+        <>
+          {browserView === "list" ? (
+            <TrashList
+              documents={visibleDocuments}
+              selectedKeys={selectedKeys}
+              allItemsSelected={allItemsSelected}
+              someItemsSelected={someItemsSelected}
+              itemMutationPending={itemMutationPending}
+              onToggleAll={toggleAllDocuments}
+              onToggleDocument={toggleDocument}
+              onOpenDocument={openDocument}
+              onOpenContextMenu={openContextMenu}
+              onRestore={(document) => void restoreDocuments({ documents: [document] })}
+              onDelete={(document) => openPermanentDeleteDialog([document])}
+            />
+          ) : (
+            <div className="px-4 lg:px-6">
               <TrashGrid
                 documents={visibleDocuments}
                 selectedKeys={selectedKeys}
@@ -497,14 +515,13 @@ export default function TrashPage() {
                 onRestore={(document) => void restoreDocuments({ documents: [document] })}
                 onDelete={(document) => openPermanentDeleteDialog([document])}
               />
-            )}
-          </div>
-        ) : null}
-
-        <footer className="shrink-0 border-t bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground md:px-6">
-          Trashed documents stay here for {retentionDays} days before Arkivra removes them automatically.
-        </footer>
-      </section>
+            </div>
+          )}
+          <p className="px-4 text-xs text-muted-foreground lg:px-6">
+            Trashed documents stay here for {retentionDays} days before Arkivra removes them automatically.
+          </p>
+        </>
+      ) : null}
 
       {contextMenu !== null ? (
         <TrashItemContextMenu
@@ -541,6 +558,9 @@ export default function TrashPage() {
       {selectedDocuments.length > 0 ? (
         <div className="fixed bottom-5 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-md border bg-background px-4 py-3 shadow-lg">
           <span className="text-sm font-medium">{selectedDocuments.length} selected</span>
+          <Button type="button" size="sm" variant="outline" onClick={clearSelection}>
+            Clear
+          </Button>
           <Button
             type="button"
             size="sm"
@@ -571,47 +591,85 @@ function VaultFilter({
   vaults,
   selectedVaultIds,
   label,
+  isLoading,
   onChange,
+  onClear,
 }: {
   vaults: VaultSummary[]
   selectedVaultIds: string[]
   label: string
+  isLoading: boolean
   onChange: (values: string[]) => void
+  onClear: () => void
 }) {
+  const [query, setQuery] = useState("")
+  const selectedSet = useMemo(() => new Set(selectedVaultIds), [selectedVaultIds])
+  const filteredVaults = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+    if (normalizedQuery.length === 0) return vaults
+    return vaults.filter((vault) => vault.name.toLowerCase().includes(normalizedQuery))
+  }, [query, vaults])
+
+  function toggleVault(value: string, checked: boolean) {
+    const nextValues = new Set(selectedVaultIds)
+    if (checked) {
+      nextValues.add(value)
+    } else {
+      nextValues.delete(value)
+    }
+    onChange(Array.from(nextValues))
+  }
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button type="button" size="sm" variant="outline" className="w-40 justify-between">
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" className="min-w-0 justify-between">
           <span className="truncate">{label}</span>
-          <ChevronDown className="size-4" />
+          <ChevronsUpDown className="size-4 text-muted-foreground" />
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuItem onSelect={() => onChange([])}>
-          <Archive className="size-4" />
-          All vaults
-          {selectedVaultIds.length === 0 ? <Check className="ml-auto size-4" /> : null}
-        </DropdownMenuItem>
-        {vaults.map((vault) => {
-          const checked = selectedVaultIds.includes(vault.id)
-          return (
-            <DropdownMenuCheckboxItem
-              key={vault.id}
-              checked={checked}
-              onCheckedChange={(nextChecked) => {
-                onChange(
-                  nextChecked
-                    ? [...selectedVaultIds, vault.id]
-                    : selectedVaultIds.filter((id) => id !== vault.id)
-                )
-              }}
-            >
-              {vault.name}
-            </DropdownMenuCheckboxItem>
-          )
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 p-0">
+        <div className="border-b p-3">
+          <div className="text-sm font-medium">Vaults</div>
+          <Input
+            value={query}
+            className="mt-2"
+            placeholder="Search vaults"
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+        <div className="max-h-72 overflow-auto p-2">
+          {isLoading ? (
+            <div className="px-2 py-6 text-center text-sm text-muted-foreground">Loading...</div>
+          ) : filteredVaults.length === 0 ? (
+            <div className="px-2 py-6 text-center text-sm text-muted-foreground">No results found.</div>
+          ) : (
+            filteredVaults.map((vault) => {
+              const checked = selectedSet.has(vault.id)
+              return (
+                <label
+                  key={vault.id}
+                  className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-accent"
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(nextChecked) => toggleVault(vault.id, nextChecked === true)}
+                  />
+                  <span className="min-w-0 flex-1 truncate">{vault.name}</span>
+                </label>
+              )
+            })
+          )}
+        </div>
+        {selectedVaultIds.length > 0 ? (
+          <div className="border-t p-2">
+            <Button type="button" variant="ghost" size="sm" className="w-full" onClick={onClear}>
+              Clear vaults
+            </Button>
+          </div>
+        ) : null}
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -641,8 +699,8 @@ function TrashList({
   onDelete: (document: DeletedDocumentSummary) => void
 }) {
   return (
-    <div className="overflow-hidden rounded-md border bg-background">
-      <div className="hidden grid-cols-[auto_minmax(0,1fr)_12rem_8rem_7rem_5rem] gap-3 border-b bg-muted/40 px-4 py-3 text-sm font-medium text-muted-foreground md:grid">
+    <div className="-mt-4 overflow-hidden border-b bg-background md:-mt-6">
+      <div className="hidden grid-cols-[auto_minmax(0,1fr)_12rem_8rem_7rem_5rem] gap-3 border-b bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground md:grid lg:px-6">
         <Checkbox
           aria-label="Select all trashed documents"
           checked={allItemsSelected ? true : someItemsSelected ? "indeterminate" : false}
@@ -665,7 +723,7 @@ function TrashList({
             role="link"
             tabIndex={0}
             className={cn(
-              "grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b px-4 py-4 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[auto_minmax(0,1fr)_12rem_8rem_7rem_5rem]",
+              "grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b px-4 py-2 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[auto_minmax(0,1fr)_12rem_8rem_7rem_5rem] lg:px-6",
               isSelected && "bg-accent/40"
             )}
             onClick={() => onOpenDocument(document)}
@@ -752,7 +810,7 @@ function TrashGrid({
   onDelete: (document: DeletedDocumentSummary) => void
 }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(17rem,19rem))] justify-start gap-2">
       {documents.map((document) => {
         const key = getDocumentKey(document)
         const isSelected = selectedKeys.has(key)
@@ -807,12 +865,12 @@ function TrashGrid({
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-            <CardContent className="flex min-h-44 flex-col items-center justify-center p-4 text-center">
-              <div className="flex size-11 items-center justify-center rounded-md border bg-background text-muted-foreground">
-                <DocumentIcon className="size-5" strokeWidth={1.9} />
+            <CardContent className="flex h-40 flex-col items-center justify-center p-3 text-center">
+              <div className="flex size-8 items-center justify-center rounded-md border bg-background text-muted-foreground">
+                <DocumentIcon className="size-4" strokeWidth={1.9} />
               </div>
-              <h2 className="mt-3 max-w-full truncate text-sm font-semibold">{document.name}</h2>
-              <div className="mt-3 flex max-w-full flex-col items-center gap-1 text-xs text-muted-foreground">
+              <h2 className="mt-2 line-clamp-1 max-w-full text-sm font-semibold leading-4">{document.name}</h2>
+              <div className="mt-2 flex max-w-full flex-col items-center gap-1 text-xs text-muted-foreground">
                 <span className="max-w-full truncate">{document.vaultName}</span>
                 <span>Deleted {formatDate(document.deletedAt)}</span>
                 <span>{formatBytes(document.originalSize)}</span>

@@ -15,6 +15,7 @@ const Tags = lazy(() => import('@/app/tags/page'))
 const Chat = lazy(() => import('@/app/chat/page'))
 const AdminUsers = lazy(() => import('@/app/admin/users/page'))
 const AdminAuditLog = lazy(() => import('@/app/admin/audit-log/page'))
+const AdminBackups = lazy(() => import('@/app/admin/backups/page'))
 
 // Auth pages
 const SignIn = lazy(() => import('@/app/auth/sign-in/page'))
@@ -187,6 +188,10 @@ export const routes: RouteConfig[] = [
   {
     path: "/admin/users",
     element: <AdminUsers />
+  },
+  {
+    path: "/admin/backups",
+    element: <AdminBackups />
   },
   {
     path: "/admin/audit-log",

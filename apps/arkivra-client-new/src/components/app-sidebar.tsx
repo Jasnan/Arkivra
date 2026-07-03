@@ -9,9 +9,9 @@ import {
   AlertTriangle,
   Settings,
   Search,
+  ShieldCheck,
   Tags,
   Trash2,
-  Bot,
 } from "lucide-react"
 import { Link } from "react-router-dom"
 import { Logo } from "@/components/logo"
@@ -126,11 +126,15 @@ const data = {
         {
           title: "Admin",
           url: "#",
-          icon: Bot,
+          icon: ShieldCheck,
           items: [
             {
               title: "Users",
               url: "/admin/users",
+            },
+            {
+              title: "Backups",
+              url: "/admin/backups",
             },
             {
               title: "Audit Log",

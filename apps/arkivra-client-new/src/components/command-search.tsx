@@ -14,6 +14,7 @@ import {
   User,
   Users,
   Bell,
+  DatabaseBackup,
   Link2,
   Palette,
   ClipboardList,
@@ -152,6 +153,7 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
 
     // Admin
     { title: "Users", url: "/admin/users", group: "Admin", icon: Users },
+    { title: "Backups", url: "/admin/backups", group: "Admin", icon: DatabaseBackup },
     { title: "Audit Log", url: "/admin/audit-log", group: "Admin", icon: ClipboardList },
   ]
 

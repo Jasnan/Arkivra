@@ -52,7 +52,7 @@ export function LoginForm1({
 
   const redirectTo = (() => {
     const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from
-    return `${from?.pathname ?? "/dashboard"}${from?.search ?? ""}`
+    return `${from?.pathname ?? "/vaults"}${from?.search ?? ""}`
   })()
 
   async function onSubmit(data: LoginFormValues) {

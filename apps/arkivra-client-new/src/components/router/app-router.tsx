@@ -11,7 +11,7 @@ import {
 } from '@/components/appearance-preferences-boundary'
 import { getAppearanceUserKey } from '@/lib/appearance-preferences'
 
-const DEFAULT_AUTHENTICATED_ROUTE = "/dashboard"
+const DEFAULT_AUTHENTICATED_ROUTE = "/vaults"
 
 function getRedirectPathFromLocationState(location: ReturnType<typeof useLocation>) {
   const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from

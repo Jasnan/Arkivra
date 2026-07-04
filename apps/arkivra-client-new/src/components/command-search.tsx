@@ -4,22 +4,62 @@ import * as React from "react"
 import { useNavigate } from "react-router-dom"
 import { Command as CommandPrimitive } from "cmdk"
 import {
-  Search,
-  LayoutDashboard,
+  Archive,
+  ArrowRight,
   MessageCircle,
-  Shield,
+  Search,
   ShieldCheck,
+  Tags,
+  Trash2,
   User,
   Users,
   DatabaseBackup,
   Palette,
+  Info,
   ClipboardList,
   Bot,
   type LucideIcon,
 } from "lucide-react"
 
+import { searchAllDocuments, type SearchResultItem } from "@/app/search/search.api"
+import { getDocumentFileIcon } from "@/app/vaults/document-file-icons"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
+
+const DOCUMENT_SEARCH_DEBOUNCE_MS = 280
+const DOCUMENT_SEARCH_RESULT_LIMIT = 8
+
+type DocumentSearchStatus = "idle" | "loading" | "success" | "error"
+
+const snippetTokenPattern = /(<mark>.*?<\/mark>)/g
+const markBoundaryPattern = /^<mark>|<\/mark>$/g
+const snippetWhitespacePattern = /\s+/g
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "Unknown"
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return "Unknown"
+
+  return new Intl.DateTimeFormat(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(date)
+}
+
+function tokenizeSnippet(value: string) {
+  return value
+    .replace(snippetWhitespacePattern, " ")
+    .trim()
+    .split(snippetTokenPattern)
+    .filter((part) => part.length > 0)
+    .map((part, index) => ({
+      key: `${index}-${part}`,
+      text: part.replace(markBoundaryPattern, ""),
+      highlighted: part.startsWith("<mark>") && part.endsWith("</mark>"),
+    }))
+}
 
 const Command = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive>,
@@ -63,18 +103,6 @@ const CommandList = React.forwardRef<
 ))
 CommandList.displayName = CommandPrimitive.List.displayName
 
-const CommandEmpty = React.forwardRef<
-  React.ElementRef<typeof CommandPrimitive.Empty>,
-  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Empty>
->((props, ref) => (
-  <CommandPrimitive.Empty
-    ref={ref}
-    className="flex h-12 items-center justify-center text-sm text-zinc-500 dark:text-zinc-400"
-    {...props}
-  />
-))
-CommandEmpty.displayName = CommandPrimitive.Empty.displayName
-
 const CommandGroup = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Group>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Group>
@@ -115,37 +143,49 @@ interface SearchItem {
 interface CommandSearchProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  isAdmin: boolean
 }
 
-export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
+export function CommandSearch({ open, onOpenChange, isAdmin }: CommandSearchProps) {
   const navigate = useNavigate()
   const commandRef = React.useRef<HTMLDivElement>(null)
+  const [query, setQuery] = React.useState("")
+  const [debouncedQuery, setDebouncedQuery] = React.useState("")
+  const [documentResults, setDocumentResults] = React.useState<SearchResultItem[]>([])
+  const [documentSearchStatus, setDocumentSearchStatus] = React.useState<DocumentSearchStatus>("idle")
 
   const searchItems: SearchItem[] = [
-    // Dashboards
-    { title: "Dashboard", url: "/dashboard", group: "Dashboards", icon: LayoutDashboard },
-
-    // Apps
-    { title: "Chat", url: "/chat", group: "Apps", icon: MessageCircle },
-
-    // Auth Pages
-    { title: "Login", url: "/login", group: "Auth Pages", icon: Shield },
-    { title: "Register", url: "/register", group: "Auth Pages", icon: Shield },
-    { title: "Request Password Reset", url: "/request-password-reset", group: "Auth Pages", icon: Shield },
+    // Pages
+    { title: "Vaults", url: "/vaults", group: "Pages", icon: Archive },
+    { title: "Search", url: "/search", group: "Pages", icon: Search },
+    { title: "Tags", url: "/tags", group: "Pages", icon: Tags },
+    { title: "Chat", url: "/chat", group: "Pages", icon: MessageCircle },
+    { title: "Trash", url: "/trash", group: "Pages", icon: Trash2 },
 
     // Settings
     { title: "Profile", url: "/settings/account", group: "Settings", icon: User },
     { title: "Security", url: "/settings/security", group: "Settings", icon: ShieldCheck },
     { title: "Appearance", url: "/settings/appearance", group: "Settings", icon: Palette },
+    { title: "About", url: "/settings/about", group: "Settings", icon: Info },
 
-    // Admin
-    { title: "Users", url: "/admin/users", group: "Admin", icon: Users },
-    { title: "Backups", url: "/admin/backups", group: "Admin", icon: DatabaseBackup },
-    { title: "Audit Log", url: "/admin/audit-log", group: "Admin", icon: ClipboardList },
-    { title: "AI Settings", url: "/admin/ai-settings", group: "Admin", icon: Bot },
+    ...(isAdmin
+      ? [
+          // Admin
+          { title: "Users", url: "/admin/users", group: "Admin", icon: Users },
+          { title: "Backups", url: "/admin/backups", group: "Admin", icon: DatabaseBackup },
+          { title: "Audit Log", url: "/admin/audit-log", group: "Admin", icon: ClipboardList },
+          { title: "AI Settings", url: "/admin/ai-settings", group: "Admin", icon: Bot },
+        ]
+      : []),
   ]
 
+  const normalizedQuery = query.trim().toLowerCase()
   const groupedItems = searchItems.reduce((acc, item) => {
+    const searchableValue = `${item.title} ${item.group} ${item.url}`.toLowerCase()
+    if (normalizedQuery.length > 0 && !searchableValue.includes(normalizedQuery)) {
+      return acc
+    }
+
     if (!acc[item.group]) {
       acc[item.group] = []
     }
@@ -153,9 +193,74 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
     return acc
   }, {} as Record<string, SearchItem[]>)
 
+  React.useEffect(() => {
+    if (!open) {
+      setDebouncedQuery("")
+      return
+    }
+
+    const trimmedQuery = query.trim()
+    if (trimmedQuery.length === 0) {
+      setDebouncedQuery("")
+      setDocumentResults([])
+      setDocumentSearchStatus("idle")
+      return
+    }
+
+    setDocumentResults([])
+    setDocumentSearchStatus("loading")
+
+    const timeout = window.setTimeout(() => setDebouncedQuery(trimmedQuery), DOCUMENT_SEARCH_DEBOUNCE_MS)
+    return () => window.clearTimeout(timeout)
+  }, [open, query])
+
+  React.useEffect(() => {
+    if (!open || debouncedQuery.length === 0) {
+      setDocumentResults([])
+      setDocumentSearchStatus("idle")
+      return
+    }
+
+    let cancelled = false
+    setDocumentSearchStatus("loading")
+
+    searchAllDocuments({
+      query: debouncedQuery,
+      pageIndex: 0,
+      pageSize: DOCUMENT_SEARCH_RESULT_LIMIT,
+    })
+      .then((page) => {
+        if (cancelled) return
+        setDocumentResults(page.results)
+        setDocumentSearchStatus("success")
+      })
+      .catch(() => {
+        if (cancelled) return
+        setDocumentResults([])
+        setDocumentSearchStatus("error")
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [debouncedQuery, open])
+
+  const hasDocumentResults = documentResults.length > 0
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setQuery("")
+      setDebouncedQuery("")
+      setDocumentResults([])
+      setDocumentSearchStatus("idle")
+    }
+
+    onOpenChange(nextOpen)
+  }
+
   const handleSelect = (url: string) => {
     navigate(url)
-    onOpenChange(false)
+    handleOpenChange(false)
     // Bounce effect like Vercel
     if (commandRef.current) {
       commandRef.current.style.transform = 'scale(0.96)'
@@ -168,16 +273,21 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="overflow-hidden p-0 shadow-2xl border border-zinc-200 dark:border-zinc-800 max-w-[640px]">
         <DialogTitle className="sr-only">Command Search</DialogTitle>
         <Command
           ref={commandRef}
+          shouldFilter={false}
           className="transition-transform duration-100 ease-out"
         >
-          <CommandInput placeholder="What do you need?" autoFocus />
+          <CommandInput
+            value={query}
+            onValueChange={setQuery}
+            placeholder="Search commands or documents..."
+            autoFocus
+          />
           <CommandList>
-            <CommandEmpty>No results found.</CommandEmpty>
             {Object.entries(groupedItems).map(([group, items]) => (
               <CommandGroup key={group} heading={group}>
                 {items.map((item) => {
@@ -195,6 +305,67 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
                 })}
               </CommandGroup>
             ))}
+            {normalizedQuery.length > 0 ? (
+              <CommandGroup heading="Documents">
+                {documentSearchStatus === "loading" ? (
+                  <CommandItem disabled value="documents-loading">
+                    Searching documents...
+                  </CommandItem>
+                ) : null}
+                {documentSearchStatus === "error" ? (
+                  <CommandItem disabled value="documents-error">
+                    Unable to run document search.
+                  </CommandItem>
+                ) : null}
+                {documentSearchStatus === "success" && !hasDocumentResults ? (
+                  <CommandItem disabled value="documents-empty">
+                    No matching documents.
+                  </CommandItem>
+                ) : null}
+                {documentResults.map((result) => {
+                  const DocumentIcon = getDocumentFileIcon(result)
+                  const snippet = result.bestChunk?.snippet
+                  const pageNumber = result.bestChunk?.pageNumber
+
+                  return (
+                    <CommandItem
+                      key={`${result.vaultId}-${result.documentId}`}
+                      value={`document ${result.name} ${result.vaultName} ${snippet ?? ""}`}
+                      className="h-auto min-h-16 items-start py-3"
+                      onSelect={() => handleSelect(`/vaults/${result.vaultId}/${result.documentId}`)}
+                    >
+                      <DocumentIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="truncate font-medium">{result.name}</span>
+                          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
+                        </div>
+                        <div className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
+                          {result.vaultName} · Updated {formatDate(result.updatedAt)}
+                          {pageNumber !== null && pageNumber !== undefined ? ` · Page ${pageNumber}` : ""}
+                        </div>
+                        {snippet ? (
+                          <div className="mt-1 line-clamp-2 text-xs text-zinc-500 dark:text-zinc-400">
+                            {tokenizeSnippet(snippet).map((part) =>
+                              part.highlighted ? (
+                                <mark
+                                  key={`${result.documentId}-${part.key}`}
+                                  className="rounded-sm bg-primary/15 px-0.5 text-primary"
+                                >
+                                  {part.text}
+                                </mark>
+                              ) : (
+                                <span key={`${result.documentId}-${part.key}`}>{part.text}</span>
+                              )
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
+                    </CommandItem>
+                  )
+                })}
+              </CommandGroup>
+            ) : null}
           </CommandList>
         </Command>
       </DialogContent>
@@ -221,7 +392,7 @@ export function SearchTrigger({
       <Search className="mr-2 h-3.5 w-3.5" />
       <span className="hidden lg:inline-flex">Search...</span>
       <span className="inline-flex lg:hidden">Search...</span>
-      <kbd className="pointer-events-none absolute right-1.5 top-1.5 hidden h-4 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
+      <kbd className="pointer-events-none absolute right-2 top-1/2 hidden h-4 -translate-y-1/2 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
         <span className="text-xs">⌘</span>K
       </kbd>
     </button>

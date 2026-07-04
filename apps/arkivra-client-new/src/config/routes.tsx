@@ -3,7 +3,6 @@ import { Navigate } from 'react-router-dom'
 
 // Lazy load components for better performance
 const Landing = lazy(() => import('@/app/landing/page'))
-const Dashboard = lazy(() => import('@/app/dashboard/page'))
 const Vaults = lazy(() => import('@/app/vaults/page'))
 const VaultRouteShell = lazy(() => import('@/app/vaults/vault-route-shell'))
 const VaultWorkspace = lazy(() => import('@/app/vaults/vault-workspace-page'))
@@ -28,6 +27,7 @@ const NotFound = lazy(() => import('@/app/errors/not-found/page'))
 const AccountSettings = lazy(() => import('@/app/settings/account/page'))
 const SecuritySettings = lazy(() => import('@/app/settings/security/page'))
 const AppearanceSettings = lazy(() => import('@/app/settings/appearance/page'))
+const AboutSettings = lazy(() => import('@/app/settings/about/page'))
 const AdminAiSettings = lazy(() => import('@/app/admin/ai-settings/page'))
 
 export interface RouteConfig {
@@ -40,11 +40,11 @@ export interface RouteConfig {
 }
 
 export const routes: RouteConfig[] = [
-  // Default route - redirect to dashboard
-  // Use relative path "dashboard" instead of "/dashboard" for basename compatibility
+  // Default route - redirect to vaults
+  // Use relative path "vaults" instead of "/vaults" for basename compatibility
   {
     path: "/",
-    element: <Navigate to="dashboard" replace />
+    element: <Navigate to="vaults" replace />
   },
 
   // Auth Routes
@@ -76,11 +76,6 @@ export const routes: RouteConfig[] = [
     element: <Landing />
   },
 
-  // Dashboard Routes
-  {
-    path: "/dashboard",
-    element: <Dashboard />
-  },
   // Application Routes
   {
     path: "/vaults",
@@ -137,6 +132,10 @@ export const routes: RouteConfig[] = [
   {
     path: "/settings/appearance",
     element: <AppearanceSettings />
+  },
+  {
+    path: "/settings/about",
+    element: <AboutSettings />
   },
   {
     path: "/admin/ai-settings",

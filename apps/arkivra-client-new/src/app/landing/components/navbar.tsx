@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from 'react'
-import { Menu, Github, LayoutDashboard, ChevronDown, X, Moon, Sun } from 'lucide-react'
+import { Archive, Menu, Github, ChevronDown, X, Moon, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   NavigationMenu,
@@ -132,9 +132,9 @@ export function LandingNavbar() {
             </a>
           </Button>
           <Button variant="outline" asChild className="cursor-pointer">
-            <a href={getAppUrl("/dashboard")} target="_blank" rel="noopener noreferrer">
-              <LayoutDashboard className="h-4 w-4 mr-2" />
-              Dashboard
+            <a href={getAppUrl("/vaults")} target="_blank" rel="noopener noreferrer">
+              <Archive className="h-4 w-4 mr-2" />
+              Vaults
             </a>
           </Button>
           <Button variant="ghost" asChild className="cursor-pointer">
@@ -249,9 +249,9 @@ export function LandingNavbar() {
                 {/* Primary Actions */}
                 <div className="space-y-3">
                   <Button variant="outline" size="lg" asChild className="w-full cursor-pointer">
-                    <a href={getAppUrl("/dashboard")}>
-                      <LayoutDashboard className="size-4" />
-                      Dashboard
+                    <a href={getAppUrl("/vaults")}>
+                      <Archive className="size-4" />
+                      Vaults
                     </a>
                   </Button>
 

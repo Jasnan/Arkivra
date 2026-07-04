@@ -4,6 +4,7 @@ import {
   EllipsisVertical,
   LogOut,
   CircleUser,
+  Info,
   Palette,
   ShieldCheck,
 } from "lucide-react"
@@ -145,6 +146,12 @@ export function NavUser({
                 <Link to="/settings/appearance">
                   <Palette />
                   Appearance
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild className="cursor-pointer">
+                <Link to="/settings/about">
+                  <Info />
+                  About
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>

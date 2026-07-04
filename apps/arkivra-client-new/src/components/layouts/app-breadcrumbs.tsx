@@ -68,8 +68,7 @@ function buildBreadcrumbs({
   const parts = pathname.split("/").filter(Boolean)
   const currentDocumentLabel = documentName ?? "Document"
 
-  if (parts.length === 0) return [{ label: "Dashboard", to: "/dashboard" }]
-  if (pathname === "/dashboard") return [{ label: "Dashboard" }]
+  if (parts.length === 0) return [{ label: "Vaults", to: "/vaults" }]
   if (pathname === "/vaults") return [{ label: "Vaults" }]
   if (pathname === "/trash") return [{ label: "Trash" }]
   if (parts[0] === "trash" && parts[1]) return [{ label: "Trash", to: "/trash" }, { label: currentDocumentLabel }]
@@ -82,6 +81,7 @@ function buildBreadcrumbs({
       account: "Profile",
       security: "Security",
       appearance: "Appearance",
+      about: "About",
     }
     const sectionLabel = settingsLabels[parts[1] ?? ""]
     return sectionLabel ? [{ label: "Settings", to: "/settings/account" }, { label: sectionLabel }] : [{ label: "Settings" }]

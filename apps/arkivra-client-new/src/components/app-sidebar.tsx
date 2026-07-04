@@ -3,7 +3,6 @@
 import * as React from "react"
 import {
   Archive,
-  LayoutDashboard,
   MessageCircle,
   Search,
   ShieldCheck,
@@ -25,6 +24,15 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+import { fetchJson, getHealth } from "@/lib/api"
+
+interface SidebarMeResponse {
+  isAdmin: boolean
+}
+
+function formatVersion(version: string) {
+  return version.startsWith("v") ? version : `v${version}`
+}
 
 const data = {
   user: {
@@ -91,21 +99,46 @@ const data = {
         },
       ],
     },
-    {
-      label: "Dashboards",
-      items: [
-        {
-          title: "Dashboard",
-          url: "/dashboard",
-          icon: LayoutDashboard,
-        },
-      ],
-    },
   ],
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [searchOpen, setSearchOpen] = React.useState(false)
+  const [isAdmin, setIsAdmin] = React.useState(false)
+  const [appVersion, setAppVersion] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    const controller = new AbortController()
+
+    fetchJson<SidebarMeResponse>("/api/me", { signal: controller.signal })
+      .then((me) => setIsAdmin(me.isAdmin === true))
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return
+        setIsAdmin(false)
+      })
+
+    return () => controller.abort()
+  }, [])
+
+  React.useEffect(() => {
+    let ignore = false
+
+    getHealth()
+      .then((health) => {
+        if (!ignore) {
+          setAppVersion(formatVersion(health.version))
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setAppVersion(null)
+        }
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [])
 
   React.useEffect(() => {
     const down = (event: KeyboardEvent) => {
@@ -119,6 +152,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return () => document.removeEventListener("keydown", down)
   }, [])
 
+  const visibleNavGroups = React.useMemo(
+    () => data.navGroups.filter((group) => group.label !== "Administration" || isAdmin),
+    [isAdmin]
+  )
+
   return (
     <>
       <Sidebar {...props}>
@@ -126,25 +164,25 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild>
-                <Link to="/dashboard">
+                <Link to="/vaults">
                   <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                     <Logo size={24} className="text-current" />
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-medium">Arkivra</span>
-                    <span className="truncate text-xs">Admin Dashboard</span>
+                    <span className="truncate text-xs">{appVersion ?? "Version unavailable"}</span>
                   </div>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
           <SearchTrigger
-            className="h-10 rounded-lg px-3 md:w-full lg:w-full group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:sm:pr-0 group-data-[collapsible=icon]:[&_kbd]:hidden group-data-[collapsible=icon]:[&_span]:hidden group-data-[collapsible=icon]:[&_svg]:mr-0"
+            className="rounded-lg px-3 md:w-full lg:w-full group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:sm:pr-0 group-data-[collapsible=icon]:[&_kbd]:hidden group-data-[collapsible=icon]:[&_span]:hidden group-data-[collapsible=icon]:[&_svg]:mr-0"
             onClick={() => setSearchOpen(true)}
           />
         </SidebarHeader>
         <SidebarContent>
-          {data.navGroups.map((group) => (
+          {visibleNavGroups.map((group) => (
             <NavMain key={group.label} label={group.label} items={group.items} />
           ))}
         </SidebarContent>
@@ -152,7 +190,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <NavUser user={data.user} />
         </SidebarFooter>
       </Sidebar>
-      <CommandSearch open={searchOpen} onOpenChange={setSearchOpen} />
+      <CommandSearch open={searchOpen} onOpenChange={setSearchOpen} isAdmin={isAdmin} />
     </>
   )
 }

@@ -49,12 +49,12 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { useOptionalVaultRouteShell } from "@/app/vaults/vault-route-shell"
 import { ImagePreviewFrame as ZoomableImagePreviewFrame } from "./components/image-preview-frame"
 import { PdfPreviewFrame } from "./components/pdf-preview-frame"
 import { VaultContextMenu, type VaultContextMenuState } from "./components/vault-context-menu"
 import { VAULT_TREE_ROOT_VALUE, VaultSidebarTree } from "./components/vault-sidebar-tree"
 import { useVaultTreeVisibility } from "./use-vault-tree-visibility"
-import { useOptionalVaultRouteShell } from "./vault-route-shell"
 import {
   deleteDocumentVersion,
   getMe,

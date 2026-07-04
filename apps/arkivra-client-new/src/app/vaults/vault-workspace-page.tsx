@@ -33,6 +33,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
+import { useVaultRouteShell } from "@/app/vaults/vault-route-shell"
 import { DEFAULT_TAG_COLOR, TagFormDialog } from "../tags/components/tag-form-dialog"
 import {
   assignTagToDocument,
@@ -74,7 +75,6 @@ import {
   type FolderSummary,
   type FolderTreeEntry,
 } from "./vaults.api"
-import { useVaultRouteShell } from "./vault-route-shell"
 import { useVaultsView } from "./use-vaults-view"
 
 const DIRECTORY_PICKER_ATTRIBUTES = {

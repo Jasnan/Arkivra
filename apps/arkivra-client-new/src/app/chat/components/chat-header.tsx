@@ -4,7 +4,6 @@ import { Bot, Info, MoreVertical, Trash2 } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,7 +22,6 @@ import { ChatModelControls } from "./chat-model-controls"
 interface ChatHeaderProps {
   conversation: ChatConversation | null
   contextLabel: string
-  contextLocked?: boolean
   responseMode: ChatResponseMode
   modelOptions: string[]
   selectedModel: string
@@ -38,7 +36,6 @@ interface ChatHeaderProps {
 export function ChatHeader({
   conversation,
   contextLabel,
-  contextLocked,
   responseMode,
   modelOptions,
   selectedModel,
@@ -62,11 +59,6 @@ export function ChatHeader({
             <h2 className="truncate font-semibold">
               {conversation?.title ?? "New chat"}
             </h2>
-            {contextLocked ? (
-              <Badge variant="secondary" className="text-xs">
-                Locked
-              </Badge>
-            ) : null}
           </div>
           <p className="text-muted-foreground truncate text-xs">{contextLabel}</p>
         </div>
@@ -91,7 +83,7 @@ export function ChatHeader({
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p>{contextLocked ? "Context is locked after messages are sent" : "Conversation context"}</p>
+              <p>Conversation context</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>

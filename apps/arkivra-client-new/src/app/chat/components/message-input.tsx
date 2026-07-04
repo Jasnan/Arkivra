@@ -1,7 +1,7 @@
 "use client"
 
 import { ComposerPrimitive } from "@assistant-ui/react"
-import { useRef, type ChangeEvent, type ReactNode, type RefObject } from "react"
+import { useRef, type ChangeEvent, type FormEvent, type ReactNode, type RefObject } from "react"
 import {
   Send,
   Paperclip,
@@ -36,26 +36,28 @@ interface MessageInputProps {
   disabled?: boolean
   placeholder?: string
   context?: DraftChatContext
-  contextLocked?: boolean
+  draftValue?: string
   onAddVaults?: () => void
   onAddDocuments?: () => void
   onRemoveVault?: (vault: DraftChatVault) => void
   onRemoveDocument?: (document: DraftChatDocument) => void
   textareaRef?: RefObject<HTMLTextAreaElement | null>
   onDraftValueChange?: (value: string) => void
+  onSubmitMessage?: (content: string) => Promise<void> | void
 }
 
 export function MessageInput({
   disabled = false,
   placeholder = "Type a message...",
   context,
-  contextLocked = false,
+  draftValue,
   onAddVaults,
   onAddDocuments,
   onRemoveVault,
   onRemoveDocument,
   textareaRef: externalTextareaRef,
   onDraftValueChange,
+  onSubmitMessage,
 }: MessageInputProps) {
   const localTextareaRef = useRef<HTMLTextAreaElement>(null)
   const textareaRef = externalTextareaRef ?? localTextareaRef
@@ -72,13 +74,40 @@ export function MessageInput({
     }, 0)
   }
 
+  function handleComposerSubmitCapture(event: FormEvent<HTMLFormElement>) {
+    if (!onSubmitMessage) return
+
+    event.preventDefault()
+    event.stopPropagation()
+    if (disabled) return
+
+    const textarea = event.currentTarget.querySelector<HTMLTextAreaElement>("textarea")
+    const content = textarea?.value.trim()
+    if (!content) return
+
+    onDraftValueChange?.("")
+    if (textarea) {
+      textarea.value = ""
+      textarea.style.height = "auto"
+    }
+
+    void Promise.resolve(onSubmitMessage(content)).then(() => {
+      window.setTimeout(() => {
+        if (textareaRef.current) textareaRef.current.style.height = "auto"
+      }, 0)
+    })
+  }
+
   return (
-    <ComposerPrimitive.Root className="shrink-0 border-t p-4" onSubmit={handleComposerSubmit}>
+    <ComposerPrimitive.Root
+      className="shrink-0 border-t p-4"
+      onSubmit={handleComposerSubmit}
+      onSubmitCapture={handleComposerSubmitCapture}
+    >
       {context && onRemoveVault && onRemoveDocument && (
         <ContextAttachmentList
           context={context}
           disabled={disabled}
-          locked={contextLocked}
           onRemoveVault={onRemoveVault}
           onRemoveDocument={onRemoveDocument}
         />
@@ -134,6 +163,7 @@ export function MessageInput({
             submitMode="enter"
             minRows={1}
             maxRows={8}
+            value={draftValue}
             className={cn(
               "min-h-[40px] max-h-[120px] resize-none cursor-text disabled:cursor-not-allowed",
               "flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm",
@@ -168,13 +198,11 @@ export function MessageInput({
 function ContextAttachmentList({
   context,
   disabled,
-  locked,
   onRemoveVault,
   onRemoveDocument,
 }: {
   context: DraftChatContext
   disabled?: boolean
-  locked?: boolean
   onRemoveVault: (vault: DraftChatVault) => void
   onRemoveDocument: (document: DraftChatDocument) => void
 }) {
@@ -186,7 +214,7 @@ function ContextAttachmentList({
   return (
     <div className="mb-3 space-y-2">
       <div className="text-muted-foreground text-xs font-medium">
-        Context: {summary.label}{locked ? " (locked)" : ""}
+        Context: {summary.label}
       </div>
       <div className="flex flex-wrap gap-2">
         {normalized.vaults.map((vault) => (

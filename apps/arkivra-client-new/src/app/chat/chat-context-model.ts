@@ -306,12 +306,12 @@ export function getContextAccessMessage(snapshot: ChatContextSnapshot) {
   }
 
   if (snapshot.type === "vault") {
-    return "To chat with this vault, join it as a member. Admin access alone is not document access."
+    return "Chat is not available for this vault with your current access."
   }
 
   if (snapshot.type === "selection") {
     return "Selected context includes vaults or documents you cannot read."
   }
 
-  return "To start using chat, join at least one vault as a member. Admin access alone is not document access."
+  return "To start using chat, use at least one vault where chat is available."
 }

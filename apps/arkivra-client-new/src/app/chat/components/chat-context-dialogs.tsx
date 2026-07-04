@@ -29,6 +29,16 @@ import {
   type DraftChatVault,
 } from "../chat-context-model"
 
+function canReadVault(vault: VaultSummary) {
+  return (
+    vault.role === "owner" ||
+    vault.role === "editor" ||
+    vault.role === "viewer" ||
+    vault.isAdmin === true ||
+    vault.accessMode === "admin"
+  )
+}
+
 export function useChatContextVaults() {
   const [vaults, setVaults] = useState<VaultSummary[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -87,7 +97,7 @@ export function VaultSelectionDialog({
   const [query, setQuery] = useState("")
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const availableVaults = useMemo(
-    () => vaults.filter((vault) => vault.role === "owner" || vault.role === "editor" || vault.role === "viewer"),
+    () => vaults.filter(canReadVault),
     [vaults]
   )
   const selectedVaultById = useMemo(
@@ -296,7 +306,7 @@ export function DocumentSelectionDialog({
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const selectableVaults = useMemo(
-    () => vaults.filter((vault) => vault.role === "owner" || vault.role === "editor" || vault.role === "viewer"),
+    () => vaults.filter(canReadVault),
     [vaults]
   )
   const selectedVaultById = useMemo(

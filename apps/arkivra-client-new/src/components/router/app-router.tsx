@@ -5,6 +5,11 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { routes, type RouteConfig } from '@/config/routes'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { authClient } from '@/lib/auth-client'
+import {
+  AuthenticatedAppearanceBoundary,
+  PublicAppearanceBoundary,
+} from '@/components/appearance-preferences-boundary'
+import { getAppearanceUserKey } from '@/lib/appearance-preferences'
 
 const DEFAULT_AUTHENTICATED_ROUTE = "/dashboard"
 
@@ -39,7 +44,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  return <>{children}</>
+  return (
+    <AuthenticatedAppearanceBoundary userKey={getAppearanceUserKey(session.user)}>
+      {children}
+    </AuthenticatedAppearanceBoundary>
+  )
 }
 
 function PublicOnlyRoute({
@@ -58,6 +67,18 @@ function PublicOnlyRoute({
 
   if (session && !allowAuthenticated) {
     return <Navigate to={getRedirectPathFromLocationState(location)} replace />
+  }
+
+  if (!session) {
+    return <PublicAppearanceBoundary>{children}</PublicAppearanceBoundary>
+  }
+
+  if (allowAuthenticated) {
+    return (
+      <AuthenticatedAppearanceBoundary userKey={getAppearanceUserKey(session.user)}>
+        {children}
+      </AuthenticatedAppearanceBoundary>
+    )
   }
 
   return <>{children}</>

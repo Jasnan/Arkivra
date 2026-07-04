@@ -3,8 +3,9 @@
 import {
   EllipsisVertical,
   LogOut,
-  BellDot,
   CircleUser,
+  Palette,
+  ShieldCheck,
 } from "lucide-react"
 import { Link } from "react-router-dom"
 
@@ -133,9 +134,15 @@ export function NavUser({
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild className="cursor-pointer">
-                <Link to="/settings/notifications">
-                  <BellDot />
-                  Notifications
+                <Link to="/settings/security">
+                  <ShieldCheck />
+                  Security
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild className="cursor-pointer">
+                <Link to="/settings/appearance">
+                  <Palette />
+                  Appearance
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>

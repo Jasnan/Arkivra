@@ -28,8 +28,6 @@ const NotFound = lazy(() => import('@/app/errors/not-found/page'))
 const AccountSettings = lazy(() => import('@/app/settings/account/page'))
 const SecuritySettings = lazy(() => import('@/app/settings/security/page'))
 const AppearanceSettings = lazy(() => import('@/app/settings/appearance/page'))
-const NotificationSettings = lazy(() => import('@/app/settings/notifications/page'))
-const ConnectionSettings = lazy(() => import('@/app/settings/connections/page'))
 const AdminAiSettings = lazy(() => import('@/app/admin/ai-settings/page'))
 
 export interface RouteConfig {
@@ -139,14 +137,6 @@ export const routes: RouteConfig[] = [
   {
     path: "/settings/appearance",
     element: <AppearanceSettings />
-  },
-  {
-    path: "/settings/notifications",
-    element: <NotificationSettings />
-  },
-  {
-    path: "/settings/connections",
-    element: <ConnectionSettings />
   },
   {
     path: "/admin/ai-settings",

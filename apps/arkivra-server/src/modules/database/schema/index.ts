@@ -28,7 +28,10 @@ export {
 } from './chat.table.js';
 export { tagsTable, documentTagsTable } from './tags.table.js';
 export { instanceSettingsTable } from './instance-settings.table.js';
-export { userUiPreferencesTable } from './user-ui-preferences.table.js';
+export {
+  defaultUserAppearancePreferencesJson,
+  userUiPreferencesTable,
+} from './user-ui-preferences.table.js';
 export {
   authSessionsTable,
   authAccountsTable,

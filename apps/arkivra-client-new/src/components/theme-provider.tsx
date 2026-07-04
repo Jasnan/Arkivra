@@ -1,25 +1,19 @@
 "use client"
 
 import * as React from "react"
-import { ThemeProviderContext } from "@/contexts/theme-context"
-
-type Theme = "dark" | "light" | "system"
+import { ThemeProviderContext, type Theme } from "@/contexts/theme-context"
 
 type ThemeProviderProps = {
   children: React.ReactNode
   defaultTheme?: Theme
-  storageKey?: string
 }
 
 export function ThemeProvider({
   children,
   defaultTheme = "system",
-  storageKey = "vite-ui-theme",
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = React.useState<Theme>(
-    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
-  )
+  const [theme, setTheme] = React.useState<Theme>(defaultTheme)
 
   React.useEffect(() => {
     const root = window.document.documentElement
@@ -39,13 +33,14 @@ export function ThemeProvider({
     root.classList.add(theme)
   }, [theme])
 
-  const value = {
+  const setThemeValue = React.useCallback((theme: Theme) => {
+    setTheme(theme)
+  }, [])
+
+  const value = React.useMemo(() => ({
     theme,
-    setTheme: (theme: Theme) => {
-      localStorage.setItem(storageKey, theme)
-      setTheme(theme)
-    },
-  }
+    setTheme: setThemeValue,
+  }), [setThemeValue, theme])
 
   return (
     <ThemeProviderContext.Provider {...props} value={value}>

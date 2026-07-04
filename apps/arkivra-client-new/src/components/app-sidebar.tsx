@@ -5,7 +5,6 @@ import {
   Archive,
   LayoutDashboard,
   MessageCircle,
-  Settings,
   Search,
   ShieldCheck,
   Tags,
@@ -65,35 +64,8 @@ const data = {
       ],
     },
     {
-      label: "Pages",
+      label: "Administration",
       items: [
-        {
-          title: "Settings",
-          url: "#",
-          icon: Settings,
-          items: [
-            {
-              title: "Profile",
-              url: "/settings/account",
-            },
-            {
-              title: "Security",
-              url: "/settings/security",
-            },
-            {
-              title: "Appearance",
-              url: "/settings/appearance",
-            },
-            {
-              title: "Notifications",
-              url: "/settings/notifications",
-            },
-            {
-              title: "Connections",
-              url: "/settings/connections",
-            },
-          ],
-        },
         {
           title: "Admin",
           url: "#",

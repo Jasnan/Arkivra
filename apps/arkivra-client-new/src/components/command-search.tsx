@@ -11,11 +11,10 @@ import {
   ShieldCheck,
   User,
   Users,
-  Bell,
   DatabaseBackup,
-  Link2,
   Palette,
   ClipboardList,
+  Bot,
   type LucideIcon,
 } from "lucide-react"
 
@@ -138,13 +137,12 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
     { title: "Profile", url: "/settings/account", group: "Settings", icon: User },
     { title: "Security", url: "/settings/security", group: "Settings", icon: ShieldCheck },
     { title: "Appearance", url: "/settings/appearance", group: "Settings", icon: Palette },
-    { title: "Notifications", url: "/settings/notifications", group: "Settings", icon: Bell },
-    { title: "Connections", url: "/settings/connections", group: "Settings", icon: Link2 },
 
     // Admin
     { title: "Users", url: "/admin/users", group: "Admin", icon: Users },
     { title: "Backups", url: "/admin/backups", group: "Admin", icon: DatabaseBackup },
     { title: "Audit Log", url: "/admin/audit-log", group: "Admin", icon: ClipboardList },
+    { title: "AI Settings", url: "/admin/ai-settings", group: "Admin", icon: Bot },
   ]
 
   const groupedItems = searchItems.reduce((acc, item) => {

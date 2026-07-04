@@ -6,15 +6,22 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { useThemeManager } from '@/hooks/use-theme-manager'
 import { useCircularTransition } from '@/hooks/use-circular-transition'
 import { colorThemes, tweakcnThemes } from '@/config/theme-data'
 import { radiusOptions, baseColors } from '@/config/theme-customizer-constants'
 import { ColorPicker } from '@/components/color-picker'
+import type { AppearancePreferences } from '@/lib/appearance-preferences'
+import type { ThemePreset } from '@/types/theme-customizer'
 import React from 'react'
 import "./circular-transition.css"
 
 interface ThemeTabProps {
+  applyTheme: (themeValue: string, darkMode: boolean) => void
+  applyTweakcnTheme: (themePreset: ThemePreset, darkMode: boolean) => void
+  brandColorsValues: Record<string, string>
+  handleColorChange: (cssVar: string, value: string) => void
+  isDarkMode: boolean
+  onPreferenceChange: (patch: Partial<AppearancePreferences>) => void
   selectedTheme: string
   setSelectedTheme: (theme: string) => void
   selectedTweakcnTheme: string
@@ -24,6 +31,12 @@ interface ThemeTabProps {
 }
 
 export function ThemeTab({
+  applyTheme,
+  applyTweakcnTheme,
+  brandColorsValues,
+  handleColorChange,
+  isDarkMode,
+  onPreferenceChange,
   selectedTheme,
   setSelectedTheme,
   selectedTweakcnTheme,
@@ -31,16 +44,6 @@ export function ThemeTab({
   selectedRadius,
   setSelectedRadius,
 }: ThemeTabProps) {
-  const {
-    isDarkMode,
-    brandColorsValues,
-    setBrandColorsValues,
-    applyTheme,
-    applyTweakcnTheme,
-    applyRadius,
-    handleColorChange
-  } = useThemeManager()
-
   const { toggleTheme } = useCircularTransition()
 
   const handleRandomShadcn = () => {
@@ -48,8 +51,12 @@ export function ThemeTab({
     const randomTheme = colorThemes[Math.floor(Math.random() * colorThemes.length)]
     setSelectedTheme(randomTheme.value)
     setSelectedTweakcnTheme("") // Clear tweakcn selection
-    setBrandColorsValues({}) // Clear brand colors state
     applyTheme(randomTheme.value, isDarkMode)
+    onPreferenceChange({
+      selectedTheme: randomTheme.value,
+      selectedTweakcnTheme: "",
+      brandColors: {},
+    })
   }
 
   const handleRandomTweakcn = () => {
@@ -57,23 +64,40 @@ export function ThemeTab({
     const randomTheme = tweakcnThemes[Math.floor(Math.random() * tweakcnThemes.length)]
     setSelectedTweakcnTheme(randomTheme.value)
     setSelectedTheme("") // Clear shadcn selection
-    setBrandColorsValues({}) // Clear brand colors state
     applyTweakcnTheme(randomTheme.preset, isDarkMode)
+    onPreferenceChange({
+      selectedTheme: "",
+      selectedTweakcnTheme: randomTheme.value,
+      brandColors: {},
+    })
   }
 
   const handleRadiusSelect = (radius: string) => {
     setSelectedRadius(radius)
-    applyRadius(radius)
+    document.documentElement.style.setProperty('--radius', radius)
+    onPreferenceChange({ selectedRadius: radius })
   }
 
   const handleLightMode = (event: React.MouseEvent<HTMLButtonElement>) => {
     if (isDarkMode === false) return
-    toggleTheme(event)
+    toggleTheme(event, "light")
+    onPreferenceChange({ themeMode: "light" })
   }
 
   const handleDarkMode = (event: React.MouseEvent<HTMLButtonElement>) => {
     if (isDarkMode === true) return
-    toggleTheme(event)
+    toggleTheme(event, "dark")
+    onPreferenceChange({ themeMode: "dark" })
+  }
+
+  const handleBrandColorChange = (cssVar: string, value: string) => {
+    handleColorChange(cssVar, value)
+    onPreferenceChange({
+      brandColors: {
+        ...brandColorsValues,
+        [cssVar]: value,
+      },
+    })
   }
 
   const activePresetSource = selectedTweakcnTheme
@@ -112,8 +136,12 @@ export function ThemeTab({
             <Select value={selectedTheme} onValueChange={(value) => {
               setSelectedTheme(value)
               setSelectedTweakcnTheme("") // Clear tweakcn selection
-              setBrandColorsValues({}) // Clear brand colors state
               applyTheme(value, isDarkMode)
+              onPreferenceChange({
+                selectedTheme: value,
+                selectedTweakcnTheme: "",
+                brandColors: {},
+              })
             }}>
               <SelectTrigger className="w-full cursor-pointer">
                 <SelectValue placeholder="Choose Shadcn Theme" />
@@ -167,11 +195,15 @@ export function ThemeTab({
             <Select value={selectedTweakcnTheme} onValueChange={(value) => {
               setSelectedTweakcnTheme(value)
               setSelectedTheme("") // Clear shadcn selection
-              setBrandColorsValues({}) // Clear brand colors state
               const selectedPreset = tweakcnThemes.find(t => t.value === value)?.preset
               if (selectedPreset) {
                 applyTweakcnTheme(selectedPreset, isDarkMode)
               }
+              onPreferenceChange({
+                selectedTheme: "",
+                selectedTweakcnTheme: value,
+                brandColors: {},
+              })
             }}>
               <SelectTrigger className="w-full cursor-pointer">
                 <SelectValue placeholder="Choose Tweakcn Theme" />
@@ -277,7 +309,7 @@ export function ThemeTab({
                   label={color.name}
                   cssVar={color.cssVar}
                   value={brandColorsValues[color.cssVar] || ""}
-                  onChange={handleColorChange}
+                  onChange={handleBrandColorChange}
                 />
               </div>
             ))}

@@ -82,8 +82,6 @@ function buildBreadcrumbs({
       account: "Profile",
       security: "Security",
       appearance: "Appearance",
-      notifications: "Notifications",
-      connections: "Connections",
     }
     const sectionLabel = settingsLabels[parts[1] ?? ""]
     return sectionLabel ? [{ label: "Settings", to: "/settings/account" }, { label: sectionLabel }] : [{ label: "Settings" }]

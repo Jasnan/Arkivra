@@ -1,41 +1,19 @@
 import type { Database } from '../database/database.js';
-import type { UiFontFamily, UserUiPreferences, UserUiPreferencesUpdate } from './user-preferences.types.js';
+import type {
+  UserUiPreferences,
+  UserUiPreferencesUpdate,
+} from './user-preferences.types.js';
 import { eq, sql } from 'drizzle-orm';
-import { userUiPreferencesTable } from '../database/schema/index.js';
-
-const defaultPreferences: Required<UserUiPreferencesUpdate> = {
-  accentColor: 'blue',
-  density: 'comfortable',
-  fontFamily: 'inter',
-  fontSize: 'md',
-  radius: 'md',
-  language: 'en',
-  dateFormat: null,
-  showExtractedTextTab: false,
-  defaultFileBrowserView: 'list',
-  defaultChatAnswerMode: 'text',
-} satisfies Omit<UserUiPreferencesUpdate, never>;
+import {
+  defaultUserAppearancePreferencesJson,
+  userUiPreferencesTable,
+} from '../database/schema/index.js';
 
 type UserUiPreferencesRow = typeof userUiPreferencesTable.$inferSelect;
 
-function normalizeFontFamily(fontFamily: string): UiFontFamily {
-  if (fontFamily === 'manrope') return 'sora';
-  if (fontFamily === 'inter' || fontFamily === 'sora' || fontFamily === 'space-grotesk') return fontFamily;
-  return defaultPreferences.fontFamily;
-}
-
 function serializePreferences(row: UserUiPreferencesRow): UserUiPreferences {
   return {
-    accentColor: row.accentColor,
-    density: row.density,
-    fontFamily: normalizeFontFamily(row.fontFamily),
-    fontSize: row.fontSize,
-    radius: row.radius,
-    language: row.language,
-    dateFormat: row.dateFormat,
-    showExtractedTextTab: row.showExtractedTextTab,
-    defaultFileBrowserView: row.defaultFileBrowserView,
-    defaultChatAnswerMode: row.defaultChatAnswerMode,
+    appearancePreferences: row.appearancePreferences,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -57,7 +35,7 @@ export function createUserPreferencesServices({ db }: { db: Database }) {
       .insert(userUiPreferencesTable)
       .values({
         userId,
-        ...defaultPreferences,
+        appearancePreferences: defaultUserAppearancePreferencesJson,
       })
       .onConflictDoNothing()
       .returning();

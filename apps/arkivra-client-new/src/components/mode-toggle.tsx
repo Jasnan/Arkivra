@@ -6,6 +6,12 @@ import { Moon, Sun } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "@/hooks/use-theme"
 import { useCircularTransition } from "@/hooks/use-circular-transition"
+import { authClient } from "@/lib/auth-client"
+import {
+  getAppearanceUserKey,
+  saveServerAppearancePreferences,
+  updateAppearancePreferences,
+} from "@/lib/appearance-preferences"
 import "./theme-customizer/circular-transition.css"
 
 interface ModeToggleProps {
@@ -15,6 +21,12 @@ interface ModeToggleProps {
 export function ModeToggle({ variant = "outline" }: ModeToggleProps) {
   const { theme } = useTheme()
   const { toggleTheme } = useCircularTransition()
+  const { data: sessionData } = authClient.useSession()
+  const appearanceUserKey = React.useMemo(
+    () => getAppearanceUserKey(sessionData?.user),
+    [sessionData?.user]
+  )
+  const serverSaveQueueRef = React.useRef<Promise<unknown>>(Promise.resolve())
 
   // Simple, reliable dark mode detection with re-sync
   const [isDarkMode, setIsDarkMode] = React.useState(false)
@@ -40,7 +52,20 @@ export function ModeToggle({ variant = "outline" }: ModeToggleProps) {
   }, [theme])
 
   const handleToggle = (event: React.MouseEvent<HTMLButtonElement>) => {
-    toggleTheme(event)
+    const nextTheme = isDarkMode ? "light" : "dark"
+
+    toggleTheme(event, nextTheme)
+
+    if (!appearanceUserKey) return
+
+    const preferences = updateAppearancePreferences(
+      appearanceUserKey,
+      { themeMode: nextTheme },
+      { notify: false }
+    )
+    serverSaveQueueRef.current = serverSaveQueueRef.current
+      .catch(() => undefined)
+      .then(() => saveServerAppearancePreferences(preferences).catch(() => undefined))
   }
 
   return (

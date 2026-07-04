@@ -4,32 +4,31 @@ import type { UserPreferencesServices } from './user-preferences.services.js';
 import { z } from 'zod';
 import { requireAuthentication } from '../auth/auth.middleware.js';
 
-const fontFamilySchema = z
-  .enum(['inter', 'sora', 'space-grotesk', 'manrope'])
-  .transform((value) => value === 'manrope' ? 'sora' : value);
+const userAppearancePreferencesSchema = z
+  .object({
+    themeMode: z.enum(['dark', 'light', 'system']),
+    selectedTheme: z.string().max(100),
+    selectedTweakcnTheme: z.string().max(100),
+    selectedRadius: z.string().max(32),
+    brandColors: z.record(z.string().max(80)).refine(
+      (value) => Object.keys(value).every((key) => key.startsWith('--') && key.length <= 80),
+      { message: 'Brand color keys must be CSS custom properties.' },
+    ),
+    sidebar: z
+      .object({
+        variant: z.enum(['sidebar', 'floating', 'inset']),
+        collapsible: z.enum(['offcanvas', 'icon', 'none']),
+        side: z.enum(['left', 'right']),
+      })
+      .strict(),
+  })
+  .strict();
 
 const userUiPreferencesUpdateSchema = z
   .object({
-    accentColor: z.enum(['gray', 'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'cyan', 'purple', 'pink']).optional(),
-    density: z.enum(['compact', 'comfortable', 'relaxed']).optional(),
-    fontFamily: fontFamilySchema.optional(),
-    fontSize: z.enum(['sm', 'md', 'lg', 'xl', '2xl']).optional(),
-    radius: z.enum(['none', 'sm', 'md', 'lg', 'xl']).optional(),
-    language: z.enum(['en', 'de', 'fr']).optional(),
-    dateFormat: z.enum([
-      'DD.MM.YYYY',
-      'DD/MM/YYYY',
-      'DD-MM-YYYY',
-      'MM/DD/YYYY',
-      'YYYY-MM-DD',
-      'YYYY/MM/DD',
-    ]).nullable().optional(),
-    showExtractedTextTab: z.boolean().optional(),
-    defaultFileBrowserView: z.enum(['list', 'grid']).optional(),
-    defaultChatAnswerMode: z.enum(['text', 'multimodal']).optional(),
+    appearancePreferences: userAppearancePreferencesSchema,
   })
-  .strict()
-  .refine((value) => Object.keys(value).length > 0);
+  .strict();
 
 export function registerUserPreferencesRoutes({
   app,

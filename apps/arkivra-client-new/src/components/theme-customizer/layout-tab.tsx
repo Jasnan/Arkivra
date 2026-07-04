@@ -5,18 +5,25 @@ import { Separator } from '@/components/ui/separator'
 import { useSidebarConfig } from '@/contexts/sidebar-context'
 import { useSidebar } from '@/components/ui/sidebar'
 import { sidebarVariants, sidebarCollapsibleOptions, sidebarSideOptions } from '@/config/theme-customizer-constants'
+import type { SidebarConfig } from '@/contexts/sidebar-context'
 
-export function LayoutTab() {
+export function LayoutTab({
+  onPreferenceChange,
+}: {
+  onPreferenceChange?: (patch: Partial<SidebarConfig>) => void
+}) {
   const { config: sidebarConfig, updateConfig: updateSidebarConfig } = useSidebarConfig()
   const { toggleSidebar, state: sidebarState } = useSidebar()
 
   // Sidebar handler functions
   const handleSidebarVariantSelect = (variant: "sidebar" | "floating" | "inset") => {
     updateSidebarConfig({ variant })
+    onPreferenceChange?.({ variant })
   }
 
   const handleSidebarCollapsibleSelect = (collapsible: "offcanvas" | "icon" | "none") => {
     updateSidebarConfig({ collapsible })
+    onPreferenceChange?.({ collapsible })
     
     // If switching to icon mode and sidebar is currently expanded, auto-collapse it
     if (collapsible === "icon" && sidebarState === "expanded") {
@@ -26,6 +33,7 @@ export function LayoutTab() {
 
   const handleSidebarSideSelect = (side: "left" | "right") => {
     updateSidebarConfig({ side })
+    onPreferenceChange?.({ side })
   }
 
   return (

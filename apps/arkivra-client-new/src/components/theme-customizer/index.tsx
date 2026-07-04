@@ -20,7 +20,17 @@ interface ThemeCustomizerProps {
 }
 
 export function ThemeCustomizer({ open, onOpenChange }: ThemeCustomizerProps) {
-  const { applyImportedTheme, isDarkMode, resetTheme, applyRadius, setBrandColorsValues, applyTheme, applyTweakcnTheme } = useThemeManager()
+  const {
+    applyImportedTheme,
+    isDarkMode,
+    resetTheme,
+    applyRadius,
+    setBrandColorsValues,
+    applyTheme,
+    applyTweakcnTheme,
+    brandColorsValues,
+    handleColorChange,
+  } = useThemeManager()
   const { config: sidebarConfig, updateConfig: updateSidebarConfig } = useSidebarConfig()
 
   const [activeTab, setActiveTab] = React.useState("theme")
@@ -122,6 +132,12 @@ export function ThemeCustomizer({ open, onOpenChange }: ThemeCustomizerProps) {
 
               <TabsContent value="theme" className="flex-1 mt-0">
                 <ThemeTab
+                  applyTheme={applyTheme}
+                  applyTweakcnTheme={applyTweakcnTheme}
+                  brandColorsValues={brandColorsValues}
+                  handleColorChange={handleColorChange}
+                  isDarkMode={isDarkMode}
+                  onPreferenceChange={() => undefined}
                   selectedTheme={selectedTheme}
                   setSelectedTheme={setSelectedTheme}
                   selectedTweakcnTheme={selectedTweakcnTheme}

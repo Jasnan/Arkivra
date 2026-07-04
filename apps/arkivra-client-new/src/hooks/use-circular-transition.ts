@@ -2,10 +2,11 @@
 
 import { useRef, useCallback } from "react"
 import { useTheme } from "@/hooks/use-theme"
+import type { Theme } from "@/contexts/theme-context"
 
 interface CircularTransitionHook {
   startTransition: (coords: { x: number; y: number }, callback: () => void) => void
-  toggleTheme: (event: React.MouseEvent) => void
+  toggleTheme: (event: React.MouseEvent, nextTheme?: Exclude<Theme, "system">) => void
   isTransitioning: () => boolean
 }
 
@@ -44,7 +45,7 @@ export function useCircularTransition(): CircularTransitionHook {
     }
   }, [])
 
-  const toggleTheme = useCallback((event: React.MouseEvent) => {
+  const toggleTheme = useCallback((event: React.MouseEvent, nextTheme?: Exclude<Theme, "system">) => {
     // Get precise click coordinates - use clientX/clientY directly like tweakcn
     const coords = {
       x: event.clientX,
@@ -52,7 +53,7 @@ export function useCircularTransition(): CircularTransitionHook {
     }
 
     startTransition(coords, () => {
-      setTheme(theme === "dark" ? "light" : "dark")
+      setTheme(nextTheme ?? (theme === "dark" ? "light" : "dark"))
     })
   }, [theme, setTheme, startTransition])
 

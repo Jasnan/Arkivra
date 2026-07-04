@@ -126,13 +126,14 @@ export function useThemeManager() {
     setBrandColorsValues(newBrandColors)
   }, [])
 
-  const applyRadius = (radius: string) => {
+  const applyRadius = React.useCallback((radius: string) => {
     document.documentElement.style.setProperty('--radius', radius)
-  }
+  }, [])
 
-  const handleColorChange = (cssVar: string, value: string) => {
+  const handleColorChange = React.useCallback((cssVar: string, value: string) => {
     document.documentElement.style.setProperty(cssVar, value)
-  }
+    setBrandColorsValues(prev => ({ ...prev, [cssVar]: value }))
+  }, [])
 
   return {
     theme,

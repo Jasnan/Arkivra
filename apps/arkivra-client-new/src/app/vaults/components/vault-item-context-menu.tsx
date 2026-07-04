@@ -1,7 +1,7 @@
 'use client';
 
 import type { LucideIcon } from 'lucide-react';
-import { FolderOpen, History, MessageSquare, Settings2, Trash2, Users } from 'lucide-react';
+import { FolderOpen, History, MessageSquare, Settings2, Trash2 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -27,7 +27,6 @@ export function VaultItemContextMenu({
   state,
   onClose,
   onOpenVault,
-  onOpenMembers,
   onOpenSettings,
   onOpenActivity,
   onOpenChat,
@@ -38,7 +37,6 @@ export function VaultItemContextMenu({
   state: VaultItemContextMenuState;
   onClose: () => void;
   onOpenVault: (vault: VaultSummary) => void;
-  onOpenMembers: (vault: VaultSummary) => void;
   onOpenSettings: (vault: VaultSummary) => void;
   onOpenActivity: (vault: VaultSummary) => void;
   onOpenChat: (vault: VaultSummary) => void;
@@ -57,13 +55,6 @@ export function VaultItemContextMenu({
         label: 'Open',
         icon: FolderOpen,
         onSelect: () => onOpenVault(state.vault),
-      },
-      {
-        key: 'members',
-        label: 'Members',
-        icon: Users,
-        disabled: !canManageVault,
-        onSelect: () => onOpenMembers(state.vault),
       },
       {
         key: 'settings',
@@ -102,7 +93,6 @@ export function VaultItemContextMenu({
       onDeleteVault,
       onOpenActivity,
       onOpenChat,
-      onOpenMembers,
       onOpenSettings,
       onOpenVault,
       state.vault,

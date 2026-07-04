@@ -1,109 +1,114 @@
-"use client"
+'use client';
 
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react"
-import { Archive, ArrowRight, FileText, HardDrive, ShieldCheck } from "lucide-react"
-import { useNavigate } from "react-router-dom"
-import { toast } from "sonner"
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { Archive, ArrowRight, FileText, HardDrive, ShieldCheck } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
-import { BaseLayout } from "@/components/layouts/base-layout"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
-import { useHeaderActions } from "@/contexts/header-actions-context"
-import { cn } from "@/lib/utils"
-import { CreateVaultDialog } from "./components/create-vault-dialog"
+import { BaseLayout } from '@/components/layouts/base-layout';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { useHeaderActions } from '@/contexts/header-actions-context';
+import { cn } from '@/lib/utils';
+import { CreateVaultDialog } from './components/create-vault-dialog';
 import {
   VaultItemContextMenu,
   type VaultItemContextMenuState,
-} from "./components/vault-item-context-menu"
-import { VaultsViewToggle } from "./components/vaults-view-toggle"
-import { VaultDeleteConfirmDialog } from "./vault-management-page"
+} from './components/vault-item-context-menu';
+import { VaultsViewToggle } from './components/vaults-view-toggle';
+import { VaultDeleteConfirmDialog } from './vault-management-page';
 import {
   deleteVault,
   getMe,
   isPermissionRequestResponse,
   listVaults,
   type VaultSummary,
-} from "./vaults.api"
-import { useVaultsView } from "./use-vaults-view"
+} from './vaults.api';
+import { useVaultsView } from './use-vaults-view';
 
 function formatBytes(value: number) {
   if (!Number.isFinite(value) || value <= 0) {
-    return "0 B"
+    return '0 B';
   }
 
-  const units = ["B", "KB", "MB", "GB", "TB"]
-  const exponent = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1)
-  const amount = value / 1024 ** exponent
-  const formatted = amount >= 10 || exponent === 0 ? Math.round(amount).toString() : amount.toFixed(1)
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const exponent = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
+  const amount = value / 1024 ** exponent;
+  const formatted =
+    amount >= 10 || exponent === 0 ? Math.round(amount).toString() : amount.toFixed(1);
 
-  return `${formatted} ${units[exponent]}`
+  return `${formatted} ${units[exponent]}`;
 }
 
 function formatVaultDate(value: string | null | undefined) {
   if (!value) {
-    return "Unknown"
+    return 'Unknown';
   }
 
-  const date = new Date(value)
+  const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return "Unknown"
+    return 'Unknown';
   }
 
   return new Intl.DateTimeFormat(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date)
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
 }
 
 function getVaultDescription(value: string | null) {
   if (!value) {
-    return null
+    return null;
   }
 
-  if (value === "Credise default vault") {
-    return "Default vault"
+  if (value === 'Credise default vault') {
+    return 'Default vault';
   }
 
-  return value
+  return value;
 }
 
 function getDescriptionPreview(value: string | null) {
   if (!value) {
-    return null
+    return null;
   }
 
   if (value.length <= 120) {
-    return value
+    return value;
   }
 
-  return `${value.slice(0, 117).trimEnd()}...`
+  return `${value.slice(0, 117).trimEnd()}...`;
 }
 
 function getParticipationLabel(vault: VaultSummary) {
-  if (vault.role === "owner") return "Owner"
-  if (vault.role === "editor") return "Editor"
-  if (vault.role === "viewer") return "Viewer"
-  return "No participation"
+  if (vault.role === 'owner') return 'Owner';
+  if (vault.role === 'editor') return 'Editor';
+  if (vault.role === 'viewer') return 'Viewer';
+  return 'No participation';
 }
 
 function getParticipationBadgeClass(vault: VaultSummary) {
   if (vault.role === null) {
-    return "border-border bg-muted text-muted-foreground"
+    return 'border-border bg-muted text-muted-foreground';
   }
 
-  return "border-primary/20 bg-primary/10 text-foreground"
+  return 'border-primary/20 bg-primary/10 text-foreground';
 }
 
-function VaultGrid({ vaults, onOpenVault, onOpenContextMenu }: {
-  vaults: VaultSummary[]
-  onOpenVault: (vault: VaultSummary) => void
-  onOpenContextMenu: (event: MouseEvent<HTMLElement>, vault: VaultSummary) => void
+function VaultGrid({
+  vaults,
+  onOpenVault,
+  onOpenContextMenu,
+}: {
+  vaults: VaultSummary[];
+  onOpenVault: (vault: VaultSummary) => void;
+  onOpenContextMenu: (event: MouseEvent<HTMLElement>, vault: VaultSummary) => void;
 }) {
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(17rem,19rem))] justify-start gap-2">
       {vaults.map((vault) => {
-        const description = getDescriptionPreview(getVaultDescription(vault.description))
+        const description = getDescriptionPreview(getVaultDescription(vault.description));
 
         return (
           <Card
@@ -114,9 +119,9 @@ function VaultGrid({ vaults, onOpenVault, onOpenContextMenu }: {
             onClick={() => onOpenVault(vault)}
             onContextMenu={(event) => onOpenContextMenu(event, vault)}
             onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault()
-                onOpenVault(vault)
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onOpenVault(vault);
               }
             }}
           >
@@ -129,37 +134,44 @@ function VaultGrid({ vaults, onOpenVault, onOpenContextMenu }: {
               </h2>
               <p
                 className={cn(
-                  "mt-0.5 line-clamp-2 min-h-6 max-w-full text-xs leading-3 text-muted-foreground",
-                  !description && "invisible"
+                  'mt-0.5 line-clamp-2 min-h-6 max-w-full text-xs leading-3 text-muted-foreground',
+                  !description && 'invisible',
                 )}
               >
-                {description ?? "Description"}
+                {description ?? 'Description'}
               </p>
               <div className="mt-1.5 flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
                   <FileText className="size-3.5" />
-                  {vault.fileCount} {vault.fileCount === 1 ? "file" : "files"}
+                  {vault.fileCount} {vault.fileCount === 1 ? 'file' : 'files'}
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <HardDrive className="size-3.5" />
                   {formatBytes(vault.totalSize)}
                 </span>
               </div>
-              <Badge variant="outline" className={cn("mt-1 h-5 px-2 text-xs", getParticipationBadgeClass(vault))}>
+              <Badge
+                variant="outline"
+                className={cn('mt-1 h-5 px-2 text-xs', getParticipationBadgeClass(vault))}
+              >
                 {getParticipationLabel(vault)}
               </Badge>
             </CardContent>
           </Card>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
 
-function VaultList({ vaults, onOpenVault, onOpenContextMenu }: {
-  vaults: VaultSummary[]
-  onOpenVault: (vault: VaultSummary) => void
-  onOpenContextMenu: (event: MouseEvent<HTMLElement>, vault: VaultSummary) => void
+function VaultList({
+  vaults,
+  onOpenVault,
+  onOpenContextMenu,
+}: {
+  vaults: VaultSummary[];
+  onOpenVault: (vault: VaultSummary) => void;
+  onOpenContextMenu: (event: MouseEvent<HTMLElement>, vault: VaultSummary) => void;
 }) {
   return (
     <div className="-mt-4 overflow-hidden border-b bg-background md:-mt-6">
@@ -180,9 +192,9 @@ function VaultList({ vaults, onOpenVault, onOpenContextMenu }: {
             onClick={() => onOpenVault(vault)}
             onContextMenu={(event) => onOpenContextMenu(event, vault)}
             onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault()
-                onOpenVault(vault)
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onOpenVault(vault);
               }
             }}
           >
@@ -193,14 +205,15 @@ function VaultList({ vaults, onOpenVault, onOpenContextMenu }: {
               <div className="min-w-0">
                 <div className="truncate font-medium">{vault.name}</div>
                 <div className="mt-0.5 truncate text-xs text-muted-foreground md:hidden">
-                  {getParticipationLabel(vault)} · {vault.fileCount} {vault.fileCount === 1 ? "file" : "files"} · {formatBytes(vault.totalSize)}
+                  {getParticipationLabel(vault)} · {vault.fileCount}{' '}
+                  {vault.fileCount === 1 ? 'file' : 'files'} · {formatBytes(vault.totalSize)}
                 </div>
               </div>
             </div>
 
             <Badge
               variant="outline"
-              className={cn("hidden md:inline-flex", getParticipationBadgeClass(vault))}
+              className={cn('hidden md:inline-flex', getParticipationBadgeClass(vault))}
             >
               {getParticipationLabel(vault)}
             </Badge>
@@ -218,26 +231,26 @@ function VaultList({ vaults, onOpenVault, onOpenContextMenu }: {
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 export default function VaultsPage() {
-  const navigate = useNavigate()
-  const [view] = useVaultsView()
-  const [vaults, setVaults] = useState<VaultSummary[]>([])
-  const [contextMenu, setContextMenu] = useState<VaultItemContextMenuState | null>(null)
-  const [pendingDeleteVault, setPendingDeleteVault] = useState<VaultSummary | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [deletingVault, setDeletingVault] = useState(false)
-  const [canCreateVault, setCanCreateVault] = useState(true)
-  const [canUseChat, setCanUseChat] = useState(true)
-  const [loading, setLoading] = useState(true)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const navigate = useNavigate();
+  const [view] = useVaultsView();
+  const [vaults, setVaults] = useState<VaultSummary[]>([]);
+  const [contextMenu, setContextMenu] = useState<VaultItemContextMenuState | null>(null);
+  const [pendingDeleteVault, setPendingDeleteVault] = useState<VaultSummary | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deletingVault, setDeletingVault] = useState(false);
+  const [canCreateVault, setCanCreateVault] = useState(true);
+  const [canUseChat, setCanUseChat] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const sortedVaults = useMemo(
     () => [...vaults].sort((a, b) => a.name.localeCompare(b.name)),
-    [vaults]
-  )
+    [vaults],
+  );
   const headerActions = useMemo(
     () => (
       <>
@@ -245,108 +258,103 @@ export default function VaultsPage() {
         <CreateVaultDialog />
       </>
     ),
-    []
-  )
+    [],
+  );
 
-  useHeaderActions(headerActions)
+  useHeaderActions(headerActions);
 
   const loadVaults = useCallback(async () => {
-    setLoading(true)
-    setErrorMessage(null)
+    setLoading(true);
+    setErrorMessage(null);
 
-    const [vaultsResult, meResult] = await Promise.allSettled([
-      listVaults(),
-      getMe(),
-    ])
+    const [vaultsResult, meResult] = await Promise.allSettled([listVaults(), getMe()]);
 
-    if (vaultsResult.status === "fulfilled") {
-      setVaults(vaultsResult.value.vaults)
+    if (vaultsResult.status === 'fulfilled') {
+      setVaults(vaultsResult.value.vaults);
     } else {
       setErrorMessage(
         vaultsResult.reason instanceof Error
           ? vaultsResult.reason.message
-          : "Unable to load vaults."
-      )
+          : 'Unable to load vaults.',
+      );
     }
 
-    if (meResult.status === "fulfilled") {
-      setCanCreateVault(meResult.value.canCreateVault)
-      setCanUseChat(meResult.value.aiFeaturesEnabled !== false && meResult.value.canUseAI !== false)
+    if (meResult.status === 'fulfilled') {
+      setCanCreateVault(meResult.value.canCreateVault);
+      setCanUseChat(
+        meResult.value.aiFeaturesEnabled !== false && meResult.value.canUseAI !== false,
+      );
     }
 
-    setLoading(false)
-  }, [])
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    void loadVaults()
-  }, [loadVaults])
+    void loadVaults();
+  }, [loadVaults]);
 
   useEffect(() => {
     function handleVaultCreated() {
-      void loadVaults()
+      void loadVaults();
     }
 
-    window.addEventListener("arkivra:vault-created", handleVaultCreated)
+    window.addEventListener('arkivra:vault-created', handleVaultCreated);
 
     return () => {
-      window.removeEventListener("arkivra:vault-created", handleVaultCreated)
-    }
-  }, [loadVaults])
+      window.removeEventListener('arkivra:vault-created', handleVaultCreated);
+    };
+  }, [loadVaults]);
 
   function openVault(vault: VaultSummary) {
-    navigate(`/vaults/${vault.id}`)
-  }
-
-  function openMembers(vault: VaultSummary) {
-    navigate(`/vaults/${vault.id}/members`)
+    navigate(`/vaults/${vault.id}`);
   }
 
   function openSettings(vault: VaultSummary) {
-    navigate(`/vaults/${vault.id}/settings`)
+    navigate(`/vaults/${vault.id}/settings`);
   }
 
   function openActivity(vault: VaultSummary) {
-    navigate(`/vaults/${vault.id}/activity`)
+    navigate(`/vaults/${vault.id}/activity`);
   }
 
   function openChat(vault: VaultSummary) {
-    navigate(`/chat?vaultId=${encodeURIComponent(vault.id)}`)
+    navigate(`/chat?vaultId=${encodeURIComponent(vault.id)}`);
   }
 
   async function confirmDeleteVault() {
-    if (pendingDeleteVault === null || deletingVault) return
+    if (pendingDeleteVault === null || deletingVault) return;
 
-    setDeletingVault(true)
-    setDeleteError(null)
+    setDeletingVault(true);
+    setDeleteError(null);
 
     try {
-      const result = await deleteVault({ vaultId: pendingDeleteVault.id })
+      const result = await deleteVault({ vaultId: pendingDeleteVault.id });
       if (isPermissionRequestResponse(result)) {
-        toast.success("Vault deletion request queued for admin approval.")
+        toast.success('Vault deletion request queued for admin approval.');
       } else {
-        toast.success("Vault deleted.")
+        toast.success('Vault deleted.');
       }
-      setPendingDeleteVault(null)
-      await loadVaults()
+      setPendingDeleteVault(null);
+      await loadVaults();
     } catch (deleteRequestError) {
       setDeleteError(
         deleteRequestError instanceof Error
           ? deleteRequestError.message
-          : "Could not delete vault."
-      )
+          : 'Could not delete vault.',
+      );
     } finally {
-      setDeletingVault(false)
+      setDeletingVault(false);
     }
   }
 
   function openContextMenu(event: MouseEvent<HTMLElement>, vault: VaultSummary) {
-    event.preventDefault()
-    event.stopPropagation()
+    event.preventDefault();
+    event.stopPropagation();
     setContextMenu({
       vault,
       x: event.clientX,
       y: event.clientY,
-    })
+    });
   }
 
   return (
@@ -356,13 +364,12 @@ export default function VaultsPage() {
           state={contextMenu}
           onClose={() => setContextMenu(null)}
           onOpenVault={openVault}
-          onOpenMembers={openMembers}
           onOpenSettings={openSettings}
           onOpenActivity={openActivity}
           onOpenChat={openChat}
           onDeleteVault={(vault) => {
-            setPendingDeleteVault(vault)
-            setDeleteError(null)
+            setPendingDeleteVault(vault);
+            setDeleteError(null);
           }}
           canUseChat={canUseChat}
           deleteDisabled={deletingVault}
@@ -374,9 +381,9 @@ export default function VaultsPage() {
         isPending={deletingVault}
         errorMessage={deleteError}
         onCancel={() => {
-          if (deletingVault) return
-          setPendingDeleteVault(null)
-          setDeleteError(null)
+          if (deletingVault) return;
+          setPendingDeleteVault(null);
+          setDeleteError(null);
         }}
         onConfirm={() => void confirmDeleteVault()}
       />
@@ -401,12 +408,12 @@ export default function VaultsPage() {
             <h2 className="mt-4 text-lg font-semibold">No vaults yet</h2>
             <p className="mt-2 max-w-md text-sm text-muted-foreground">
               {canCreateVault
-                ? "Create your first vault to start storing documents."
-                : "No vaults available yet. Request a vault and an admin can approve it."}
+                ? 'Create your first vault to start storing documents.'
+                : 'No vaults available yet. Request a vault and an admin can approve it.'}
             </p>
           </div>
         </div>
-      ) : view === "grid" ? (
+      ) : view === 'grid' ? (
         <div className="px-4 lg:px-6">
           <VaultGrid
             vaults={sortedVaults}
@@ -422,5 +429,5 @@ export default function VaultsPage() {
         />
       )}
     </BaseLayout>
-  )
+  );
 }

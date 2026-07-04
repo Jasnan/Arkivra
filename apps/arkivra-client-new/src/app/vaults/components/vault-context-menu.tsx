@@ -1,6 +1,6 @@
-"use client"
+'use client';
 
-import type { LucideIcon } from "lucide-react"
+import type { LucideIcon } from 'lucide-react';
 import {
   FileUp,
   FolderPlus,
@@ -9,28 +9,27 @@ import {
   MessageSquare,
   RotateCw,
   Settings2,
-  Users,
-} from "lucide-react"
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { createPortal } from "react-dom"
+} from 'lucide-react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils';
 
 type VaultContextMenuEntry =
   | {
-      key: string
-      label: string
-      icon: LucideIcon
-      disabled?: boolean
-      onSelect?: () => void
+      key: string;
+      label: string;
+      icon: LucideIcon;
+      disabled?: boolean;
+      onSelect?: () => void;
     }
-  | { key: string; type: "header"; label: string }
-  | { key: string; type: "separator" }
+  | { key: string; type: 'header'; label: string }
+  | { key: string; type: 'separator' };
 
 export interface VaultContextMenuState {
-  x: number
-  y: number
-  vaultName: string
+  x: number;
+  y: number;
+  vaultName: string;
 }
 
 export function VaultContextMenu({
@@ -41,120 +40,119 @@ export function VaultContextMenu({
   onUploadFiles,
   onUploadFolder,
 }: {
-  state: VaultContextMenuState
-  canCreateItems: boolean
-  onClose: () => void
-  onCreateFolder: () => void
-  onUploadFiles: () => void
-  onUploadFolder: () => void
+  state: VaultContextMenuState;
+  canCreateItems: boolean;
+  onClose: () => void;
+  onCreateFolder: () => void;
+  onUploadFiles: () => void;
+  onUploadFolder: () => void;
 }) {
-  const menuRef = useRef<HTMLDivElement | null>(null)
-  const [menuPosition, setMenuPosition] = useState({ x: state.x, y: state.y })
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [menuPosition, setMenuPosition] = useState({ x: state.x, y: state.y });
   const entries = useMemo<VaultContextMenuEntry[]>(
     () => [
-      { key: "vault-name", type: "header", label: state.vaultName },
-      { key: "after-vault-name", type: "separator" },
+      { key: 'vault-name', type: 'header', label: state.vaultName },
+      { key: 'after-vault-name', type: 'separator' },
       {
-        key: "new-folder",
-        label: "New folder",
+        key: 'new-folder',
+        label: 'New folder',
         icon: FolderPlus,
         disabled: !canCreateItems,
         onSelect: onCreateFolder,
       },
-      { key: "after-new-folder", type: "separator" },
+      { key: 'after-new-folder', type: 'separator' },
       {
-        key: "upload-files",
-        label: "Upload files",
+        key: 'upload-files',
+        label: 'Upload files',
         icon: FileUp,
         disabled: !canCreateItems,
         onSelect: onUploadFiles,
       },
       {
-        key: "upload-folder",
-        label: "Upload folder",
+        key: 'upload-folder',
+        label: 'Upload folder',
         icon: FolderUp,
         disabled: !canCreateItems,
         onSelect: onUploadFolder,
       },
-      { key: "after-upload", type: "separator" },
+      { key: 'after-upload', type: 'separator' },
       {
-        key: "retry-processing",
-        label: "Retry failed parsing",
+        key: 'retry-processing',
+        label: 'Retry failed parsing',
         icon: RotateCw,
         disabled: true,
       },
-      { key: "after-retry", type: "separator" },
-      { key: "members", label: "Members", icon: Users, disabled: true },
-      { key: "settings", label: "Settings", icon: Settings2, disabled: true },
-      { key: "activity", label: "Activity", icon: History, disabled: true },
-      { key: "chat", label: "Chat", icon: MessageSquare, disabled: true },
+      { key: 'after-retry', type: 'separator' },
+      { key: 'settings', label: 'Settings', icon: Settings2, disabled: true },
+      { key: 'activity', label: 'Activity', icon: History, disabled: true },
+      { key: 'chat', label: 'Chat', icon: MessageSquare, disabled: true },
     ],
-    [canCreateItems, onCreateFolder, onUploadFiles, onUploadFolder, state.vaultName]
-  )
+    [canCreateItems, onCreateFolder, onUploadFiles, onUploadFolder, state.vaultName],
+  );
 
   useLayoutEffect(() => {
-    const menu = menuRef.current
+    const menu = menuRef.current;
     if (menu === null) {
-      return
+      return;
     }
 
-    const viewportMargin = 8
-    const rect = menu.getBoundingClientRect()
-    const maxX = Math.max(viewportMargin, window.innerWidth - rect.width - viewportMargin)
-    const maxY = Math.max(viewportMargin, window.innerHeight - rect.height - viewportMargin)
+    const viewportMargin = 8;
+    const rect = menu.getBoundingClientRect();
+    const maxX = Math.max(viewportMargin, window.innerWidth - rect.width - viewportMargin);
+    const maxY = Math.max(viewportMargin, window.innerHeight - rect.height - viewportMargin);
     const nextPosition = {
       x: Math.min(Math.max(state.x, viewportMargin), maxX),
       y: Math.min(Math.max(state.y, viewportMargin), maxY),
-    }
+    };
 
     setMenuPosition((currentPosition) =>
       currentPosition.x === nextPosition.x && currentPosition.y === nextPosition.y
         ? currentPosition
-        : nextPosition
-    )
-  }, [entries.length, state.x, state.y])
+        : nextPosition,
+    );
+  }, [entries.length, state.x, state.y]);
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose()
+      if (event.key === 'Escape') {
+        onClose();
       }
     }
 
     function closeOnOutsidePointer(event: PointerEvent) {
-      const target = event.target
+      const target = event.target;
       if (target instanceof Node && menuRef.current?.contains(target)) {
-        return
+        return;
       }
 
-      onClose()
+      onClose();
     }
 
     function closeOnOutsideContextMenu(event: MouseEvent) {
-      const target = event.target
+      const target = event.target;
       if (target instanceof Node && menuRef.current?.contains(target)) {
-        return
+        return;
       }
 
-      onClose()
+      onClose();
     }
 
-    window.addEventListener("keydown", closeOnEscape)
-    window.addEventListener("resize", onClose)
-    window.addEventListener("scroll", onClose, { capture: true })
-    window.document.addEventListener("pointerdown", closeOnOutsidePointer, { capture: true })
-    window.document.addEventListener("contextmenu", closeOnOutsideContextMenu, { capture: true })
+    window.addEventListener('keydown', closeOnEscape);
+    window.addEventListener('resize', onClose);
+    window.addEventListener('scroll', onClose, { capture: true });
+    window.document.addEventListener('pointerdown', closeOnOutsidePointer, { capture: true });
+    window.document.addEventListener('contextmenu', closeOnOutsideContextMenu, { capture: true });
 
     return () => {
-      window.removeEventListener("keydown", closeOnEscape)
-      window.removeEventListener("resize", onClose)
-      window.removeEventListener("scroll", onClose, { capture: true })
-      window.document.removeEventListener("pointerdown", closeOnOutsidePointer, { capture: true })
-      window.document.removeEventListener("contextmenu", closeOnOutsideContextMenu, {
+      window.removeEventListener('keydown', closeOnEscape);
+      window.removeEventListener('resize', onClose);
+      window.removeEventListener('scroll', onClose, { capture: true });
+      window.document.removeEventListener('pointerdown', closeOnOutsidePointer, { capture: true });
+      window.document.removeEventListener('contextmenu', closeOnOutsideContextMenu, {
         capture: true,
-      })
-    }
-  }, [onClose])
+      });
+    };
+  }, [onClose]);
 
   return createPortal(
     <div
@@ -167,19 +165,19 @@ export function VaultContextMenu({
       onContextMenu={(event) => event.preventDefault()}
     >
       {entries.map((entry) => {
-        if ("type" in entry) {
-          if (entry.type === "separator") {
-            return <div key={entry.key} className="my-1.5 border-t" />
+        if ('type' in entry) {
+          if (entry.type === 'separator') {
+            return <div key={entry.key} className="my-1.5 border-t" />;
           }
 
           return (
             <div key={entry.key} className="px-3 py-2 text-sm font-semibold">
               {entry.label}
             </div>
-          )
+          );
         }
 
-        const Icon = entry.icon
+        const Icon = entry.icon;
 
         return (
           <button
@@ -188,26 +186,26 @@ export function VaultContextMenu({
             role="menuitem"
             disabled={entry.disabled}
             className={cn(
-              "flex min-h-9 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors",
+              'flex min-h-9 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors',
               entry.disabled
-                ? "cursor-not-allowed opacity-55"
-                : "cursor-pointer hover:bg-accent hover:text-accent-foreground"
+                ? 'cursor-not-allowed opacity-55'
+                : 'cursor-pointer hover:bg-accent hover:text-accent-foreground',
             )}
             onClick={() => {
               if (entry.disabled) {
-                return
+                return;
               }
 
-              entry.onSelect?.()
-              onClose()
+              entry.onSelect?.();
+              onClose();
             }}
           >
             <Icon className="size-4 shrink-0" />
             <span className="truncate">{entry.label}</span>
           </button>
-        )
+        );
       })}
     </div>,
-    document.body
-  )
+    document.body,
+  );
 }

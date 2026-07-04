@@ -130,7 +130,7 @@ import {
   type VaultRole,
 } from './vaults.api';
 
-export type VaultManagementSection = 'members' | 'settings' | 'activity';
+export type VaultManagementSection = 'settings' | 'activity';
 
 const roleOptions: Array<{ value: VaultRole; label: string }> = [
   { value: 'viewer', label: 'Viewer' },
@@ -843,7 +843,6 @@ function VaultManagementTabs({
   const navigate = useNavigate();
   const canManage = canManageVault(vault);
   const visibleTabs = [
-    ...(canManage ? [{ value: 'members' as const, label: 'Members', icon: Users }] : []),
     ...(canManage ? [{ value: 'settings' as const, label: 'Settings', icon: Settings2 }] : []),
     ...(canManage ? [{ value: 'activity' as const, label: 'Activity', icon: History }] : []),
   ];
@@ -854,7 +853,7 @@ function VaultManagementTabs({
 
   return (
     <Tabs
-      value={visibleTabs.some((tab) => tab.value === section) ? section : 'members'}
+      value={visibleTabs.some((tab) => tab.value === section) ? section : 'settings'}
       onValueChange={(value) => navigate(`/vaults/${vaultId}/${value}`)}
       className="gap-4"
     >
@@ -1926,64 +1925,63 @@ function VaultSettingsPanel({
         <p className="mt-1 text-sm text-muted-foreground">Manage your vault settings.</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>General</CardTitle>
-          <CardDescription>Update the basic information about this vault.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form
-            className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] lg:items-end"
-            onSubmit={handleRename}
-          >
-            <div className="space-y-2">
-              <Label htmlFor="vault-settings-name">Vault name</Label>
-              <Input
-                id="vault-settings-name"
-                value={name}
-                disabled={!canManage || pending}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="vault-settings-description">Description</Label>
-              <Textarea
-                id="vault-settings-description"
-                value={description}
-                disabled={!canManage || pending}
-                placeholder="What belongs in this vault?"
-                onChange={(event) => setDescription(event.target.value)}
-              />
-            </div>
-            <Button type="submit" disabled={!canManage || pending}>
-              {pending ? 'Saving...' : 'Save changes'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+      <div className="grid gap-6 sm:grid-cols-[minmax(0,1.6fr)_minmax(16rem,0.8fr)]">
+        <Card>
+          <CardHeader>
+            <CardTitle>General</CardTitle>
+            <CardDescription>Update the basic information about this vault.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="grid gap-4" onSubmit={handleRename}>
+              <div className="space-y-2">
+                <Label htmlFor="vault-settings-name">Vault name</Label>
+                <Input
+                  id="vault-settings-name"
+                  value={name}
+                  disabled={!canManage || pending}
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vault-settings-description">Description</Label>
+                <Textarea
+                  id="vault-settings-description"
+                  value={description}
+                  disabled={!canManage || pending}
+                  placeholder="What belongs in this vault?"
+                  onChange={(event) => setDescription(event.target.value)}
+                />
+              </div>
+              <Button type="submit" className="w-fit" disabled={!canManage || pending}>
+                {pending ? 'Saving...' : 'Save changes'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
 
-      <Card className="border-destructive/40 bg-destructive/5">
-        <CardHeader>
-          <CardTitle className="text-destructive">Danger zone</CardTitle>
-          <CardDescription>These actions cannot be undone.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted-foreground">
-            Delete this vault permanently and remove all data.
-          </p>
-          <Button
-            type="button"
-            variant="destructive"
-            disabled={!canManage || pending}
-            onClick={() => {
-              setDeleteError(null);
-              setDeleteOpen(true);
-            }}
-          >
-            Delete vault
-          </Button>
-        </CardContent>
-      </Card>
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardHeader>
+            <CardTitle className="text-destructive">Danger zone</CardTitle>
+            <CardDescription>These actions cannot be undone.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex h-full flex-col items-start justify-between gap-6">
+            <p className="text-sm text-muted-foreground">
+              Delete this vault permanently and remove all data.
+            </p>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={!canManage || pending}
+              onClick={() => {
+                setDeleteError(null);
+                setDeleteOpen(true);
+              }}
+            >
+              Delete vault
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
 
       <VaultDeleteConfirmDialog
         open={deleteOpen}
@@ -2462,14 +2460,7 @@ export default function VaultManagementPage({ section }: { section: VaultManagem
               Back to vault
             </Button>
           </div>
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            {vault ? (
-              <p className="text-sm text-muted-foreground">
-                {formatVaultRole(vault.role, vault.isAdmin)}
-              </p>
-            ) : (
-              <div />
-            )}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-end">
             <VaultManagementTabs section={section} vault={vault} vaultId={vaultId} />
           </div>
         </div>
@@ -2505,10 +2496,11 @@ export default function VaultManagementPage({ section }: { section: VaultManagem
               </Button>
             </CardContent>
           </Card>
-        ) : section === 'members' ? (
-          <VaultMembersPanel vault={vault} vaultId={vaultId} />
         ) : section === 'settings' ? (
-          <VaultSettingsPanel vault={vault} vaultId={vaultId} onVaultUpdated={setVault} />
+          <div className="space-y-8">
+            <VaultSettingsPanel vault={vault} vaultId={vaultId} onVaultUpdated={setVault} />
+            <VaultMembersPanel vault={vault} vaultId={vaultId} />
+          </div>
         ) : (
           <VaultActivityPanel vaultId={vaultId} />
         )}

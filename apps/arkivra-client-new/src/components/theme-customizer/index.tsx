@@ -132,18 +132,21 @@ export function ThemeCustomizer({ open, onOpenChange }: ThemeCustomizerProps) {
 
               <TabsContent value="theme" className="flex-1 mt-0">
                 <ThemeTab
+                  applyRadius={applyRadius}
                   applyTheme={applyTheme}
                   applyTweakcnTheme={applyTweakcnTheme}
                   brandColorsValues={brandColorsValues}
                   handleColorChange={handleColorChange}
                   isDarkMode={isDarkMode}
                   onPreferenceChange={() => undefined}
+                  resetTheme={resetTheme}
                   selectedTheme={selectedTheme}
                   setSelectedTheme={setSelectedTheme}
                   selectedTweakcnTheme={selectedTweakcnTheme}
                   setSelectedTweakcnTheme={setSelectedTweakcnTheme}
                   selectedRadius={selectedRadius}
                   setSelectedRadius={setSelectedRadius}
+                  setBrandColorsValues={setBrandColorsValues}
                 />
               </TabsContent>
 

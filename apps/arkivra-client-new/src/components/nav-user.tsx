@@ -26,6 +26,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { authClient } from "@/lib/auth-client"
+import { clearAppearanceBootstrapUserKey } from "@/lib/appearance-preferences"
 import { useNavigate } from "react-router-dom"
 
 interface SessionUserMetadata {
@@ -85,6 +86,7 @@ export function NavUser({
   const image = sessionUser?.image?.trim() || user.avatar || null
 
   async function handleSignOut() {
+    clearAppearanceBootstrapUserKey()
     await authClient.signOut()
     navigate("/login", { replace: true })
   }

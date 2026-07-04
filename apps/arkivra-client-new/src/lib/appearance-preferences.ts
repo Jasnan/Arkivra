@@ -25,6 +25,7 @@ export const DEFAULT_APPEARANCE_PREFERENCES: AppearancePreferences = {
 }
 
 const STORAGE_PREFIX = "arkivra:appearance"
+const BOOTSTRAP_USER_KEY = `${STORAGE_PREFIX}:bootstrap-user`
 export const APPEARANCE_PREFERENCES_CHANGED_EVENT = "arkivra:appearance-preferences-changed"
 const THEME_MODES = new Set<Theme>(["dark", "light", "system"])
 const SIDEBAR_VARIANTS = new Set<SidebarConfig["variant"]>(["sidebar", "floating", "inset"])
@@ -107,6 +108,20 @@ export function getAppearanceStorageKey(userKey: string) {
   return `${STORAGE_PREFIX}:${encodeURIComponent(userKey)}`
 }
 
+export function setAppearanceBootstrapUserKey(userKey: string) {
+  const storage = getStorage()
+  if (!storage) return
+
+  storage.setItem(BOOTSTRAP_USER_KEY, userKey)
+}
+
+export function clearAppearanceBootstrapUserKey() {
+  const storage = getStorage()
+  if (!storage) return
+
+  storage.removeItem(BOOTSTRAP_USER_KEY)
+}
+
 export function normalizeAppearancePreferences(value: unknown): AppearancePreferences {
   if (!isRecord(value)) return DEFAULT_APPEARANCE_PREFERENCES
 
@@ -151,6 +166,7 @@ export function writeAppearancePreferences(
 
   const normalized = normalizeAppearancePreferences(preferences)
   storage.setItem(getAppearanceStorageKey(userKey), JSON.stringify(normalized))
+  setAppearanceBootstrapUserKey(userKey)
   if (options.notify !== false) {
     notifyAppearancePreferencesChanged(userKey, normalized)
   }

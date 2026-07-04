@@ -8,9 +8,11 @@ import type { Theme } from "@/contexts/theme-context"
 import { useThemeManager } from "@/hooks/use-theme-manager"
 import {
   APPEARANCE_PREFERENCES_CHANGED_EVENT,
+  clearAppearanceBootstrapUserKey,
   DEFAULT_APPEARANCE_PREFERENCES,
   getServerAppearancePreferences,
   readAppearancePreferences,
+  setAppearanceBootstrapUserKey,
   type AppearancePreferences,
   writeAppearancePreferences,
 } from "@/lib/appearance-preferences"
@@ -92,11 +94,13 @@ export function AuthenticatedAppearanceBoundary({
   React.useEffect(() => {
     if (!userKey) {
       setPreferences(DEFAULT_APPEARANCE_PREFERENCES)
+      clearAppearanceBootstrapUserKey()
       return
     }
 
     let ignore = false
     const requestRevision = localRevisionRef.current
+    setAppearanceBootstrapUserKey(userKey)
 
     function handlePreferencesChanged(event: Event) {
       const detail = (event as CustomEvent<{
@@ -143,6 +147,10 @@ export function AuthenticatedAppearanceBoundary({
 }
 
 export function PublicAppearanceBoundary({ children }: { children: React.ReactNode }) {
+  React.useLayoutEffect(() => {
+    clearAppearanceBootstrapUserKey()
+  }, [])
+
   useApplyAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES, "public")
 
   return <>{children}</>

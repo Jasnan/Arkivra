@@ -27,6 +27,63 @@
     <meta name="twitter:description" content="Parallel shadcn-based Arkivra client migration app." />
     <meta name="twitter:image" content="/og-image.png" />
     <meta name="twitter:image:alt" content="Arkivra client migration app preview" />
+    <script>
+      (function () {
+        try {
+          var publicPaths = [
+            "/login",
+            "/register",
+            "/verify-email",
+            "/request-password-reset"
+          ];
+          var pathname = window.location.pathname.replace(/\/$/, "") || "/";
+          var isPublicPath = publicPaths.some(function (path) {
+            return pathname === path || pathname.endsWith(path);
+          });
+
+          if (isPublicPath) return;
+
+          var storagePrefix = "arkivra:appearance";
+          var userKey = window.localStorage.getItem(storagePrefix + ":bootstrap-user");
+          if (!userKey) return;
+
+          var rawPreferences = window.localStorage.getItem(
+            storagePrefix + ":" + encodeURIComponent(userKey)
+          );
+          if (!rawPreferences) return;
+
+          var preferences = JSON.parse(rawPreferences);
+          var themeMode = preferences && preferences.themeMode;
+          var resolvedTheme = themeMode;
+
+          if (themeMode === "system") {
+            resolvedTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+          }
+
+          if (resolvedTheme !== "dark" && resolvedTheme !== "light") return;
+
+          document.documentElement.classList.remove("dark", "light");
+          document.documentElement.classList.add(resolvedTheme);
+
+          if (typeof preferences.selectedRadius === "string") {
+            document.documentElement.style.setProperty("--radius", preferences.selectedRadius);
+          }
+
+          if (preferences.brandColors && typeof preferences.brandColors === "object") {
+            Object.keys(preferences.brandColors).forEach(function (cssVar) {
+              var value = preferences.brandColors[cssVar];
+              if (cssVar.indexOf("--") === 0 && typeof value === "string") {
+                document.documentElement.style.setProperty(cssVar, value);
+              }
+            });
+          }
+        } catch {
+          document.documentElement.classList.remove("dark", "light");
+        }
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />

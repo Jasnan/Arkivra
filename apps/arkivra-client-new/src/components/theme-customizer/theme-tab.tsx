@@ -7,21 +7,29 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { useCircularTransition } from '@/hooks/use-circular-transition'
+import { useTheme } from '@/hooks/use-theme'
 import { colorThemes, tweakcnThemes } from '@/config/theme-data'
 import { radiusOptions, baseColors } from '@/config/theme-customizer-constants'
 import { ColorPicker } from '@/components/color-picker'
 import type { AppearancePreferences } from '@/lib/appearance-preferences'
 import type { ThemePreset } from '@/types/theme-customizer'
+import type { Theme } from '@/contexts/theme-context'
 import React from 'react'
 import "./circular-transition.css"
 
 interface ThemeTabProps {
+  applyRadius: (radius: string) => void
   applyTheme: (themeValue: string, darkMode: boolean) => void
   applyTweakcnTheme: (themePreset: ThemePreset, darkMode: boolean) => void
   brandColorsValues: Record<string, string>
   handleColorChange: (cssVar: string, value: string) => void
   isDarkMode: boolean
-  onPreferenceChange: (patch: Partial<AppearancePreferences>) => void
+  onPreferenceChange: (
+    patch: Partial<AppearancePreferences>,
+    options?: { notify?: boolean }
+  ) => void
+  resetTheme: () => void
+  setBrandColorsValues: (values: Record<string, string>) => void
   selectedTheme: string
   setSelectedTheme: (theme: string) => void
   selectedTweakcnTheme: string
@@ -31,12 +39,15 @@ interface ThemeTabProps {
 }
 
 export function ThemeTab({
+  applyRadius,
   applyTheme,
   applyTweakcnTheme,
   brandColorsValues,
   handleColorChange,
   isDarkMode,
   onPreferenceChange,
+  resetTheme,
+  setBrandColorsValues,
   selectedTheme,
   setSelectedTheme,
   selectedTweakcnTheme,
@@ -44,7 +55,8 @@ export function ThemeTab({
   selectedRadius,
   setSelectedRadius,
 }: ThemeTabProps) {
-  const { toggleTheme } = useCircularTransition()
+  const { startTransition } = useCircularTransition()
+  const { setTheme } = useTheme()
 
   const handleRandomShadcn = () => {
     // Apply a random shadcn theme
@@ -78,16 +90,48 @@ export function ThemeTab({
     onPreferenceChange({ selectedRadius: radius })
   }
 
+  const handleModeChange = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    nextTheme: Exclude<Theme, "system">
+  ) => {
+    if ((nextTheme === "light" && isDarkMode === false) || (nextTheme === "dark" && isDarkMode === true)) {
+      return
+    }
+
+    onPreferenceChange({ themeMode: nextTheme }, { notify: false })
+
+    startTransition({ x: event.clientX, y: event.clientY }, () => {
+      setTheme(nextTheme)
+
+      if (selectedTheme) {
+        applyTheme(selectedTheme, nextTheme === "dark")
+      } else if (selectedTweakcnTheme) {
+        const selectedPreset = tweakcnThemes.find((theme) => theme.value === selectedTweakcnTheme)?.preset
+
+        if (selectedPreset) {
+          applyTweakcnTheme(selectedPreset, nextTheme === "dark")
+        } else {
+          resetTheme()
+        }
+      } else {
+        resetTheme()
+      }
+
+      applyRadius(selectedRadius)
+
+      Object.entries(brandColorsValues).forEach(([cssVar, value]) => {
+        document.documentElement.style.setProperty(cssVar, value)
+      })
+      setBrandColorsValues(brandColorsValues)
+    })
+  }
+
   const handleLightMode = (event: React.MouseEvent<HTMLButtonElement>) => {
-    if (isDarkMode === false) return
-    toggleTheme(event, "light")
-    onPreferenceChange({ themeMode: "light" })
+    handleModeChange(event, "light")
   }
 
   const handleDarkMode = (event: React.MouseEvent<HTMLButtonElement>) => {
-    if (isDarkMode === true) return
-    toggleTheme(event, "dark")
-    onPreferenceChange({ themeMode: "dark" })
+    handleModeChange(event, "dark")
   }
 
   const handleBrandColorChange = (cssVar: string, value: string) => {

@@ -6,6 +6,8 @@ import { Moon, Sun } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "@/hooks/use-theme"
 import { useCircularTransition } from "@/hooks/use-circular-transition"
+import { useThemeManager } from "@/hooks/use-theme-manager"
+import { tweakcnThemes } from "@/config/theme-data"
 import { authClient } from "@/lib/auth-client"
 import {
   getAppearanceUserKey,
@@ -19,8 +21,15 @@ interface ModeToggleProps {
 }
 
 export function ModeToggle({ variant = "outline" }: ModeToggleProps) {
-  const { theme } = useTheme()
-  const { toggleTheme } = useCircularTransition()
+  const { theme, setTheme } = useTheme()
+  const { startTransition } = useCircularTransition()
+  const {
+    applyRadius,
+    applyTheme,
+    applyTweakcnTheme,
+    resetTheme,
+    setBrandColorsValues,
+  } = useThemeManager()
   const { data: sessionData } = authClient.useSession()
   const appearanceUserKey = React.useMemo(
     () => getAppearanceUserKey(sessionData?.user),
@@ -53,16 +62,51 @@ export function ModeToggle({ variant = "outline" }: ModeToggleProps) {
 
   const handleToggle = (event: React.MouseEvent<HTMLButtonElement>) => {
     const nextTheme = isDarkMode ? "light" : "dark"
+    const coords = {
+      x: event.clientX,
+      y: event.clientY,
+    }
 
-    toggleTheme(event, nextTheme)
-
-    if (!appearanceUserKey) return
+    if (!appearanceUserKey) {
+      startTransition(coords, () => {
+        setTheme(nextTheme)
+      })
+      return
+    }
 
     const preferences = updateAppearancePreferences(
       appearanceUserKey,
       { themeMode: nextTheme },
       { notify: false }
     )
+
+    startTransition(coords, () => {
+      setTheme(nextTheme)
+
+      if (preferences.selectedTheme) {
+        applyTheme(preferences.selectedTheme, nextTheme === "dark")
+      } else if (preferences.selectedTweakcnTheme) {
+        const selectedPreset = tweakcnThemes.find(
+          (theme) => theme.value === preferences.selectedTweakcnTheme
+        )?.preset
+
+        if (selectedPreset) {
+          applyTweakcnTheme(selectedPreset, nextTheme === "dark")
+        } else {
+          resetTheme()
+        }
+      } else {
+        resetTheme()
+      }
+
+      applyRadius(preferences.selectedRadius)
+
+      Object.entries(preferences.brandColors).forEach(([cssVar, value]) => {
+        document.documentElement.style.setProperty(cssVar, value)
+      })
+      setBrandColorsValues(preferences.brandColors)
+    })
+
     serverSaveQueueRef.current = serverSaveQueueRef.current
       .catch(() => undefined)
       .then(() => saveServerAppearancePreferences(preferences).catch(() => undefined))

@@ -47,10 +47,13 @@ export default function AppearanceSettings() {
   const localRevisionRef = React.useRef(0)
   const serverSaveQueueRef = React.useRef<Promise<unknown>>(Promise.resolve())
 
-  const persistPreferences = React.useCallback((patch: Partial<AppearancePreferences>) => {
+  const persistPreferences = React.useCallback((
+    patch: Partial<AppearancePreferences>,
+    options?: { notify?: boolean }
+  ) => {
     if (!appearanceUserKey) return DEFAULT_APPEARANCE_PREFERENCES
     localRevisionRef.current += 1
-    const preferences = updateAppearancePreferences(appearanceUserKey, patch)
+    const preferences = updateAppearancePreferences(appearanceUserKey, patch, options)
     serverSaveQueueRef.current = serverSaveQueueRef.current
       .catch(() => undefined)
       .then(() => saveServerAppearancePreferences(preferences).catch(() => undefined))
@@ -178,18 +181,21 @@ export default function AppearanceSettings() {
           <TabsContent value="theme" className="mt-6">
             <div className="max-w-4xl rounded-md border bg-card">
               <ThemeTab
+                applyRadius={applyRadius}
                 applyTheme={applyTheme}
                 applyTweakcnTheme={applyTweakcnTheme}
                 brandColorsValues={brandColorsValues}
                 handleColorChange={handleColorChange}
                 isDarkMode={isDarkMode}
                 onPreferenceChange={persistPreferences}
+                resetTheme={resetTheme}
                 selectedTheme={selectedTheme}
                 setSelectedTheme={setSelectedTheme}
                 selectedTweakcnTheme={selectedTweakcnTheme}
                 setSelectedTweakcnTheme={setSelectedTweakcnTheme}
                 selectedRadius={selectedRadius}
                 setSelectedRadius={setSelectedRadius}
+                setBrandColorsValues={setBrandColorsValues}
               />
             </div>
           </TabsContent>

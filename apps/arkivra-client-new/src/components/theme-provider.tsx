@@ -13,9 +13,17 @@ export function ThemeProvider({
   defaultTheme = "system",
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = React.useState<Theme>(defaultTheme)
+  const [theme, setTheme] = React.useState<Theme>(() => {
+    if (typeof window === "undefined") return defaultTheme
 
-  React.useEffect(() => {
+    const root = window.document.documentElement
+    if (root.classList.contains("dark")) return "dark"
+    if (root.classList.contains("light")) return "light"
+
+    return defaultTheme
+  })
+
+  React.useLayoutEffect(() => {
     const root = window.document.documentElement
 
     root.classList.remove("light", "dark")

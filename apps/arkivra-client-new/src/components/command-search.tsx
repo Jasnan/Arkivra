@@ -18,6 +18,7 @@ import {
   Info,
   ClipboardList,
   Bot,
+  FileText,
   type LucideIcon,
 } from "lucide-react"
 
@@ -173,6 +174,7 @@ export function CommandSearch({ open, onOpenChange, isAdmin }: CommandSearchProp
           // Admin
           { title: "Users", url: "/admin/users", group: "Admin", icon: Users },
           { title: "Backups", url: "/admin/backups", group: "Admin", icon: DatabaseBackup },
+          { title: "Office Converter", url: "/admin/office-converter", group: "Admin", icon: FileText },
           { title: "Audit Log", url: "/admin/audit-log", group: "Admin", icon: ClipboardList },
           { title: "AI Settings", url: "/admin/ai-settings", group: "Admin", icon: Bot },
         ]

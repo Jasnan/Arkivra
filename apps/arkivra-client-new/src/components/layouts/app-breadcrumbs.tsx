@@ -91,6 +91,7 @@ function buildBreadcrumbs({
     const adminLabels: Record<string, string> = {
       "ai-settings": "AI Settings",
       "audit-log": "Audit Log",
+      "office-converter": "Office Converter",
       users: "Users",
     }
     const sectionLabel = adminLabels[parts[1] ?? ""]

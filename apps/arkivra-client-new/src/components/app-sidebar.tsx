@@ -88,6 +88,10 @@ const data = {
               url: "/admin/backups",
             },
             {
+              title: "Office Converter",
+              url: "/admin/office-converter",
+            },
+            {
               title: "Audit Log",
               url: "/admin/audit-log",
             },

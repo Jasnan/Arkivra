@@ -182,3 +182,22 @@ export async function getAdminAuditEvents({
     nextCursor: hasMore ? events.at(-1)?.occurredAt ?? null : null,
   }
 }
+
+export async function getVaultAuditEvents({
+  vaultId,
+  cursor,
+  limit = 50,
+  filters,
+}: {
+  vaultId: string
+  cursor?: string | null
+  limit?: number
+  filters?: AuditLogFilters
+}) {
+  const params = new URLSearchParams()
+  appendPagination(params, cursor, limit)
+  appendAuditFilters(params, filters)
+
+  const suffix = params.toString() ? `?${params.toString()}` : ""
+  return fetchJson<PaginatedAuditLogResponse>(`/api/vaults/${vaultId}/audit-events${suffix}`)
+}

@@ -126,9 +126,10 @@ export function requireVaultAccess({
     if (vault === null) {
       const documentId = context.req.param('documentId') || null;
       await auditServices?.emitAuditEvent({
-        eventType: documentId === null
-          ? AUDIT_EVENT_TYPES.vaultAccessDenied
-          : AUDIT_EVENT_TYPES.documentAccessDenied,
+        eventType:
+          documentId === null
+            ? AUDIT_EVENT_TYPES.vaultAccessDenied
+            : AUDIT_EVENT_TYPES.documentAccessDenied,
         eventCategory: 'permission',
         outcome: 'denied',
         actor: getAuditActorFromContext(context),
@@ -140,7 +141,12 @@ export function requireVaultAccess({
         },
         source: 'web',
         requestContext: getAuditRequestContext(context),
-        metadata: { action: documentId === null ? 'access' : getDocumentAccessDeniedAction(context.req.method, context.req.path) ?? 'access' },
+        metadata: {
+          action:
+            documentId === null
+              ? 'access'
+              : (getDocumentAccessDeniedAction(context.req.method, context.req.path) ?? 'access'),
+        },
       });
 
       return context.json(
@@ -163,28 +169,8 @@ export function requireVaultAccess({
   });
 }
 
-export function requireVaultRole(...roles: VaultRole[]) {
-  return createMiddleware(async (context, next) => {
-    const vaultRole = context.get('vaultRole');
-
-    if (vaultRole === null || !roles.includes(vaultRole)) {
-      return context.json(
-        {
-          error: {
-            code: 'vault.forbidden',
-            message: 'Forbidden',
-          },
-        },
-        403,
-      );
-    }
-
-    await next();
-  });
-}
-
 export function requireCanReadVault(options: { auditServices?: AuditServices } = {}) {
-  return requireVaultAuthorization(({ role }) => canReadRole(role), options);
+  return requireVaultAuthorization(({ isAdmin, role }) => isAdmin || canReadRole(role), options);
 }
 
 export function requireCanViewVaultManagement() {
@@ -192,13 +178,16 @@ export function requireCanViewVaultManagement() {
 }
 
 export function requireCanMutateVaultDocuments(options: { auditServices?: AuditServices } = {}) {
-  return requireVaultAuthorization(({ role }) => canMutateDocumentsRole(role), options);
+  return requireVaultAuthorization(
+    ({ isAdmin, role }) => isAdmin || canMutateDocumentsRole(role),
+    options,
+  );
 }
 
 export function requireCanManageVaultMembers() {
-  return requireVaultAuthorization(({ role }) => role === 'owner');
+  return requireVaultAuthorization(({ isAdmin, role }) => isAdmin || role === 'owner');
 }
 
 export function requireCanManageVault() {
-  return requireVaultAuthorization(({ role }) => role === 'owner');
+  return requireVaultAuthorization(({ isAdmin, role }) => isAdmin || role === 'owner');
 }

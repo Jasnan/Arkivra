@@ -1,17 +1,17 @@
-"use client"
+'use client';
 
-import * as React from "react"
-import { Layout, Palette, RotateCcw } from "lucide-react"
+import * as React from 'react';
+import { Layout, Palette, RotateCcw } from 'lucide-react';
 
-import { BaseLayout } from "@/components/layouts/base-layout"
-import { LayoutTab } from "@/components/theme-customizer/layout-tab"
-import { ThemeTab } from "@/components/theme-customizer/theme-tab"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { tweakcnThemes } from "@/config/theme-data"
-import { useSidebarConfig } from "@/contexts/sidebar-context"
-import { useThemeManager } from "@/hooks/use-theme-manager"
-import { authClient } from "@/lib/auth-client"
+import { BaseLayout } from '@/components/layouts/base-layout';
+import { LayoutTab } from '@/components/theme-customizer/layout-tab';
+import { ThemeTab } from '@/components/theme-customizer/theme-tab';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { tweakcnThemes } from '@/config/theme-data';
+import { useSidebarConfig } from '@/contexts/sidebar-context';
+import { useThemeManager } from '@/hooks/use-theme-manager';
+import { authClient } from '@/lib/auth-client';
 import {
   DEFAULT_APPEARANCE_PREFERENCES,
   getAppearanceUserKey,
@@ -21,7 +21,7 @@ import {
   updateAppearancePreferences,
   writeAppearancePreferences,
   type AppearancePreferences,
-} from "@/lib/appearance-preferences"
+} from '@/lib/appearance-preferences';
 
 export default function AppearanceSettings() {
   const {
@@ -34,119 +34,110 @@ export default function AppearanceSettings() {
     resetTheme,
     setBrandColorsValues,
     setTheme,
-  } = useThemeManager()
-  const { config: sidebarConfig, updateConfig: updateSidebarConfig } = useSidebarConfig()
-  const { data: sessionData } = authClient.useSession()
+  } = useThemeManager();
+  const { config: sidebarConfig, updateConfig: updateSidebarConfig } = useSidebarConfig();
+  const { data: sessionData } = authClient.useSession();
   const appearanceUserKey = React.useMemo(
     () => getAppearanceUserKey(sessionData?.user),
-    [sessionData?.user]
-  )
-  const [selectedTheme, setSelectedTheme] = React.useState(DEFAULT_APPEARANCE_PREFERENCES.selectedTheme)
-  const [selectedTweakcnTheme, setSelectedTweakcnTheme] = React.useState(DEFAULT_APPEARANCE_PREFERENCES.selectedTweakcnTheme)
-  const [selectedRadius, setSelectedRadius] = React.useState(DEFAULT_APPEARANCE_PREFERENCES.selectedRadius)
-  const localRevisionRef = React.useRef(0)
-  const serverSaveQueueRef = React.useRef<Promise<unknown>>(Promise.resolve())
+    [sessionData?.user],
+  );
+  const [selectedTheme, setSelectedTheme] = React.useState(
+    DEFAULT_APPEARANCE_PREFERENCES.selectedTheme,
+  );
+  const [selectedTweakcnTheme, setSelectedTweakcnTheme] = React.useState(
+    DEFAULT_APPEARANCE_PREFERENCES.selectedTweakcnTheme,
+  );
+  const [selectedRadius, setSelectedRadius] = React.useState(
+    DEFAULT_APPEARANCE_PREFERENCES.selectedRadius,
+  );
+  const localRevisionRef = React.useRef(0);
+  const serverSaveQueueRef = React.useRef<Promise<unknown>>(Promise.resolve());
 
-  const persistPreferences = React.useCallback((
-    patch: Partial<AppearancePreferences>,
-    options?: { notify?: boolean }
-  ) => {
-    if (!appearanceUserKey) return DEFAULT_APPEARANCE_PREFERENCES
-    localRevisionRef.current += 1
-    const preferences = updateAppearancePreferences(appearanceUserKey, patch, options)
-    serverSaveQueueRef.current = serverSaveQueueRef.current
-      .catch(() => undefined)
-      .then(() => saveServerAppearancePreferences(preferences).catch(() => undefined))
-    return preferences
-  }, [appearanceUserKey])
+  const persistPreferences = React.useCallback(
+    (patch: Partial<AppearancePreferences>, options?: { notify?: boolean }) => {
+      if (!appearanceUserKey) return DEFAULT_APPEARANCE_PREFERENCES;
+      localRevisionRef.current += 1;
+      const preferences = updateAppearancePreferences(appearanceUserKey, patch, options);
+      serverSaveQueueRef.current = serverSaveQueueRef.current
+        .catch(() => undefined)
+        .then(() => saveServerAppearancePreferences(preferences).catch(() => undefined));
+      return preferences;
+    },
+    [appearanceUserKey],
+  );
 
   function handleReset() {
-    setSelectedTheme(DEFAULT_APPEARANCE_PREFERENCES.selectedTheme)
-    setSelectedTweakcnTheme(DEFAULT_APPEARANCE_PREFERENCES.selectedTweakcnTheme)
-    setSelectedRadius(DEFAULT_APPEARANCE_PREFERENCES.selectedRadius)
-    setBrandColorsValues({})
-    resetTheme()
-    applyRadius(DEFAULT_APPEARANCE_PREFERENCES.selectedRadius)
-    setTheme(DEFAULT_APPEARANCE_PREFERENCES.themeMode)
-    updateSidebarConfig(DEFAULT_APPEARANCE_PREFERENCES.sidebar)
-    persistPreferences(DEFAULT_APPEARANCE_PREFERENCES)
+    setSelectedTheme(DEFAULT_APPEARANCE_PREFERENCES.selectedTheme);
+    setSelectedTweakcnTheme(DEFAULT_APPEARANCE_PREFERENCES.selectedTweakcnTheme);
+    setSelectedRadius(DEFAULT_APPEARANCE_PREFERENCES.selectedRadius);
+    setBrandColorsValues({});
+    resetTheme();
+    applyRadius(DEFAULT_APPEARANCE_PREFERENCES.selectedRadius);
+    setTheme(DEFAULT_APPEARANCE_PREFERENCES.themeMode);
+    updateSidebarConfig(DEFAULT_APPEARANCE_PREFERENCES.sidebar);
+    persistPreferences(DEFAULT_APPEARANCE_PREFERENCES);
   }
 
-  const applyStoredPreferences = React.useCallback((preferences: AppearancePreferences) => {
-    setSelectedTheme(preferences.selectedTheme)
-    setSelectedTweakcnTheme(preferences.selectedTweakcnTheme)
-    setSelectedRadius(preferences.selectedRadius)
-    setBrandColorsValues(preferences.brandColors)
-    setTheme(preferences.themeMode)
-    applyRadius(preferences.selectedRadius)
-    updateSidebarConfig(preferences.sidebar)
-  }, [
-    applyRadius,
-    setBrandColorsValues,
-    setTheme,
-    updateSidebarConfig,
-  ])
+  const applyStoredPreferences = React.useCallback(
+    (preferences: AppearancePreferences) => {
+      setSelectedTheme(preferences.selectedTheme);
+      setSelectedTweakcnTheme(preferences.selectedTweakcnTheme);
+      setSelectedRadius(preferences.selectedRadius);
+      setBrandColorsValues(preferences.brandColors);
+      setTheme(preferences.themeMode);
+      applyRadius(preferences.selectedRadius);
+      updateSidebarConfig(preferences.sidebar);
+    },
+    [applyRadius, setBrandColorsValues, setTheme, updateSidebarConfig],
+  );
 
   React.useEffect(() => {
-    if (!appearanceUserKey) return
+    if (!appearanceUserKey) return;
 
-    let ignore = false
-    const requestRevision = localRevisionRef.current
+    let ignore = false;
+    const requestRevision = localRevisionRef.current;
 
-    applyStoredPreferences(readAppearancePreferences(appearanceUserKey))
+    applyStoredPreferences(readAppearancePreferences(appearanceUserKey));
 
     getServerAppearancePreferences()
       .then((serverPreferences) => {
-        if (ignore || localRevisionRef.current !== requestRevision) return
+        if (ignore || localRevisionRef.current !== requestRevision) return;
 
-        const cachedPreferences = writeAppearancePreferences(appearanceUserKey, serverPreferences)
-        applyStoredPreferences(cachedPreferences)
+        const cachedPreferences = writeAppearancePreferences(appearanceUserKey, serverPreferences);
+        applyStoredPreferences(cachedPreferences);
       })
-      .catch(() => undefined)
+      .catch(() => undefined);
 
     return () => {
-      ignore = true
-    }
-  }, [
-    appearanceUserKey,
-    applyStoredPreferences,
-  ])
+      ignore = true;
+    };
+  }, [appearanceUserKey, applyStoredPreferences]);
 
   React.useEffect(() => {
     if (selectedTheme) {
-      applyTheme(selectedTheme, isDarkMode)
-      return
+      applyTheme(selectedTheme, isDarkMode);
+      return;
     }
 
     if (selectedTweakcnTheme) {
-      const selectedPreset = tweakcnThemes.find((theme) => theme.value === selectedTweakcnTheme)?.preset
+      const selectedPreset = tweakcnThemes.find(
+        (theme) => theme.value === selectedTweakcnTheme,
+      )?.preset;
       if (selectedPreset) {
-        applyTweakcnTheme(selectedPreset, isDarkMode)
+        applyTweakcnTheme(selectedPreset, isDarkMode);
       }
     }
-  }, [
-    applyTheme,
-    applyTweakcnTheme,
-    isDarkMode,
-    selectedTheme,
-    selectedTweakcnTheme,
-  ])
+  }, [applyTheme, applyTweakcnTheme, isDarkMode, selectedTheme, selectedTweakcnTheme]);
 
   React.useEffect(() => {
-    applyRadius(selectedRadius)
-  }, [
-    applyRadius,
-    isDarkMode,
-    selectedRadius,
-    selectedTheme,
-    selectedTweakcnTheme,
-  ])
+    applyRadius(selectedRadius);
+  }, [applyRadius, isDarkMode, selectedRadius, selectedTheme, selectedTweakcnTheme]);
 
   React.useEffect(() => {
     Object.entries(brandColorsValues).forEach(([cssVar, value]) => {
-      document.documentElement.style.setProperty(cssVar, value)
-    })
-  }, [brandColorsValues])
+      document.documentElement.style.setProperty(cssVar, value);
+    });
+  }, [brandColorsValues]);
 
   return (
     <BaseLayout>
@@ -160,8 +151,8 @@ export default function AppearanceSettings() {
           </div>
         </header>
 
-        <Tabs defaultValue="theme" className="min-w-0">
-          <div className="flex max-w-4xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Tabs defaultValue="theme" className="max-w-4xl min-w-0 rounded-md border bg-card">
+          <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
             <TabsList className="grid w-full grid-cols-2 sm:w-md">
               <TabsTrigger value="theme">
                 <Palette />
@@ -178,42 +169,40 @@ export default function AppearanceSettings() {
             </Button>
           </div>
 
-          <TabsContent value="theme" className="mt-6">
-            <div className="max-w-4xl rounded-md border bg-card">
-              <ThemeTab
-                applyRadius={applyRadius}
-                applyTheme={applyTheme}
-                applyTweakcnTheme={applyTweakcnTheme}
-                brandColorsValues={brandColorsValues}
-                handleColorChange={handleColorChange}
-                isDarkMode={isDarkMode}
-                onPreferenceChange={persistPreferences}
-                resetTheme={resetTheme}
-                selectedTheme={selectedTheme}
-                setSelectedTheme={setSelectedTheme}
-                selectedTweakcnTheme={selectedTweakcnTheme}
-                setSelectedTweakcnTheme={setSelectedTweakcnTheme}
-                selectedRadius={selectedRadius}
-                setSelectedRadius={setSelectedRadius}
-                setBrandColorsValues={setBrandColorsValues}
-              />
-            </div>
+          <TabsContent value="theme" className="mt-0">
+            <ThemeTab
+              applyRadius={applyRadius}
+              applyTheme={applyTheme}
+              applyTweakcnTheme={applyTweakcnTheme}
+              brandColorsValues={brandColorsValues}
+              handleColorChange={handleColorChange}
+              isDarkMode={isDarkMode}
+              onPreferenceChange={persistPreferences}
+              resetTheme={resetTheme}
+              selectedTheme={selectedTheme}
+              setSelectedTheme={setSelectedTheme}
+              selectedTweakcnTheme={selectedTweakcnTheme}
+              setSelectedTweakcnTheme={setSelectedTweakcnTheme}
+              selectedRadius={selectedRadius}
+              setSelectedRadius={setSelectedRadius}
+              setBrandColorsValues={setBrandColorsValues}
+            />
           </TabsContent>
 
-          <TabsContent value="layout" className="mt-6">
-            <div className="max-w-4xl rounded-md border bg-card">
-              <LayoutTab
-                onPreferenceChange={(patch) => persistPreferences({
+          <TabsContent value="layout" className="mt-0">
+            <LayoutTab
+              onPreferenceChange={(patch) =>
+                persistPreferences({
                   sidebar: {
                     ...sidebarConfig,
                     ...patch,
                   },
-                })}
-              />
-            </div>
+                })
+              }
+            />
           </TabsContent>
         </Tabs>
       </div>
     </BaseLayout>
-  )
+  );
 }

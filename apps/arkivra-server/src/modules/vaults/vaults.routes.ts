@@ -8,7 +8,7 @@ import { requireAuthentication } from '../auth/auth.middleware.js';
 import { getAuditActorFromContext } from '../audit/audit.http.js';
 import { ACTIVITY_EVENT_TYPES } from '../activity/activity.types.js';
 import { createVaultsServices } from './vaults.services.js';
-import { requireVaultAccess, requireVaultRole } from './vaults.middleware.js';
+import { requireCanManageVault, requireVaultAccess } from './vaults.middleware.js';
 import { getValidDescription, getValidName } from './vaults.route-helpers.js';
 import { registerVaultMemberRoutes } from './vaults.members.routes.js';
 
@@ -81,7 +81,11 @@ export function registerVaultRoutes({
       );
     }
 
-    if (body.description !== undefined && body.description !== null && typeof body.description !== 'string') {
+    if (
+      body.description !== undefined &&
+      body.description !== null &&
+      typeof body.description !== 'string'
+    ) {
       return context.json(
         {
           error: {
@@ -129,7 +133,10 @@ export function registerVaultRoutes({
   });
 
   app.use('/api/vaults/:vaultId', requireVaultAccess({ services: vaultsServices, auditServices }));
-  app.use('/api/vaults/:vaultId/*', requireVaultAccess({ services: vaultsServices, auditServices }));
+  app.use(
+    '/api/vaults/:vaultId/*',
+    requireVaultAccess({ services: vaultsServices, auditServices }),
+  );
 
   app.get('/api/vaults/:vaultId', async (context) => {
     const userId = context.get('userId');
@@ -164,7 +171,7 @@ export function registerVaultRoutes({
     return context.json({ vault });
   });
 
-  app.patch('/api/vaults/:vaultId', requireVaultRole('owner'), async (context) => {
+  app.patch('/api/vaults/:vaultId', requireCanManageVault(), async (context) => {
     const userId = context.get('userId');
     const vaultId = context.get('vaultId');
 
@@ -196,7 +203,11 @@ export function registerVaultRoutes({
       );
     }
 
-    if (body.description !== undefined && body.description !== null && typeof body.description !== 'string') {
+    if (
+      body.description !== undefined &&
+      body.description !== null &&
+      typeof body.description !== 'string'
+    ) {
       return context.json(
         {
           error: {
@@ -208,7 +219,8 @@ export function registerVaultRoutes({
       );
     }
 
-    const previousVault = userId === null ? null : await vaultsServices.getVaultForUser({ vaultId, userId });
+    const previousVault =
+      userId === null ? null : await vaultsServices.getVaultForUser({ vaultId, userId });
     const vault = await vaultsServices.updateVaultIdentity({ vaultId, name, description });
 
     if (vault === null) {
@@ -246,7 +258,7 @@ export function registerVaultRoutes({
     return context.json({ vault });
   });
 
-  app.delete('/api/vaults/:vaultId', requireVaultRole('owner'), async (context) => {
+  app.delete('/api/vaults/:vaultId', requireCanManageVault(), async (context) => {
     const userId = context.get('userId');
     const vaultId = context.get('vaultId');
 

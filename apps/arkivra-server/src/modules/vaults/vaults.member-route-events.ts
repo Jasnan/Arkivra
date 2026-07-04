@@ -18,6 +18,10 @@ function userTarget(memberUserId: string, displayName?: string) {
     : { type: 'user' as const, id: memberUserId, displayName };
 }
 
+function getVaultAccessMode(context: VaultMemberRouteContext) {
+  return context.get('isAdmin') && context.get('vaultRole') !== 'owner' ? 'admin' : 'member';
+}
+
 export async function emitVaultOwnerPromotionRequested({
   context,
   auditServices,
@@ -43,7 +47,12 @@ export async function emitVaultOwnerPromotionRequested({
     target: userTarget(memberUserId, displayName),
     source: 'web',
     requestContext: getAuditRequestContext(context),
-    metadata: { request_id: requestId, request_type: 'vault.owner_promote', member_user_id: memberUserId },
+    metadata: {
+      request_id: requestId,
+      request_type: 'vault.owner_promote',
+      member_user_id: memberUserId,
+      access_mode: getVaultAccessMode(context),
+    },
   });
 }
 
@@ -84,7 +93,13 @@ export async function emitVaultExternalInvitationRequested({
     target: { type: 'email_invitation', displayName: email },
     source: 'web',
     requestContext: getAuditRequestContext(context),
-    metadata: { request_id: requestId, request_type: 'vault.external_invite', email, role },
+    metadata: {
+      request_id: requestId,
+      request_type: 'vault.external_invite',
+      email,
+      role,
+      access_mode: getVaultAccessMode(context),
+    },
   });
 }
 
@@ -114,7 +129,7 @@ export async function emitVaultMemberAdded({
     target: userTarget(memberUserId, displayName),
     source: 'web',
     requestContext: getAuditRequestContext(context),
-    metadata: { member_user_id: memberUserId, role },
+    metadata: { member_user_id: memberUserId, role, access_mode: getVaultAccessMode(context) },
   });
   await activityServices?.emitActivityEvent({
     activityType: ACTIVITY_EVENT_TYPES.vaultMemberAdded,
@@ -124,7 +139,7 @@ export async function emitVaultMemberAdded({
     vaultId,
     target: { type: 'user', id: memberUserId },
     source: 'web',
-    metadata: { member_user_id: memberUserId, role },
+    metadata: { member_user_id: memberUserId, role, access_mode: getVaultAccessMode(context) },
   });
 }
 
@@ -161,12 +176,14 @@ export async function emitVaultMemberUpdated({
       member_user_id: memberUserId,
       previous_role: previousRole,
       next_role: nextRole,
+      access_mode: getVaultAccessMode(context),
     },
   });
   await activityServices?.emitActivityEvent({
-    activityType: nextRole !== previousRole
-      ? ACTIVITY_EVENT_TYPES.vaultMemberRoleChanged
-      : ACTIVITY_EVENT_TYPES.vaultMemberAdded,
+    activityType:
+      nextRole !== previousRole
+        ? ACTIVITY_EVENT_TYPES.vaultMemberRoleChanged
+        : ACTIVITY_EVENT_TYPES.vaultMemberAdded,
     entityType: 'vault',
     entityId: vaultId,
     actor: getAuditActorFromContext(context),
@@ -177,6 +194,7 @@ export async function emitVaultMemberUpdated({
       member_user_id: memberUserId,
       previous_role: previousRole,
       next_role: nextRole,
+      access_mode: getVaultAccessMode(context),
     },
   });
 }
@@ -205,7 +223,7 @@ export async function emitVaultMemberRemoved({
     target: { type: 'user', id: memberUserId },
     source: 'web',
     requestContext: getAuditRequestContext(context),
-    metadata: { member_user_id: memberUserId, role },
+    metadata: { member_user_id: memberUserId, role, access_mode: getVaultAccessMode(context) },
   });
   await activityServices?.emitActivityEvent({
     activityType: ACTIVITY_EVENT_TYPES.vaultMemberRemoved,
@@ -215,6 +233,6 @@ export async function emitVaultMemberRemoved({
     vaultId,
     target: { type: 'user', id: memberUserId },
     source: 'web',
-    metadata: { member_user_id: memberUserId, role },
+    metadata: { member_user_id: memberUserId, role, access_mode: getVaultAccessMode(context) },
   });
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react"
 import { Archive, ArrowRight, FileText, HardDrive, ShieldCheck } from "lucide-react"
 import { useNavigate } from "react-router-dom"
+import { toast } from "sonner"
 
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
@@ -15,7 +16,14 @@ import {
   type VaultItemContextMenuState,
 } from "./components/vault-item-context-menu"
 import { VaultsViewToggle } from "./components/vaults-view-toggle"
-import { getMe, listVaults, type VaultSummary } from "./vaults.api"
+import { VaultDeleteConfirmDialog } from "./vault-management-page"
+import {
+  deleteVault,
+  getMe,
+  isPermissionRequestResponse,
+  listVaults,
+  type VaultSummary,
+} from "./vaults.api"
 import { useVaultsView } from "./use-vaults-view"
 
 function formatBytes(value: number) {
@@ -218,7 +226,11 @@ export default function VaultsPage() {
   const [view] = useVaultsView()
   const [vaults, setVaults] = useState<VaultSummary[]>([])
   const [contextMenu, setContextMenu] = useState<VaultItemContextMenuState | null>(null)
+  const [pendingDeleteVault, setPendingDeleteVault] = useState<VaultSummary | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deletingVault, setDeletingVault] = useState(false)
   const [canCreateVault, setCanCreateVault] = useState(true)
+  const [canUseChat, setCanUseChat] = useState(true)
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -259,6 +271,7 @@ export default function VaultsPage() {
 
     if (meResult.status === "fulfilled") {
       setCanCreateVault(meResult.value.canCreateVault)
+      setCanUseChat(meResult.value.aiFeaturesEnabled !== false && meResult.value.canUseAI !== false)
     }
 
     setLoading(false)
@@ -284,6 +297,48 @@ export default function VaultsPage() {
     navigate(`/vaults/${vault.id}`)
   }
 
+  function openMembers(vault: VaultSummary) {
+    navigate(`/vaults/${vault.id}/members`)
+  }
+
+  function openSettings(vault: VaultSummary) {
+    navigate(`/vaults/${vault.id}/settings`)
+  }
+
+  function openActivity(vault: VaultSummary) {
+    navigate(`/vaults/${vault.id}/activity`)
+  }
+
+  function openChat(vault: VaultSummary) {
+    navigate(`/chat?vaultId=${encodeURIComponent(vault.id)}`)
+  }
+
+  async function confirmDeleteVault() {
+    if (pendingDeleteVault === null || deletingVault) return
+
+    setDeletingVault(true)
+    setDeleteError(null)
+
+    try {
+      const result = await deleteVault({ vaultId: pendingDeleteVault.id })
+      if (isPermissionRequestResponse(result)) {
+        toast.success("Vault deletion request queued for admin approval.")
+      } else {
+        toast.success("Vault deleted.")
+      }
+      setPendingDeleteVault(null)
+      await loadVaults()
+    } catch (deleteRequestError) {
+      setDeleteError(
+        deleteRequestError instanceof Error
+          ? deleteRequestError.message
+          : "Could not delete vault."
+      )
+    } finally {
+      setDeletingVault(false)
+    }
+  }
+
   function openContextMenu(event: MouseEvent<HTMLElement>, vault: VaultSummary) {
     event.preventDefault()
     event.stopPropagation()
@@ -301,8 +356,30 @@ export default function VaultsPage() {
           state={contextMenu}
           onClose={() => setContextMenu(null)}
           onOpenVault={openVault}
+          onOpenMembers={openMembers}
+          onOpenSettings={openSettings}
+          onOpenActivity={openActivity}
+          onOpenChat={openChat}
+          onDeleteVault={(vault) => {
+            setPendingDeleteVault(vault)
+            setDeleteError(null)
+          }}
+          canUseChat={canUseChat}
+          deleteDisabled={deletingVault}
         />
       ) : null}
+      <VaultDeleteConfirmDialog
+        open={pendingDeleteVault !== null}
+        vault={pendingDeleteVault}
+        isPending={deletingVault}
+        errorMessage={deleteError}
+        onCancel={() => {
+          if (deletingVault) return
+          setPendingDeleteVault(null)
+          setDeleteError(null)
+        }}
+        onConfirm={() => void confirmDeleteVault()}
+      />
       {loading ? (
         <div className="px-4 lg:px-6">
           <div className="flex h-64 items-center justify-center rounded-lg border bg-muted/20 text-sm text-muted-foreground">

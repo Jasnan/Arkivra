@@ -27,10 +27,24 @@ export function VaultItemContextMenu({
   state,
   onClose,
   onOpenVault,
+  onOpenMembers,
+  onOpenSettings,
+  onOpenActivity,
+  onOpenChat,
+  onDeleteVault,
+  canUseChat,
+  deleteDisabled,
 }: {
   state: VaultItemContextMenuState
   onClose: () => void
   onOpenVault: (vault: VaultSummary) => void
+  onOpenMembers: (vault: VaultSummary) => void
+  onOpenSettings: (vault: VaultSummary) => void
+  onOpenActivity: (vault: VaultSummary) => void
+  onOpenChat: (vault: VaultSummary) => void
+  onDeleteVault: (vault: VaultSummary) => void
+  canUseChat: boolean
+  deleteDisabled?: boolean
 }) {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const [menuPosition, setMenuPosition] = useState({ x: state.x, y: state.y })
@@ -42,19 +56,30 @@ export function VaultItemContextMenu({
         icon: FolderOpen,
         onSelect: () => onOpenVault(state.vault),
       },
-      { key: "members", label: "Members", icon: Users, disabled: true },
-      { key: "settings", label: "Settings", icon: Settings2, disabled: true },
-      { key: "activity", label: "Activity", icon: History, disabled: true },
-      { key: "chat", label: "Chat", icon: MessageSquare, disabled: true },
+      { key: "members", label: "Members", icon: Users, onSelect: () => onOpenMembers(state.vault) },
+      { key: "settings", label: "Settings", icon: Settings2, onSelect: () => onOpenSettings(state.vault) },
+      { key: "activity", label: "Activity", icon: History, onSelect: () => onOpenActivity(state.vault) },
+      { key: "chat", label: "Chat", icon: MessageSquare, disabled: !canUseChat, onSelect: () => onOpenChat(state.vault) },
       {
         key: "delete",
         label: "Delete",
         icon: Trash2,
         tone: "destructive",
-        disabled: true,
+        disabled: deleteDisabled,
+        onSelect: () => onDeleteVault(state.vault),
       },
     ],
-    [onOpenVault, state.vault]
+    [
+      canUseChat,
+      deleteDisabled,
+      onDeleteVault,
+      onOpenActivity,
+      onOpenChat,
+      onOpenMembers,
+      onOpenSettings,
+      onOpenVault,
+      state.vault,
+    ]
   )
 
   useLayoutEffect(() => {

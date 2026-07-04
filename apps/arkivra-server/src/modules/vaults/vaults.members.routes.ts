@@ -7,11 +7,7 @@ import {
   requireCanManageVaultMembers,
   requireCanViewVaultManagement,
 } from './vaults.middleware.js';
-import {
-  getValidEmail,
-  getValidName,
-  getValidRole,
-} from './vaults.route-helpers.js';
+import { getValidEmail, getValidName, getValidRole } from './vaults.route-helpers.js';
 import {
   emitVaultExternalInvitationRequested,
   emitVaultMemberAdded,
@@ -19,7 +15,6 @@ import {
   emitVaultMemberUpdated,
   emitVaultOwnerPromotionRequested,
 } from './vaults.member-route-events.js';
-import { registerVaultMemberSelfRoutes } from './vaults.member-self.routes.js';
 
 export function registerVaultMemberRoutes({
   app,
@@ -70,6 +65,94 @@ export function registerVaultMemberRoutes({
     return context.json({ invitations });
   });
 
+  app.post('/api/vaults/:vaultId/ownership', requireCanManageVaultMembers(), async (context) => {
+    const vaultId = context.get('vaultId');
+    const requestedBy = context.get('userId');
+    const isAdmin = context.get('isAdmin');
+
+    if (vaultId === null || requestedBy === null) {
+      return context.json(
+        {
+          error: {
+            code: 'vault.forbidden',
+            message: 'Forbidden',
+          },
+        },
+        403,
+      );
+    }
+
+    const body = await context.req.json();
+    const memberUserId = getValidName(body.userId);
+
+    if (memberUserId === null) {
+      return context.json(
+        {
+          error: {
+            code: 'vault.invalid_member_payload',
+            message: 'userId is required',
+          },
+        },
+        400,
+      );
+    }
+
+    const targetMember = await vaultsServices.getMember({
+      vaultId,
+      userId: memberUserId,
+    });
+
+    if (targetMember === null) {
+      return context.json(
+        {
+          error: {
+            code: 'vault.member_not_found',
+            message: 'Member not found',
+          },
+        },
+        404,
+      );
+    }
+
+    if (!isAdmin) {
+      const request = await vaultsServices.createPermissionRequest({
+        type: 'vault.owner_promote',
+        requestedBy,
+        vaultId,
+        targetUserId: memberUserId,
+        payload: { role: 'owner' },
+      });
+
+      await emitVaultOwnerPromotionRequested({
+        context,
+        auditServices,
+        vaultId,
+        memberUserId,
+        requestId: request.id,
+      });
+
+      return context.json({ request }, 202);
+    }
+
+    const member = await vaultsServices.upsertMember({
+      vaultId,
+      userId: memberUserId,
+      role: 'owner',
+    });
+
+    await emitVaultMemberUpdated({
+      context,
+      auditServices,
+      activityServices,
+      vaultId,
+      memberUserId,
+      previousRole: targetMember.role,
+      nextRole: 'owner',
+    });
+
+    return context.json({ member });
+  });
+
   app.post(
     '/api/vaults/:vaultId/email-invitations',
     requireCanManageVaultMembers(),
@@ -93,14 +176,15 @@ export function registerVaultMemberRoutes({
       const body = await context.req.json().catch(() => ({}));
       const email = getValidEmail(body.email);
       const role = getValidRole(body.role);
-      const expiresAt = typeof body.expiresAt === 'string' && body.expiresAt.trim().length > 0
-        ? new Date(body.expiresAt)
-        : null;
+      const expiresAt =
+        typeof body.expiresAt === 'string' && body.expiresAt.trim().length > 0
+          ? new Date(body.expiresAt)
+          : null;
 
       if (
-        email === null
-        || role === null
-        || (expiresAt !== null && Number.isNaN(expiresAt.getTime()))
+        email === null ||
+        role === null ||
+        (expiresAt !== null && Number.isNaN(expiresAt.getTime()))
       ) {
         return context.json(
           {
@@ -193,103 +277,93 @@ export function registerVaultMemberRoutes({
     },
   );
 
-  registerVaultMemberSelfRoutes({
-    app,
-    vaultsServices,
-    activityServices,
-  });
+  app.post('/api/vaults/:vaultId/members', requireCanManageVaultMembers(), async (context) => {
+    const vaultId = context.get('vaultId');
+    const requestedBy = context.get('userId');
+    const isAdmin = context.get('isAdmin');
 
-  app.post(
-    '/api/vaults/:vaultId/members',
-    requireCanManageVaultMembers(),
-    async (context) => {
-      const vaultId = context.get('vaultId');
-      const requestedBy = context.get('userId');
-      const isAdmin = context.get('isAdmin');
+    if (vaultId === null || requestedBy === null) {
+      return context.json(
+        {
+          error: {
+            code: 'vault.forbidden',
+            message: 'Forbidden',
+          },
+        },
+        403,
+      );
+    }
 
-      if (vaultId === null || requestedBy === null) {
+    const body = await context.req.json();
+    const memberUserId = getValidName(body.userId);
+    const role = getValidRole(body.role);
+
+    if (memberUserId === null || role === null) {
+      return context.json(
+        {
+          error: {
+            code: 'vault.invalid_member_payload',
+            message: 'userId and role are required',
+          },
+        },
+        400,
+      );
+    }
+
+    if (!isAdmin && role === 'owner') {
+      const request = await vaultsServices.createPermissionRequest({
+        type: 'vault.owner_promote',
+        requestedBy,
+        vaultId,
+        targetUserId: memberUserId,
+        payload: { role },
+      });
+
+      await emitVaultOwnerPromotionRequested({
+        context,
+        auditServices,
+        vaultId,
+        memberUserId,
+        requestId: request.id,
+      });
+
+      return context.json({ request }, 202);
+    }
+
+    let member;
+    try {
+      member = await vaultsServices.upsertMember({
+        vaultId,
+        userId: memberUserId,
+        role,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'authorization.last_vault_owner') {
         return context.json(
           {
             error: {
-              code: 'vault.forbidden',
-              message: 'Forbidden',
+              code: 'vault.last_owner',
+              message: 'At least one owner is required',
             },
           },
           403,
         );
       }
 
-      const body = await context.req.json();
-      const memberUserId = getValidName(body.userId);
-      const role = getValidRole(body.role);
+      throw error;
+    }
 
-      if (memberUserId === null || role === null) {
-        return context.json(
-          {
-            error: {
-              code: 'vault.invalid_member_payload',
-              message: 'userId and role are required',
-            },
-          },
-          400,
-        );
-      }
+    await emitVaultMemberAdded({
+      context,
+      auditServices,
+      activityServices,
+      vaultId,
+      memberUserId,
+      role,
+    });
 
-      if (!isAdmin && role === 'owner') {
-        const request = await vaultsServices.createPermissionRequest({
-          type: 'vault.owner_promote',
-          requestedBy,
-          vaultId,
-          targetUserId: memberUserId,
-          payload: { role },
-        });
-
-        await emitVaultOwnerPromotionRequested({
-          context,
-          auditServices,
-          vaultId,
-          memberUserId,
-          requestId: request.id,
-        });
-
-        return context.json({ request }, 202);
-      }
-
-      let member;
-      try {
-        member = await vaultsServices.upsertMember({
-          vaultId,
-          userId: memberUserId,
-          role,
-        });
-      } catch (error) {
-        if (error instanceof Error && error.message === 'authorization.last_vault_owner') {
-          return context.json(
-            {
-              error: {
-                code: 'vault.last_owner',
-                message: 'At least one owner is required',
-              },
-            },
-            403,
-          );
-        }
-
-        throw error;
-      }
-
-      await emitVaultMemberAdded({
-        context,
-        auditServices,
-        activityServices,
-        vaultId,
-        memberUserId,
-        role,
-      });
-
-      return context.json({ member }, 201);
-    },
-  );
+    return context.json({ member }, 201);
+  });
 
   app.patch(
     '/api/vaults/:vaultId/members/:memberUserId',
@@ -483,5 +557,4 @@ export function registerVaultMemberRoutes({
       return context.body(null, 204);
     },
   );
-
 }

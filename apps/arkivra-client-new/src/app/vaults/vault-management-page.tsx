@@ -845,12 +845,16 @@ function VaultManagementTabs({
   const visibleTabs = [
     ...(canManage ? [{ value: 'members' as const, label: 'Members', icon: Users }] : []),
     ...(canManage ? [{ value: 'settings' as const, label: 'Settings', icon: Settings2 }] : []),
-    { value: 'activity' as const, label: 'Activity', icon: History },
+    ...(canManage ? [{ value: 'activity' as const, label: 'Activity', icon: History }] : []),
   ];
+
+  if (visibleTabs.length === 0) {
+    return null;
+  }
 
   return (
     <Tabs
-      value={visibleTabs.some((tab) => tab.value === section) ? section : 'activity'}
+      value={visibleTabs.some((tab) => tab.value === section) ? section : 'members'}
       onValueChange={(value) => navigate(`/vaults/${vaultId}/${value}`)}
       className="gap-4"
     >
@@ -2483,21 +2487,21 @@ export default function VaultManagementPage({ section }: { section: VaultManagem
           <div className="rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground">
             Vault not found.
           </div>
-        ) : !canManage && section !== 'activity' ? (
+        ) : !canManage ? (
           <Card>
             <CardHeader>
               <CardTitle>Vault management is restricted</CardTitle>
               <CardDescription>
-                Only vault owners and admins can view members and settings.
+                Only vault owners and platform admins can view members, settings, and activity logs.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate(`/vaults/${vaultId}/activity`)}
+                onClick={() => navigate(`/vaults/${vaultId}`)}
               >
-                View activity
+                Back to vault
               </Button>
             </CardContent>
           </Card>

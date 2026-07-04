@@ -22,9 +22,7 @@ export type ChatRouteErrorCode =
   | 'chat.invalid_context'
   | 'chat.invalid_intent'
   | 'chat.invalid_model'
-  | 'chat.not_pristine'
   | 'chat.invalid_response_mode'
-  | 'chat.invalid_title'
   | 'chat.context_unavailable'
   | 'chat.model_options_unavailable'
   | 'chat.not_found'
@@ -59,14 +57,6 @@ export function isDeletedSourceResolution(resolved: ChatContextResolution) {
     resolved.code === 'chat.not_found' &&
     resolved.message === 'Document not found'
   );
-}
-
-export function parseTitle(value: unknown) {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-
-  return typeof value === 'string' ? value.trim() : null;
 }
 
 export function parseResponseMode(value: unknown) {
@@ -258,7 +248,12 @@ export function parseDocumentRefs(value: unknown) {
 }
 
 export function canReadVault(vault: VaultAccess) {
-  return vault.role === 'owner' || vault.role === 'editor' || vault.role === 'viewer';
+  return (
+    vault.role === 'owner' ||
+    vault.role === 'editor' ||
+    vault.role === 'viewer' ||
+    vault.isAdmin
+  );
 }
 
 export function getRawRequestedContext(body: Record<string, unknown>) {

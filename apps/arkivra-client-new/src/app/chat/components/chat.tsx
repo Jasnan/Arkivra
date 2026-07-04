@@ -37,19 +37,19 @@ import { AssistantChatThread } from "./assistant-chat-thread"
 import { ConversationForkDialog } from "./chat-context-fork-dialog"
 import { ConversationList } from "./conversation-list"
 import { ChatHeader } from "./chat-header"
+import { MessageList } from "./message-list"
 import { MessageInput } from "./message-input"
 import {
-  createChatConversation,
   deleteChatConversation,
   getChatConversation,
   getChatModelOptions,
   getUserUiPreferences,
   listChatConversations,
-  updateChatConversationContext,
   type ChatConversation,
   type ChatConversationDetail,
   type ChatMessage,
   type ChatResponseMode,
+  type ChatStreamConversationMetadata,
 } from "../chat.api"
 import { getCachedDefaultChatResponseMode, isChatResponseMode } from "../chat-model-utils"
 import {
@@ -111,6 +111,8 @@ export function Chat({
   const [defaultModel, setDefaultModel] = useState("")
   const [isLoadingModels, setIsLoadingModels] = useState(true)
   const [modelOptionsError, setModelOptionsError] = useState<string | null>(null)
+  const [isSubmittingMessage, setIsSubmittingMessage] = useState(false)
+  const [activeRuntimeChatId, setActiveRuntimeChatId] = useState<string | null>(null)
   const [runtimeState, setRuntimeState] = useState<AssistantChatRuntimeState>({
     status: "ready",
     messageCount: 0,
@@ -120,6 +122,7 @@ export function Chat({
   const previousSelectedConversationIdRef = useRef(selectedConversationId)
   const previousInitialContextSignatureRef = useRef(initialContextSignature)
   const activeRuntimeChatIdRef = useRef("")
+  const appliedStreamMetadataIdsRef = useRef(new Set<string>())
   const hasManualResponseModeRef = useRef(false)
   const vaultsQuery = useChatContextVaults()
 
@@ -150,10 +153,14 @@ export function Chat({
   const effectiveSelectedChatId =
     selectedConversation && !isDraftConversation ? selectedConversation : ""
   const currentMessages = selectedConversationMessages ?? EMPTY_CHAT_MESSAGES
-  const hasRuntimeMessagesForSelectedConversation = runtimeState.messageCount > 0
   const isStreaming =
+    isSubmittingMessage ||
     runtimeState.status === "submitted" ||
     runtimeState.status === "streaming"
+  const runtimeMatchesSelectedConversation =
+    activeRuntimeChatId === null || activeRuntimeChatId === effectiveSelectedChatId
+  const hasRuntimeMessagesForSelectedConversation =
+    runtimeMatchesSelectedConversation && runtimeState.messageCount > 0
   const isSavedConversationSelected = Boolean(selectedConversation) && !isDraftConversation
   const selectedConversationMessageCount = selectedConversationMessages?.length
   const isPristineSavedConversation =
@@ -179,7 +186,13 @@ export function Chat({
   const readableVaultIds = useMemo(() => {
     const ids = new Set<string>()
     for (const vault of vaultsQuery.vaults) {
-      if (vault.role === "owner" || vault.role === "editor" || vault.role === "viewer") {
+      if (
+        vault.role === "owner" ||
+        vault.role === "editor" ||
+        vault.role === "viewer" ||
+        vault.isAdmin === true ||
+        vault.accessMode === "admin"
+      ) {
         ids.add(vault.id)
       }
     }
@@ -236,16 +249,52 @@ export function Chat({
 
   const resetComposerState = useCallback(() => {
     setComposerValue("")
+    setIsSubmittingMessage(false)
+    setActiveRuntimeChatId(null)
+    activeRuntimeChatIdRef.current = ""
     setRuntimeState({ status: "ready", messageCount: 0 })
   }, [])
 
   const handleRuntimeFinish = useCallback(() => {
-    const chatIdToReload = effectiveSelectedChatId || activeRuntimeChatIdRef.current
+    const chatIdToReload = activeRuntimeChatIdRef.current || effectiveSelectedChatId
     void Promise.all([
       refreshConversations(),
       chatIdToReload ? loadConversation(chatIdToReload, { quiet: true }) : Promise.resolve(),
-    ])
+    ]).finally(() => {
+      activeRuntimeChatIdRef.current = ""
+      setActiveRuntimeChatId(null)
+    })
   }, [effectiveSelectedChatId, loadConversation, refreshConversations])
+
+  const handleRuntimeMessagesChange = useCallback(
+    (messages: ChatMessage[]) => {
+      const metadata = getLatestStreamConversationMetadata(messages)
+      if (!metadata) return
+
+      const metadataKey = metadata.assistantMessage.id
+      if (appliedStreamMetadataIdsRef.current.has(metadataKey)) return
+      appliedStreamMetadataIdsRef.current.add(metadataKey)
+
+      const chatId = metadata.conversation.id
+      const isNewConversation = activeRuntimeChatIdRef.current.length === 0
+      activeRuntimeChatIdRef.current = chatId
+      setActiveRuntimeChatId(chatId)
+      setConversations((current) => upsertConversation(current, metadata.conversation))
+      setMessagesByConversationId((current) => {
+        const next = { ...current, [chatId]: current[chatId] ?? [] }
+        delete next[NEW_CHAT_DRAFT_ID]
+        return next
+      })
+      setDraftContext(draftContextFromSnapshot(metadata.conversation.contextSnapshot))
+      setIsSubmittingMessage(false)
+
+      if (isNewConversation || selectedConversation === NEW_CHAT_DRAFT_ID) {
+        setSelectedConversation(chatId)
+        onConversationCreated?.(chatId)
+      }
+    },
+    [onConversationCreated, selectedConversation]
+  )
 
   useEffect(() => {
     let isCurrent = true
@@ -321,21 +370,27 @@ export function Chat({
     if (selectedConversationId === previousSelectedConversationIdRef.current) return
 
     previousSelectedConversationIdRef.current = selectedConversationId
-    if (
-      selectedConversationId &&
-      (selectedConversationId === selectedConversation ||
-        selectedConversationId === activeRuntimeChatIdRef.current)
-    ) {
+    if (selectedConversationId && selectedConversationId === selectedConversation) {
       return
     }
 
-    void runtimeHandle?.stop().catch(() => undefined)
-    resetComposerState()
+    if (selectedConversationId && selectedConversationId === activeRuntimeChatIdRef.current) {
+      setSelectedConversation(selectedConversationId)
+      setComposerValue("")
+      return
+    }
+
+    if (isStreaming) {
+      setComposerValue("")
+    } else {
+      void runtimeHandle?.stop().catch(() => undefined)
+      resetComposerState()
+    }
     setSelectedConversation((current) => {
       if (selectedConversationId === undefined && current === NEW_CHAT_DRAFT_ID) return current
       return selectedConversationId ?? null
     })
-  }, [resetComposerState, runtimeHandle, selectedConversation, selectedConversationId])
+  }, [isStreaming, resetComposerState, runtimeHandle, selectedConversation, selectedConversationId])
 
   useEffect(() => {
     if (initialContextSignature === previousInitialContextSignatureRef.current) return
@@ -343,8 +398,12 @@ export function Chat({
     previousInitialContextSignatureRef.current = initialContextSignature
     if (selectedConversationId) return
 
-    void runtimeHandle?.stop().catch(() => undefined)
-    resetComposerState()
+    if (isStreaming) {
+      setComposerValue("")
+    } else {
+      void runtimeHandle?.stop().catch(() => undefined)
+      resetComposerState()
+    }
     setDraftContext(normalizedInitialContext)
     setSelectedConversation(hasInitialContext ? NEW_CHAT_DRAFT_ID : null)
     setMessagesByConversationId((current) => {
@@ -357,14 +416,19 @@ export function Chat({
     normalizedInitialContext,
     resetComposerState,
     runtimeHandle,
+    isStreaming,
     selectedConversationId,
   ])
 
   function handleCreateConversation() {
-    void runtimeHandle?.stop().catch(() => undefined)
+    if (isStreaming) {
+      setComposerValue("")
+    } else {
+      void runtimeHandle?.stop().catch(() => undefined)
+      resetComposerState()
+    }
     setSelectedConversation(NEW_CHAT_DRAFT_ID)
     setDraftContext(createEmptyDraftContext())
-    resetComposerState()
     setMessagesByConversationId((current) => ({ ...current, [NEW_CHAT_DRAFT_ID]: [] }))
     setIsSidebarOpen(false)
     onConversationCleared?.()
@@ -372,9 +436,13 @@ export function Chat({
 
   function handleSelectConversation(chatId: string) {
     if (chatId === selectedConversation) return
-    void runtimeHandle?.stop().catch(() => undefined)
+    if (isStreaming) {
+      setComposerValue("")
+    } else {
+      void runtimeHandle?.stop().catch(() => undefined)
+      resetComposerState()
+    }
     setSelectedConversation(chatId)
-    resetComposerState()
     setIsSidebarOpen(false)
     onConversationSelected?.(chatId)
   }
@@ -397,7 +465,9 @@ export function Chat({
         return next
       })
       if (selectedConversation === chatId) {
-        void runtimeHandle?.stop().catch(() => undefined)
+        if (!isStreaming || activeRuntimeChatIdRef.current === chatId) {
+          void runtimeHandle?.stop().catch(() => undefined)
+        }
         setSelectedConversation(null)
         setDraftContext(createEmptyDraftContext())
         resetComposerState()
@@ -423,18 +493,6 @@ export function Chat({
     }
 
     setDraftContext(hydratedNextContext)
-    if (currentConversation && !isDraftConversation) {
-      try {
-        const result = await updateChatConversationContext({
-          chatId: currentConversation.id,
-          contextSnapshot: contextSnapshotFromDraft(hydratedNextContext),
-        })
-        setConversations((current) => upsertConversation(current, result.conversation))
-        await refreshConversations()
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Could not update conversation context.")
-      }
-    }
   }
 
   function handleForkDialogOpenChange(open: boolean) {
@@ -450,64 +508,22 @@ export function Chat({
       return
     }
 
-    try {
-      setIsForkingContext(true)
-      const result = await createChatConversation({
-        contextSnapshot: contextSnapshotFromDraft(pendingForkContext),
-        title: composerValue.trim() || currentConversation?.title,
-      })
-      const chatId = result.conversation.id
-
-      setDraftContext(pendingForkContext)
-      setSelectedConversation(chatId)
-      setIsForkDialogOpen(false)
-      setPendingForkContext(null)
-      setConversations((current) => upsertConversation(current, result.conversation))
-      setMessagesByConversationId((current) => ({
-        ...current,
-        [chatId]: [],
-      }))
-      onConversationCreated?.(chatId)
-      await refreshConversations()
-      window.setTimeout(() => textareaRef.current?.focus(), 0)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not create a new chat.")
-    } finally {
-      setIsForkingContext(false)
-    }
+    setIsForkingContext(true)
+    setDraftContext(pendingForkContext)
+    setSelectedConversation(NEW_CHAT_DRAFT_ID)
+    setIsForkDialogOpen(false)
+    setPendingForkContext(null)
+    setMessagesByConversationId((current) => {
+      return { ...current, [NEW_CHAT_DRAFT_ID]: [] }
+    })
+    setIsForkingContext(false)
+    onConversationCleared?.()
+    window.setTimeout(() => textareaRef.current?.focus(), 0)
   }
-
-  const resolveRuntimeChatId = useCallback(
-    async ({ content }: { content: string }) => {
-      if (effectiveSelectedChatId.length > 0) {
-        activeRuntimeChatIdRef.current = effectiveSelectedChatId
-        return effectiveSelectedChatId
-      }
-
-      const title = content.trim() || "New chat"
-      const result = await createChatConversation({
-        contextSnapshot: contextSnapshotFromDraft(hydratedDraftContext),
-        title,
-      })
-      const chatId = result.conversation.id
-      activeRuntimeChatIdRef.current = chatId
-      setSelectedConversation(chatId)
-      setConversations((current) => upsertConversation(current, result.conversation))
-      setMessagesByConversationId((current) => ({
-        ...current,
-        [chatId]: [],
-        [NEW_CHAT_DRAFT_ID]: [],
-      }))
-      onConversationCreated?.(chatId)
-      await refreshConversations()
-      return chatId
-    },
-    [effectiveSelectedChatId, hydratedDraftContext, onConversationCreated, refreshConversations]
-  )
 
   async function handleSendMessage(content: string) {
     const trimmedContent = content.trim()
-    if (!trimmedContent || isStreaming) return
+    if (!trimmedContent || isStreaming || isSubmittingMessage) return
     if (!aiFeaturesEnabled) {
       toast.error("Use AI privilege is required.")
       return
@@ -525,13 +541,21 @@ export function Chat({
       return
     }
 
-    activeRuntimeChatIdRef.current = effectiveSelectedChatId
+    setIsSubmittingMessage(true)
 
     try {
-      await runtimeHandle.sendText(trimmedContent)
+      const chatId = effectiveSelectedChatId || undefined
+      activeRuntimeChatIdRef.current = chatId ?? ""
+      setActiveRuntimeChatId(chatId ?? null)
+      await runtimeHandle.sendText(trimmedContent, {
+        chatId,
+        contextSnapshot: activeContextSnapshot,
+      })
       setComposerValue("")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not send message.")
+    } finally {
+      setIsSubmittingMessage(false)
     }
   }
 
@@ -619,7 +643,6 @@ export function Chat({
               <ChatHeader
                 conversation={currentConversation}
                 contextLabel={contextLabel}
-                contextLocked={isContextLocked}
                 responseMode={responseMode}
                 modelOptions={availableModels}
                 selectedModel={resolvedSelectedModel}
@@ -646,13 +669,14 @@ export function Chat({
             ) : selectedConversation ? (
               <AssistantChatRuntimeProvider
                 chatId={effectiveSelectedChatId}
+                contextSnapshot={activeContextSnapshot}
                 messages={currentMessages}
                 disabled={composerDisabled}
                 responseMode={responseMode}
                 model={resolvedSelectedModel || undefined}
-                resolveChatId={resolveRuntimeChatId}
                 onReady={setRuntimeHandle}
                 onStateChange={setRuntimeState}
+                onMessagesChange={handleRuntimeMessagesChange}
                 onFinish={handleRuntimeFinish}
               >
                 {!canUseSelectedContext || isContextReadOnly || (!hasUsableChatModels && hasLoadedChatModels) ? (
@@ -668,6 +692,11 @@ export function Chat({
                 ) : null}
                 {isLoadingSelectedConversation ? (
                   <ChatPaneSkeleton />
+                ) : !runtimeMatchesSelectedConversation ? (
+                  <MessageList
+                    messages={currentMessages}
+                    onQuickReplySelect={(reply) => void handleSendMessage(reply)}
+                  />
                 ) : currentMessages.length === 0 && !hasRuntimeMessagesForSelectedConversation && !isStreaming ? (
                   <div className="flex min-h-0 flex-1 items-center justify-center px-4">
                     <div className="max-w-md text-center">
@@ -684,7 +713,7 @@ export function Chat({
                   disabled={composerDisabled}
                   placeholder={inputPlaceholder}
                   context={hydratedDraftContext}
-                  contextLocked={isContextLocked}
+                  draftValue={composerValue}
                   onAddVaults={() => setIsVaultDialogOpen(true)}
                   onAddDocuments={() => setIsDocumentDialogOpen(true)}
                   onRemoveVault={(vault) =>
@@ -695,6 +724,7 @@ export function Chat({
                   }
                   textareaRef={textareaRef}
                   onDraftValueChange={setComposerValue}
+                  onSubmitMessage={handleSendMessage}
                 />
               </AssistantChatRuntimeProvider>
             ) : (
@@ -792,6 +822,24 @@ function upsertConversation(
     conversation,
     ...conversations.filter((item) => item.id !== conversation.id),
   ].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+}
+
+function getLatestStreamConversationMetadata(
+  messages: ChatMessage[]
+): ChatStreamConversationMetadata | null {
+  for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+    const message = messages[messageIndex]
+    if (!message) continue
+
+    for (let partIndex = message.parts.length - 1; partIndex >= 0; partIndex -= 1) {
+      const part = message.parts[partIndex]
+      if (part?.type === "data-conversation") {
+        return part.data as ChatStreamConversationMetadata
+      }
+    }
+  }
+
+  return null
 }
 
 function draftContextsEqual(left: DraftChatContext, right: DraftChatContext) {

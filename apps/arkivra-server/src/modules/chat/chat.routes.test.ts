@@ -6,6 +6,12 @@ import { Hono } from 'hono';
 import { describe, expect, test, vi } from 'vitest';
 import { registerChatRoutes } from './chat.routes.js';
 
+const USER_MESSAGE = {
+  id: 'msg_user',
+  role: 'user' as const,
+  parts: [{ type: 'text' as const, text: 'Can we continue?' }],
+};
+
 function createMockDb(documentRows: unknown[] = []) {
   return {
     select: vi.fn(() => ({
@@ -33,59 +39,42 @@ function createMockVaultsServices() {
   } as unknown as VaultsServices;
 }
 
-function createMockChatServices(overrides: Partial<ChatServices> = {}) {
-  const conversation = {
+function createConversation(overrides: Record<string, unknown> = {}) {
+  return {
     id: 'cht_1',
     vaultId: 'vlt_1',
-    documentId: 'doc_deleted',
+    documentId: 'doc_1',
     scope: 'document' as const,
     contextSnapshot: {
       type: 'document' as const,
       vaultId: 'vlt_1',
-      documentId: 'doc_deleted',
+      documentId: 'doc_1',
       vaultName: 'Finance',
-      documentName: 'Deleted source.pdf',
+      documentName: 'Report.pdf',
     },
     contextAvailability: { status: 'available' as const, readOnly: false as const },
     userId: 'usr_1',
-    title: 'Deleted source chat',
+    title: 'Report chat',
     createdAt: '2026-05-05T10:00:00.000Z',
     updatedAt: '2026-05-05T10:05:00.000Z',
-    messages: [
-      {
-        id: 'msg_1',
-        conversationId: 'cht_1',
-        vaultId: 'vlt_1',
-        documentId: 'doc_deleted',
-        scope: 'document' as const,
-        userId: 'usr_1',
-        role: 'user' as const,
-        content: 'What is in this document?',
-        metadata: null,
-        citations: [],
-        generationMetrics: null,
-        generationStatus: null,
-        generationError: null,
-        createdAt: '2026-05-05T10:00:00.000Z',
-        updatedAt: '2026-05-05T10:00:00.000Z',
-      },
-    ],
+    messages: [USER_MESSAGE],
+    ...overrides,
   };
+}
 
+function createMockChatServices(overrides: Partial<ChatServices> = {}) {
   return {
     listConversations: vi.fn(async () => ({ conversations: [] })),
-    createConversation: vi.fn(),
-    updatePristineConversationContext: vi.fn(),
-    getConversation: vi.fn(async () => conversation),
+    getConversation: vi.fn(async () => createConversation()),
     deleteConversation: vi.fn(async () => true),
     getModelOptions: vi.fn(async () => ({ defaultModel: 'llama3.2', models: ['llama3.2'] })),
-    createMessageStream: vi.fn(),
+    createMessageStream: vi.fn(async () => new Response('stream')),
     ...overrides,
   } as unknown as ChatServices;
 }
 
 function createTestApp({
-  db = createMockDb(),
+  db = createMockDb([{ id: 'doc_1', name: 'Report.pdf' }]),
   services = createMockChatServices(),
   vaultServices = createMockVaultsServices(),
 }: {
@@ -124,20 +113,27 @@ function createTestApp({
   return { app, services };
 }
 
-describe('chat routes', () => {
-  test('rejects chat creation without the platform Use AI privilege', async () => {
-    const { app } = createTestApp({ db: createMockDb([{ id: 'doc_1', name: 'Report.pdf' }]) });
+function streamBody(overrides: Record<string, unknown> = {}) {
+  return JSON.stringify({
+    messages: [USER_MESSAGE],
+    responseMode: 'text',
+    model: 'ollama:llama3.2',
+    ...overrides,
+  });
+}
 
-    const response = await app.request('/api/chats', {
+describe('chat routes', () => {
+  test('rejects first-message streams without the platform Use AI privilege', async () => {
+    const { app, services } = createTestApp();
+
+    const response = await app.request('/api/chats/messages/stream', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
         'x-test-user-id': 'usr_1',
         'x-test-can-use-ai': 'false',
       },
-      body: JSON.stringify({
-        context: { type: 'vault', vaultId: 'vlt_1' },
-      }),
+      body: streamBody({ contextSnapshot: { type: 'vault', vaultId: 'vlt_1' } }),
     });
 
     expect(response.status).toBe(403);
@@ -147,10 +143,101 @@ describe('chat routes', () => {
         message: 'Use AI privilege required',
       },
     });
+    expect(services.createMessageStream).not.toHaveBeenCalled();
+  });
+
+  test('starts a new global conversation stream from readable admin vaults', async () => {
+    const services = createMockChatServices();
+    const vaultServices = {
+      ...createMockVaultsServices(),
+      listUserVaults: vi.fn(async () => [
+        {
+          id: 'vlt_direct',
+          name: 'Direct vault',
+          description: null,
+          fileCount: 1,
+          totalSize: 1,
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          deletedAt: null,
+          role: 'owner',
+          isAdmin: true,
+          isMember: true,
+        },
+        {
+          id: 'vlt_implicit',
+          name: 'Implicit admin vault',
+          description: null,
+          fileCount: 1,
+          totalSize: 1,
+          createdAt: new Date('2026-01-02T00:00:00.000Z'),
+          updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+          deletedAt: null,
+          role: null,
+          isAdmin: true,
+          isMember: false,
+        },
+      ]),
+    } as unknown as VaultsServices;
+    const { app } = createTestApp({ services, vaultServices });
+
+    const response = await app.request('/api/chats/messages/stream', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_admin' },
+      body: streamBody({ contextSnapshot: { type: 'global', vaultIds: [] } }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(services.createMessageStream).toHaveBeenCalledWith({
+      userId: 'usr_admin',
+      scope: {
+        type: 'global',
+        vaultIds: ['vlt_direct', 'vlt_implicit'],
+      },
+      messages: [USER_MESSAGE],
+      intent: undefined,
+      responseMode: 'text',
+      model: 'ollama:llama3.2',
+    });
+  });
+
+  test('starts an existing conversation stream with the supplied chat id', async () => {
+    const services = createMockChatServices();
+    const { app } = createTestApp({ services });
+
+    const response = await app.request('/api/chats/messages/stream', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
+      body: streamBody({ chatId: 'cht_1' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(services.createMessageStream).toHaveBeenCalledWith({
+      userId: 'usr_1',
+      chatId: 'cht_1',
+      messages: [USER_MESSAGE],
+      intent: undefined,
+      responseMode: 'text',
+      model: 'ollama:llama3.2',
+    });
   });
 
   test('opens deleted-source conversations as read-only history', async () => {
-    const { app } = createTestApp({ db: createMockDb([]) });
+    const services = createMockChatServices({
+      getConversation: vi.fn(async () =>
+        createConversation({
+          documentId: 'doc_deleted',
+          contextSnapshot: {
+            type: 'document' as const,
+            vaultId: 'vlt_1',
+            documentId: 'doc_deleted',
+            vaultName: 'Finance',
+            documentName: 'Deleted source.pdf',
+          },
+        }),
+      ),
+    });
+    const { app } = createTestApp({ db: createMockDb([]), services });
 
     const response = await app.request('/api/chats/cht_1', {
       headers: { 'x-test-user-id': 'usr_1' },
@@ -160,7 +247,7 @@ describe('chat routes', () => {
     await expect(response.json()).resolves.toMatchObject({
       conversation: {
         id: 'cht_1',
-        messages: [{ content: 'What is in this document?' }],
+        messages: [{ parts: [{ type: 'text', text: 'Can we continue?' }] }],
         contextAvailability: {
           status: 'source_document_deleted',
           readOnly: true,
@@ -170,142 +257,25 @@ describe('chat routes', () => {
     });
   });
 
-  test('opens frozen unavailable conversations as read-only history', async () => {
+  test('rejects streams for read-only conversations before calling generation', async () => {
     const services = createMockChatServices({
-      getConversation: vi.fn(async () => ({
-        id: 'cht_1',
-        vaultId: 'vlt_1',
-        documentId: null,
-        scope: 'vault' as const,
-        contextSnapshot: { type: 'vault' as const, vaultId: 'vlt_1', vaultName: 'Finance' },
-        contextAvailability: {
-          status: 'source_document_deleted' as const,
-          readOnly: true as const,
-          message:
-            'One or more source documents were deleted. This conversation is available as read-only history.',
-        },
-        userId: 'usr_1',
-        title: 'Frozen chat',
-        createdAt: '2026-05-05T10:00:00.000Z',
-        updatedAt: '2026-05-05T10:05:00.000Z',
-        messages: [],
-      })),
+      getConversation: vi.fn(async () =>
+        createConversation({
+          contextAvailability: {
+            status: 'source_document_deleted' as const,
+            readOnly: true as const,
+            message:
+              'One or more source documents were deleted. This conversation is available as read-only history.',
+          },
+        }),
+      ),
     });
     const { app } = createTestApp({ services });
 
-    const response = await app.request('/api/chats/cht_1', {
-      headers: { 'x-test-user-id': 'usr_1' },
-    });
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      conversation: {
-        id: 'cht_1',
-        contextAvailability: {
-          status: 'source_document_deleted',
-          readOnly: true,
-        },
-      },
-    });
-  });
-
-  test('still rejects new messages when the source document is deleted', async () => {
-    const services = createMockChatServices();
-    const { app } = createTestApp({ db: createMockDb([]), services });
-
-    const response = await app.request('/api/chats/cht_1/messages/stream', {
+    const response = await app.request('/api/chats/messages/stream', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
-      body: JSON.stringify({ content: 'Can we continue?' }),
-    });
-
-    expect(response.status).toBe(404);
-    await expect(response.json()).resolves.toEqual({
-      error: {
-        code: 'chat.not_found',
-        message: 'Document not found',
-      },
-    });
-    expect(services.createMessageStream).not.toHaveBeenCalled();
-  });
-
-  test('returns context unavailable for read-only document chats whose source was purged', async () => {
-    const services = createMockChatServices({
-      getConversation: vi.fn(async () => ({
-        id: 'cht_1',
-        vaultId: 'vlt_1',
-        documentId: 'doc_deleted',
-        scope: 'document' as const,
-        contextSnapshot: {
-          type: 'document' as const,
-          vaultId: 'vlt_1',
-          documentId: 'doc_deleted',
-          vaultName: 'Finance',
-          documentName: 'Deleted source.pdf',
-        },
-        contextAvailability: {
-          status: 'source_document_deleted' as const,
-          readOnly: true as const,
-          message:
-            'One or more source documents were deleted. This conversation is available as read-only history.',
-        },
-        userId: 'usr_1',
-        title: 'Purged source chat',
-        createdAt: '2026-05-05T10:00:00.000Z',
-        updatedAt: '2026-05-05T10:05:00.000Z',
-        messages: [],
-      })),
-    });
-    const { app } = createTestApp({ db: createMockDb([]), services });
-
-    const response = await app.request('/api/chats/cht_1/messages/stream', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
-      body: JSON.stringify({
-        messages: [
-          { id: 'msg_1', role: 'user', parts: [{ type: 'text', text: 'Can we continue?' }] },
-        ],
-      }),
-    });
-
-    expect(response.status).toBe(409);
-    await expect(response.json()).resolves.toEqual({
-      error: {
-        code: 'chat.context_unavailable',
-        message:
-          'One or more source documents were deleted. This conversation is available as read-only history.',
-      },
-    });
-    expect(services.createMessageStream).not.toHaveBeenCalled();
-  });
-
-  test('rejects streams for frozen conversations with unavailable manifest sources', async () => {
-    const services = createMockChatServices({
-      getConversation: vi.fn(async () => ({
-        id: 'cht_1',
-        vaultId: 'vlt_1',
-        documentId: null,
-        scope: 'vault' as const,
-        contextSnapshot: { type: 'vault' as const, vaultId: 'vlt_1', vaultName: 'Finance' },
-        contextAvailability: {
-          status: 'source_document_deleted' as const,
-          readOnly: true as const,
-          message:
-            'One or more source documents were deleted. This conversation is available as read-only history.',
-        },
-        userId: 'usr_1',
-        title: 'Frozen chat',
-        createdAt: '2026-05-05T10:00:00.000Z',
-        updatedAt: '2026-05-05T10:05:00.000Z',
-        messages: [],
-      })),
-    });
-    const { app } = createTestApp({ services });
-
-    const response = await app.request('/api/chats/cht_1/messages/stream', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
-      body: JSON.stringify({}),
+      body: streamBody({ chatId: 'cht_1' }),
     });
 
     expect(response.status).toBe(409);
@@ -321,33 +291,25 @@ describe('chat routes', () => {
 
   test('checks vault access before unavailable-source stream rejection', async () => {
     const services = createMockChatServices({
-      getConversation: vi.fn(async () => ({
-        id: 'cht_1',
-        vaultId: 'vlt_1',
-        documentId: null,
-        scope: 'vault' as const,
-        contextSnapshot: { type: 'vault' as const, vaultId: 'vlt_1', vaultName: 'Finance' },
-        contextAvailability: {
-          status: 'source_document_deleted' as const,
-          readOnly: true as const,
-          message:
-            'One or more source documents were deleted. This conversation is available as read-only history.',
-        },
-        userId: 'usr_1',
-        title: 'Frozen chat',
-        createdAt: '2026-05-05T10:00:00.000Z',
-        updatedAt: '2026-05-05T10:05:00.000Z',
-        messages: [],
-      })),
+      getConversation: vi.fn(async () =>
+        createConversation({
+          contextAvailability: {
+            status: 'source_document_deleted' as const,
+            readOnly: true as const,
+            message:
+              'One or more source documents were deleted. This conversation is available as read-only history.',
+          },
+        }),
+      ),
     });
     const vaultServices = createMockVaultsServices();
     vi.mocked(vaultServices.getVaultForUser).mockResolvedValueOnce(null);
     const { app } = createTestApp({ services, vaultServices });
 
-    const response = await app.request('/api/chats/cht_1/messages/stream', {
+    const response = await app.request('/api/chats/messages/stream', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
-      body: JSON.stringify({}),
+      body: streamBody({ chatId: 'cht_1' }),
     });
 
     expect(response.status).toBe(403);
@@ -373,16 +335,14 @@ describe('chat routes', () => {
     expect(services.deleteConversation).toHaveBeenCalledWith({ userId: 'usr_1', chatId: 'cht_1' });
   });
 
-  test('rejects explicit document version fields when creating chat context', async () => {
-    const services = createMockChatServices({
-      createConversation: vi.fn(),
-    });
+  test('rejects explicit document version fields when creating a conversation from a stream', async () => {
+    const services = createMockChatServices();
     const { app } = createTestApp({ services });
 
-    const response = await app.request('/api/chats', {
+    const response = await app.request('/api/chats/messages/stream', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
-      body: JSON.stringify({
+      body: streamBody({
         contextSnapshot: {
           type: 'document',
           vaultId: 'vlt_1',
@@ -400,99 +360,6 @@ describe('chat routes', () => {
         message: 'Explicit document versions are not supported in chat context yet',
       },
     });
-    expect(services.createConversation).not.toHaveBeenCalled();
-  });
-
-  test('updates context for a pristine conversation', async () => {
-    const services = createMockChatServices({
-      updatePristineConversationContext: vi.fn(async () => ({
-        status: 'updated' as const,
-        conversation: {
-          id: 'cht_1',
-          vaultId: 'vlt_1',
-          documentId: null,
-          scope: 'vault' as const,
-          contextSnapshot: { type: 'vault' as const, vaultId: 'vlt_1', vaultName: 'Finance' },
-          userId: 'usr_1',
-          title: 'Updated context',
-          createdAt: '2026-05-05T10:00:00.000Z',
-          updatedAt: '2026-05-05T10:10:00.000Z',
-        },
-      })),
-    });
-    const { app } = createTestApp({ services });
-
-    const response = await app.request('/api/chats/cht_1/context', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
-      body: JSON.stringify({ contextSnapshot: { type: 'vault', vaultId: 'vlt_1' } }),
-    });
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      conversation: {
-        id: 'cht_1',
-        contextSnapshot: { type: 'vault', vaultId: 'vlt_1', vaultName: 'Finance' },
-      },
-    });
-    expect(services.updatePristineConversationContext).toHaveBeenCalledWith({
-      userId: 'usr_1',
-      chatId: 'cht_1',
-      scope: { type: 'vault', vaultId: 'vlt_1', vaultName: 'Finance' },
-    });
-  });
-
-  test('rejects explicit document version fields when updating chat context', async () => {
-    const services = createMockChatServices({
-      updatePristineConversationContext: vi.fn(),
-    });
-    const { app } = createTestApp({ services });
-
-    const response = await app.request('/api/chats/cht_1/context', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
-      body: JSON.stringify({
-        contextSnapshot: {
-          type: 'selection',
-          documents: [
-            {
-              vaultId: 'vlt_1',
-              documentId: 'doc_1',
-              documentVersionId: 'dvr_1',
-            },
-          ],
-        },
-      }),
-    });
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      error: {
-        code: 'chat.invalid_context',
-        message: 'Explicit document versions are not supported in chat context yet',
-      },
-    });
-    expect(services.updatePristineConversationContext).not.toHaveBeenCalled();
-  });
-
-  test('rejects context updates once a conversation has messages', async () => {
-    const services = createMockChatServices({
-      updatePristineConversationContext: vi.fn(async () => ({ status: 'not_pristine' as const })),
-    });
-    const { app } = createTestApp({ services });
-
-    const response = await app.request('/api/chats/cht_1/context', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
-      body: JSON.stringify({ contextSnapshot: { type: 'vault', vaultId: 'vlt_1' } }),
-    });
-
-    expect(response.status).toBe(409);
-    await expect(response.json()).resolves.toEqual({
-      error: {
-        code: 'chat.not_pristine',
-        message: 'Conversation context can only be changed before the first message.',
-      },
-    });
+    expect(services.createMessageStream).not.toHaveBeenCalled();
   });
 });

@@ -4,7 +4,7 @@ import { useChat } from "@ai-sdk/react"
 import { AssistantRuntimeProvider } from "@assistant-ui/react"
 import { useAISDKRuntime } from "@assistant-ui/react-ai-sdk"
 
-import type { ChatIntent, ChatMessage, ChatResponseMode } from "../chat.api"
+import type { ChatContextSnapshot, ChatIntent, ChatMessage, ChatResponseMode } from "../chat.api"
 import {
   createAssistantChatTransport,
   startsWithSameMessageIds,
@@ -14,7 +14,11 @@ import {
 export type AssistantChatRuntimeStatus = ReturnType<typeof useChat<ChatMessage>>["status"]
 
 export interface AssistantChatRuntimeHandle {
-  sendText: (text: string, options?: { intent?: ChatIntent | null }) => Promise<void>
+  sendText: (text: string, options?: {
+    chatId?: string
+    contextSnapshot?: ChatContextSnapshot
+    intent?: ChatIntent | null
+  }) => Promise<void>
   stop: () => Promise<void>
 }
 
@@ -25,25 +29,27 @@ export interface AssistantChatRuntimeState {
 
 export function AssistantChatRuntimeProvider({
   chatId,
+  contextSnapshot,
   messages,
   disabled,
   intent,
   responseMode,
   model,
-  resolveChatId,
   onStateChange,
+  onMessagesChange,
   onReady,
   onFinish,
   children,
 }: {
   chatId: string
+  contextSnapshot: ChatContextSnapshot
   messages: ChatMessage[]
   disabled: boolean
   intent?: ChatIntent | null
   responseMode: ChatResponseMode
   model?: string
-  resolveChatId: (args: { content: string }) => Promise<string>
   onStateChange?: (state: AssistantChatRuntimeState) => void
+  onMessagesChange?: (messages: ChatMessage[]) => void
   onReady?: (handle: AssistantChatRuntimeHandle | null) => void
   onFinish?: () => void
   children: ReactNode
@@ -51,17 +57,17 @@ export function AssistantChatRuntimeProvider({
   const runtimeId = useId()
   const transportConfigRef = useRef<AssistantChatTransportConfig>({
     chatId,
+    contextSnapshot,
     intent,
     model,
-    resolveChatId,
     responseMode,
   })
 
   transportConfigRef.current = {
     chatId,
+    contextSnapshot,
     intent,
     model,
-    resolveChatId,
     responseMode,
   }
 
@@ -100,6 +106,11 @@ export function AssistantChatRuntimeProvider({
     const isSameConversation = previousChatId === chatId
     const isCreatedDraftConversation = previousChatId.length === 0 && chatId.length > 0
     previousChatIdRef.current = chatId
+    const isRunning = chat.status === "submitted" || chat.status === "streaming"
+
+    if (!isSameConversation && isRunning) {
+      return
+    }
 
     if (
       (isSameConversation || isCreatedDraftConversation) &&
@@ -135,6 +146,10 @@ export function AssistantChatRuntimeProvider({
   }, [chat.messages.length, chat.status, onStateChange])
 
   useEffect(() => {
+    onMessagesChange?.(chat.messages)
+  }, [chat.messages, onMessagesChange])
+
+  useEffect(() => {
     onReady?.({
       sendText: async (text, options) => {
         await chatRef.current.sendMessage(
@@ -144,6 +159,8 @@ export function AssistantChatRuntimeProvider({
           },
           {
             metadata: {
+              chatId: options?.chatId,
+              contextSnapshot: options?.contextSnapshot,
               intent: options?.intent ?? intentRef.current ?? undefined,
             },
           }

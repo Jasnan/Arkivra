@@ -1,26 +1,12 @@
 import { AssistantChatTransport } from "@assistant-ui/react-ai-sdk"
-import type { ChatIntent, ChatMessage, ChatResponseMode } from "../chat.api"
+import type { ChatContextSnapshot, ChatIntent, ChatMessage, ChatResponseMode } from "../chat.api"
 
 export interface AssistantChatTransportConfig {
   chatId: string
+  contextSnapshot: ChatContextSnapshot
   intent?: ChatIntent | null
   responseMode: ChatResponseMode
   model?: string
-  resolveChatId: (args: { content: string }) => Promise<string>
-}
-
-export function getLatestUserText(messages: ChatMessage[]) {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index]
-    if (message.role !== "user") continue
-    return message.parts
-      .filter((part): part is { type: "text"; text: string } => part.type === "text")
-      .map((part) => part.text)
-      .join("\n")
-      .trim()
-  }
-
-  return ""
 }
 
 export function startsWithSameMessageIds(messages: ChatMessage[], prefix: ChatMessage[]) {
@@ -33,29 +19,30 @@ export function createAssistantChatTransport({
 }: {
   getConfig: () => AssistantChatTransportConfig
 }) {
-  const initialConfig = getConfig()
-
   return new AssistantChatTransport<ChatMessage>({
     credentials: "include",
-    api: initialConfig.chatId
-      ? `/api/chats/${initialConfig.chatId}/messages/stream`
-      : "/api/chats/new/messages/stream",
+    api: "/api/chats/messages/stream",
     prepareSendMessagesRequest: async (options) => {
-      const { intent, model, resolveChatId, responseMode } = getConfig()
-      const content = getLatestUserText(options.messages)
-      const resolvedChatId = await resolveChatId({ content })
-      const requestMetadata = options.requestMetadata as { intent?: ChatIntent | null } | undefined
+      const { chatId, contextSnapshot, intent, model, responseMode } = getConfig()
+      const requestMetadata = options.requestMetadata as {
+        chatId?: string
+        contextSnapshot?: ChatContextSnapshot
+        intent?: ChatIntent | null
+      } | undefined
+      const resolvedChatId = requestMetadata?.chatId ?? chatId
+      const resolvedContextSnapshot = requestMetadata?.contextSnapshot ?? contextSnapshot
       const resolvedIntent = requestMetadata?.intent ?? intent ?? undefined
 
       return {
-        api: `/api/chats/${resolvedChatId}/messages/stream`,
+        api: "/api/chats/messages/stream",
         credentials: "include",
         headers: {
           "content-type": "application/json",
         },
         body: {
           ...options.body,
-          id: resolvedChatId,
+          chatId: resolvedChatId || undefined,
+          contextSnapshot: resolvedChatId ? undefined : resolvedContextSnapshot,
           messages: options.messages,
           intent: resolvedIntent,
           responseMode,

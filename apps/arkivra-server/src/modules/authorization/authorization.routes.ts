@@ -1,12 +1,20 @@
 import type { Hono } from 'hono';
+import type { Config } from '../config/config.js';
+import type { Auth } from '../auth/auth.services.js';
 import type { AuthorizationServices } from './authorization.services.js';
 import type { ServerContext } from '../server/server.types.js';
 import type { createActivityServices } from '../activity/activity.services.js';
 import type { createAuditServices } from '../audit/audit.services.js';
 import { requireAuthentication } from '../auth/auth.middleware.js';
+import { createAuthEmailServices } from '../auth/auth-email.services.js';
 import { requireAdmin } from './authorization.middleware.js';
 import { ACTIVITY_EVENT_TYPES } from '../activity/activity.types.js';
 import { getAuditActorFromContext, getAuditRequestContext } from '../audit/audit.http.js';
+import { AUDIT_EVENT_TYPES } from '../audit/audit.types.js';
+import {
+  createEmailInvitationToken,
+  hashEmailInvitationToken,
+} from './authorization.services.js';
 import {
   isEmailInvitationType,
   isSystemCapability,
@@ -57,6 +65,58 @@ function parseOptionalDate(value: unknown) {
   return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
+function parseNonEmptyString(value: unknown) {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function buildInvitationUrl({ config, token }: { config: Config; token: string }) {
+  return new URL(`/accept-invite?token=${encodeURIComponent(token)}`, config.server.webBaseUrl).toString();
+}
+
+function getInvitationRoleLabel(systemRole: 'admin' | 'member' | null) {
+  return systemRole === 'admin' ? 'administrator' : 'member';
+}
+
+async function sendPlatformInvitationEmail({
+  config,
+  email,
+  inviteUrl,
+  expiresAt,
+  systemRole,
+}: {
+  config: Config;
+  email: string;
+  inviteUrl: string;
+  expiresAt: Date | null;
+  systemRole: 'admin' | 'member' | null;
+}) {
+  const authEmailServices = createAuthEmailServices({ config });
+  const expiryText = expiresAt === null
+    ? 'This invitation does not have an expiry date.'
+    : `This invitation expires on ${expiresAt.toISOString()}.`;
+
+  await authEmailServices.sendEmail({
+    to: email,
+    subject: 'You have been invited to Arkivra',
+    text: [
+      'You have been invited to create an Arkivra account.',
+      '',
+      `Platform role: ${getInvitationRoleLabel(systemRole)}`,
+      expiryText,
+      '',
+      'Use this link to accept the invitation and set your password:',
+      inviteUrl,
+      '',
+      'If you did not expect this invitation, you can ignore this email.',
+    ].join('\n'),
+  });
+}
+
+function serializeEmailInvitation<T extends { tokenHash?: string | null }>(invitation: T) {
+  const { tokenHash: _tokenHash, ...serialized } = invitation;
+  return serialized;
+}
+
 function getApprovalAuditEventType(type: string) {
   if (type === 'vault.owner_promote') return 'vault.owner_promotion_approved';
   if (type === 'vault.external_invite') return 'vault.external_invitation_approved';
@@ -71,11 +131,15 @@ function getRejectionAuditEventType(type: string) {
 
 export function registerAuthorizationRoutes({
   app,
+  auth,
+  config,
   authorizationServices,
   activityServices,
   auditServices,
 }: {
   app: Hono<ServerContext>;
+  auth?: Auth;
+  config?: Config;
   authorizationServices: AuthorizationServices;
   activityServices?: ReturnType<typeof createActivityServices>;
   auditServices?: ReturnType<typeof createAuditServices>;
@@ -83,6 +147,7 @@ export function registerAuthorizationRoutes({
   app.use('/api/admin/permission-requests', requireAuthentication(), requireAdmin());
   app.use('/api/admin/permission-requests/*', requireAuthentication(), requireAdmin());
   app.use('/api/admin/email-invitations', requireAuthentication(), requireAdmin());
+  app.use('/api/admin/email-invitations/*', requireAuthentication(), requireAdmin());
   app.use('/api/email-invitations/accept', requireAuthentication());
 
   app.post('/api/email-invitations/accept', async (context) => {
@@ -98,11 +163,13 @@ export function registerAuthorizationRoutes({
       return context.json({ error: { code: 'auth.unauthorized', message: 'Unauthorized' } }, 401);
     }
 
+    const rawInvitationToken = typeof body.invitationToken === 'string' ? body.invitationToken : undefined;
     const invitationId = typeof body.invitationId === 'string'
       ? body.invitationId
-      : typeof body.invitationToken === 'string'
-        ? body.invitationToken
+      : rawInvitationToken?.startsWith('invite_')
+        ? rawInvitationToken
         : undefined;
+    const invitationToken = rawInvitationToken?.startsWith('invite_') ? undefined : rawInvitationToken;
     const email = parseEmail(body.email) ?? parseEmail(user?.email);
 
     if (email === null) {
@@ -114,6 +181,7 @@ export function registerAuthorizationRoutes({
 
     const invitation = await authorizationServices.acceptEmailInvitation({
       invitationId,
+      invitationToken,
       email,
       userId,
     });
@@ -126,6 +194,131 @@ export function registerAuthorizationRoutes({
     }
 
     return context.json({ invitation });
+  });
+
+  app.get('/api/email-invitations/accept-account', async (context) => {
+    const token = parseNonEmptyString(context.req.query('token'));
+
+    if (token === null) {
+      return context.json(
+        { error: { code: 'authorization.invalid_invitation_payload', message: 'Invalid invitation payload' } },
+        400,
+      );
+    }
+
+    const invitation = await authorizationServices.getPendingPlatformInvitationByToken({ token });
+
+    if (invitation === null) {
+      return context.json(
+        { error: { code: 'authorization.invitation_not_found', message: 'Invitation not found or expired' } },
+        404,
+      );
+    }
+
+    return context.json({
+      invitation: {
+        email: invitation.email,
+        systemRole: invitation.systemRole,
+        expiresAt: invitation.expiresAt,
+      },
+    });
+  });
+
+  app.post('/api/email-invitations/accept-account', async (context) => {
+    if (auth === undefined) {
+      return context.json(
+        { error: { code: 'authorization.invitation_accept_unavailable', message: 'Invitation acceptance is unavailable.' } },
+        500,
+      );
+    }
+
+    const body = await context.req.json().catch(() => ({})) as {
+      token?: unknown;
+      name?: unknown;
+      password?: unknown;
+    };
+    const token = parseNonEmptyString(body.token);
+    const name = parseNonEmptyString(body.name);
+    const password = typeof body.password === 'string' ? body.password : null;
+
+    if (token === null || name === null || password === null) {
+      return context.json(
+        { error: { code: 'authorization.invalid_invitation_payload', message: 'Invalid invitation payload' } },
+        400,
+      );
+    }
+
+    const authContext = await auth.$context;
+    const minPasswordLength = authContext.password.config.minPasswordLength;
+    const maxPasswordLength = authContext.password.config.maxPasswordLength;
+
+    if (password.length < minPasswordLength) {
+      return context.json(
+        { error: { code: 'auth.password_too_short', message: `Password must be at least ${minPasswordLength} characters.` } },
+        400,
+      );
+    }
+
+    if (password.length > maxPasswordLength) {
+      return context.json(
+        { error: { code: 'auth.password_too_long', message: `Password must be at most ${maxPasswordLength} characters.` } },
+        400,
+      );
+    }
+
+    const passwordHash = await authContext.password.hash(password);
+
+    try {
+      const result = await authorizationServices.acceptPlatformInvitationWithPassword({
+        token,
+        name,
+        passwordHash,
+      });
+
+      if (result === null) {
+        return context.json(
+          { error: { code: 'authorization.invitation_not_found', message: 'Invitation not found or expired' } },
+          404,
+        );
+      }
+
+      await auditServices?.emitAuditEvent({
+        eventType: AUDIT_EVENT_TYPES.authPlatformInvitationAccepted,
+        eventCategory: 'auth',
+        severity: 'notice',
+        outcome: 'success',
+        actor: {
+          id: result.user.id,
+          type: 'user',
+          displayName: result.user.name ?? result.user.email,
+        },
+        target: {
+          type: 'user',
+          id: result.user.id,
+          displayName: result.user.email,
+        },
+        source: 'web',
+        requestContext: getAuditRequestContext(context),
+        metadata: {
+          invitation_type: 'platform_account',
+          system_role: result.user.systemRole,
+        },
+      });
+
+      return context.json({
+        user: result.user,
+        invitation: serializeEmailInvitation(result.invitation),
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'authorization.invitation_user_exists') {
+        return context.json(
+          { error: { code: 'authorization.invitation_user_exists', message: 'A user already exists for this email address.' } },
+          409,
+        );
+      }
+
+      throw error;
+    }
   });
 
   app.get('/api/admin/permission-requests', async (context) => {
@@ -291,7 +484,19 @@ export function registerAuthorizationRoutes({
     return context.json({ request });
   });
 
+  app.get('/api/admin/email-invitations', async (context) => {
+    const invitations = await authorizationServices.listEmailInvitations({ type: 'platform_account' });
+    return context.json({ invitations: invitations.map(serializeEmailInvitation) });
+  });
+
   app.post('/api/admin/email-invitations', async (context) => {
+    if (config === undefined) {
+      return context.json(
+        { error: { code: 'authorization.invitation_email_unavailable', message: 'Invitation email delivery is unavailable.' } },
+        500,
+      );
+    }
+
     const invitedBy = context.get('userId');
     const body = await context.req.json().catch(() => null) as {
       type?: unknown;
@@ -335,17 +540,154 @@ export function registerAuthorizationRoutes({
 
     const vaultRole = type === 'vault_member' && isVaultRole(role) ? role : null;
     const invitationSystemRole = type === 'platform_account' && isSystemRole(systemRole) ? systemRole : null;
-    const invitation = await authorizationServices.createEmailInvitation({
-      type,
-      email,
-      invitedBy,
-      vaultId,
-      vaultRole,
-      systemRole: invitationSystemRole,
-      expiresAt,
-      payload: type === 'platform_account' ? { systemCapabilities } : {},
+    const token = type === 'platform_account' ? createEmailInvitationToken() : null;
+
+    try {
+      const invitation = await authorizationServices.createEmailInvitation({
+        type,
+        email,
+        invitedBy,
+        vaultId,
+        vaultRole,
+        systemRole: invitationSystemRole,
+        expiresAt,
+        payload: type === 'platform_account' ? { systemCapabilities } : {},
+        tokenHash: token === null ? null : hashEmailInvitationToken(token),
+      });
+
+      if (type === 'platform_account' && token !== null) {
+        await sendPlatformInvitationEmail({
+          config,
+          email: invitation.email,
+          inviteUrl: buildInvitationUrl({ config, token }),
+          expiresAt: invitation.expiresAt,
+          systemRole: invitation.systemRole,
+        });
+
+        await auditServices?.emitAuditEvent({
+          eventType: AUDIT_EVENT_TYPES.authPlatformInvitationSent,
+          eventCategory: 'auth',
+          severity: 'notice',
+          outcome: 'success',
+          actor: getAuditActorFromContext(context),
+          target: {
+            type: 'email_invitation',
+            id: invitation.id,
+            displayName: invitation.email,
+          },
+          source: 'web',
+          requestContext: getAuditRequestContext(context),
+          metadata: {
+            invitation_type: invitation.type,
+            system_role: invitation.systemRole,
+            expires_at: invitation.expiresAt?.toISOString() ?? null,
+          },
+        });
+      }
+
+      return context.json({ invitation: serializeEmailInvitation(invitation) }, 201);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'authorization.invitation_user_exists') {
+        return context.json(
+          { error: { code: 'authorization.invitation_user_exists', message: 'A user already exists for this email address.' } },
+          409,
+        );
+      }
+
+      if (error instanceof Error && error.message === 'authorization.invitation_already_pending') {
+        return context.json(
+          { error: { code: 'authorization.invitation_already_pending', message: 'A pending invitation already exists for this email address.' } },
+          409,
+        );
+      }
+
+      throw error;
+    }
+  });
+
+  app.post('/api/admin/email-invitations/:invitationId/resend', async (context) => {
+    if (config === undefined) {
+      return context.json(
+        { error: { code: 'authorization.invitation_email_unavailable', message: 'Invitation email delivery is unavailable.' } },
+        500,
+      );
+    }
+
+    const token = createEmailInvitationToken();
+    const invitation = await authorizationServices.updateEmailInvitationToken({
+      invitationId: context.req.param('invitationId'),
+      tokenHash: hashEmailInvitationToken(token),
     });
 
-    return context.json({ invitation }, 201);
+    if (invitation === null) {
+      return context.json(
+        { error: { code: 'authorization.invitation_not_found', message: 'Pending invitation not found' } },
+        404,
+      );
+    }
+
+    await sendPlatformInvitationEmail({
+      config,
+      email: invitation.email,
+      inviteUrl: buildInvitationUrl({ config, token }),
+      expiresAt: invitation.expiresAt,
+      systemRole: invitation.systemRole,
+    });
+
+    await auditServices?.emitAuditEvent({
+      eventType: AUDIT_EVENT_TYPES.authPlatformInvitationResent,
+      eventCategory: 'auth',
+      severity: 'notice',
+      outcome: 'success',
+      actor: getAuditActorFromContext(context),
+      target: {
+        type: 'email_invitation',
+        id: invitation.id,
+        displayName: invitation.email,
+      },
+      source: 'web',
+      requestContext: getAuditRequestContext(context),
+      metadata: {
+        invitation_type: invitation.type,
+        system_role: invitation.systemRole,
+        expires_at: invitation.expiresAt?.toISOString() ?? null,
+      },
+    });
+
+    return context.json({ invitation: serializeEmailInvitation(invitation) });
+  });
+
+  app.delete('/api/admin/email-invitations/:invitationId', async (context) => {
+    const invitation = await authorizationServices.revokeEmailInvitation({
+      invitationId: context.req.param('invitationId'),
+    });
+
+    if (invitation === null) {
+      return context.json(
+        { error: { code: 'authorization.invitation_not_found', message: 'Pending invitation not found' } },
+        404,
+      );
+    }
+
+    await auditServices?.emitAuditEvent({
+      eventType: AUDIT_EVENT_TYPES.authPlatformInvitationRevoked,
+      eventCategory: 'auth',
+      severity: 'notice',
+      outcome: 'success',
+      actor: getAuditActorFromContext(context),
+      target: {
+        type: 'email_invitation',
+        id: invitation.id,
+        displayName: invitation.email,
+      },
+      source: 'web',
+      requestContext: getAuditRequestContext(context),
+      metadata: {
+        invitation_type: invitation.type,
+        system_role: invitation.systemRole,
+      },
+    });
+
+    return context.json({ invitation: serializeEmailInvitation(invitation) });
   });
 }

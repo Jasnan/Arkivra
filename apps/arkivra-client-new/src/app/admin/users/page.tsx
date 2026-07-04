@@ -14,9 +14,12 @@ import {
   grantAdmin,
   grantSystemCapability,
   listAdminUsers,
+  listPlatformAccountInvitations,
   listPermissionRequests,
   rejectPermissionRequest,
+  resendPlatformAccountInvitation,
   revokeAdmin,
+  revokePlatformAccountInvitation,
   revokeSystemCapability,
   updateAdminUser,
   type AdminUser,
@@ -26,6 +29,7 @@ import {
 } from './admin-users.api';
 import { ApprovalRequestsTable } from './components/approval-requests-table';
 import { DataTable } from './components/data-table';
+import { InvitationsTable } from './components/invitations-table';
 import { StatCards } from './components/stat-cards';
 
 interface AsyncState<T> {
@@ -52,6 +56,12 @@ const emptyPermissionRequestsState: AsyncState<{ requests: PermissionRequest[] }
   error: null,
 };
 
+const emptyInvitationsState: AsyncState<{ invitations: EmailInvitation[] }> = {
+  data: null,
+  isLoading: true,
+  error: null,
+};
+
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
@@ -66,10 +76,17 @@ export default function UsersPage() {
   const [permissionRequestsState, setPermissionRequestsState] = useState<
     AsyncState<{ requests: PermissionRequest[] }>
   >(emptyPermissionRequestsState);
+  const [invitationsState, setInvitationsState] = useState<
+    AsyncState<{ invitations: EmailInvitation[] }>
+  >(emptyInvitationsState);
   const [mutationPending, setMutationPending] = useState(false);
   const [approvalMutationPending, setApprovalMutationPending] = useState(false);
 
   const users = useMemo(() => usersState.data?.users ?? [], [usersState.data?.users]);
+  const invitations = useMemo(
+    () => invitationsState.data?.invitations ?? [],
+    [invitationsState.data?.invitations],
+  );
   const permissionRequests = useMemo(
     () => permissionRequestsState.data?.requests ?? [],
     [permissionRequestsState.data?.requests],
@@ -129,6 +146,25 @@ export default function UsersPage() {
     }
   }, []);
 
+  const loadInvitations = useCallback(async () => {
+    setInvitationsState((current) => ({
+      data: current.data,
+      isLoading: true,
+      error: null,
+    }));
+
+    try {
+      const result = await listPlatformAccountInvitations();
+      setInvitationsState({ data: result, isLoading: false, error: null });
+    } catch (error) {
+      setInvitationsState({
+        data: null,
+        isLoading: false,
+        error: error instanceof Error ? error : new Error('Unable to load invitations.'),
+      });
+    }
+  }, []);
+
   useEffect(() => {
     void loadMe();
   }, [loadMe]);
@@ -136,9 +172,10 @@ export default function UsersPage() {
   useEffect(() => {
     if (isAdmin) {
       void loadUsers();
+      void loadInvitations();
       void loadPermissionRequests();
     }
-  }, [isAdmin, loadPermissionRequests, loadUsers]);
+  }, [isAdmin, loadInvitations, loadPermissionRequests, loadUsers]);
 
   const updateUserInState = useCallback((user: AdminUser) => {
     setUsersState((current) => ({
@@ -201,11 +238,40 @@ export default function UsersPage() {
           ...(input.canCreateVaults ? ['system.create_vaults' as const] : []),
         ],
       });
-      toast.success(`Invitation created for ${result.invitation.email}.`);
+      await loadInvitations();
+      toast.success(`Invitation sent to ${result.invitation.email}.`);
       return result.invitation;
     } catch (error) {
       toast.error(getErrorMessage(error, 'Could not create invitation.'));
       throw error;
+    } finally {
+      setMutationPending(false);
+    }
+  }
+
+  async function handleResendInvitation(invitation: EmailInvitation) {
+    setMutationPending(true);
+
+    try {
+      await resendPlatformAccountInvitation({ invitationId: invitation.id });
+      await loadInvitations();
+      toast.success(`Invitation resent to ${invitation.email}.`);
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Could not resend invitation.'));
+    } finally {
+      setMutationPending(false);
+    }
+  }
+
+  async function handleRevokeInvitation(invitation: EmailInvitation) {
+    setMutationPending(true);
+
+    try {
+      await revokePlatformAccountInvitation({ invitationId: invitation.id });
+      await loadInvitations();
+      toast.success(`Invitation revoked for ${invitation.email}.`);
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Could not revoke invitation.'));
     } finally {
       setMutationPending(false);
     }
@@ -274,6 +340,15 @@ export default function UsersPage() {
                 <TabsList>
                   <TabsTrigger value="users" className="cursor-pointer">
                     Users
+                  </TabsTrigger>
+                  <TabsTrigger value="invitations" className="cursor-pointer">
+                    Invitations
+                    <Badge
+                      variant="secondary"
+                      className="ml-1 h-5 min-w-5 rounded-full px-1 text-xs"
+                    >
+                      {invitations.filter((invitation) => invitation.status === 'pending').length}
+                    </Badge>
                   </TabsTrigger>
                   <TabsTrigger value="approval-requests" className="cursor-pointer">
                     Approval requests
@@ -362,6 +437,18 @@ export default function UsersPage() {
                         'Could not revoke Use AI privilege.',
                       )
                     }
+                  />
+                </TabsContent>
+
+                <TabsContent value="invitations">
+                  <InvitationsTable
+                    invitations={invitations}
+                    isLoading={invitationsState.isLoading}
+                    error={invitationsState.error}
+                    mutationPending={mutationPending}
+                    onRetry={loadInvitations}
+                    onResend={handleResendInvitation}
+                    onRevoke={handleRevokeInvitation}
                   />
                 </TabsContent>
 

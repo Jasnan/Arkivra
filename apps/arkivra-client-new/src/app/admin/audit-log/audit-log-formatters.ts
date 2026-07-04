@@ -55,6 +55,10 @@ const TECHNICAL_EVENT_LABELS: Record<string, string> = {
   "auth.password_set": "Password set",
   "auth.email_change_requested": "Email change requested",
   "auth.email_changed": "Email changed",
+  "auth.platform_invitation_sent": "Platform invitation sent",
+  "auth.platform_invitation_resent": "Platform invitation resent",
+  "auth.platform_invitation_revoked": "Platform invitation revoked",
+  "auth.platform_invitation_accepted": "Platform invitation accepted",
   "auth.oauth_link_requested": "Sign-in provider linking requested",
   "auth.oauth_linked": "Sign-in provider connected",
   "auth.oauth_unlinked": "Sign-in provider disconnected",
@@ -315,6 +319,14 @@ function getActionText(event: AuditLogItem) {
       return "requested an email change"
     case "auth.email_changed":
       return "changed their email"
+    case "auth.platform_invitation_sent":
+      return "sent a platform invitation"
+    case "auth.platform_invitation_resent":
+      return "resent a platform invitation"
+    case "auth.platform_invitation_revoked":
+      return "revoked a platform invitation"
+    case "auth.platform_invitation_accepted":
+      return "accepted a platform invitation"
     case "auth.oauth_link_requested":
       return "requested sign-in provider linking"
     case "auth.oauth_linked":

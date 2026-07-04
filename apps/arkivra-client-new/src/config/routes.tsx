@@ -20,6 +20,7 @@ const AdminOfficeConverter = lazy(() => import('@/app/admin/office-converter/pag
 // Auth pages
 const SignIn = lazy(() => import('@/app/auth/sign-in/page'));
 const SignUp = lazy(() => import('@/app/auth/sign-up/page'));
+const AcceptInvite = lazy(() => import('@/app/auth/accept-invite/page'));
 const EmailVerification = lazy(() => import('@/app/auth/verify-email/page'));
 const RequestPasswordReset = lazy(() => import('@/app/auth/request-password-reset/page'));
 
@@ -59,6 +60,12 @@ export const routes: RouteConfig[] = [
     path: '/register',
     element: <SignUp />,
     public: true,
+  },
+  {
+    path: '/accept-invite',
+    element: <AcceptInvite />,
+    public: true,
+    allowAuthenticated: true,
   },
   {
     path: '/verify-email',

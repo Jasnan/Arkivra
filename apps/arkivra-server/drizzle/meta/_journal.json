@@ -57,6 +57,13 @@
       "when": 1783125506369,
       "tag": "0007_young_dormammu",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1783186801180,
+      "tag": "0008_furry_cobalt_man",
+      "breakpoints": true
     }
   ]
 }

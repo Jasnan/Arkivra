@@ -59,6 +59,7 @@ export const emailInvitationsTable = pgTable(
       .notNull()
       .default('pending'),
     email: text('email').notNull(),
+    tokenHash: text('token_hash'),
     invitedBy: text('invited_by').references(() => usersTable.id, { onDelete: 'set null' }),
     acceptedBy: text('accepted_by').references(() => usersTable.id, { onDelete: 'set null' }),
     acceptedAt: timestamp('accepted_at', { mode: 'date', withTimezone: true }),
@@ -71,6 +72,7 @@ export const emailInvitationsTable = pgTable(
   },
   (table) => [
     index('email_invitations_email_status_idx').on(table.email, table.status),
+    index('email_invitations_token_hash_idx').on(table.tokenHash),
     index('email_invitations_vault_idx').on(table.vaultId),
     index('email_invitations_invited_by_idx').on(table.invitedBy),
   ],

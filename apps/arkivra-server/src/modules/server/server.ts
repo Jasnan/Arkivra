@@ -383,6 +383,8 @@ export function createServer({
   registerBackupRoutes({ app, db, config, backupQueue, backupServices });
   registerAuthorizationRoutes({
     app,
+    auth,
+    config,
     authorizationServices: authzServices,
     activityServices,
     auditServices,

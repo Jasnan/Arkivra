@@ -146,6 +146,10 @@ const auditEventFilterGroups: Array<{ label: string; values: AuditEventFilterOpt
       { value: 'auth.password_set', label: 'Password set' },
       { value: 'auth.email_change_requested', label: 'Email change requested' },
       { value: 'auth.email_changed', label: 'Email changed' },
+      { value: 'auth.platform_invitation_sent', label: 'Platform invitation sent' },
+      { value: 'auth.platform_invitation_resent', label: 'Platform invitation resent' },
+      { value: 'auth.platform_invitation_revoked', label: 'Platform invitation revoked' },
+      { value: 'auth.platform_invitation_accepted', label: 'Platform invitation accepted' },
       { value: 'auth.oauth_linked', label: 'Sign-in provider connected' },
       { value: 'auth.oauth_unlinked', label: 'Sign-in provider disconnected' },
     ],
@@ -303,6 +307,10 @@ function getEventIcon(event: AuditLogItem, category: AuditActivityCategory) {
       return UserCog;
     case 'auth.email_change_requested':
     case 'auth.email_changed':
+    case 'auth.platform_invitation_sent':
+    case 'auth.platform_invitation_resent':
+    case 'auth.platform_invitation_revoked':
+    case 'auth.platform_invitation_accepted':
       return Mail;
     case 'ai.chat_model_changed':
       return MessageSquare;

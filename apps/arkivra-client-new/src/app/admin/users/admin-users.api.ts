@@ -56,6 +56,28 @@ export interface EmailInvitation {
   updatedAt: string
 }
 
+export interface AcceptInvitationDetails {
+  email: string
+  systemRole: "admin" | "member" | null
+  expiresAt: string | null
+}
+
+export interface AcceptPlatformInvitationInput {
+  token: string
+  name: string
+  password: string
+}
+
+export interface AcceptedPlatformInvitationUser {
+  id: string
+  email: string
+  name: string | null
+  emailVerified: boolean
+  systemRole: "admin" | "member"
+  createdAt: string
+  updatedAt: string
+}
+
 export interface PermissionRequest {
   id: string
   type: PermissionRequestType
@@ -146,6 +168,36 @@ export async function createPlatformAccountInvitation({
       systemCapabilities,
       expiresAt: expiresAt ?? null,
     }),
+  })
+}
+
+export async function listPlatformAccountInvitations() {
+  return fetchJson<{ invitations: EmailInvitation[] }>("/api/admin/email-invitations")
+}
+
+export async function resendPlatformAccountInvitation({ invitationId }: { invitationId: string }) {
+  return fetchJson<{ invitation: EmailInvitation }>(`/api/admin/email-invitations/${invitationId}/resend`, {
+    method: "POST",
+  })
+}
+
+export async function revokePlatformAccountInvitation({ invitationId }: { invitationId: string }) {
+  return fetchJson<{ invitation: EmailInvitation }>(`/api/admin/email-invitations/${invitationId}`, {
+    method: "DELETE",
+  })
+}
+
+export async function getPlatformAccountInvitationDetails({ token }: { token: string }) {
+  return fetchJson<{ invitation: AcceptInvitationDetails }>(
+    `/api/email-invitations/accept-account?token=${encodeURIComponent(token)}`
+  )
+}
+
+export async function acceptPlatformAccountInvitation(input: AcceptPlatformInvitationInput) {
+  return fetchJson<{ invitation: EmailInvitation; user: AcceptedPlatformInvitationUser }>("/api/email-invitations/accept-account", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
   })
 }
 

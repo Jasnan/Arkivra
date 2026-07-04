@@ -106,10 +106,10 @@ export function UserFormDialog({ disabled = false, onInviteUser }: UserFormDialo
       </DialogTrigger>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{createdInvitation ? "Invitation created" : "Invite platform user"}</DialogTitle>
+          <DialogTitle>{createdInvitation ? "Invitation sent" : "Invite platform user"}</DialogTitle>
           <DialogDescription>
             {createdInvitation
-              ? "The invitation is ready for the user to accept."
+              ? "The invitation email has been sent."
               : "Send a platform account invitation with the right role and privileges."}
           </DialogDescription>
         </DialogHeader>

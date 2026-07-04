@@ -6,9 +6,8 @@ import {
   CheckCircle2,
   Clock,
   FileText,
-  Globe2,
-  Info,
   Loader2,
+  Plug,
   RefreshCw,
   Search,
   Shield,
@@ -18,7 +17,7 @@ import { toast } from "sonner"
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -105,41 +104,6 @@ function getOfficeConverterHealth(status: AdminOfficeConverterStatus) {
   }
 }
 
-function getOfficeConverterRuntimeDescription(status: AdminOfficeConverterStatus) {
-  switch (status.effectiveState) {
-    case "not_configured":
-      return "Set the converter environment variables, then restart the service."
-    case "active":
-      return "New supported uploads receive PDF previews."
-    case "paused":
-      return "New supported uploads skip PDF preview generation until conversion is enabled."
-    case "unavailable":
-      return "New supported uploads skip preview generation until the service is reachable."
-  }
-}
-
-function StatusMetric({
-  icon,
-  label,
-  value,
-}: {
-  icon: ReactNode
-  label: string
-  value: ReactNode
-}) {
-  return (
-    <div className="flex min-w-0 items-center gap-3 rounded-lg border bg-muted/20 p-3">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground">
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <div className="text-xs text-muted-foreground">{label}</div>
-        <div className="break-words text-sm font-medium">{value}</div>
-      </div>
-    </div>
-  )
-}
-
 function DetailRow({ icon, title, description }: { icon: ReactNode; title: string; description: string }) {
   return (
     <div className="flex items-start gap-3 py-3">
@@ -206,77 +170,88 @@ function UnsupportedConverterCard() {
   )
 }
 
-function OfficeConverterSection({
+function OfficeConverterToggle({
   isSaving,
-  isScheduling,
   status,
-  onGenerateMissingPreviews,
   onToggleEnabled,
 }: {
   status: AdminOfficeConverterStatus
   isSaving: boolean
-  isScheduling: boolean
   onToggleEnabled: (enabled: boolean) => void
+}) {
+  const canEditPreference = status.effectiveState === "active" || status.effectiveState === "paused"
+
+  return (
+    <div className="flex shrink-0 items-center gap-3">
+      <Switch
+        id="office-converter-enabled"
+        checked={status.enabled}
+        disabled={isSaving || !canEditPreference}
+        aria-label="Enable Office document conversion"
+        className="h-6 w-11 [&_[data-slot=switch-thumb]]:size-5"
+        onCheckedChange={onToggleEnabled}
+      />
+      <label
+        htmlFor="office-converter-enabled"
+        className={status.enabled ? "text-sm font-medium text-primary" : "text-sm font-medium text-muted-foreground"}
+      >
+        {status.enabled ? "Enabled" : "Disabled"}
+      </label>
+    </div>
+  )
+}
+
+function OfficeConverterSection({
+  isScheduling,
+  status,
+  onGenerateMissingPreviews,
+}: {
+  status: AdminOfficeConverterStatus
+  isScheduling: boolean
   onGenerateMissingPreviews: () => void
 }) {
   const health = getOfficeConverterHealth(status)
   const providerLabel = formatConverterProvider(status.provider)
-  const canEditPreference = status.effectiveState === "active" || status.effectiveState === "paused"
   const supportedFormats = status.supportedFormats.length > 0 ? status.supportedFormats : []
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-end">
-          <div className="flex shrink-0 items-center gap-3">
-            <Switch
-              id="office-converter-enabled"
-              checked={status.enabled}
-              disabled={isSaving || !canEditPreference}
-              aria-label="Enable Office document conversion"
-              onCheckedChange={onToggleEnabled}
-            />
-            <label
-              htmlFor="office-converter-enabled"
-              className={status.enabled ? "text-sm font-medium text-emerald-700 dark:text-emerald-300" : "text-sm font-medium text-muted-foreground"}
-            >
-              {status.enabled ? "Enabled" : "Disabled"}
-            </label>
+    <div className="rounded-xl border bg-card p-6 shadow-sm">
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+          <div className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+            <Plug className="size-6" />
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(20rem,0.9fr)]">
-            <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-base font-semibold">Connection</h2>
-                <Badge variant="outline" className={health.badgeClassName}>
-                  {health.label === "Active" ? <CheckCircle2 className="size-3" /> : null}
-                  {health.label}
-                </Badge>
-              </div>
-              <div className="space-y-1 text-sm text-muted-foreground">
-                <p>{health.description}</p>
-                <p>{getOfficeConverterRuntimeDescription(status)}</p>
-              </div>
+          <div className="min-w-0 flex-1 space-y-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-base font-semibold">Connection</h2>
+              <Badge variant="outline" className={health.badgeClassName}>
+                {health.label === "Active" ? <CheckCircle2 className="size-3.5" /> : null}
+                {health.label}
+              </Badge>
+            </div>
 
-              {status.error ? (
-                <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
-                  <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                  <div>{status.error}</div>
+            {status.error ? (
+              <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <div>{status.error}</div>
+              </div>
+            ) : null}
+
+            <div className="grid gap-6 md:grid-cols-[minmax(10rem,0.7fr)_minmax(13rem,0.8fr)_minmax(0,1.5fr)] md:divide-x">
+              <div className="space-y-1 md:pr-6">
+                <div className="text-sm font-medium text-muted-foreground">Service</div>
+                <div className="text-base font-medium">{providerLabel}</div>
+                <div className="text-sm text-muted-foreground">Converter service</div>
+              </div>
+              <div className="space-y-2 md:px-6">
+                <div className="flex items-center gap-3 text-sm font-medium text-muted-foreground">
+                  <Clock className="size-5" />
+                  Last checked
                 </div>
-              ) : null}
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <StatusMetric icon={<Globe2 className="size-4" />} label="Service" value={providerLabel} />
-                <StatusMetric
-                  icon={<Clock className="size-4" />}
-                  label="Last checked"
-                  value={formatOfficeConverterDate(status.lastHealthCheck)}
-                />
+                <div className="text-base font-medium">{formatOfficeConverterDate(status.lastHealthCheck)}</div>
               </div>
-
-              <div className="space-y-2 border-t pt-4">
-                <div className="text-sm font-medium">Supported formats</div>
+              <div className="space-y-3 md:pl-6">
+                <div className="text-sm font-medium text-muted-foreground">Supports</div>
                 {supportedFormats.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {supportedFormats.map((format) => (
@@ -290,37 +265,34 @@ function OfficeConverterSection({
                 )}
               </div>
             </div>
+          </div>
+        </div>
 
-            <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-background text-primary">
-                  <RefreshCw className="size-4" />
-                </div>
-                <div>
-                  <h2 className="text-base font-semibold">Existing documents</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Queue PDF previews for eligible files uploaded before conversion was available.
-                  </p>
-                </div>
-              </div>
+        <div className="border-t" />
 
-              <Button
-                type="button"
-                disabled={!status.canScheduleConversion || isScheduling}
-                onClick={onGenerateMissingPreviews}
-              >
-                {isScheduling ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
-                {isScheduling ? "Scheduling..." : "Generate missing previews"}
-              </Button>
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+          <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <RefreshCw className="size-6" />
+          </div>
+          <div className="min-w-0 space-y-5">
+            <div className="space-y-2">
+              <h2 className="text-base font-semibold">Older files</h2>
+              <p className="max-w-md text-sm text-muted-foreground">
+                Generate previews for supported files uploaded before the converter was enabled.
+              </p>
             </div>
-          </div>
 
-          <div className="flex items-start gap-3 rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
-            <Info className="mt-0.5 size-4 shrink-0 text-primary" />
-            <p>Turning conversion off stops new preview generation. Existing previews remain available.</p>
+            <Button
+              type="button"
+              disabled={!status.canScheduleConversion || isScheduling}
+              onClick={onGenerateMissingPreviews}
+            >
+              {isScheduling ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+              {isScheduling ? "Scheduling..." : "Generate previews"}
+            </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }
@@ -466,7 +438,7 @@ export default function AdminOfficeConverterPage() {
     return (
       <BaseLayout
         title="Office Converter"
-        description="Convert Office and OpenDocument uploads into PDFs for previews and citations."
+        description="Automatically generate PDF previews for supported Office documents. Existing previews remain available if you disable the converter."
       >
         <div className="px-4 lg:px-6">
           <LoadingCard title="Checking access" description="Loading your administrator permissions." />
@@ -479,7 +451,7 @@ export default function AdminOfficeConverterPage() {
     return (
       <BaseLayout
         title="Office Converter"
-        description="Convert Office and OpenDocument uploads into PDFs for previews and citations."
+        description="Automatically generate PDF previews for supported Office documents. Existing previews remain available if you disable the converter."
       >
         <div className="px-4 lg:px-6">
           <ErrorBanner>{meState.error.message}</ErrorBanner>
@@ -492,7 +464,7 @@ export default function AdminOfficeConverterPage() {
     return (
       <BaseLayout
         title="Office Converter"
-        description="Convert Office and OpenDocument uploads into PDFs for previews and citations."
+        description="Automatically generate PDF previews for supported Office documents. Existing previews remain available if you disable the converter."
       >
         <div className="px-4 lg:px-6">
           <AdminNoticeCard
@@ -505,8 +477,26 @@ export default function AdminOfficeConverterPage() {
   }
 
   return (
-    <BaseLayout title="Office Converter" description="Convert Office and OpenDocument uploads into PDFs for previews and citations.">
+    <BaseLayout>
       <div className="space-y-6 px-4 lg:px-6">
+        <header className="border-b pb-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-1.5">
+              <h1 className="text-3xl font-bold tracking-tight">Office Converter</h1>
+              <p className="max-w-2xl text-sm text-muted-foreground">
+                Automatically generate PDF previews for supported Office documents. Existing previews remain available if you disable the converter.
+              </p>
+            </div>
+            {officeConverter?.supported ? (
+              <OfficeConverterToggle
+                status={officeConverter}
+                isSaving={savePending}
+                onToggleEnabled={(enabled) => void handleToggleEnabled(enabled)}
+              />
+            ) : null}
+          </div>
+        </header>
+
         {statusState.error && officeConverter ? (
           <ErrorBanner>Could not refresh converter status: {statusState.error.message}</ErrorBanner>
         ) : null}
@@ -518,9 +508,7 @@ export default function AdminOfficeConverterPage() {
         ) : officeConverter?.supported ? (
           <OfficeConverterSection
             status={officeConverter}
-            isSaving={savePending}
             isScheduling={schedulePending}
-            onToggleEnabled={(enabled) => void handleToggleEnabled(enabled)}
             onGenerateMissingPreviews={() => setGenerateDialogOpen(true)}
           />
         ) : officeConverter ? (

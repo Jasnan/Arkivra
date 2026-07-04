@@ -1,6 +1,5 @@
 import type { ChatContextAvailability } from './chat.types.js';
 
-export const DEFAULT_CHAT_TITLE = 'New chat';
 export const AVAILABLE_CHAT_CONTEXT: ChatContextAvailability = { status: 'available', readOnly: false };
 export const MAX_CONTEXT_CITATIONS = 8;
 export const TEXT_ONLY_CONTEXT_CITATIONS = 8;

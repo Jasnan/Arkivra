@@ -28,7 +28,6 @@ import { buildChatGenerationMetrics, createChatModel } from './chat-ai-sdk.js';
 import {
   CHAT_RETRIEVAL_CANDIDATE_POOL_LIMIT,
   CHAT_RETRIEVAL_LIMIT,
-  DEFAULT_CHAT_TITLE,
   MAX_CONTEXT_CITATIONS,
   MAX_RECENT_MESSAGES,
   TEXT_ONLY_CONTEXT_CITATIONS,
@@ -281,7 +280,7 @@ export function createChatServices({
             contextSnapshot: scope,
             contextFrozenAt: null,
             userId,
-            title: truncate(content, 96) || DEFAULT_CHAT_TITLE,
+            title: truncate(content, 96),
             createdAt: now,
             updatedAt: now,
           })
@@ -391,18 +390,6 @@ export function createChatServices({
 
       if (assistantMessageRow === undefined) {
         throw new Error('Failed to persist assistant message');
-      }
-
-      if (conversationRow.title === DEFAULT_CHAT_TITLE) {
-        const [titledConversation] = await tx
-          .update(chatConversationsTable)
-          .set({ title: truncate(content, 96), updatedAt: now })
-          .where(eq(chatConversationsTable.id, conversationId))
-          .returning();
-
-        if (titledConversation !== undefined) {
-          conversationRow = titledConversation;
-        }
       }
 
       return {

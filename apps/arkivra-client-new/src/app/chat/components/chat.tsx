@@ -101,7 +101,6 @@ export function Chat({
   const [isDocumentDialogOpen, setIsDocumentDialogOpen] = useState(false)
   const [pendingForkContext, setPendingForkContext] = useState<DraftChatContext | null>(null)
   const [isForkDialogOpen, setIsForkDialogOpen] = useState(false)
-  const [isForkingContext, setIsForkingContext] = useState(false)
   const [composerValue, setComposerValue] = useState("")
   const [responseMode, setResponseMode] = useState<ChatResponseMode>(() =>
     getCachedDefaultChatResponseMode()
@@ -122,7 +121,7 @@ export function Chat({
   const previousSelectedConversationIdRef = useRef(selectedConversationId)
   const previousInitialContextSignatureRef = useRef(initialContextSignature)
   const activeRuntimeChatIdRef = useRef("")
-  const appliedStreamMetadataIdsRef = useRef(new Set<string>())
+  const appliedStreamAssistantMessageIdRef = useRef<string | null>(null)
   const hasManualResponseModeRef = useRef(false)
   const vaultsQuery = useChatContextVaults()
 
@@ -162,17 +161,14 @@ export function Chat({
   const hasRuntimeMessagesForSelectedConversation =
     runtimeMatchesSelectedConversation && runtimeState.messageCount > 0
   const isSavedConversationSelected = Boolean(selectedConversation) && !isDraftConversation
-  const selectedConversationMessageCount = selectedConversationMessages?.length
-  const isPristineSavedConversation =
-    isSavedConversationSelected && selectedConversationMessageCount === 0 && !isStreaming
   const contextAvailability =
     currentConversation && currentConversation.id !== NEW_CHAT_DRAFT_ID
       ? (currentConversation as ChatConversationDetail).contextAvailability
       : undefined
   const isContextReadOnly = contextAvailability?.readOnly === true
-  const isContextLocked = isSavedConversationSelected && !isPristineSavedConversation
+  const isContextLocked = isSavedConversationSelected
   const baseDisplayedContext =
-    currentConversation && !isDraftConversation && isContextLocked
+    currentConversation && isContextLocked
       ? draftContextFromSnapshot(currentConversation.contextSnapshot)
       : draftContext
   const hydratedDraftContext = hydrateDraftContextLabels({
@@ -180,7 +176,7 @@ export function Chat({
     vaults: vaultsQuery.vaults,
   })
   const activeContextSnapshot =
-    currentConversation && !isDraftConversation && isContextLocked
+    currentConversation && isContextLocked
       ? currentConversation.contextSnapshot
       : contextSnapshotFromDraft(hydratedDraftContext)
   const readableVaultIds = useMemo(() => {
@@ -252,6 +248,7 @@ export function Chat({
     setIsSubmittingMessage(false)
     setActiveRuntimeChatId(null)
     activeRuntimeChatIdRef.current = ""
+    appliedStreamAssistantMessageIdRef.current = null
     setRuntimeState({ status: "ready", messageCount: 0 })
   }, [])
 
@@ -260,11 +257,16 @@ export function Chat({
     void Promise.all([
       refreshConversations(),
       chatIdToReload ? loadConversation(chatIdToReload, { quiet: true }) : Promise.resolve(),
-    ]).finally(() => {
+    ]).then(() => {
+      if (chatIdToReload && selectedConversation === NEW_CHAT_DRAFT_ID) {
+        setSelectedConversation(chatIdToReload)
+        onConversationCreated?.(chatIdToReload)
+      }
+    }).finally(() => {
       activeRuntimeChatIdRef.current = ""
       setActiveRuntimeChatId(null)
     })
-  }, [effectiveSelectedChatId, loadConversation, refreshConversations])
+  }, [effectiveSelectedChatId, loadConversation, onConversationCreated, refreshConversations, selectedConversation])
 
   const handleRuntimeMessagesChange = useCallback(
     (messages: ChatMessage[]) => {
@@ -272,11 +274,10 @@ export function Chat({
       if (!metadata) return
 
       const metadataKey = metadata.assistantMessage.id
-      if (appliedStreamMetadataIdsRef.current.has(metadataKey)) return
-      appliedStreamMetadataIdsRef.current.add(metadataKey)
+      if (appliedStreamAssistantMessageIdRef.current === metadataKey) return
+      appliedStreamAssistantMessageIdRef.current = metadataKey
 
       const chatId = metadata.conversation.id
-      const isNewConversation = activeRuntimeChatIdRef.current.length === 0
       activeRuntimeChatIdRef.current = chatId
       setActiveRuntimeChatId(chatId)
       setConversations((current) => upsertConversation(current, metadata.conversation))
@@ -287,13 +288,8 @@ export function Chat({
       })
       setDraftContext(draftContextFromSnapshot(metadata.conversation.contextSnapshot))
       setIsSubmittingMessage(false)
-
-      if (isNewConversation || selectedConversation === NEW_CHAT_DRAFT_ID) {
-        setSelectedConversation(chatId)
-        onConversationCreated?.(chatId)
-      }
     },
-    [onConversationCreated, selectedConversation]
+    []
   )
 
   useEffect(() => {
@@ -502,13 +498,12 @@ export function Chat({
     }
   }
 
-  async function handleConfirmFork() {
+  function handleConfirmFork() {
     if (pendingForkContext === null) {
       setIsForkDialogOpen(false)
       return
     }
 
-    setIsForkingContext(true)
     setDraftContext(pendingForkContext)
     setSelectedConversation(NEW_CHAT_DRAFT_ID)
     setIsForkDialogOpen(false)
@@ -516,14 +511,13 @@ export function Chat({
     setMessagesByConversationId((current) => {
       return { ...current, [NEW_CHAT_DRAFT_ID]: [] }
     })
-    setIsForkingContext(false)
     onConversationCleared?.()
     window.setTimeout(() => textareaRef.current?.focus(), 0)
   }
 
   async function handleSendMessage(content: string) {
     const trimmedContent = content.trim()
-    if (!trimmedContent || isStreaming || isSubmittingMessage) return
+    if (!trimmedContent || isStreaming) return
     if (!aiFeaturesEnabled) {
       toast.error("Use AI privilege is required.")
       return
@@ -767,13 +761,10 @@ export function Chat({
       />
       <ConversationForkDialog
         open={isForkDialogOpen}
-        isPending={isForkingContext}
         currentContext={hydratedDraftContext}
         nextContext={pendingForkContext ?? hydratedDraftContext}
         onOpenChange={handleForkDialogOpenChange}
-        onConfirm={() => {
-          void handleConfirmFork()
-        }}
+        onConfirm={handleConfirmFork}
       />
     </TooltipProvider>
   )

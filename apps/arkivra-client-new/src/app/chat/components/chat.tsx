@@ -612,9 +612,9 @@ export function Chat({
         <div className="flex h-full min-h-[600px] items-center justify-center rounded-lg border bg-background px-6 text-center">
           <div className="max-w-md">
             <MessageSquareOff className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-            <h2 className="mb-2 text-lg font-semibold">Use AI privilege required</h2>
+            <h2 className="mb-2 text-lg font-semibold">AI isn’t available for your account</h2>
             <p className="text-sm text-muted-foreground">
-              Ask an administrator to enable the platform Use AI privilege for your account.
+              Contact your administrator to enable the Use AI permission for your account.
             </p>
           </div>
         </div>

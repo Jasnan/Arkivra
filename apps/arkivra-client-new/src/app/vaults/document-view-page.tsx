@@ -333,7 +333,7 @@ function getProcessingMessage(document: Pick<DocumentSummary, "processingStatus"
       return "This document is queued for ingestion and will start shortly."
     case "partitioning":
     case "processing":
-      return "Arkivra is parsing the source file and extracting text, layout, tables, and images."
+      return "Arkivra is extracting the document's content so it can be searched, previewed, and used with AI."
     case "chunking":
       return "Arkivra is grouping extracted content into retrieval chunks."
     case "summarising":
@@ -812,7 +812,7 @@ function PreviewPanel({
   if (previewKind === "text") {
     return (
       <ScrollArea className="h-full min-h-0 bg-background">
-        <pre className="whitespace-pre-wrap break-words font-mono text-sm leading-6">
+        <pre className="whitespace-pre-wrap break-words p-4 font-mono text-sm leading-6 md:p-8">
           {extractedContent || "No text preview is available for this document."}
         </pre>
       </ScrollArea>

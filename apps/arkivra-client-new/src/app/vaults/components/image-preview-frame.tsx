@@ -62,7 +62,7 @@ export function ImagePreviewFrame({
               </Button>
               {toolbarActions}
             </div>
-            <div className="min-h-0 flex-1">
+            <div className="min-h-0 flex-1 p-4 md:p-8">
               <TransformComponent
                 wrapperStyle={{
                   width: "100%",

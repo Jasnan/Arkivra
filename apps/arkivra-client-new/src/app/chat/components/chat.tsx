@@ -54,10 +54,7 @@ import {
 import { getCachedDefaultChatResponseMode, isChatResponseMode } from "../chat-model-utils"
 import {
   NEW_CHAT_DRAFT_ID,
-  getRuntimeConversationId,
   hasPendingAssistantMessage,
-  messageSignature,
-  shouldUseLocalRuntimeMessages,
 } from "../chat-utils"
 
 interface ChatProps {
@@ -68,6 +65,8 @@ interface ChatProps {
   onConversationSelected?: (chatId: string) => void
   onConversationCleared?: () => void
 }
+
+const EMPTY_CHAT_MESSAGES: ChatMessage[] = []
 
 export function Chat({
   selectedConversationId,
@@ -113,11 +112,10 @@ export function Chat({
   const [isLoadingModels, setIsLoadingModels] = useState(true)
   const [modelOptionsError, setModelOptionsError] = useState<string | null>(null)
   const [runtimeState, setRuntimeState] = useState<AssistantChatRuntimeState>({
-    messages: [],
     status: "ready",
+    messageCount: 0,
   })
   const [runtimeHandle, setRuntimeHandle] = useState<AssistantChatRuntimeHandle | null>(null)
-  const [localRuntimeMessagesByChatId, setLocalRuntimeMessagesByChatId] = useState<Record<string, ChatMessage[]>>({})
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const previousSelectedConversationIdRef = useRef(selectedConversationId)
   const previousInitialContextSignatureRef = useRef(initialContextSignature)
@@ -151,32 +149,11 @@ export function Chat({
   const isDraftConversation = selectedConversation === NEW_CHAT_DRAFT_ID
   const effectiveSelectedChatId =
     selectedConversation && !isDraftConversation ? selectedConversation : ""
-  const selectedLocalRuntimeMessages = effectiveSelectedChatId
-    ? localRuntimeMessagesByChatId[effectiveSelectedChatId]
-    : undefined
-  const persistedMessages = useMemo(
-    () => selectedConversationMessages ?? [],
-    [selectedConversationMessages]
-  )
-  const currentMessages = useMemo(
-    () =>
-      shouldUseLocalRuntimeMessages({
-        localMessages: selectedLocalRuntimeMessages,
-        persistedMessages,
-      })
-        ? (selectedLocalRuntimeMessages ?? [])
-        : persistedMessages,
-    [persistedMessages, selectedLocalRuntimeMessages]
-  )
-  const hasRuntimeMessagesForSelectedConversation =
-    runtimeState.messages.length > 0 &&
-    (effectiveSelectedChatId.length === 0 ||
-      getRuntimeConversationId(runtimeState.messages) === effectiveSelectedChatId ||
-      activeRuntimeChatIdRef.current === effectiveSelectedChatId)
+  const currentMessages = selectedConversationMessages ?? EMPTY_CHAT_MESSAGES
+  const hasRuntimeMessagesForSelectedConversation = runtimeState.messageCount > 0
   const isStreaming =
     runtimeState.status === "submitted" ||
-    runtimeState.status === "streaming" ||
-    hasPendingAssistantMessage(runtimeState.messages)
+    runtimeState.status === "streaming"
   const isSavedConversationSelected = Boolean(selectedConversation) && !isDraftConversation
   const selectedConversationMessageCount = selectedConversationMessages?.length
   const isPristineSavedConversation =
@@ -259,49 +236,14 @@ export function Chat({
 
   const resetComposerState = useCallback(() => {
     setComposerValue("")
-    setRuntimeState({ messages: [], status: "ready" })
+    setRuntimeState({ status: "ready", messageCount: 0 })
   }, [])
-
-  const setLocalRuntimeMessages = useCallback((chatId: string, messages: ChatMessage[]) => {
-    if (chatId.length === 0 || messages.length === 0) return
-
-    setLocalRuntimeMessagesByChatId((current) => {
-      const existing = current[chatId]
-      if (existing && messageSignature(existing) === messageSignature(messages)) return current
-      return { ...current, [chatId]: messages }
-    })
-
-    setMessagesByConversationId((current) => {
-      const existing = current[chatId]
-      if (!existing || messageSignature(existing) === messageSignature(messages)) return current
-      return { ...current, [chatId]: messages }
-    })
-  }, [])
-
-  const handleRuntimeStateChange = useCallback(
-    (state: AssistantChatRuntimeState) => {
-      const runtimeConversationId = getRuntimeConversationId(state.messages)
-      const targetChatId =
-        runtimeConversationId ??
-        (state.status === "submitted" || state.status === "streaming"
-          ? activeRuntimeChatIdRef.current
-          : effectiveSelectedChatId)
-
-      if (targetChatId && state.messages.length > 0) {
-        setLocalRuntimeMessages(targetChatId, state.messages)
-      }
-
-      if (!targetChatId || targetChatId === effectiveSelectedChatId) {
-        setRuntimeState(state)
-      }
-    },
-    [effectiveSelectedChatId, setLocalRuntimeMessages]
-  )
 
   const handleRuntimeFinish = useCallback(() => {
+    const chatIdToReload = effectiveSelectedChatId || activeRuntimeChatIdRef.current
     void Promise.all([
       refreshConversations(),
-      effectiveSelectedChatId ? loadConversation(effectiveSelectedChatId, { quiet: true }) : Promise.resolve(),
+      chatIdToReload ? loadConversation(chatIdToReload, { quiet: true }) : Promise.resolve(),
     ])
   }, [effectiveSelectedChatId, loadConversation, refreshConversations])
 
@@ -417,19 +359,6 @@ export function Chat({
     runtimeHandle,
     selectedConversationId,
   ])
-
-  useEffect(() => {
-    if (!effectiveSelectedChatId || selectedLocalRuntimeMessages === undefined) return
-    if (hasPendingAssistantMessage(persistedMessages)) return
-    if (persistedMessages.length < selectedLocalRuntimeMessages.length) return
-
-    setLocalRuntimeMessagesByChatId((current) => {
-      if (!(effectiveSelectedChatId in current)) return current
-      const next = { ...current }
-      delete next[effectiveSelectedChatId]
-      return next
-    })
-  }, [effectiveSelectedChatId, persistedMessages, selectedLocalRuntimeMessages])
 
   function handleCreateConversation() {
     void runtimeHandle?.stop().catch(() => undefined)
@@ -723,7 +652,7 @@ export function Chat({
                 model={resolvedSelectedModel || undefined}
                 resolveChatId={resolveRuntimeChatId}
                 onReady={setRuntimeHandle}
-                onStateChange={handleRuntimeStateChange}
+                onStateChange={setRuntimeState}
                 onFinish={handleRuntimeFinish}
               >
                 {!canUseSelectedContext || isContextReadOnly || (!hasUsableChatModels && hasLoadedChatModels) ? (

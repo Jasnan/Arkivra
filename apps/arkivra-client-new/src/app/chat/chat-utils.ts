@@ -82,24 +82,6 @@ export function hasPendingAssistantMessage(messages: ChatMessage[]) {
   return messages.some(isPendingAssistantMessage)
 }
 
-function getMessageConversationId(message: ChatMessage) {
-  const conversationId = message.metadata?.conversationId
-  return typeof conversationId === "string" && conversationId.length > 0 ? conversationId : null
-}
-
-export function getRuntimeConversationId(messages: ChatMessage[]) {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const conversationId = getMessageConversationId(messages[index])
-    if (conversationId !== null) return conversationId
-  }
-
-  return null
-}
-
-function localPendingAssistantMessages(messages: ChatMessage[]) {
-  return messages.filter(isPendingAssistantMessage)
-}
-
 function hasTextContent(message: ChatMessage) {
   return message.parts.some((part) => part.type === "text" && part.text.trim().length > 0)
 }
@@ -116,63 +98,6 @@ function isPendingAssistantMessage(message: ChatMessage) {
   if (generationStatus === "pending") return true
 
   return hasStatusPart(message) && !hasTextContent(message)
-}
-
-function hasTerminalPersistedMessageForLocalPending({
-  localMessages,
-  persistedMessages,
-}: {
-  localMessages: ChatMessage[]
-  persistedMessages: ChatMessage[]
-}) {
-  const terminalPersistedIds = new Set(
-    persistedMessages
-      .filter((message) => message.role === "assistant" && !isPendingAssistantMessage(message))
-      .map((message) => message.id)
-  )
-
-  const pendingLocalMessages = localPendingAssistantMessages(localMessages)
-  return (
-    pendingLocalMessages.length > 0 &&
-    pendingLocalMessages.every((message) => terminalPersistedIds.has(message.id))
-  )
-}
-
-export function shouldUseLocalRuntimeMessages({
-  localMessages,
-  persistedMessages,
-}: {
-  localMessages: ChatMessage[] | undefined
-  persistedMessages: ChatMessage[]
-}) {
-  if (!localMessages || localMessages.length === 0) return false
-  if (persistedMessages.length === 0) return true
-  if (hasPendingAssistantMessage(localMessages)) {
-    return !hasTerminalPersistedMessageForLocalPending({ localMessages, persistedMessages })
-  }
-  return false
-}
-
-export function messageSignature(messages: ChatMessage[]) {
-  return messages
-    .map((message) =>
-      [
-        message.id,
-        message.role,
-        message.metadata?.generationStatus ?? "",
-        message.parts
-          .map((part) => {
-            if (part.type === "text") return `text:${part.text}`
-            if (part.type === "data-status") {
-              const data = part.data as { label?: unknown }
-              return `status:${typeof data.label === "string" ? data.label : ""}`
-            }
-            return part.type
-          })
-          .join(","),
-      ].join("|")
-    )
-    .join("||")
 }
 
 export function pageRange(citation: Citation) {

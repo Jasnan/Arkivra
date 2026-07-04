@@ -23,11 +23,6 @@ export function getLatestUserText(messages: ChatMessage[]) {
   return ""
 }
 
-export function hasSameMessageIds(left: ChatMessage[], right: ChatMessage[]) {
-  if (left.length !== right.length) return false
-  return left.every((message, index) => message.id === right[index]?.id)
-}
-
 export function startsWithSameMessageIds(messages: ChatMessage[], prefix: ChatMessage[]) {
   if (prefix.length > messages.length) return false
   return prefix.every((message, index) => message.id === messages[index]?.id)

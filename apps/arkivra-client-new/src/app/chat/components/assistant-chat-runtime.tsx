@@ -7,7 +7,6 @@ import { useAISDKRuntime } from "@assistant-ui/react-ai-sdk"
 import type { ChatIntent, ChatMessage, ChatResponseMode } from "../chat.api"
 import {
   createAssistantChatTransport,
-  hasSameMessageIds,
   startsWithSameMessageIds,
   type AssistantChatTransportConfig,
 } from "./assistant-chat-runtime.helpers"
@@ -20,9 +19,8 @@ export interface AssistantChatRuntimeHandle {
 }
 
 export interface AssistantChatRuntimeState {
-  messages: ChatMessage[]
   status: AssistantChatRuntimeStatus
-  error?: Error
+  messageCount: number
 }
 
 export function AssistantChatRuntimeProvider({
@@ -119,24 +117,22 @@ export function AssistantChatRuntimeProvider({
 
   useEffect(() => {
     const nextState = {
-      messages: chat.messages,
       status: chat.status,
-      error: chat.error,
+      messageCount: chat.messages.length,
     }
     const previousState = lastStateRef.current
 
     if (
       previousState &&
       previousState.status === nextState.status &&
-      previousState.error === nextState.error &&
-      hasSameMessageIds(previousState.messages, nextState.messages)
+      previousState.messageCount === nextState.messageCount
     ) {
       return
     }
 
     lastStateRef.current = nextState
     onStateChange?.(nextState)
-  }, [chat.error, chat.messages, chat.status, onStateChange])
+  }, [chat.messages.length, chat.status, onStateChange])
 
   useEffect(() => {
     onReady?.({

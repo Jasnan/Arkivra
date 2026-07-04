@@ -1,10 +1,21 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react"
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react"
 import type { PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist"
 import { Document as PdfDocument, Page as PdfPage, pdfjs } from "react-pdf"
 import "react-pdf/dist/Page/TextLayer.css"
-import { ChevronLeft, ChevronRight, Download, Languages, Loader2, Printer, X, ZoomIn, ZoomOut } from "lucide-react"
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Languages,
+  Loader2,
+  Printer,
+  SquareDashedMousePointer,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -16,20 +27,16 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import {
-  captureCanvasRegionAsPngBase64,
-  createNormalizedRect,
-  getNormalizedPointFromClient,
-  type NormalizedPoint,
-  type NormalizedRect,
-} from "../pdf-translation-capture"
+import { captureCanvasRegionAsPngBase64, type NormalizedRect } from "../pdf-translation-capture"
 import {
   translateDocument,
   type DocumentLanguageMetadata,
   type DocumentTranslationLanguage,
   type DocumentTranslationSource,
 } from "../vaults.api"
+import { PdfRegionSelectionOverlay, type RegionSelection } from "./pdf-region-selection-overlay"
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -66,14 +73,7 @@ interface TextSelectionMenuState {
 interface VisualSelectionMenuState {
   open: boolean
   point: PdfMenuPoint
-  rect: NormalizedRect
   pageNumber: number
-}
-
-interface AreaDragState {
-  pointerId: number
-  start: NormalizedPoint
-  current: NormalizedPoint
 }
 
 const previewPadding = 32
@@ -128,19 +128,6 @@ function getRenderedPdfCanvas(pageElement: HTMLElement | null) {
   return pageElement?.querySelector("canvas") ?? null
 }
 
-function getRectStyle(rect: NormalizedRect) {
-  return {
-    left: `${rect.x * 100}%`,
-    top: `${rect.y * 100}%`,
-    width: `${rect.width * 100}%`,
-    height: `${rect.height * 100}%`,
-  }
-}
-
-function isMeaningfulSelectionRect(rect: NormalizedRect) {
-  return rect.width >= 0.01 && rect.height >= 0.01
-}
-
 function getSelectionTextWithin(element: HTMLElement | null) {
   if (element === null) {
     return null
@@ -164,11 +151,26 @@ function getSelectionTextWithin(element: HTMLElement | null) {
   return text
 }
 
-function isPdfTextLayerTarget(target: EventTarget | null) {
-  return (
-    target instanceof Element &&
-    target.closest(".react-pdf__Page__textContent span, .textLayer span") !== null
-  )
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function getNormalizedCanvasRect(selection: RegionSelection, canvas: HTMLCanvasElement): NormalizedRect {
+  const bounds = canvas.getBoundingClientRect()
+
+  if (bounds.width <= 0 || bounds.height <= 0) {
+    return { x: 0, y: 0, width: 1, height: 1 }
+  }
+
+  const x = clamp(selection.x / bounds.width, 0, 1)
+  const y = clamp(selection.y / bounds.height, 0, 1)
+
+  return {
+    x,
+    y,
+    width: clamp(selection.width / bounds.width, 0, 1 - x),
+    height: clamp(selection.height / bounds.height, 0, 1 - y),
+  }
 }
 
 export function PdfPreviewFrame({
@@ -202,11 +204,14 @@ export function PdfPreviewFrame({
   const [isRendered, setIsRendered] = useState(false)
   const [loadError, setLoadError] = useState(false)
   const [translationPane, setTranslationPane] = useState<TranslationPaneState | null>(null)
-  const [pageContextMenu, setPageContextMenu] = useState<{ open: boolean; point: PdfMenuPoint } | null>(null)
+  const [pageContextMenu, setPageContextMenu] = useState<{
+    open: boolean
+    point: PdfMenuPoint
+  } | null>(null)
   const [textSelectionMenu, setTextSelectionMenu] = useState<TextSelectionMenuState | null>(null)
   const [visualSelectionMenu, setVisualSelectionMenu] = useState<VisualSelectionMenuState | null>(null)
-  const [areaDrag, setAreaDrag] = useState<AreaDragState | null>(null)
-  const [visualSelectionRect, setVisualSelectionRect] = useState<NormalizedRect | null>(null)
+  const [regionSelection, setRegionSelection] = useState<RegionSelection | null>(null)
+  const [isRegionSelectionMode, setIsRegionSelectionMode] = useState(false)
   const [isTranslationPending, setIsTranslationPending] = useState(false)
 
   useEffect(() => {
@@ -237,9 +242,18 @@ export function PdfPreviewFrame({
     setPageContextMenu(null)
     setTextSelectionMenu(null)
     setVisualSelectionMenu(null)
-    setVisualSelectionRect(null)
-    setAreaDrag(null)
+    setRegionSelection(null)
+    setIsRegionSelectionMode(false)
   }, [src])
+
+  useEffect(() => {
+    if (!translationsDisabled) return
+
+    setTextSelectionMenu(null)
+    setVisualSelectionMenu(null)
+    setRegionSelection(null)
+    setIsRegionSelectionMode(false)
+  }, [translationsDisabled])
 
   useEffect(
     () => () => {
@@ -291,6 +305,8 @@ export function PdfPreviewFrame({
     setZoomMode("custom")
     setCustomZoomScale(clampZoom(nextScale))
     setIsRendered(false)
+    setVisualSelectionMenu(null)
+    setRegionSelection(null)
   }
 
   function requestPage(nextPageNumber: number) {
@@ -299,9 +315,24 @@ export function PdfPreviewFrame({
     setIsRendered(false)
     setTextSelectionMenu(null)
     setVisualSelectionMenu(null)
-    setVisualSelectionRect(null)
-    setAreaDrag(null)
+    setRegionSelection(null)
+    setIsRegionSelectionMode(false)
     setPageNumber(nextPageNumber)
+  }
+
+  function toggleRegionSelectionMode() {
+    const nextMode = !isRegionSelectionMode
+
+    setIsRegionSelectionMode(nextMode)
+    setPageContextMenu(null)
+    setTextSelectionMenu(null)
+    setVisualSelectionMenu(null)
+
+    if (nextMode) {
+      window.getSelection()?.removeAllRanges()
+    } else {
+      setRegionSelection(null)
+    }
   }
 
   function printPdf() {
@@ -476,7 +507,8 @@ export function PdfPreviewFrame({
 
   async function runVisualSelectionTranslation(
     targetLanguage: DocumentTranslationLanguage,
-    rect: NormalizedRect
+    selection: RegionSelection,
+    selectionPageNumber: number
   ) {
     if (translationsDisabled) return
 
@@ -487,7 +519,7 @@ export function PdfPreviewFrame({
         status: "error",
         targetLanguage,
         sourceType: "area-image",
-        pageNumber,
+        pageNumber: selectionPageNumber,
         text: "",
         error: "The rendered PDF page is not ready yet.",
         provider: null,
@@ -497,12 +529,13 @@ export function PdfPreviewFrame({
       return
     }
 
+    const rect = getNormalizedCanvasRect(selection, canvas)
     const imageBase64 = captureCanvasRegionAsPngBase64({ canvas, rect })
     await runSelectionTranslation({
       targetLanguage,
       source: {
         type: "area-image",
-        pageNumber,
+        pageNumber: selectionPageNumber,
         imageBase64,
         mimeType: "image/png",
         rect,
@@ -545,86 +578,29 @@ export function PdfPreviewFrame({
     }, 0)
   }
 
-  function handleAreaPointerDown(event: PointerEvent<HTMLDivElement>) {
-    if (
-      event.button !== 0 ||
-      !isReady ||
-      translationsDisabled ||
-      visiblePageRef.current === null ||
-      isPdfTextLayerTarget(event.target)
-    ) {
-      return
-    }
-
-    event.preventDefault()
-    event.currentTarget.setPointerCapture(event.pointerId)
+  function handleRegionSelectionInteractionStart() {
     suppressTextSelectionMenuRef.current = true
     window.getSelection()?.removeAllRanges()
-    const start = getNormalizedPointFromClient({
-      clientX: event.clientX,
-      clientY: event.clientY,
-      bounds: visiblePageRef.current.getBoundingClientRect(),
-    })
     setTextSelectionMenu(null)
     setPageContextMenu(null)
     setVisualSelectionMenu(null)
-    setVisualSelectionRect(null)
-    setAreaDrag({
-      pointerId: event.pointerId,
-      start,
-      current: start,
-    })
   }
 
-  function handleAreaPointerMove(event: PointerEvent<HTMLDivElement>) {
-    if (areaDrag === null || visiblePageRef.current === null || areaDrag.pointerId !== event.pointerId) {
-      return
-    }
+  function handleRegionSelectionChange(selection: RegionSelection | null) {
+    setRegionSelection(selection)
 
-    event.preventDefault()
-    setAreaDrag({
-      ...areaDrag,
-      current: getNormalizedPointFromClient({
-        clientX: event.clientX,
-        clientY: event.clientY,
-        bounds: visiblePageRef.current.getBoundingClientRect(),
-      }),
-    })
-  }
-
-  function handleAreaPointerUp(event: PointerEvent<HTMLDivElement>) {
-    if (areaDrag === null || visiblePageRef.current === null || areaDrag.pointerId !== event.pointerId) {
-      return
-    }
-
-    event.preventDefault()
-    const rect = createNormalizedRect(
-      areaDrag.start,
-      getNormalizedPointFromClient({
-        clientX: event.clientX,
-        clientY: event.clientY,
-        bounds: visiblePageRef.current.getBoundingClientRect(),
-      })
-    )
-    setAreaDrag(null)
-
-    if (!isMeaningfulSelectionRect(rect)) {
-      setVisualSelectionRect(null)
+    if (selection === null) {
       setVisualSelectionMenu(null)
-      return
     }
+  }
 
-    setVisualSelectionRect(rect)
+  function handleRegionSelectionComplete(_selection: RegionSelection, point: PdfMenuPoint) {
     setVisualSelectionMenu({
       open: true,
-      point: { x: event.clientX, y: event.clientY },
-      rect,
+      point,
       pageNumber,
     })
   }
-
-  const activeAreaRect =
-    areaDrag !== null ? createNormalizedRect(areaDrag.start, areaDrag.current) : visualSelectionRect
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden xl:flex-row">
@@ -686,6 +662,8 @@ export function PdfPreviewFrame({
                 onClick={() => {
                   setZoomMode("fit-page")
                   setIsRendered(false)
+                  setVisualSelectionMenu(null)
+                  setRegionSelection(null)
                 }}
               >
                 Fit page
@@ -697,6 +675,8 @@ export function PdfPreviewFrame({
                 onClick={() => {
                   setZoomMode("fit-width")
                   setIsRendered(false)
+                  setVisualSelectionMenu(null)
+                  setRegionSelection(null)
                 }}
               >
                 Fit width
@@ -705,6 +685,22 @@ export function PdfPreviewFrame({
           </div>
 
           <div className="col-start-2 row-start-1 flex items-center gap-2 justify-self-end xl:col-start-3">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant={isRegionSelectionMode ? "secondary" : "outline"}
+                  aria-label={isRegionSelectionMode ? "Disable region selection" : "Select PDF region"}
+                  aria-pressed={isRegionSelectionMode}
+                  disabled={translationsDisabled || (!isReady && !isRegionSelectionMode)}
+                  onClick={toggleRegionSelectionMode}
+                >
+                  <SquareDashedMousePointer className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{isRegionSelectionMode ? "Disable region selection" : "Select PDF region"}</TooltipContent>
+            </Tooltip>
             <Button type="button" size="icon" variant="outline" aria-label="Print" onClick={printPdf}>
               <Printer className="size-4" />
             </Button>
@@ -733,10 +729,6 @@ export function PdfPreviewFrame({
               className={cn("relative", !isRendered && "opacity-60")}
               onContextMenu={handlePageContextMenu}
               onMouseUp={handlePageMouseUp}
-              onPointerDown={handleAreaPointerDown}
-              onPointerMove={handleAreaPointerMove}
-              onPointerUp={handleAreaPointerUp}
-              onPointerCancel={() => setAreaDrag(null)}
             >
               <PdfDocument
                 file={src}
@@ -757,13 +749,13 @@ export function PdfPreviewFrame({
                   onRenderError={() => setLoadError(true)}
                 />
               </PdfDocument>
-              {activeAreaRect !== null ? (
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute z-10 border-2 border-primary bg-primary/20 shadow-[0_0_0_1px_hsl(var(--background))]"
-                  style={getRectStyle(activeAreaRect)}
-                />
-              ) : null}
+              <PdfRegionSelectionOverlay
+                enabled={isReady && !translationsDisabled && isRegionSelectionMode}
+                selection={regionSelection}
+                onInteractionStart={handleRegionSelectionInteractionStart}
+                onSelectionChange={handleRegionSelectionChange}
+                onSelectionComplete={handleRegionSelectionComplete}
+              />
               <span className="sr-only">{documentName}</span>
             </div>
           </div>
@@ -804,7 +796,9 @@ export function PdfPreviewFrame({
           })
         }}
         onTranslateVisualSelection={(language, menu) => {
-          void runVisualSelectionTranslation(language, menu.rect)
+          if (regionSelection !== null) {
+            void runVisualSelectionTranslation(language, regionSelection, menu.pageNumber)
+          }
         }}
         onVisualMenuOpenChange={(open) =>
           setVisualSelectionMenu((current) => (current === null ? null : { ...current, open }))

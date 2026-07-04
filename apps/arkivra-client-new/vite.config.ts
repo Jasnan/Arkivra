@@ -36,6 +36,14 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       "import.meta.env.VITE_BASENAME": JSON.stringify(env.VITE_BASENAME || ""),
+      "process.env.DRAGGABLE_DEBUG": "false",
+    },
+    optimizeDeps: {
+      esbuildOptions: {
+        define: {
+          "process.env.DRAGGABLE_DEBUG": "false",
+        },
+      },
     },
     server: {
       port: webPort,

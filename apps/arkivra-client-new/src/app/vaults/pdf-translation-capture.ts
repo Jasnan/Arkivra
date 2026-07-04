@@ -8,51 +8,6 @@ export interface NormalizedRect {
   height: number
 }
 
-export interface NormalizedPoint {
-  x: number
-  y: number
-}
-
-export function clampNormalizedPoint(point: NormalizedPoint): NormalizedPoint {
-  return {
-    x: Math.min(Math.max(point.x, 0), 1),
-    y: Math.min(Math.max(point.y, 0), 1),
-  }
-}
-
-export function getNormalizedPointFromClient({
-  clientX,
-  clientY,
-  bounds,
-}: {
-  clientX: number
-  clientY: number
-  bounds: DOMRect | Pick<DOMRect, "left" | "top" | "width" | "height">
-}): NormalizedPoint {
-  if (bounds.width <= 0 || bounds.height <= 0) {
-    return { x: 0, y: 0 }
-  }
-
-  return clampNormalizedPoint({
-    x: (clientX - bounds.left) / bounds.width,
-    y: (clientY - bounds.top) / bounds.height,
-  })
-}
-
-export function createNormalizedRect(start: NormalizedPoint, end: NormalizedPoint): NormalizedRect {
-  const clampedStart = clampNormalizedPoint(start)
-  const clampedEnd = clampNormalizedPoint(end)
-  const x = Math.min(clampedStart.x, clampedEnd.x)
-  const y = Math.min(clampedStart.y, clampedEnd.y)
-
-  return {
-    x,
-    y,
-    width: Math.max(Math.abs(clampedEnd.x - clampedStart.x), 0),
-    height: Math.max(Math.abs(clampedEnd.y - clampedStart.y), 0),
-  }
-}
-
 export function getCanvasCropRect({
   canvas,
   rect,

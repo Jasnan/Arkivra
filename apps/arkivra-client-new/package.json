@@ -64,6 +64,7 @@
     "react-markdown": "^10.1.0",
     "react-pdf": "^10.4.1",
     "react-resizable-panels": "^3.0.4",
+    "react-rnd": "10.5.3",
     "react-router-dom": "^7.11.0",
     "react-zoom-pan-pinch": "^4.0.3",
     "recharts": "3.6.0",

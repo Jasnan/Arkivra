@@ -13,7 +13,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react"
-import { Outlet, useNavigate, useParams } from "react-router-dom"
+import { Outlet, useNavigate, useOutletContext, useParams } from "react-router-dom"
 import { FolderTree, Loader2 } from "lucide-react"
 
 import { BaseLayout } from "@/components/layouts/base-layout"
@@ -82,7 +82,10 @@ const defaultSidebarConfig: VaultRouteSidebarConfig = {
 }
 
 export function useOptionalVaultRouteShell() {
-  return useContext(VaultRouteShellContext)
+  const context = useContext(VaultRouteShellContext)
+  const outletContext = useOutletContext<VaultRouteShellContextValue | null | undefined>()
+
+  return context ?? outletContext ?? null
 }
 
 export function useVaultRouteShell() {
@@ -129,6 +132,11 @@ export default function VaultRouteShell() {
     async function loadShell() {
       setLoadingTree(true)
       setTreeError(null)
+      setVault(null)
+      setFolders([])
+      setTreeDocuments([])
+      setHeaderConfig(null)
+      setSidebarConfig(defaultSidebarConfig)
 
       try {
         const [vaultResult, treeResult] = await Promise.all([
@@ -194,13 +202,14 @@ export default function VaultRouteShell() {
       <TooltipTrigger asChild>
         <Button
           type="button"
-          variant="outline"
-          size="icon"
+          variant={isVaultTreeVisible ? "secondary" : "outline"}
           aria-label={vaultTreeToggleLabel}
           aria-pressed={isVaultTreeVisible}
+          className="gap-2"
           onClick={() => setIsVaultTreeVisible(!isVaultTreeVisible)}
         >
           <FolderTree className="size-4" />
+          <span>File tree</span>
         </Button>
       </TooltipTrigger>
       <TooltipContent>{vaultTreeToggleLabel}</TooltipContent>
@@ -284,7 +293,7 @@ export default function VaultRouteShell() {
                 </aside>
               ) : null}
               <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                <Outlet />
+                <Outlet context={contextValue} />
               </main>
             </div>
           </section>

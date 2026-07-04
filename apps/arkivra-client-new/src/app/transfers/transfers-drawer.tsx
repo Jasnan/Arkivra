@@ -145,7 +145,7 @@ function TransferRow({ item }: { item: DisplayTransfer }) {
             <div
               className={cn(
                 "flex shrink-0 items-center gap-1.5 text-xs font-medium",
-                isFailure ? "text-destructive" : isSuccess ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                isFailure ? "text-destructive" : isSuccess ? "text-primary" : "text-muted-foreground"
               )}
             >
               {item.status === "uploading" ? (

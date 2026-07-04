@@ -126,7 +126,7 @@ function parseManifest(value: string) {
 function BackupStatusBadge({ backup }: { backup: BackupListItem }) {
   if (backup.restorable) {
     return (
-      <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+      <Badge variant="outline" className="border-primary/20 bg-primary/10 text-foreground">
         <CheckCircle2 className="size-3" />
         Restorable
       </Badge>
@@ -486,7 +486,7 @@ export default function AdminBackupsPage() {
               </Button>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">
+              <div className="rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground">
                 Restoring a backup replaces users, sessions, settings, vaults, documents, chats, audit records,
                 jobs, and storage files with the selected archive.
               </div>

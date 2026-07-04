@@ -148,22 +148,22 @@ function formatDate(value: string | null | undefined) {
 function getStatusColor(status: string) {
   switch (status) {
     case "Active":
-      return "text-green-600 bg-green-50 dark:text-green-400 dark:bg-green-900/20"
+      return "bg-primary/10 text-foreground"
     case "Disabled":
-      return "text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-900/20"
+      return "bg-muted text-muted-foreground"
     default:
-      return "text-gray-600 bg-gray-50 dark:text-gray-400 dark:bg-gray-900/20"
+      return "bg-muted text-muted-foreground"
   }
 }
 
 function getRoleColor(role: string) {
   switch (role) {
     case "Administrator":
-      return "text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-900/20"
+      return "bg-primary/10 text-foreground"
     case "Member":
-      return "text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/20"
+      return "bg-secondary text-secondary-foreground"
     default:
-      return "text-gray-600 bg-gray-50 dark:text-gray-400 dark:bg-gray-900/20"
+      return "bg-muted text-muted-foreground"
   }
 }
 
@@ -341,7 +341,7 @@ export function DataTable({
         const enabled = row.original.twoFactorEnabled
         return (
           <span className="inline-flex items-center gap-2 text-sm">
-            {enabled ? <ShieldCheck className="size-4 text-green-600" /> : <ShieldX className="size-4 text-muted-foreground" />}
+            {enabled ? <ShieldCheck className="size-4 text-primary" /> : <ShieldX className="size-4 text-muted-foreground" />}
             {enabled ? "Enabled" : "Not enabled"}
           </span>
         )
@@ -688,9 +688,9 @@ export function DataTable({
                       <span
                         className={
                           statusFilter === "Active"
-                            ? "size-2.5 shrink-0 rounded-full bg-green-600"
+                            ? "size-2.5 shrink-0 rounded-full bg-primary"
                             : statusFilter === "Disabled"
-                              ? "size-2.5 shrink-0 rounded-full bg-orange-500"
+                              ? "size-2.5 shrink-0 rounded-full bg-muted-foreground"
                               : "size-2.5 shrink-0 rounded-full border border-muted-foreground/50"
                         }
                       />

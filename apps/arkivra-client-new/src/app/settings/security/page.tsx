@@ -73,11 +73,11 @@ const nonDigitRegex = /\D/g
 
 const statusToneClasses: Record<StatusTone, string> = {
   verified:
-    "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-300",
+    "border-primary/20 bg-primary/10 text-foreground",
   enabled:
-    "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-300",
+    "border-primary/20 bg-primary/10 text-foreground",
   warning:
-    "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-300",
+    "border-border bg-muted text-muted-foreground",
   inactive: "border-border bg-muted text-muted-foreground",
 }
 
@@ -386,7 +386,7 @@ function PasswordRequirements({ value }: { value: string }) {
         <div className="space-y-2">
           {requirements.map((item) => (
             <div key={item.label} className="flex items-center gap-2">
-              <span className={cn("flex size-4 items-center justify-center rounded-full", item.met ? "text-emerald-600" : "text-muted-foreground")}>
+              <span className={cn("flex size-4 items-center justify-center rounded-full", item.met ? "text-primary" : "text-muted-foreground")}>
                 {item.met ? <Check className="size-3.5" /> : <span className="size-2.5 rounded-full border border-current" />}
               </span>
               <span className={cn("text-sm", item.met ? "text-muted-foreground" : "text-muted-foreground/70")}>{item.label}</span>
@@ -400,7 +400,7 @@ function PasswordRequirements({ value }: { value: string }) {
           {Array.from({ length: 4 }, (_, index) => (
             <div
               key={index}
-              className={cn("h-1.5 rounded-full bg-muted", index < Math.min(4, metCount) ? "bg-emerald-500" : undefined)}
+              className={cn("h-1.5 rounded-full bg-muted", index < Math.min(4, metCount) ? "bg-primary" : undefined)}
             />
           ))}
         </div>
@@ -857,11 +857,11 @@ function EmailAddressSettingsRow({
             </div>
           </div>
           <div className="border-t pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-            <div className="flex items-start gap-3 rounded-md border border-blue-200 bg-blue-50 p-4 text-blue-900 dark:border-blue-950 dark:bg-blue-950/30 dark:text-blue-100">
+            <div className="flex items-start gap-3 rounded-md border border-border bg-muted p-4 text-muted-foreground">
               <Info className="mt-0.5 size-4 shrink-0" />
               <div className="space-y-1">
                 <h3 className="text-sm font-semibold">What happens next?</h3>
-                <p className="text-sm text-blue-900/75 dark:text-blue-100/75">
+                <p className="text-sm text-muted-foreground">
                   We'll send a confirmation link to your current email address. Your new email will be active once you confirm.
                 </p>
               </div>
@@ -913,7 +913,7 @@ function ConnectedSignInProviderRow({
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-3">
         {isConnected ? (
-          <span className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-600 dark:text-emerald-300">
+          <span className="inline-flex items-center gap-2 text-sm font-semibold text-primary">
             <Check className="size-4" />
             Connected
           </span>
@@ -1138,9 +1138,9 @@ function TwoFactorWorkflowStepper({ step }: { step: TwoFactorSetupStep }) {
                 className={cn(
                   "flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold",
                   isCompleted
-                    ? "border-emerald-600 bg-emerald-600 text-white"
+                    ? "border-primary bg-primary text-primary-foreground"
                     : isCurrent
-                      ? "border-emerald-600 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                      ? "border-primary bg-primary/10 text-foreground"
                       : "border-border bg-background text-muted-foreground",
                 )}
               >
@@ -1150,7 +1150,7 @@ function TwoFactorWorkflowStepper({ step }: { step: TwoFactorSetupStep }) {
                 <p className={cn("font-semibold leading-tight", isCurrent || isCompleted ? "text-foreground" : "text-muted-foreground")}>{title}</p>
                 <p className="text-sm text-muted-foreground">{isCompleted ? "Completed" : isCurrent ? "In progress" : "Pending"}</p>
               </div>
-              {index < steps.length - 1 ? <div className={cn("mx-4 mt-3 h-px flex-1", isCompleted ? "bg-emerald-600" : "bg-border")} /> : null}
+              {index < steps.length - 1 ? <div className={cn("mx-4 mt-3 h-px flex-1", isCompleted ? "bg-primary" : "bg-border")} /> : null}
             </div>
           )
         })}
@@ -1839,7 +1839,7 @@ function SettingsSessionsSection({ me }: { me: MeResponse | null }) {
                     </div>
                   </div>
                   {isCurrentSession ? (
-                    <span className="shrink-0 text-xs font-medium text-emerald-600 dark:text-emerald-300">Active now</span>
+                    <span className="shrink-0 text-xs font-medium text-primary">Active now</span>
                   ) : (
                     <Button
                       type="button"
@@ -1872,7 +1872,7 @@ function SettingsSessionsSection({ me }: { me: MeResponse | null }) {
                   </p>
                 </div>
               </div>
-              <span className="shrink-0 text-xs font-medium text-emerald-600 dark:text-emerald-300">Active now</span>
+              <span className="shrink-0 text-xs font-medium text-primary">Active now</span>
             </div>
           </div>
         )}

@@ -398,7 +398,7 @@ function getTreeDropTargetClass(dropTarget: BrowserDropTarget | null, folderId: 
   }
 
   return dropTarget.state === "valid"
-    ? "bg-teal-500/15 text-teal-700 outline outline-1 outline-teal-500 dark:text-teal-200"
+    ? "bg-primary/10 text-foreground outline outline-1 outline-primary/30"
     : "bg-destructive/15 text-destructive outline outline-1 outline-destructive"
 }
 

@@ -238,11 +238,11 @@ function getSelectedVaultsLabel({
 function getImportanceClassName(importance: "info" | "notice" | "warning" | "critical") {
   switch (importance) {
     case "critical":
-      return "border-red-200 bg-red-50 text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300"
+      return "border-destructive/30 bg-destructive/10 text-destructive"
     case "warning":
-      return "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900/40 dark:bg-orange-950/30 dark:text-orange-300"
+      return "border-border bg-muted text-muted-foreground"
     case "notice":
-      return "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-300"
+      return "border-primary/20 bg-primary/10 text-foreground"
     default:
       return "border-border bg-muted/40 text-muted-foreground"
   }
@@ -311,11 +311,11 @@ function getEventIcon(event: AuditLogItem, category: AuditActivityCategory) {
 function getIconToneClassName(importance: "info" | "notice" | "warning" | "critical") {
   switch (importance) {
     case "critical":
-      return "bg-red-50 text-red-700 ring-red-200 dark:bg-red-950/30 dark:text-red-300 dark:ring-red-900/40"
+      return "bg-destructive/10 text-destructive ring-destructive/30"
     case "warning":
-      return "bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-950/30 dark:text-orange-300 dark:ring-orange-900/40"
+      return "bg-muted text-muted-foreground ring-border"
     case "notice":
-      return "bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-950/30 dark:text-blue-300 dark:ring-blue-900/40"
+      return "bg-primary/10 text-foreground ring-primary/20"
     default:
       return "bg-muted text-muted-foreground ring-border"
   }

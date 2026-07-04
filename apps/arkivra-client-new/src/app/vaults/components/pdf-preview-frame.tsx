@@ -629,7 +629,7 @@ export function PdfPreviewFrame({
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden xl:flex-row">
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/20">
-        <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b bg-background px-3 py-2 md:px-4">
+        <div className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b bg-background px-3 py-2 xl:grid-cols-[auto_minmax(0,1fr)_auto]">
           <div className="flex min-w-0 items-center gap-1.5">
             <Button
               type="button"
@@ -641,6 +641,9 @@ export function PdfPreviewFrame({
             >
               <ChevronLeft className="size-4" />
             </Button>
+            <div className="w-28 text-center text-sm font-medium tabular-nums">
+              Page {pageNumber} <span className="text-muted-foreground">of {numPages ?? "..."}</span>
+            </div>
             <Button
               type="button"
               size="icon"
@@ -651,12 +654,9 @@ export function PdfPreviewFrame({
             >
               <ChevronRight className="size-4" />
             </Button>
-            <div className="px-2 text-sm font-medium">
-              Page {pageNumber} <span className="text-muted-foreground">of {numPages ?? "..."}</span>
-            </div>
           </div>
 
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="col-start-1 row-start-2 flex min-w-0 items-center gap-2 xl:col-start-2 xl:row-start-1 xl:justify-self-center">
             <Button
               type="button"
               size="icon"
@@ -704,15 +704,13 @@ export function PdfPreviewFrame({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button type="button" size="sm" variant="outline" onClick={printPdf}>
+          <div className="col-start-2 row-start-1 flex items-center gap-2 justify-self-end xl:col-start-3">
+            <Button type="button" size="icon" variant="outline" aria-label="Print" onClick={printPdf}>
               <Printer className="size-4" />
-              Print
             </Button>
-            <Button asChild size="sm" variant="outline">
-              <a href={downloadUrl}>
+            <Button asChild size="icon" variant="outline">
+              <a href={downloadUrl} aria-label="Download">
                 <Download className="size-4" />
-                Download
               </a>
             </Button>
           </div>

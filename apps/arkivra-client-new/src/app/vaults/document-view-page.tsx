@@ -50,6 +50,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useOptionalVaultRouteShell } from "@/app/vaults/vault-route-shell"
+import { DEFAULT_TAG_COLOR, TagFormDialog } from "../tags/components/tag-form-dialog"
+import {
+  assignTagToDocument,
+  createTag,
+  listDocumentTags,
+  listTags,
+  removeTagFromDocument,
+  type Tag,
+} from "../tags/tags.api"
+import { DocumentTagsCell } from "./components/document-tags-cell"
 import { ImagePreviewFrame as ZoomableImagePreviewFrame } from "./components/image-preview-frame"
 import { PdfPreviewFrame } from "./components/pdf-preview-frame"
 import { VaultContextMenu, type VaultContextMenuState } from "./components/vault-context-menu"
@@ -143,25 +153,6 @@ function formatDate(value: string | null | undefined) {
   }).format(date)
 }
 
-function getDocumentStatusClass(status: DocumentSummary["processingStatus"]) {
-  if (status === "failed") {
-    return "border-destructive/40 bg-destructive/10 text-destructive"
-  }
-
-  if (status && status !== "completed") {
-    return "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
-  }
-
-  return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-}
-
-function getDocumentStatusLabel(status: DocumentSummary["processingStatus"]) {
-  if (!status || status === "completed") return "Ready"
-  if (status === "partitioning") return "Parsing"
-  if (status === "summarising") return "Summarising"
-  return status
-}
-
 function getVersionStatusLabel(version: DocumentVersionSummary) {
   if (version.deletedAt !== null) return "Deleted"
   return version.processingStatus ?? "pending"
@@ -192,6 +183,24 @@ function canPrintPreview(previewKind: PreviewKind, selectedVersionId: string | n
 
 function canReadVault(vault: { role?: string | null } | null | undefined) {
   return vault?.role === "owner" || vault?.role === "editor" || vault?.role === "viewer"
+}
+
+function canUpdateVault(vault: { role?: string | null } | null | undefined) {
+  return vault?.role === "owner" || vault?.role === "editor"
+}
+
+async function hydrateDocumentTags({
+  vaultId,
+  document,
+}: {
+  vaultId: string
+  document: DocumentDetail
+}) {
+  const result = await listDocumentTags({ vaultId, documentId: document.id })
+  return {
+    ...document,
+    tags: result.tags,
+  }
 }
 
 function getDocumentChatUrl({
@@ -613,7 +622,6 @@ function DocumentMetadataPanel({
           <MetadataItem
             icon={FileText}
             label="Display name"
-            className="md:col-span-2"
             action={!editsDisabled ? (
               <Button type="button" variant="ghost" size="icon" className="size-8 shrink-0" aria-label="Edit display name" onClick={onEditName}>
                 <Pencil className="size-4" />
@@ -648,7 +656,7 @@ function DocumentMetadataPanel({
             </>
           ) : null}
 
-          <MetadataItem icon={Info} label="Uploaded by" value={document.createdBy ?? "Unknown"} className="md:col-span-2" />
+          <MetadataItem icon={Info} label="Uploaded by" value={document.createdBy ?? "Unknown"} />
           <MetadataItem icon={CalendarDays} label="Uploaded at" value={formatDate(document.createdAt)} />
           <MetadataItem icon={CalendarDays} label="Last updated" value={formatDate(document.updatedAt)} />
           <MetadataItem icon={Search} label="Semantic index">
@@ -731,14 +739,12 @@ function ImagePreviewFrame({
       alt={documentName}
       toolbarActions={
         <>
-          <Button type="button" size="sm" variant="outline" onClick={printImage}>
+          <Button type="button" size="icon" variant="outline" aria-label="Print" onClick={printImage}>
             <Printer className="size-4" />
-            Print
           </Button>
-          <Button asChild size="sm" variant="outline">
-            <a href={downloadUrl}>
+          <Button asChild size="icon" variant="outline">
+            <a href={downloadUrl} aria-label="Download">
               <Download className="size-4" />
-              Download
             </a>
           </Button>
         </>
@@ -941,6 +947,7 @@ export default function DocumentViewPage() {
   const [searchParams] = useSearchParams()
   const requestedTab = searchParams.get("tab")
   const [document, setDocument] = useState<DocumentDetail | null>(null)
+  const [tags, setTags] = useState<Tag[]>([])
   const [standaloneVault, setStandaloneVault] = useState<VaultDetail | null>(null)
   const [trashVaultId, setTrashVaultId] = useState("")
   const [standaloneFolders, setStandaloneFolders] = useState<FolderTreeEntry[]>([])
@@ -976,6 +983,11 @@ export default function DocumentViewPage() {
   const [isDeleteDocumentPending, setIsDeleteDocumentPending] = useState(false)
   const [isRestoreDocumentPending, setIsRestoreDocumentPending] = useState(false)
   const [restoreConflict, setRestoreConflict] = useState<DocumentDuplicateConflict | null>(null)
+  const [createTagTargetDocumentId, setCreateTagTargetDocumentId] = useState<string | null>(null)
+  const [createTagName, setCreateTagName] = useState("")
+  const [createTagColor, setCreateTagColor] = useState(DEFAULT_TAG_COLOR)
+  const [createTagDescription, setCreateTagDescription] = useState("")
+  const [tagMutationPending, setTagMutationPending] = useState(false)
   const [vaultContextMenu, setVaultContextMenu] = useState<VaultContextMenuState | null>(null)
   const [aiFeaturesEnabled, setAiFeaturesEnabled] = useState(true)
   const vaultId = routeVaultId || trashVaultId
@@ -986,6 +998,10 @@ export default function DocumentViewPage() {
     ? vaultRouteShell.setTreeDocuments
     : setStandaloneTreeDocuments
   const standaloneVaultTreeToggleLabel = isStandaloneVaultTreeVisible ? "Hide file tree" : "Show file tree"
+  const isCreateTagDialogDirty =
+    createTagName.trim().length > 0 ||
+    createTagDescription.trim().length > 0 ||
+    createTagColor !== DEFAULT_TAG_COLOR
 
   useEffect(() => {
     if (requestedTab === "versions" && !isTrashDocumentRoute) {
@@ -1035,7 +1051,13 @@ export default function DocumentViewPage() {
         ])
 
         if (!ignore) {
-          setDocument(documentResult.document)
+          const hydratedDocument = isTrashDocumentRoute
+            ? documentResult.document
+            : await hydrateDocumentTags({ vaultId: resolvedVaultId, document: documentResult.document })
+
+          if (ignore) return
+
+          setDocument(hydratedDocument)
           if (shellResult !== null) {
             const [vaultResult, treeResult] = shellResult
             setStandaloneVault(vaultResult.vault)
@@ -1085,6 +1107,33 @@ export default function DocumentViewPage() {
       ignore = true
     }
   }, [])
+
+  const refreshTags = useCallback(async () => {
+    const result = await listTags()
+    setTags(result.tags)
+  }, [])
+
+  useEffect(() => {
+    if (isTrashDocumentRoute || !documentId) return
+
+    let ignore = false
+
+    void listTags()
+      .then((result) => {
+        if (!ignore) {
+          setTags(result.tags)
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setTags([])
+        }
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [documentId, isTrashDocumentRoute])
 
   useEffect(() => {
     let ignore = false
@@ -1185,6 +1234,8 @@ export default function DocumentViewPage() {
   const inlineFileUrl = getDocumentInlineFileUrl({ vaultId, documentId, includeDeleted: isTrashDocumentRoute })
   const canPrint = !isTrashDocumentRoute && canPrintPreview(previewKind, selectedVersionId)
   const showDocumentChatAction = !isTrashDocumentRoute && aiFeaturesEnabled && canReadVault(vault)
+  const canEditDocumentTags =
+    !isTrashDocumentRoute && selectedVersionId === null && canUpdateVault(vault)
   const documentChatUrl = activeDocument
     ? getDocumentChatUrl({ vaultId, documentId, documentName: activeDocument.name })
     : ""
@@ -1343,20 +1394,148 @@ export default function DocumentViewPage() {
     }
   }
 
-  async function refreshDocumentState() {
+  const refreshDocumentState = useCallback(async () => {
     const [documentResult, treeResult, versionsResult] = await Promise.all([
       getDocument({ vaultId, documentId }),
       usesVaultRouteShell && refreshVaultShell ? refreshVaultShell().then(() => null) : listFolderTree({ vaultId }),
       listDocumentVersions({ vaultId, documentId }),
     ])
+    const hydratedDocument = isTrashDocumentRoute
+      ? documentResult.document
+      : await hydrateDocumentTags({ vaultId, document: documentResult.document })
 
-    setDocument(documentResult.document)
+    setDocument(hydratedDocument)
     if (treeResult !== null) {
       setStandaloneFolders(treeResult.folders)
       setStandaloneTreeDocuments(treeResult.documents)
     }
     setVersions(versionsResult.versions)
-  }
+  }, [documentId, isTrashDocumentRoute, refreshVaultShell, usesVaultRouteShell, vaultId])
+
+  const handleAssignTag = useCallback(async (targetDocumentId: string, tagId: string) => {
+    if (!vaultId || isTrashDocumentRoute || selectedVersionId !== null || tagMutationPending) {
+      return
+    }
+
+    setTagMutationPending(true)
+    try {
+      await assignTagToDocument({ vaultId, documentId: targetDocumentId, tagId })
+      await Promise.all([refreshDocumentState(), refreshTags()])
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not assign tag.")
+    } finally {
+      setTagMutationPending(false)
+    }
+  }, [isTrashDocumentRoute, refreshDocumentState, refreshTags, selectedVersionId, tagMutationPending, vaultId])
+
+  const handleRemoveTag = useCallback(async (targetDocumentId: string, tagId: string) => {
+    if (!vaultId || isTrashDocumentRoute || selectedVersionId !== null || tagMutationPending) {
+      return
+    }
+
+    setTagMutationPending(true)
+    try {
+      await removeTagFromDocument({ vaultId, documentId: targetDocumentId, tagId })
+      await Promise.all([refreshDocumentState(), refreshTags()])
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not remove tag.")
+    } finally {
+      setTagMutationPending(false)
+    }
+  }, [isTrashDocumentRoute, refreshDocumentState, refreshTags, selectedVersionId, tagMutationPending, vaultId])
+
+  const openCreateTagDialog = useCallback((targetDocumentId: string, name: string) => {
+    setCreateTagTargetDocumentId(targetDocumentId)
+    setCreateTagName(name)
+    setCreateTagColor(DEFAULT_TAG_COLOR)
+    setCreateTagDescription("")
+  }, [])
+
+  const closeCreateTagDialog = useCallback(() => {
+    if (tagMutationPending) {
+      return
+    }
+
+    setCreateTagTargetDocumentId(null)
+    setCreateTagName("")
+    setCreateTagColor(DEFAULT_TAG_COLOR)
+    setCreateTagDescription("")
+  }, [tagMutationPending])
+
+  const handleCreateTagSubmit = useCallback(async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    const normalizedName = createTagName.trim()
+    if (
+      !vaultId ||
+      isTrashDocumentRoute ||
+      selectedVersionId !== null ||
+      createTagTargetDocumentId === null ||
+      normalizedName.length === 0 ||
+      tagMutationPending
+    ) {
+      return
+    }
+
+    setTagMutationPending(true)
+    try {
+      const result = await createTag({
+        name: normalizedName,
+        color: createTagColor || null,
+        description: createTagDescription.trim() || null,
+      })
+      await assignTagToDocument({
+        vaultId,
+        documentId: createTagTargetDocumentId,
+        tagId: result.tag.id,
+      })
+      await Promise.all([refreshDocumentState(), refreshTags()])
+      setCreateTagTargetDocumentId(null)
+      setCreateTagName("")
+      setCreateTagColor(DEFAULT_TAG_COLOR)
+      setCreateTagDescription("")
+      toast.success("Tag created.")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not create tag.")
+    } finally {
+      setTagMutationPending(false)
+    }
+  }, [
+    createTagColor,
+    createTagDescription,
+    createTagName,
+    createTagTargetDocumentId,
+    isTrashDocumentRoute,
+    refreshDocumentState,
+    refreshTags,
+    selectedVersionId,
+    tagMutationPending,
+    vaultId,
+  ])
+
+  const documentHeaderTags = useMemo(() => {
+    if (!activeDocument || isTrashDocumentRoute) return null
+
+    return (
+      <DocumentTagsCell
+        document={activeDocument}
+        availableTags={tags}
+        disabled={!canEditDocumentTags || tagMutationPending}
+        onAssignTag={handleAssignTag}
+        onOpenCreateTagDialog={openCreateTagDialog}
+        onRemoveTag={handleRemoveTag}
+      />
+    )
+  }, [
+    activeDocument,
+    canEditDocumentTags,
+    handleAssignTag,
+    handleRemoveTag,
+    isTrashDocumentRoute,
+    openCreateTagDialog,
+    tagMutationPending,
+    tags,
+  ])
 
   function closeDeleteVersionDialog() {
     setVersionPendingDelete(null)
@@ -1456,28 +1635,23 @@ export default function DocumentViewPage() {
 
     setShellHeaderConfig({
       iconKey: activeDocument.mimeType === "application/pdf" ? "document-pdf" : "document-file",
-      contentKey: `document:${documentId}:${selectedVersionId ?? "current"}:${activeDocument.updatedAt}`,
+      contentKey: `document:${documentId}:${selectedVersionId ?? "current"}:${activeDocument.updatedAt}:${activeDocument.tags?.map((tag) => tag.id).join(",") ?? ""}`,
       icon: (
         <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-red-500/10 text-xs font-semibold text-red-600 dark:text-red-300 md:size-12">
           {activeDocument.mimeType === "application/pdf" ? "PDF" : <FileText className="size-5" />}
         </div>
       ),
       title: getDocumentTitle(activeDocument.name),
-      badge: (
-        <>
-          <Badge variant="outline" className={cn(getDocumentStatusClass(activeDocument.processingStatus))}>
-            {getDocumentStatusLabel(activeDocument.processingStatus)}
-          </Badge>
-          {selectedVersionId !== null ? <Badge variant="secondary">Historical version</Badge> : null}
-        </>
-      ),
+      badge: selectedVersionId !== null ? <Badge variant="secondary">Historical version</Badge> : null,
       subtitle: (
         <>
-          <span>{formatBytes(activeDocument.originalSize)}</span>
-          <span aria-hidden="true">·</span>
-          <span>{activeDocument.mimeType || "Unknown type"}</span>
-          <span aria-hidden="true">·</span>
           <span>Updated {formatDate(activeDocument.updatedAt)}</span>
+          {documentHeaderTags ? (
+            <>
+              <span aria-hidden="true">·</span>
+              {documentHeaderTags}
+            </>
+          ) : null}
         </>
       ),
       actions: (
@@ -1547,6 +1721,7 @@ export default function DocumentViewPage() {
     document,
     documentChatUrl,
     documentId,
+    documentHeaderTags,
     documentReturnPath,
     errorMessage,
     handlePrintDocument,
@@ -1792,7 +1967,7 @@ export default function DocumentViewPage() {
                     "mx-4 mt-3 shrink-0 rounded-lg border p-3 text-sm md:mx-5",
                     activeDocument.processingStatus === "failed"
                       ? "border-destructive/30 bg-destructive/10 text-destructive"
-                      : "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-200"
+                      : "border-border bg-muted text-muted-foreground"
                   )}
                 >
                   {getProcessingMessage(activeDocument, "")}
@@ -1833,17 +2008,16 @@ export default function DocumentViewPage() {
                     <h1 className="min-w-0 truncate text-xl font-semibold tracking-tight md:text-2xl">
                       {getDocumentTitle(activeDocument.name)}
                     </h1>
-                    <Badge variant="outline" className={cn(getDocumentStatusClass(activeDocument.processingStatus))}>
-                      {getDocumentStatusLabel(activeDocument.processingStatus)}
-                    </Badge>
                     {selectedVersionId !== null ? <Badge variant="secondary">Historical version</Badge> : null}
                   </div>
                   <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-                    <span>{formatBytes(activeDocument.originalSize)}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>{activeDocument.mimeType || "Unknown type"}</span>
-                    <span aria-hidden="true">·</span>
                     <span>Updated {formatDate(activeDocument.updatedAt)}</span>
+                    {documentHeaderTags ? (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        {documentHeaderTags}
+                      </>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -1851,13 +2025,14 @@ export default function DocumentViewPage() {
                     <TooltipTrigger asChild>
                       <Button
                         type="button"
-                        variant="outline"
-                        size="icon"
+                        variant={isStandaloneVaultTreeVisible ? "secondary" : "outline"}
                         aria-label={standaloneVaultTreeToggleLabel}
                         aria-pressed={isStandaloneVaultTreeVisible}
+                        className="gap-2"
                         onClick={() => setIsStandaloneVaultTreeVisible(!isStandaloneVaultTreeVisible)}
                       >
                         <FolderTree className="size-4" />
+                        <span>File tree</span>
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>{standaloneVaultTreeToggleLabel}</TooltipContent>
@@ -1943,7 +2118,7 @@ export default function DocumentViewPage() {
                     "mx-4 mt-3 shrink-0 rounded-lg border p-3 text-sm md:mx-5",
                     activeDocument.processingStatus === "failed"
                       ? "border-destructive/30 bg-destructive/10 text-destructive"
-                      : "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-200"
+                      : "border-border bg-muted text-muted-foreground"
                   )}
                 >
                   {getProcessingMessage(activeDocument, "")}
@@ -2162,6 +2337,24 @@ export default function DocumentViewPage() {
         </section>
       </div>
       )}
+      <TagFormDialog
+        open={createTagTargetDocumentId !== null}
+        mode="create"
+        isPending={tagMutationPending}
+        name={createTagName}
+        color={createTagColor}
+        description={createTagDescription}
+        isDirty={isCreateTagDialogDirty}
+        onNameChange={setCreateTagName}
+        onColorChange={setCreateTagColor}
+        onDescriptionChange={setCreateTagDescription}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeCreateTagDialog()
+          }
+        }}
+        onSubmit={handleCreateTagSubmit}
+      />
       <Dialog
         open={isDeleteDocumentDialogOpen}
         onOpenChange={(open) => {

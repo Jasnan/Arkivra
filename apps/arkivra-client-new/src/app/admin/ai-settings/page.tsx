@@ -1841,10 +1841,10 @@ function ProviderChip({ icon, label }: { icon: ReactNode; label: string }) {
 
 function HealthIssuesSection({ issues }: { issues: HealthIssue[] }) {
   return (
-    <Card className="border-orange-500/30">
+    <Card className="border-border">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <TriangleAlert className="size-5 text-orange-500" />
+          <TriangleAlert className="size-5 text-muted-foreground" />
           Health issues
         </CardTitle>
       </CardHeader>
@@ -2175,7 +2175,7 @@ function AiServiceCard({
       <div className="flex items-center justify-between gap-3 border-t pt-3">
         <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
           {statusTone === "enabled" && !previewOnly ? (
-            <CheckCircle2 className="size-4 text-green-600" />
+            <CheckCircle2 className="size-4 text-primary" />
           ) : (
             <Info className="size-4" />
           )}
@@ -2491,7 +2491,7 @@ function ChatModelsDialog({
           </div>
         </div>
         <DialogFooter className="items-center border-t px-6 py-4 sm:justify-between">
-          <div className={cn("text-sm", isDefaultEnabled ? "text-muted-foreground" : "text-orange-600")}>
+          <div className={cn("text-sm", isDefaultEnabled ? "text-muted-foreground" : "text-foreground")}>
             {draftAllowedChatModels.length.toLocaleString()} models enabled
             {isDefaultEnabled
               ? ` - Default: ${getChatModelLabel(chatModelOptions, draftDefaultChatModel)}`
@@ -2602,7 +2602,7 @@ function EmbeddingModelDialog({
             Current model:{" "}
             {selectedEmbeddingModel ? (
               <>
-                <span className="font-medium text-green-600 dark:text-green-400">{selectedEmbeddingModel.model}</span>{" "}
+                <span className="font-medium text-foreground">{selectedEmbeddingModel.model}</span>{" "}
                 ({formatDimensions(selectedEmbeddingModel.dimensions)})
               </>
             ) : (
@@ -3257,10 +3257,10 @@ function SelectedModelCard({
         className={cn(
           "m-3 flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold",
           isUnavailable
-            ? "border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300"
+            ? "border-border bg-muted text-muted-foreground"
             : selectedModelChanged
               ? "border-primary/30 bg-primary/10 text-primary"
-              : "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300",
+              : "border-primary/20 bg-primary/10 text-foreground",
         )}
       >
         <CheckCircle2 className="size-4" />
@@ -3296,7 +3296,7 @@ function StatusProgress({ value, status }: { value: number; status: ProgressStat
 }
 
 function HealthDot({ healthy }: { healthy: boolean }) {
-  return <span className={cn("size-2 rounded-full", healthy ? "bg-green-500" : "bg-orange-500")} />
+  return <span className={cn("size-2 rounded-full", healthy ? "bg-primary" : "bg-muted-foreground")} />
 }
 
 function StatusBadge({
@@ -3310,8 +3310,8 @@ function StatusBadge({
     <Badge
       variant={tone === "enabled" ? "secondary" : "outline"}
       className={cn(
-        tone === "enabled" && "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300",
-        tone === "warning" && "border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300",
+        tone === "enabled" && "border-primary/20 bg-primary/10 text-foreground",
+        tone === "warning" && "border-border bg-muted text-muted-foreground",
       )}
     >
       {children}
@@ -3322,11 +3322,11 @@ function StatusBadge({
 function HeroVisual({ compact = false, state }: { state: AiSetupState; compact?: boolean }) {
   const content =
     state === "enabled"
-      ? "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300"
+      ? "border-primary/20 bg-primary/10 text-foreground"
       : state === "ready"
         ? "border-primary/30 bg-primary/10 text-primary"
         : state === "needs_configuration"
-          ? "border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300"
+          ? "border-border bg-muted text-muted-foreground"
           : "bg-muted text-muted-foreground"
 
   return (
@@ -3362,7 +3362,7 @@ function getHeroContent(state: AiSetupState): {
       badge: "Needs setup",
       description: "Choose an embedding model that powers AI search before enabling AI.",
       badgeVariant: "outline",
-      className: "border-orange-500/30 bg-orange-500/5",
+      className: "border-border bg-muted/50",
     }
   }
 
@@ -3381,13 +3381,13 @@ function getHeroContent(state: AiSetupState): {
     badge: "Enabled",
     description: "AI is enabled. Configure the AI services below.",
     badgeVariant: "secondary",
-    className: "border-green-500/30 bg-green-500/5",
+    className: "border-primary/20 bg-primary/5",
   }
 }
 
 function getHealthIssueClassName(severity: HealthSeverity) {
   if (severity === "critical") return "border-destructive/30 bg-destructive/5"
-  if (severity === "warning") return "border-orange-500/30 bg-orange-500/5"
+  if (severity === "warning") return "border-border bg-muted/50"
   return "border-primary/30 bg-primary/5"
 }
 

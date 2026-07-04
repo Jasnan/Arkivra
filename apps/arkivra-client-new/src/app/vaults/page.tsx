@@ -81,10 +81,10 @@ function getParticipationLabel(vault: VaultSummary) {
 
 function getParticipationBadgeClass(vault: VaultSummary) {
   if (vault.role === null) {
-    return "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+    return "border-border bg-muted text-muted-foreground"
   }
 
-  return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+  return "border-primary/20 bg-primary/10 text-foreground"
 }
 
 function VaultGrid({ vaults, onOpenVault, onOpenContextMenu }: {

@@ -74,7 +74,6 @@ function buildBreadcrumbs({
   if (parts[0] === "trash" && parts[1]) return [{ label: "Trash", to: "/trash" }, { label: currentDocumentLabel }]
   if (pathname === "/tags") return [{ label: "Tags" }]
   if (pathname === "/search") return [{ label: "Search" }]
-  if (parts[0] === "chat") return [{ label: "Chat" }]
 
   if (parts[0] === "settings") {
     const settingsLabels: Record<string, string> = {

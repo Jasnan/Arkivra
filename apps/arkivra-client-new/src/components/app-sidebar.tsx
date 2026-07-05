@@ -3,7 +3,7 @@
 import * as React from "react"
 import {
   Archive,
-  MessageCircle,
+  MessageSquare,
   Search,
   ShieldCheck,
   Tags,
@@ -55,14 +55,14 @@ const data = {
           icon: Search,
         },
         {
+          title: "Chat",
+          url: "/chat",
+          icon: MessageSquare,
+        },
+        {
           title: "Tags",
           url: "/tags",
           icon: Tags,
-        },
-        {
-          title: "Chat",
-          url: "/chat",
-          icon: MessageCircle,
         },
         {
           title: "Trash",

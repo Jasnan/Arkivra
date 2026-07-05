@@ -14,6 +14,7 @@ function readPort(value: string | undefined, fallback: number) {
 }
 
 const repoRoot = path.resolve(__dirname, "../..")
+const browserMcpShim = path.resolve(__dirname, "./src/lib/ai-sdk-mcp-browser-shim.ts")
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -31,6 +32,8 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
+        "@ai-sdk/mcp/mcp-stdio": browserMcpShim,
+        "@ai-sdk/mcp": browserMcpShim,
         "@": path.resolve(__dirname, "./src"),
       },
     },

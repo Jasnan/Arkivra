@@ -7,7 +7,6 @@ import {
   Folder,
   History,
   Info,
-  MessageSquare,
   MoveRight,
   Pencil,
   RotateCw,
@@ -45,7 +44,6 @@ export function VaultBrowserItemContextMenu({
   itemMutationPending,
   onClose,
   onDownloadDocument,
-  onOpenChat,
   onOpenInfo,
   onMoveItem,
   onOpenItem,
@@ -59,7 +57,6 @@ export function VaultBrowserItemContextMenu({
   itemMutationPending: boolean
   onClose: () => void
   onDownloadDocument: (item: Extract<FileBrowserItem, { type: "document" }>) => void
-  onOpenChat?: (item: Extract<FileBrowserItem, { type: "document" }>) => void
   onOpenInfo: (item: FileBrowserItem) => void
   onMoveItem: (item: FileBrowserItem) => void
   onOpenItem: (item: FileBrowserItem) => void
@@ -104,16 +101,6 @@ export function VaultBrowserItemContextMenu({
 
     return [
       { key: "open", label: "Preview/open", icon: Eye, onSelect: () => onOpenItem(item) },
-      ...(onOpenChat
-        ? [
-            {
-              key: "chat",
-              label: "Chat",
-              icon: MessageSquare,
-              onSelect: () => onOpenChat(item),
-            },
-          ]
-        : []),
       {
         key: "download",
         label: "Download",
@@ -156,7 +143,6 @@ export function VaultBrowserItemContextMenu({
     canMoveItems,
     itemMutationPending,
     onDownloadDocument,
-    onOpenChat,
     onOpenInfo,
     onMoveItem,
     onOpenItem,

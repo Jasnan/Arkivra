@@ -10,8 +10,8 @@ const DocumentView = lazy(() => import('@/app/vaults/document-view-page'));
 const VaultManagement = lazy(() => import('@/app/vaults/vault-management-page'));
 const Trash = lazy(() => import('@/app/vaults/trash-page'));
 const Search = lazy(() => import('@/app/search/page'));
-const Tags = lazy(() => import('@/app/tags/page'));
 const Chat = lazy(() => import('@/app/chat/page'));
+const Tags = lazy(() => import('@/app/tags/page'));
 const AdminUsers = lazy(() => import('@/app/admin/users/page'));
 const AdminAuditLog = lazy(() => import('@/app/admin/audit-log/page'));
 const AdminBackups = lazy(() => import('@/app/admin/backups/page'));
@@ -125,16 +125,12 @@ export const routes: RouteConfig[] = [
     element: <Search />,
   },
   {
-    path: '/tags',
-    element: <Tags />,
-  },
-  {
     path: '/chat',
     element: <Chat />,
   },
   {
-    path: '/chat/:conversationId',
-    element: <Chat />,
+    path: '/tags',
+    element: <Tags />,
   },
 
   // Settings Routes

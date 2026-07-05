@@ -58,7 +58,6 @@ import {
 import {
   getDocument,
   getDocumentDownloadUrl,
-  getMe,
   listFolderItems,
   moveDocument,
   moveFolder,
@@ -254,35 +253,6 @@ function getMoveDestinations({
       depth: folder.depth + 1,
     })),
   ]
-}
-
-function canReadVault(vault: { role?: string | null } | null | undefined) {
-  return vault?.role === "owner" || vault?.role === "editor" || vault?.role === "viewer"
-}
-
-function getVaultChatUrl(vaultId: string) {
-  return `/chat?vaultId=${encodeURIComponent(vaultId)}`
-}
-
-function getDocumentChatUrl({
-  vaultId,
-  documentId,
-  documentName,
-}: {
-  vaultId: string
-  documentId: string
-  documentName?: string
-}) {
-  const params = new URLSearchParams({
-    vaultId,
-    documentId,
-  })
-
-  if (documentName?.trim()) {
-    params.set("documentName", documentName)
-  }
-
-  return `/chat?${params.toString()}`
 }
 
 function getVaultItemLocationPath({
@@ -1344,7 +1314,6 @@ export default function VaultWorkspacePage() {
   const [renameMutationPending, setRenameMutationPending] = useState(false)
   const [tagMutationPending, setTagMutationPending] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [aiFeaturesEnabled, setAiFeaturesEnabled] = useState(true)
   const activeFolderId = searchParams.get("folderId")
   const normalizedFolderId = activeFolderId === "root" ? null : activeFolderId
 
@@ -1379,8 +1348,6 @@ export default function VaultWorkspacePage() {
   const canMoveItems = vault?.role === "owner" || vault?.role === "editor"
   const canCreateItems = canMoveItems
   const canDeleteItems = canMoveItems
-  const showVaultChatAction = aiFeaturesEnabled && canReadVault(vault)
-
   const hydrateItemsWithDocumentTags = useCallback(async (nextItems: FileBrowserItem[]) => {
     const documentItems = nextItems.filter((item) => item.type === "document")
 
@@ -1949,34 +1916,12 @@ export default function VaultWorkspacePage() {
     <>
       <VaultUploadMenu
         disabled={!vaultId}
-        showChat={showVaultChatAction}
-        onOpenChat={() => navigate(getVaultChatUrl(vaultId))}
         onUploadFiles={openUploadFiles}
         onUploadFolder={openUploadDirectory}
       />
       <VaultsViewToggle />
     </>
-  ), [navigate, openUploadDirectory, openUploadFiles, showVaultChatAction, vaultId])
-
-  useEffect(() => {
-    let ignore = false
-
-    void getMe()
-      .then((result) => {
-        if (!ignore) {
-          setAiFeaturesEnabled(result.aiFeaturesEnabled !== false && result.canUseAI !== false)
-        }
-      })
-      .catch(() => {
-        if (!ignore) {
-          setAiFeaturesEnabled(true)
-        }
-      })
-
-    return () => {
-      ignore = true
-    }
-  }, [])
+  ), [openUploadDirectory, openUploadFiles, vaultId])
 
   useEffect(() => {
     let ignore = false
@@ -2076,14 +2021,6 @@ export default function VaultWorkspacePage() {
 
   function openDocumentVersions(item: Extract<FileBrowserItem, { type: "document" }>) {
     navigate(`/vaults/${vaultId}/${item.document.id}?tab=versions`)
-  }
-
-  function openDocumentChat(item: Extract<FileBrowserItem, { type: "document" }>) {
-    navigate(getDocumentChatUrl({
-      vaultId,
-      documentId: item.document.id,
-      documentName: item.document.name,
-    }))
   }
 
   const currentFolder = useMemo(
@@ -2328,7 +2265,6 @@ export default function VaultWorkspacePage() {
           itemMutationPending={itemMutationPending}
           onClose={() => setItemContextMenu(null)}
           onDownloadDocument={downloadDocument}
-          onOpenChat={showVaultChatAction ? openDocumentChat : undefined}
           onOpenInfo={openInfoDialog}
           onMoveItem={(item) => openMoveDialog([item])}
           onOpenItem={openBrowserItem}

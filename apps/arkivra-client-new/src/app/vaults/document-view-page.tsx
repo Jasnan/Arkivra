@@ -12,7 +12,6 @@ import {
   Image as ImageIcon,
   Info,
   Loader2,
-  MessageSquare,
   MoreHorizontal,
   Pencil,
   Printer,
@@ -181,10 +180,6 @@ function canPrintPreview(previewKind: PreviewKind, selectedVersionId: string | n
   return selectedVersionId === null && (previewKind === "pdf" || previewKind === "image" || previewKind === "text")
 }
 
-function canReadVault(vault: { role?: string | null } | null | undefined) {
-  return vault?.role === "owner" || vault?.role === "editor" || vault?.role === "viewer"
-}
-
 function canUpdateVault(vault: { role?: string | null } | null | undefined) {
   return vault?.role === "owner" || vault?.role === "editor"
 }
@@ -201,27 +196,6 @@ async function hydrateDocumentTags({
     ...document,
     tags: result.tags,
   }
-}
-
-function getDocumentChatUrl({
-  vaultId,
-  documentId,
-  documentName,
-}: {
-  vaultId: string
-  documentId: string
-  documentName?: string
-}) {
-  const params = new URLSearchParams({
-    vaultId,
-    documentId,
-  })
-
-  if (documentName?.trim()) {
-    params.set("documentName", documentName)
-  }
-
-  return `/chat?${params.toString()}`
 }
 
 function escapeHtml(value: string) {
@@ -1233,12 +1207,8 @@ export default function DocumentViewPage() {
   const currentDownloadUrl = getDocumentDownloadUrl({ vaultId, documentId, includeDeleted: isTrashDocumentRoute })
   const inlineFileUrl = getDocumentInlineFileUrl({ vaultId, documentId, includeDeleted: isTrashDocumentRoute })
   const canPrint = !isTrashDocumentRoute && canPrintPreview(previewKind, selectedVersionId)
-  const showDocumentChatAction = !isTrashDocumentRoute && aiFeaturesEnabled && canReadVault(vault)
   const canEditDocumentTags =
     !isTrashDocumentRoute && selectedVersionId === null && canUpdateVault(vault)
-  const documentChatUrl = activeDocument
-    ? getDocumentChatUrl({ vaultId, documentId, documentName: activeDocument.name })
-    : ""
   const extractedContent = activeDocument?.displayContent ?? activeDocument?.content ?? ""
   const extractedTextMessage = activeDocument
     ? getProcessingMessage(activeDocument, extractedContent)
@@ -1679,12 +1649,6 @@ export default function DocumentViewPage() {
                 <RefreshCw className="size-4" />
                 Versions
               </DropdownMenuItem>
-              {showDocumentChatAction ? (
-                <DropdownMenuItem onSelect={() => navigate(documentChatUrl)}>
-                  <MessageSquare className="size-4" />
-                  Chat
-                </DropdownMenuItem>
-              ) : null}
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <a href={currentDownloadUrl}>
@@ -1719,13 +1683,11 @@ export default function DocumentViewPage() {
     canPrint,
     currentDownloadUrl,
     document,
-    documentChatUrl,
     documentId,
     documentHeaderTags,
     documentReturnPath,
     errorMessage,
     handlePrintDocument,
-    showDocumentChatAction,
     isDeleteDocumentPending,
     loadingDocument,
     navigate,
@@ -2062,12 +2024,6 @@ export default function DocumentViewPage() {
                         <DropdownMenuItem onSelect={() => setTab("versions")}>
                           <RefreshCw className="size-4" />
                           Versions
-                        </DropdownMenuItem>
-                      ) : null}
-                      {showDocumentChatAction ? (
-                        <DropdownMenuItem onSelect={() => navigate(documentChatUrl)}>
-                          <MessageSquare className="size-4" />
-                          Chat
                         </DropdownMenuItem>
                       ) : null}
                       <DropdownMenuSeparator />

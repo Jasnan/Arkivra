@@ -1,7 +1,7 @@
 'use client';
 
 import type { LucideIcon } from 'lucide-react';
-import { FolderOpen, History, MessageSquare, Settings2, Trash2 } from 'lucide-react';
+import { FolderOpen, History, Settings2, Trash2 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -29,9 +29,7 @@ export function VaultItemContextMenu({
   onOpenVault,
   onOpenSettings,
   onOpenActivity,
-  onOpenChat,
   onDeleteVault,
-  canUseChat,
   deleteDisabled,
 }: {
   state: VaultItemContextMenuState;
@@ -39,9 +37,7 @@ export function VaultItemContextMenu({
   onOpenVault: (vault: VaultSummary) => void;
   onOpenSettings: (vault: VaultSummary) => void;
   onOpenActivity: (vault: VaultSummary) => void;
-  onOpenChat: (vault: VaultSummary) => void;
   onDeleteVault: (vault: VaultSummary) => void;
-  canUseChat: boolean;
   deleteDisabled?: boolean;
 }) {
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -71,13 +67,6 @@ export function VaultItemContextMenu({
         onSelect: () => onOpenActivity(state.vault),
       },
       {
-        key: 'chat',
-        label: 'Chat',
-        icon: MessageSquare,
-        disabled: !canUseChat,
-        onSelect: () => onOpenChat(state.vault),
-      },
-      {
         key: 'delete',
         label: 'Delete',
         icon: Trash2,
@@ -88,11 +77,9 @@ export function VaultItemContextMenu({
     ],
     [
       canManageVault,
-      canUseChat,
       deleteDisabled,
       onDeleteVault,
       onOpenActivity,
-      onOpenChat,
       onOpenSettings,
       onOpenVault,
       state.vault,

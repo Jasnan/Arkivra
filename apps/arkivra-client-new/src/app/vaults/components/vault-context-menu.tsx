@@ -6,7 +6,6 @@ import {
   FolderPlus,
   FolderUp,
   History,
-  MessageSquare,
   RotateCw,
   Settings2,
 } from 'lucide-react';
@@ -85,7 +84,6 @@ export function VaultContextMenu({
       { key: 'after-retry', type: 'separator' },
       { key: 'settings', label: 'Settings', icon: Settings2, disabled: true },
       { key: 'activity', label: 'Activity', icon: History, disabled: true },
-      { key: 'chat', label: 'Chat', icon: MessageSquare, disabled: true },
     ],
     [canCreateItems, onCreateFolder, onUploadFiles, onUploadFolder, state.vaultName],
   );

@@ -243,7 +243,6 @@ export default function VaultsPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingVault, setDeletingVault] = useState(false);
   const [canCreateVault, setCanCreateVault] = useState(true);
-  const [canUseChat, setCanUseChat] = useState(true);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -281,9 +280,6 @@ export default function VaultsPage() {
 
     if (meResult.status === 'fulfilled') {
       setCanCreateVault(meResult.value.canCreateVault);
-      setCanUseChat(
-        meResult.value.aiFeaturesEnabled !== false && meResult.value.canUseAI !== false,
-      );
     }
 
     setLoading(false);
@@ -315,10 +311,6 @@ export default function VaultsPage() {
 
   function openActivity(vault: VaultSummary) {
     navigate(`/vaults/${vault.id}/activity`);
-  }
-
-  function openChat(vault: VaultSummary) {
-    navigate(`/chat?vaultId=${encodeURIComponent(vault.id)}`);
   }
 
   async function confirmDeleteVault() {
@@ -366,12 +358,10 @@ export default function VaultsPage() {
           onOpenVault={openVault}
           onOpenSettings={openSettings}
           onOpenActivity={openActivity}
-          onOpenChat={openChat}
           onDeleteVault={(vault) => {
             setPendingDeleteVault(vault);
             setDeleteError(null);
           }}
-          canUseChat={canUseChat}
           deleteDisabled={deletingVault}
         />
       ) : null}

@@ -20,6 +20,40 @@ import {
   routeError,
   SOURCE_DOCUMENT_DELETED_CONTEXT,
 } from './chat.route-helpers.js';
+import type { ChatContextSnapshot, ChatMessage } from './chat.types.js';
+import {
+  createChatResumableStreamId,
+  createResumableChatResponse,
+  createResumeChatResponse,
+} from './chat.resumable-streams.js';
+
+function getLatestUserMessageContextSnapshot(messages: ChatMessage[]): ChatContextSnapshot | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role !== 'user') continue;
+    const metadata = message.metadata as Record<string, unknown> | undefined;
+    const custom = metadata?.custom;
+    if (custom !== null && typeof custom === 'object' && !Array.isArray(custom)) {
+      const snapshot = (custom as { contextSnapshot?: unknown }).contextSnapshot;
+      if (snapshot !== null && typeof snapshot === 'object' && !Array.isArray(snapshot)) {
+        return snapshot as ChatContextSnapshot;
+      }
+    }
+  }
+
+  return null;
+}
+
+function getRequestedContextInput({
+  body,
+  messages,
+}: {
+  body: Record<string, unknown>;
+  messages: ChatMessage[];
+}) {
+  const messageContextSnapshot = getLatestUserMessageContextSnapshot(messages);
+  return messageContextSnapshot === null ? body : { contextSnapshot: messageContextSnapshot };
+}
 
 export function registerChatRoutes({
   app,
@@ -71,6 +105,47 @@ export function registerChatRoutes({
     }
   });
 
+  app.post('/api/chats', async (context) => {
+    const userId = getUserId(context);
+    if (userId === null) {
+      return routeError(context, {
+        status: 401,
+        code: 'auth.unauthorized',
+        message: 'Unauthorized',
+      });
+    }
+
+    const body = (await context.req.json().catch(() => ({}))) as Record<string, unknown>;
+
+    if (hasUnsupportedDocumentVersionContext(body)) {
+      return routeError(context, {
+        status: 400,
+        code: 'chat.invalid_context',
+        message: 'Explicit document versions are not supported in chat context yet',
+      });
+    }
+
+    const resolved = await resolveCreatableContext({
+      context,
+      requestedContext: parseRequestedContext(body),
+      db,
+      vaultServices: vaultsServices,
+    });
+
+    if (!resolved.ok) {
+      return routeError(context, resolved);
+    }
+
+    const title = typeof body.title === 'string' ? body.title : undefined;
+    const conversation = await services.createConversation({
+      userId,
+      scope: resolved.scope,
+      ...(title !== undefined ? { title } : {}),
+    });
+
+    return context.json({ conversation }, 201);
+  });
+
   app.post('/api/chats/messages/stream', async (context) => {
     const userId = getUserId(context);
     if (userId === null) {
@@ -82,14 +157,22 @@ export function registerChatRoutes({
     }
 
     const body = (await context.req.json().catch(() => null)) as Record<string, unknown> | null;
-    const chatId = typeof body?.chatId === 'string' && body.chatId.trim().length > 0
-      ? body.chatId.trim()
+    const rawChatId = typeof body?.chatId === 'string' ? body.chatId : body?.id;
+    const chatId = typeof rawChatId === 'string' && rawChatId.trim().length > 0
+      ? rawChatId.trim()
       : undefined;
     const messages = parseMessages(body?.messages);
     const content = getLatestUserMessageContent(messages);
     const intent = parseIntent(body?.intent);
-    const responseMode = parseResponseMode(body?.responseMode);
-    const model = parseModel(body?.model);
+    const responseMode = parseResponseMode(body?.responseMode ?? (chatId ? 'text' : undefined));
+    const config = body?.config;
+    const configModel = config !== null
+      && typeof config === 'object'
+      && !Array.isArray(config)
+      && typeof (config as { modelName?: unknown }).modelName === 'string'
+      ? (config as { modelName: string }).modelName
+      : undefined;
+    const model = parseModel(body?.model ?? configModel);
 
     if (messages.length === 0 || content.length === 0) {
       return routeError(context, {
@@ -134,9 +217,35 @@ export function registerChatRoutes({
         });
       }
 
+      let initialScope;
+      if (conversation.messages.length === 0 && body !== null) {
+        const requestedContextInput = getRequestedContextInput({ body, messages });
+
+        if (hasUnsupportedDocumentVersionContext(requestedContextInput)) {
+          return routeError(context, {
+            status: 400,
+            code: 'chat.invalid_context',
+            message: 'Explicit document versions are not supported in chat context yet',
+          });
+        }
+
+        const resolvedInitialContext = await resolveCreatableContext({
+          context,
+          requestedContext: parseRequestedContext(requestedContextInput),
+          db,
+          vaultServices: vaultsServices,
+        });
+
+        if (!resolvedInitialContext.ok) {
+          return routeError(context, resolvedInitialContext);
+        }
+
+        initialScope = resolvedInitialContext.scope;
+      }
+
       const resolved = await resolveUsableContext({
         context,
-        snapshot: conversation.contextSnapshot,
+        snapshot: initialScope ?? conversation.contextSnapshot,
         db,
         vaultServices: vaultsServices,
       });
@@ -164,6 +273,7 @@ export function registerChatRoutes({
       const stream = await services.createMessageStream({
         userId,
         chatId,
+        ...(initialScope !== undefined ? { scope: initialScope } : {}),
         messages,
         intent,
         responseMode,
@@ -178,10 +288,23 @@ export function registerChatRoutes({
         });
       }
 
-      return stream;
+      return createResumableChatResponse({
+        response: stream,
+        streamId: createChatResumableStreamId({ userId, chatId }),
+      });
     }
 
-    if (body === null || hasUnsupportedDocumentVersionContext(body)) {
+    if (body === null) {
+      return routeError(context, {
+        status: 400,
+        code: 'chat.invalid_context',
+        message: 'Explicit document versions are not supported in chat context yet',
+      });
+    }
+
+    const requestedContextInput = getRequestedContextInput({ body, messages });
+
+    if (hasUnsupportedDocumentVersionContext(requestedContextInput)) {
       return routeError(context, {
         status: 400,
         code: 'chat.invalid_context',
@@ -191,7 +314,7 @@ export function registerChatRoutes({
 
     const resolved = await resolveCreatableContext({
       context,
-      requestedContext: parseRequestedContext(body),
+      requestedContext: parseRequestedContext(requestedContextInput),
       db,
       vaultServices: vaultsServices,
     });
@@ -217,7 +340,64 @@ export function registerChatRoutes({
       });
     }
 
-    return stream;
+    return createResumableChatResponse({
+      response: stream,
+      streamId: createChatResumableStreamId({ userId }),
+    });
+  });
+
+  app.get('/api/chats/messages/stream/:streamId', async (context) => {
+    const userId = getUserId(context);
+    if (userId === null) {
+      return routeError(context, {
+        status: 401,
+        code: 'auth.unauthorized',
+        message: 'Unauthorized',
+      });
+    }
+
+    return createResumeChatResponse({
+      streamId: context.req.param('streamId'),
+      userId,
+    });
+  });
+
+  app.patch('/api/chats/:chatId', async (context) => {
+    const userId = getUserId(context);
+    if (userId === null) {
+      return routeError(context, {
+        status: 401,
+        code: 'auth.unauthorized',
+        message: 'Unauthorized',
+      });
+    }
+
+    const body = (await context.req.json().catch(() => null)) as Record<string, unknown> | null;
+    const title = typeof body?.title === 'string' ? body.title : null;
+
+    if (title === null) {
+      return routeError(context, {
+        status: 400,
+        code: 'chat.invalid_content',
+        message: 'title must be a string',
+      });
+    }
+
+    const conversation = await services.renameConversation({
+      userId,
+      chatId: context.req.param('chatId'),
+      title,
+    });
+
+    if (conversation === null) {
+      return routeError(context, {
+        status: 404,
+        code: 'chat.not_found',
+        message: 'Chat not found',
+      });
+    }
+
+    return context.json({ conversation });
   });
 
   app.get('/api/chats/:chatId', async (context) => {

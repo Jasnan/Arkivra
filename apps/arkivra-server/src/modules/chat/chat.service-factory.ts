@@ -17,7 +17,7 @@ import {
   streamText,
 } from 'ai';
 import type { LanguageModel } from 'ai';
-import { asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, exists, sql } from 'drizzle-orm';
 import {
   chatConversationsTable,
   chatMessageCitationsTable,
@@ -144,7 +144,17 @@ export function createChatServices({
     const rows = await db
       .select()
       .from(chatConversationsTable)
-      .where(getConversationOwnershipConditions({ userId }))
+      .where(
+        and(
+          getConversationOwnershipConditions({ userId }),
+          exists(
+            db
+              .select({ id: chatMessagesTable.id })
+              .from(chatMessagesTable)
+              .where(eq(chatMessagesTable.conversationId, chatConversationsTable.id)),
+          ),
+        ),
+      )
       .orderBy(desc(chatConversationsTable.updatedAt), desc(chatConversationsTable.createdAt));
 
     return { conversations: rows.map(toConversation) };
@@ -183,6 +193,61 @@ export function createChatServices({
       contextAvailability,
       messages: messages.map(hydratePersistedChatMessage),
     };
+  }
+
+  async function createConversation({
+    userId,
+    scope,
+    title = 'New chat',
+  }: {
+    userId: string;
+    scope: ChatScopeInput;
+    title?: string;
+  }) {
+    const now = new Date();
+    const scopeValues = getScopeValues(scope);
+    const [conversation] = await db
+      .insert(chatConversationsTable)
+      .values({
+        vaultId: scopeValues.vaultId,
+        documentId: scopeValues.documentId,
+        scope: scopeValues.scope,
+        contextSnapshot: scope,
+        contextFrozenAt: null,
+        userId,
+        title: truncate(title, 96),
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    if (conversation === undefined) {
+      throw new Error('Failed to create chat conversation');
+    }
+
+    return toConversation(conversation);
+  }
+
+  async function renameConversation({
+    userId,
+    chatId,
+    title,
+  }: {
+    userId: string;
+    chatId: string;
+    title: string;
+  }) {
+    const normalizedTitle = truncate(title.trim() || 'New chat', 96);
+    const [conversation] = await db
+      .update(chatConversationsTable)
+      .set({
+        title: normalizedTitle,
+        updatedAt: sql`now()`,
+      })
+      .where(getConversationOwnershipConditions({ userId, chatId }))
+      .returning();
+
+    return conversation === undefined ? null : toConversation(conversation);
   }
 
   async function deleteConversation({ userId, chatId }: { userId: string; chatId: string }) {
@@ -264,6 +329,36 @@ export function createChatServices({
           .from(chatMessagesTable)
           .where(eq(chatMessagesTable.conversationId, chatId))
           .orderBy(asc(chatMessagesTable.createdAt), asc(chatMessagesTable.id));
+
+        if (previousMessageRows.length === 0) {
+          const nextScope = newConversationScope ?? scope;
+          const scopeChanged = newConversationScope !== undefined;
+          scope = nextScope;
+          const scopeValues = getScopeValues(scope);
+          const [updatedConversation] = await tx
+            .update(chatConversationsTable)
+            .set({
+              ...(scopeChanged
+                ? {
+                    vaultId: scopeValues.vaultId,
+                    documentId: scopeValues.documentId,
+                    scope: scopeValues.scope,
+                    contextSnapshot: scope,
+                    contextFrozenAt: null,
+                  }
+                : {}),
+              ...(conversationRow.title.trim() === 'New chat'
+                ? { title: truncate(content, 96) }
+                : {}),
+              updatedAt: now,
+            })
+            .where(eq(chatConversationsTable.id, conversationRow.id))
+            .returning();
+
+          if (updatedConversation !== undefined) {
+            conversationRow = updatedConversation;
+          }
+        }
       } else {
         if (newConversationScope === undefined) {
           throw new Error('A chat context is required to create a conversation.');
@@ -868,6 +963,8 @@ export function createChatServices({
   return {
     listConversations,
     getConversation,
+    createConversation,
+    renameConversation,
     deleteConversation,
     getModelOptions,
     createMessageStream,

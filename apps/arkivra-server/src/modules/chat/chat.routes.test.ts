@@ -66,6 +66,8 @@ function createMockChatServices(overrides: Partial<ChatServices> = {}) {
   return {
     listConversations: vi.fn(async () => ({ conversations: [] })),
     getConversation: vi.fn(async () => createConversation()),
+    createConversation: vi.fn(async () => createConversation()),
+    renameConversation: vi.fn(async () => createConversation()),
     deleteConversation: vi.fn(async () => true),
     getModelOptions: vi.fn(async () => ({ defaultModel: 'llama3.2', models: ['llama3.2'] })),
     createMessageStream: vi.fn(async () => new Response('stream')),
@@ -219,6 +221,108 @@ describe('chat routes', () => {
       intent: undefined,
       responseMode: 'text',
       model: 'ollama:llama3.2',
+    });
+  });
+
+  test('starts an assistant-ui conversation stream with the supplied thread id', async () => {
+    const services = createMockChatServices();
+    const { app } = createTestApp({ services });
+
+    const response = await app.request('/api/chats/messages/stream', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
+      body: JSON.stringify({
+        id: 'cht_1',
+        messages: [USER_MESSAGE],
+        config: { modelName: 'ollama:llama3.2' },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(services.createMessageStream).toHaveBeenCalledWith({
+      userId: 'usr_1',
+      chatId: 'cht_1',
+      messages: [USER_MESSAGE],
+      intent: undefined,
+      responseMode: 'text',
+      model: 'ollama:llama3.2',
+    });
+  });
+
+  test('returns a user-bound resumable stream id for assistant-ui streams', async () => {
+    const services = createMockChatServices();
+    const { app } = createTestApp({ services });
+
+    const response = await app.request('/api/chats/messages/stream', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
+      body: JSON.stringify({
+        id: 'cht_1',
+        messages: [USER_MESSAGE],
+        config: { modelName: 'ollama:llama3.2' },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const streamId = response.headers.get('x-resumable-stream-id');
+    expect(streamId).toMatch(/^cht_1\.stm_/);
+
+    const resumed = await app.request(`/api/chats/messages/stream/${streamId}`, {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+    expect(resumed.status).toBe(200);
+    await expect(resumed.text()).resolves.toBe('stream');
+
+    const otherUserResume = await app.request(`/api/chats/messages/stream/${streamId}`, {
+      headers: { 'x-test-user-id': 'usr_2' },
+    });
+    expect(otherUserResume.status).toBe(204);
+  });
+
+  test('creates a shell conversation for assistant-ui thread initialization', async () => {
+    const services = createMockChatServices();
+    const { app } = createTestApp({ services });
+
+    const response = await app.request('/api/chats', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
+      body: JSON.stringify({
+        contextSnapshot: {
+          type: 'document',
+          vaultId: 'vlt_1',
+          documentId: 'doc_1',
+        },
+      }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(services.createConversation).toHaveBeenCalledWith({
+      userId: 'usr_1',
+      scope: {
+        type: 'document',
+        vaultId: 'vlt_1',
+        documentId: 'doc_1',
+        vaultName: 'Finance',
+        documentName: 'Report.pdf',
+      },
+    });
+  });
+
+  test('renames a conversation for assistant-ui generated titles', async () => {
+    const services = createMockChatServices();
+    const { app } = createTestApp({ services });
+
+    const response = await app.request('/api/chats/cht_1', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
+      body: JSON.stringify({ title: 'Quarterly revenue summary' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(services.renameConversation).toHaveBeenCalledWith({
+      userId: 'usr_1',
+      chatId: 'cht_1',
+      title: 'Quarterly revenue summary',
     });
   });
 

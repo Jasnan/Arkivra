@@ -1,30 +1,13 @@
-import type { ChatResponseMode } from "./chat.api"
+import { fetchJson } from "@/lib/api"
+import type { ModelOption } from "@/app/chat/components/assistant-ui/model-selector"
 
-export const DEFAULT_CHAT_RESPONSE_MODE: ChatResponseMode = "text"
-export const UI_PREFERENCES_CACHE_KEY = "arkivra.uiPreferences"
-
-export function isChatResponseMode(value: unknown): value is ChatResponseMode {
-  return value === "text" || value === "multimodal"
+export interface ChatModelOptions {
+  defaultModel: string
+  models: string[]
 }
 
-export function getCachedDefaultChatResponseMode() {
-  if (typeof window === "undefined") {
-    return DEFAULT_CHAT_RESPONSE_MODE
-  }
-
-  try {
-    const rawPreferences = window.localStorage.getItem(UI_PREFERENCES_CACHE_KEY)
-    if (!rawPreferences) {
-      return DEFAULT_CHAT_RESPONSE_MODE
-    }
-
-    const preferences = JSON.parse(rawPreferences) as { defaultChatAnswerMode?: unknown }
-    return isChatResponseMode(preferences.defaultChatAnswerMode)
-      ? preferences.defaultChatAnswerMode
-      : DEFAULT_CHAT_RESPONSE_MODE
-  } catch {
-    return DEFAULT_CHAT_RESPONSE_MODE
-  }
+export async function getChatModelOptions() {
+  return fetchJson<{ options: ChatModelOptions }>("/api/chats/options")
 }
 
 export function formatChatModelLabel(value: string) {
@@ -59,3 +42,13 @@ export function formatChatModelProviderLabel(value: string) {
   if (provider === "ollama") return "Ollama"
   return "Models"
 }
+
+export function toModelSelectorOptions(models: string[]): ModelOption[] {
+  return models.map((model) => ({
+    id: model,
+    name: formatChatModelName(model),
+    description: formatChatModelProviderLabel(model),
+    keywords: [formatChatModelLabel(model), formatChatModelProviderLabel(model)],
+  }))
+}
+

@@ -6,7 +6,6 @@ import { Command as CommandPrimitive } from "cmdk"
 import {
   Archive,
   ArrowRight,
-  MessageCircle,
   Search,
   ShieldCheck,
   Tags,
@@ -160,7 +159,6 @@ export function CommandSearch({ open, onOpenChange, isAdmin }: CommandSearchProp
     { title: "Vaults", url: "/vaults", group: "Pages", icon: Archive },
     { title: "Search", url: "/search", group: "Pages", icon: Search },
     { title: "Tags", url: "/tags", group: "Pages", icon: Tags },
-    { title: "Chat", url: "/chat", group: "Pages", icon: MessageCircle },
     { title: "Trash", url: "/trash", group: "Pages", icon: Trash2 },
 
     // Settings

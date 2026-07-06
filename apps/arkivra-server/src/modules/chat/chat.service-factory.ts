@@ -391,6 +391,7 @@ export function createChatServices({
       const conversationId = conversationRow.id;
       const scopeValues = getScopeValues(scope);
       const txDb = tx as unknown as Database;
+      const assistantCreatedAt = new Date(now.getTime() + 1);
 
       let manifestRows = await loadConversationManifest({ db: txDb, conversationId });
 
@@ -458,8 +459,8 @@ export function createChatServices({
         generationMetrics: null,
         generationStatus: 'pending',
         generationError: null,
-        createdAt: toIso(now),
-        updatedAt: toIso(now),
+        createdAt: toIso(assistantCreatedAt),
+        updatedAt: toIso(assistantCreatedAt),
       };
       const pendingAssistantMessage = buildAssistantMessage({
         id: assistantMessageId,
@@ -478,8 +479,8 @@ export function createChatServices({
           scope: scopeValues.scope,
           userId,
           message: pendingAssistantMessage,
-          createdAt: now,
-          updatedAt: now,
+          createdAt: assistantCreatedAt,
+          updatedAt: assistantCreatedAt,
         })
         .returning();
 
@@ -506,6 +507,7 @@ export function createChatServices({
     messages,
     intent,
     responseMode,
+    includeCitations,
     model,
   }: {
     userId: string;
@@ -514,6 +516,7 @@ export function createChatServices({
     messages: ChatMessage[];
     intent?: ChatIntent;
     responseMode: 'text' | 'multimodal';
+    includeCitations: boolean;
     model?: string;
   }) {
     const now = new Date();
@@ -571,9 +574,8 @@ export function createChatServices({
         let firstTokenAtMs: number | null = null;
         let generatedFromRetrievedContext = false;
         const includeImages = responseMode === 'multimodal';
-        const includeInlineCitations = responseMode === 'multimodal';
-        const citationLimit =
-          responseMode === 'multimodal' ? MAX_CONTEXT_CITATIONS : TEXT_ONLY_CONTEXT_CITATIONS;
+        const includeInlineCitations = includeCitations;
+        const citationLimit = includeCitations ? MAX_CONTEXT_CITATIONS : TEXT_ONLY_CONTEXT_CITATIONS;
         const retrievalLimit = Math.min(50, Math.max(CHAT_RETRIEVAL_LIMIT, citationLimit));
 
         try {

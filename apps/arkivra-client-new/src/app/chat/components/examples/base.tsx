@@ -5,6 +5,7 @@ import {
   UserMessageAttachments,
 } from "@/app/chat/components/assistant-ui/attachment";
 import { ChatContextPicker } from "@/app/chat/components/chat-context-picker";
+import { CitationData } from "@/app/chat/components/assistant-ui/citations";
 import { MarkdownText } from "@/app/chat/components/assistant-ui/markdown-text";
 import { DotMatrix } from "@/app/chat/components/assistant-ui/dot-matrix";
 import { MessageTiming } from "@/app/chat/components/assistant-ui/message-timing";
@@ -90,6 +91,7 @@ const ModelPicker: FC = () => {
   const [models, setModels] = useState<string[]>([]);
   const [defaultModel, setDefaultModel] = useState<string | undefined>();
   const [selectedModel, setSelectedModel] = useState<string | undefined>();
+  const [includeCitations, setIncludeCitations] = useState(true);
   const [isLoadingModels, setIsLoadingModels] = useState(true);
   const [modelOptionsError, setModelOptionsError] = useState<string | null>(
     null,
@@ -145,19 +147,38 @@ const ModelPicker: FC = () => {
 
     return toModelSelectorOptions(models);
   }, [isLoadingModels, modelOptionsError, models]);
+  const requestConfig = useMemo(() => ({ includeCitations }), [includeCitations]);
 
   return (
-    <ModelSelector
-      models={modelOptions}
-      value={selectedModel}
-      defaultValue={defaultModel}
-      onValueChange={setSelectedModel}
-      variant="ghost"
-      size="sm"
-      className="h-7 rounded-full"
-      contentClassName="min-w-72"
-      searchable={models.length > 8}
-    />
+    <>
+      <ModelSelector
+        models={modelOptions}
+        value={selectedModel}
+        defaultValue={defaultModel}
+        onValueChange={setSelectedModel}
+        requestConfig={requestConfig}
+        variant="ghost"
+        size="sm"
+        className="h-7 rounded-full"
+        contentClassName="min-w-72"
+        searchable={models.length > 8}
+      />
+      <TooltipIconButton
+        tooltip={includeCitations ? "Citations on" : "Citations off"}
+        side="bottom"
+        type="button"
+        aria-pressed={includeCitations}
+        onClick={() => setIncludeCitations((current) => !current)}
+        className={cn(
+          "size-7 rounded-full",
+          includeCitations
+            ? "bg-accent text-accent-foreground"
+            : "text-muted-foreground",
+        )}
+      >
+        <FileTextIcon className="size-4" />
+      </TooltipIconButton>
+    </>
   );
 };
 
@@ -560,6 +581,7 @@ const AssistantMessage: FC = () => {
               case "indicator":
                 return <AssistantWorkingIndicator />;
               case "data":
+                if (part.name === "citations") return <CitationData data={part.data} />;
                 return part.dataRendererUI;
               default:
                 return null;

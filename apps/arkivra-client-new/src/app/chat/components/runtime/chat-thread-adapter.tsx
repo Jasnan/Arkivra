@@ -14,6 +14,7 @@ import type { ArkivraChatMessage } from "@/app/chat/components/runtime/chat-runt
 import { fetchJson } from "@/lib/api"
 
 const MAX_TITLE_LENGTH = 48
+const DEFAULT_CHAT_TITLE = "New chat"
 
 type ChatConversation = {
   id: string
@@ -56,7 +57,7 @@ function getFirstUserMessageText(messages: readonly ThreadMessage[]) {
 
 function toChatTitle(text: string) {
   const normalized = text.replace(/\s+/g, " ").trim()
-  if (!normalized) return "New chat"
+  if (!normalized) return DEFAULT_CHAT_TITLE
   if (normalized.length <= MAX_TITLE_LENGTH) return normalized
 
   return `${normalized.slice(0, MAX_TITLE_LENGTH - 1).trimEnd()}...`
@@ -66,9 +67,18 @@ function createTitleStream(title: string): TitleStream {
   return new ReadableStream({
     start(controller) {
       controller.enqueue({
-        type: "text-delta",
+        type: "part-start",
         path: [],
+        part: { type: "text" },
+      })
+      controller.enqueue({
+        type: "text-delta",
+        path: [0],
         textDelta: title,
+      })
+      controller.enqueue({
+        type: "part-finish",
+        path: [0],
       })
       controller.close()
     },
@@ -156,12 +166,20 @@ export function createArkivraThreadListAdapter(): RemoteThreadListAdapter {
       return toThreadMetadata(conversation)
     },
     async generateTitle(remoteId, messages) {
-      const title = toChatTitle(getFirstUserMessageText(messages))
-      await fetchJson<ChatCreateResponse>(`/api/chats/${remoteId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title }),
-      })
+      const titleFromLiveMessages = toChatTitle(getFirstUserMessageText(messages))
+
+      if (titleFromLiveMessages !== DEFAULT_CHAT_TITLE) {
+        await fetchJson<ChatCreateResponse>(`/api/chats/${remoteId}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ title: titleFromLiveMessages }),
+        })
+
+        return createTitleStream(titleFromLiveMessages)
+      }
+
+      const { conversation } = await fetchJson<ChatDetailResponse>(`/api/chats/${remoteId}`)
+      const title = toChatTitle(conversation.title)
 
       return createTitleStream(title)
     },

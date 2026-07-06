@@ -20,6 +20,7 @@ export type ChatRouteErrorCode =
   | 'authorization.use_ai_required'
   | 'chat.invalid_content'
   | 'chat.invalid_context'
+  | 'chat.invalid_include_citations'
   | 'chat.invalid_intent'
   | 'chat.invalid_model'
   | 'chat.invalid_response_mode'
@@ -65,6 +66,14 @@ export function parseResponseMode(value: unknown) {
   }
 
   return value === 'text' || value === 'multimodal' ? value : null;
+}
+
+export function parseIncludeCitations(value: unknown) {
+  if (value === undefined || value === null) {
+    return true;
+  }
+
+  return typeof value === 'boolean' ? value : null;
 }
 
 export function parseModel(value: unknown) {

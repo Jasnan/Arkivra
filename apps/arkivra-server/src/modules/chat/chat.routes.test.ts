@@ -199,6 +199,7 @@ describe('chat routes', () => {
       messages: [USER_MESSAGE],
       intent: undefined,
       responseMode: 'text',
+      includeCitations: true,
       model: 'ollama:llama3.2',
     });
   });
@@ -220,6 +221,7 @@ describe('chat routes', () => {
       messages: [USER_MESSAGE],
       intent: undefined,
       responseMode: 'text',
+      includeCitations: true,
       model: 'ollama:llama3.2',
     });
   });
@@ -245,6 +247,33 @@ describe('chat routes', () => {
       messages: [USER_MESSAGE],
       intent: undefined,
       responseMode: 'text',
+      includeCitations: true,
+      model: 'ollama:llama3.2',
+    });
+  });
+
+  test('passes assistant-ui citation preference through stream config', async () => {
+    const services = createMockChatServices();
+    const { app } = createTestApp({ services });
+
+    const response = await app.request('/api/chats/messages/stream', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
+      body: JSON.stringify({
+        id: 'cht_1',
+        messages: [USER_MESSAGE],
+        config: { modelName: 'ollama:llama3.2', includeCitations: false },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(services.createMessageStream).toHaveBeenCalledWith({
+      userId: 'usr_1',
+      chatId: 'cht_1',
+      messages: [USER_MESSAGE],
+      intent: undefined,
+      responseMode: 'text',
+      includeCitations: false,
       model: 'ollama:llama3.2',
     });
   });

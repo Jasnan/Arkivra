@@ -25,6 +25,8 @@ const feedbackAdapter: FeedbackAdapter = {
   submit: async () => {},
 }
 
+const DEFAULT_THREAD_TITLE = "New chat"
+
 type RuntimeAdapters = NonNullable<Parameters<typeof useAISDKRuntime<ArkivraChatMessage>>[1]>["adapters"]
 
 function useArkivraChatThreadRuntime(
@@ -46,6 +48,8 @@ function useArkivraChatThreadRuntime(
     transport,
   })
   const resumedStreamRef = useRef(false)
+  const wasRunningRef = useRef(false)
+  const titleGenerationRunRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (resumedStreamRef.current) return
@@ -66,11 +70,50 @@ function useArkivraChatThreadRuntime(
     },
   })
 
+  useEffect(() => {
+    const isRunning = chat.status === "submitted" || chat.status === "streaming"
+    const wasRunning = wasRunningRef.current
+    wasRunningRef.current = isRunning
+
+    if (isRunning || !wasRunning) return
+    if (!chat.messages.some((message) => message.role === "user")) return
+    if (!aui.threadListItem.source) return
+
+    const threadListItem = aui.threadListItem()
+    const threadState = threadListItem.getState()
+    console.log("Arkivra chat title generation state", {
+      chatId: id,
+      threadStateId: threadState.id,
+      threadStateRemoteId: threadState.remoteId,
+      currentThreadRemoteId: aui.threadListItem().getState().remoteId,
+    })
+    if (threadState.id !== id) return
+    if (!threadState.remoteId) return
+
+    const currentTitle = threadState.title?.trim()
+    if (currentTitle && currentTitle !== DEFAULT_THREAD_TITLE) return
+
+    const userMessages = chat.messages.filter((message) => message.role === "user")
+    const lastUserMessage = userMessages[userMessages.length - 1]
+    const runKey = `${threadState.id}:${lastUserMessage?.id ?? "unknown"}:${chat.messages.length}`
+    if (titleGenerationRunRef.current === runKey) return
+
+    titleGenerationRunRef.current = runKey
+    void Promise.resolve(threadListItem.generateTitle()).catch((error: unknown) => {
+      console.error("Failed to generate chat title:", error)
+    })
+  }, [aui, chat.messages, chat.status, id])
+
   if (transport instanceof AssistantChatTransport) {
+    const boundThreadListItem = aui.threadListItem.source ? aui.threadListItem() : undefined
+    const boundThreadListItemId = boundThreadListItem?.getState().id
+
     transport.setRuntime(runtime)
-    transport.__internal_setGetThreadListItem(() =>
-      aui.threadListItem.source ? aui.threadListItem() : undefined,
-    )
+    transport.__internal_setGetThreadListItem(() => {
+      if (!boundThreadListItem || boundThreadListItemId !== id) return undefined
+
+      return boundThreadListItem.getState().id === id ? boundThreadListItem : undefined
+    })
   }
 
   return runtime

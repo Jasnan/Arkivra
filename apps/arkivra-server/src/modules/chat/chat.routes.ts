@@ -10,6 +10,7 @@ import {
   getUserId,
   hasUnsupportedDocumentVersionContext,
   isDeletedSourceResolution,
+  parseIncludeCitations,
   parseIntent,
   parseMessages,
   parseModel,
@@ -172,7 +173,15 @@ export function registerChatRoutes({
       && typeof (config as { modelName?: unknown }).modelName === 'string'
       ? (config as { modelName: string }).modelName
       : undefined;
+    const configIncludeCitations = config !== null
+      && typeof config === 'object'
+      && !Array.isArray(config)
+      ? (config as { includeCitations?: unknown }).includeCitations
+      : undefined;
     const model = parseModel(body?.model ?? configModel);
+    const includeCitations = parseIncludeCitations(
+      body?.includeCitations ?? configIncludeCitations,
+    );
 
     if (messages.length === 0 || content.length === 0) {
       return routeError(context, {
@@ -203,6 +212,14 @@ export function registerChatRoutes({
         status: 400,
         code: 'chat.invalid_model',
         message: 'model must be a non-empty string',
+      });
+    }
+
+    if (includeCitations === null) {
+      return routeError(context, {
+        status: 400,
+        code: 'chat.invalid_include_citations',
+        message: 'includeCitations must be a boolean',
       });
     }
 
@@ -277,6 +294,7 @@ export function registerChatRoutes({
         messages,
         intent,
         responseMode,
+        includeCitations,
         model,
       });
 
@@ -329,6 +347,7 @@ export function registerChatRoutes({
       messages,
       intent,
       responseMode,
+      includeCitations,
       model,
     });
 

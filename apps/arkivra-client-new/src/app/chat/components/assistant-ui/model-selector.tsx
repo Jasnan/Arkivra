@@ -122,6 +122,7 @@ type ModelSelectorContextValue = {
   models: readonly ModelOption[];
   value: string | undefined;
   setValue: (value: string) => void;
+  requestConfig: Record<string, unknown> | undefined;
   /** The model matching `value`, derived once for all sub-components. */
   selectedModel: ModelOption | undefined;
   /** The selected model's effort levels, undefined when not configurable. */
@@ -169,6 +170,7 @@ export type ModelSelectorRootProps = {
   effort?: string;
   defaultEffort?: string;
   onEffortChange?: (effort: string) => void;
+  requestConfig?: Record<string, unknown>;
   open?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -183,6 +185,7 @@ function ModelSelectorRoot({
   effort: effortProp,
   defaultEffort,
   onEffortChange,
+  requestConfig,
   open: openProp,
   defaultOpen,
   onOpenChange,
@@ -212,6 +215,7 @@ function ModelSelectorRoot({
       models,
       value,
       setValue,
+      requestConfig,
       selectedModel,
       efforts,
       effort: activeEffort,
@@ -222,6 +226,7 @@ function ModelSelectorRoot({
       models,
       value,
       setValue,
+      requestConfig,
       selectedModel,
       efforts,
       activeEffort,
@@ -586,7 +591,7 @@ export type ModelSelectorProps = Omit<ModelSelectorRootProps, "children"> &
 /** Registers the selection with assistant-ui's ModelContext system. The
  * context's effort is already resolved against the selected model. */
 function ModelSelectorModelContext() {
-  const { value, effort } = useModelSelectorContext();
+  const { value, effort, requestConfig } = useModelSelectorContext();
   const api = useAui();
 
   useEffect(() => {
@@ -594,13 +599,14 @@ function ModelSelectorModelContext() {
     const config = {
       config: {
         modelName: value,
+        ...requestConfig,
         ...(effort !== undefined ? { reasoningEffort: effort } : undefined),
       },
     };
     return api.modelContext().register({
       getModelContext: () => config,
     });
-  }, [api, value, effort]);
+  }, [api, value, effort, requestConfig]);
 
   return null;
 }

@@ -137,13 +137,13 @@ export function toArkivraCreateMessage<UI_MESSAGE extends UIMessage = ArkivraCha
   } as CreateUIMessage<UI_MESSAGE>
 }
 
-export function createArkivraChatTransport() {
+export function createArkivraChatTransport({ storageKey }: { storageKey?: string } = {}) {
   return new AssistantChatTransport<ArkivraChatMessage>({
     api: "/api/chats/messages/stream",
     credentials: "include",
     resumable: {
       storage: createResumableSessionStorage({
-        key: "arkivra-chat-resumable-stream-id",
+        key: storageKey ?? "arkivra-chat-resumable-stream-id",
       }),
       resumeApi: (streamId) => `/api/chats/messages/stream/${encodeURIComponent(streamId)}`,
     },

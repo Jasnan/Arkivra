@@ -27,35 +27,19 @@ const feedbackAdapter: FeedbackAdapter = {
 
 type RuntimeAdapters = NonNullable<Parameters<typeof useAISDKRuntime<ArkivraChatMessage>>[1]>["adapters"]
 
-function useDynamicChatTransport<UI_MESSAGE extends ArkivraChatMessage>(
-  transport: ChatTransport<UI_MESSAGE>,
-) {
-  const transportRef = useRef(transport)
-
-  useEffect(() => {
-    transportRef.current = transport
-  })
-
-  return useMemo(
-    () =>
-      new Proxy(transportRef.current, {
-        get(_, prop) {
-          const value = transportRef.current[prop as keyof ChatTransport<UI_MESSAGE>]
-          return typeof value === "function" ? value.bind(transportRef.current) : value
-        },
-      }),
-    [],
-  )
-}
-
 function useArkivraChatThreadRuntime(
   options: {
-    transport: ChatTransport<ArkivraChatMessage>
     adapters: RuntimeAdapters
   },
 ) {
-  const transport = useDynamicChatTransport(options.transport)
   const id = useAuiState((state) => state.threadListItem.id)
+  const transport = useMemo<ChatTransport<ArkivraChatMessage>>(
+    () =>
+      createArkivraChatTransport({
+        storageKey: `arkivra-chat-resumable-stream-id:${id}`,
+      }),
+    [id],
+  )
   const aui = useAui()
   const chat = useChat<ArkivraChatMessage>({
     id,
@@ -93,7 +77,6 @@ function useArkivraChatThreadRuntime(
 }
 
 export function ChatRuntimeProvider({ children }: { children: ReactNode }) {
-  const transport = useMemo(() => createArkivraChatTransport(), [])
   const threadListAdapter = useMemo(() => createArkivraThreadListAdapter(), [])
   const adapters = useMemo(
     () => ({
@@ -108,7 +91,6 @@ export function ChatRuntimeProvider({ children }: { children: ReactNode }) {
   const runtime = useRemoteThreadListRuntime({
     runtimeHook: function RuntimeHook() {
       return useArkivraChatThreadRuntime({
-        transport,
         adapters,
       })
     },

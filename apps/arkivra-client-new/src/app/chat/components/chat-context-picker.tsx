@@ -10,11 +10,17 @@ import {
   addDocumentsToDraftContext,
   addVaultsToDraftContext,
   createEmptyDraftContext,
+  documentContextAttachmentId,
   documentKey,
+  draftContextFromAttachments,
+  draftContextFromSnapshot,
+  draftContextKey,
   getDraftContextSummary,
   hydrateDraftContextLabels,
   normalizeDraftContext,
   searchResultToDraftDocument,
+  snapshotFromDraftContext,
+  vaultContextAttachmentId,
   type DraftChatContext,
   type DraftChatDocument,
   type DraftChatVault,
@@ -44,151 +50,15 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 
-const VAULT_ATTACHMENT_PREFIX = "arkivra-vault:"
-const DOCUMENT_ATTACHMENT_PREFIX = "arkivra-document:"
-
 type ComposerAttachment = {
   id?: string
   name?: string
   contentType?: string
 }
 
-function contextFromSnapshot(snapshot: unknown): DraftChatContext {
-  if (snapshot === null || typeof snapshot !== "object" || Array.isArray(snapshot)) {
-    return normalizeDraftContext({ vaults: [], documents: [] })
-  }
-
-  const value = snapshot as {
-    type?: unknown
-    vaultId?: unknown
-    vaultName?: unknown
-    documentId?: unknown
-    documentName?: unknown
-    vaults?: unknown
-    documents?: unknown
-  }
-
-  if (value.type === "selection") {
-    return normalizeDraftContext({
-      vaults: Array.isArray(value.vaults)
-        ? value.vaults.flatMap((vault): DraftChatVault[] => {
-            if (vault === null || typeof vault !== "object" || Array.isArray(vault)) return []
-            const vaultRef = vault as { vaultId?: unknown; name?: unknown }
-            return typeof vaultRef.vaultId === "string"
-              ? [{ vaultId: vaultRef.vaultId, ...(typeof vaultRef.name === "string" ? { name: vaultRef.name } : {}) }]
-              : []
-          })
-        : [],
-      documents: Array.isArray(value.documents)
-        ? value.documents.flatMap((document): DraftChatDocument[] => {
-            if (document === null || typeof document !== "object" || Array.isArray(document)) return []
-            const documentRef = document as {
-              vaultId?: unknown
-              documentId?: unknown
-              name?: unknown
-              vaultName?: unknown
-              path?: unknown
-              mimeType?: unknown
-            }
-            return typeof documentRef.vaultId === "string" && typeof documentRef.documentId === "string"
-              ? [{
-                  vaultId: documentRef.vaultId,
-                  documentId: documentRef.documentId,
-                  ...(typeof documentRef.name === "string" ? { name: documentRef.name } : {}),
-                  ...(typeof documentRef.vaultName === "string" ? { vaultName: documentRef.vaultName } : {}),
-                  ...(typeof documentRef.path === "string" ? { path: documentRef.path } : {}),
-                  ...(typeof documentRef.mimeType === "string" ? { mimeType: documentRef.mimeType } : {}),
-                }]
-              : []
-          })
-        : [],
-    })
-  }
-
-  if (value.type === "vault" && typeof value.vaultId === "string") {
-    return normalizeDraftContext({
-      vaults: [{ vaultId: value.vaultId, ...(typeof value.vaultName === "string" ? { name: value.vaultName } : {}) }],
-      documents: [],
-    })
-  }
-
-  if (value.type === "document" && typeof value.vaultId === "string" && typeof value.documentId === "string") {
-    return normalizeDraftContext({
-      vaults: [],
-      documents: [{
-        vaultId: value.vaultId,
-        documentId: value.documentId,
-        ...(typeof value.documentName === "string" ? { name: value.documentName } : {}),
-        ...(typeof value.vaultName === "string" ? { vaultName: value.vaultName } : {}),
-      }],
-    })
-  }
-
-  return normalizeDraftContext({ vaults: [], documents: [] })
-}
-
-function vaultAttachmentId(vaultId: string) {
-  return `${VAULT_ATTACHMENT_PREFIX}${vaultId}`
-}
-
-function documentAttachmentId({ vaultId, documentId }: Pick<DraftChatDocument, "vaultId" | "documentId">) {
-  return `${DOCUMENT_ATTACHMENT_PREFIX}${vaultId}:${documentId}`
-}
-
-function contextFromAttachments(attachments: readonly ComposerAttachment[]): DraftChatContext {
-  return normalizeDraftContext({
-    vaults: attachments.flatMap((attachment): DraftChatVault[] => {
-      if (!attachment.id?.startsWith(VAULT_ATTACHMENT_PREFIX)) return []
-      return [
-        {
-          vaultId: attachment.id.slice(VAULT_ATTACHMENT_PREFIX.length),
-          name: attachment.name,
-        },
-      ]
-    }),
-    documents: attachments.flatMap((attachment): DraftChatDocument[] => {
-      if (!attachment.id?.startsWith(DOCUMENT_ATTACHMENT_PREFIX)) return []
-      const rawKey = attachment.id.slice(DOCUMENT_ATTACHMENT_PREFIX.length)
-      const separatorIndex = rawKey.indexOf(":")
-      if (separatorIndex === -1) return []
-      return [
-        {
-          vaultId: rawKey.slice(0, separatorIndex),
-          documentId: rawKey.slice(separatorIndex + 1),
-          name: attachment.name,
-          mimeType: attachment.contentType,
-        },
-      ]
-    }),
-  })
-}
-
-function draftContextKey(context: DraftChatContext) {
-  const normalized = normalizeDraftContext(context)
-
-  return [
-    ...normalized.vaults.map((vault) => `v:${vault.vaultId}`),
-    ...normalized.documents.map((document) => `d:${documentKey(document)}`),
-  ].join("|")
-}
-
-function snapshotFromDraftContext(context: DraftChatContext) {
-  const normalized = normalizeDraftContext(context)
-
-  if (normalized.vaults.length === 0 && normalized.documents.length === 0) {
-    return { type: "global" as const, vaultIds: [] }
-  }
-
-  return {
-    type: "selection" as const,
-    vaults: normalized.vaults,
-    documents: normalized.documents,
-  }
-}
-
 async function addVaultAttachment(aui: ReturnType<typeof useAui>, vault: DraftChatVault) {
   await aui.composer().addAttachment({
-    id: vaultAttachmentId(vault.vaultId),
+    id: vaultContextAttachmentId(vault.vaultId),
     type: "document",
     name: vault.name ?? "Vault",
     contentType: "application/vnd.arkivra.vault-context",
@@ -203,7 +73,7 @@ async function addVaultAttachment(aui: ReturnType<typeof useAui>, vault: DraftCh
 
 async function addDocumentAttachment(aui: ReturnType<typeof useAui>, document: DraftChatDocument) {
   await aui.composer().addAttachment({
-    id: documentAttachmentId(document),
+    id: documentContextAttachmentId(document),
     type: "document",
     name: document.name ?? "Document",
     contentType: document.mimeType ?? "application/vnd.arkivra.document-context",
@@ -257,9 +127,9 @@ export function ChatContextPicker() {
   const [isLoadingVaults, setIsLoadingVaults] = useState(false)
   const [vaultDialogOpen, setVaultDialogOpen] = useState(false)
   const [documentDialogOpen, setDocumentDialogOpen] = useState(false)
-  const composerContext = useMemo(() => contextFromAttachments(attachments), [attachments])
+  const composerContext = useMemo(() => draftContextFromAttachments(attachments), [attachments])
   const threadContext = useMemo(
-    () => contextFromSnapshot(liveThreadContextSnapshot ?? threadContextSnapshot),
+    () => draftContextFromSnapshot(liveThreadContextSnapshot ?? threadContextSnapshot),
     [liveThreadContextSnapshot, threadContextSnapshot],
   )
   const composerContextKey = useMemo(() => draftContextKey(composerContext), [composerContext])

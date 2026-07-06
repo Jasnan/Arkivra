@@ -42,7 +42,7 @@ export const defaultBaseConfig = {
     appName: "Arkivra Chat",
     welcome: {
       headline: "Ask about your documents",
-      body: "This interface is ready. Backend chat and document context will be connected in a later pass.",
+      body: "",
     },
     labels: {
       composerPlaceholder: "Ask about documents, vaults, or search...",
@@ -85,44 +85,6 @@ export const defaultBaseConfig = {
           {
             label: "key points",
             prompt: "Extract the key points from this document.",
-          },
-        ],
-      },
-      {
-        id: "organize",
-        label: "Organize",
-        icon: "write",
-        options: [
-          {
-            label: "tag documents",
-            prompt: "Suggest tags for the selected documents.",
-          },
-          {
-            label: "rename files",
-            prompt: "Suggest clearer names for these documents.",
-          },
-          {
-            label: "file by topic",
-            prompt: "Suggest where this document belongs.",
-          },
-        ],
-      },
-      {
-        id: "help",
-        label: "Help",
-        icon: "help",
-        options: [
-          {
-            label: "what can I ask?",
-            prompt: "What will Arkivra Chat be able to help with?",
-          },
-          {
-            label: "explain search",
-            prompt: "Explain how document search works in Arkivra.",
-          },
-          {
-            label: "chat status",
-            prompt: "What is connected in this chat page right now?",
           },
         ],
       },

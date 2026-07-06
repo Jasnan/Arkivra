@@ -14,7 +14,13 @@ import {
 import { AssistantChatTransport, useAISDKRuntime } from "@assistant-ui/react-ai-sdk"
 import type { ChatTransport } from "ai"
 
-import { documentKey, normalizeDraftContext } from "@/app/chat/lib/chat-context-model"
+import {
+  draftContextFromAttachments,
+  draftContextKey,
+  hasDraftContext,
+  snapshotFromDraftContext,
+  type ComposerContextAttachment,
+} from "@/app/chat/lib/chat-context-model"
 import {
   createArkivraChatTransport,
   toArkivraCreateMessage,
@@ -31,58 +37,15 @@ const feedbackAdapter: FeedbackAdapter = {
 }
 
 const DEFAULT_THREAD_TITLE = "New chat"
-const VAULT_ATTACHMENT_PREFIX = "arkivra-vault:"
-const DOCUMENT_ATTACHMENT_PREFIX = "arkivra-document:"
 
 type RuntimeAdapters = NonNullable<Parameters<typeof useAISDKRuntime<ArkivraChatMessage>>[1]>["adapters"]
 
-type ComposerContextAttachment = {
-  id?: string
-  name?: string
-  contentType?: string
-}
-
 function snapshotFromComposerAttachments(attachments: readonly ComposerContextAttachment[]) {
-  const context = normalizeDraftContext({
-    vaults: attachments.flatMap((attachment) => {
-      if (!attachment.id?.startsWith(VAULT_ATTACHMENT_PREFIX)) return []
-
-      return [{
-        vaultId: attachment.id.slice(VAULT_ATTACHMENT_PREFIX.length),
-        name: attachment.name,
-      }]
-    }),
-    documents: attachments.flatMap((attachment) => {
-      if (!attachment.id?.startsWith(DOCUMENT_ATTACHMENT_PREFIX)) return []
-      const rawKey = attachment.id.slice(DOCUMENT_ATTACHMENT_PREFIX.length)
-      const separatorIndex = rawKey.indexOf(":")
-      if (separatorIndex === -1) return []
-
-      return [{
-        vaultId: rawKey.slice(0, separatorIndex),
-        documentId: rawKey.slice(separatorIndex + 1),
-        name: attachment.name,
-        mimeType: attachment.contentType,
-      }]
-    }),
-  })
-
-  if (context.vaults.length === 0 && context.documents.length === 0) {
-    return { type: "global" as const, vaultIds: [] }
-  }
-
-  return {
-    type: "selection" as const,
-    vaults: context.vaults,
-    documents: context.documents,
-  }
+  return snapshotFromDraftContext(draftContextFromAttachments(attachments))
 }
 
 function hasComposerContextAttachments(attachments: readonly ComposerContextAttachment[]) {
-  return attachments.some((attachment) => (
-    attachment.id?.startsWith(VAULT_ATTACHMENT_PREFIX) ||
-    attachment.id?.startsWith(DOCUMENT_ATTACHMENT_PREFIX)
-  ))
+  return hasDraftContext(draftContextFromAttachments(attachments))
 }
 
 function snapshotKey(snapshot: unknown) {
@@ -103,27 +66,30 @@ function snapshotKey(snapshot: unknown) {
   }
 
   if (value.type === "selection") {
-    const vaultKeys = Array.isArray(value.vaults)
-      ? value.vaults.flatMap((vault) => (
-          vault !== null &&
-          typeof vault === "object" &&
-          !Array.isArray(vault) &&
-          typeof (vault as { vaultId?: unknown }).vaultId === "string"
-            ? [`v:${(vault as { vaultId: string }).vaultId}`]
-            : []
-        ))
-      : []
-    const documentKeys = Array.isArray(value.documents)
-      ? value.documents.flatMap((document) => {
-          if (document === null || typeof document !== "object" || Array.isArray(document)) return []
-          const ref = document as { vaultId?: unknown; documentId?: unknown }
-          return typeof ref.vaultId === "string" && typeof ref.documentId === "string"
-            ? [`d:${documentKey({ vaultId: ref.vaultId, documentId: ref.documentId })}`]
-            : []
-        })
-      : []
-
-    return [...vaultKeys.sort(), ...documentKeys.sort()].join("|")
+    return draftContextKey({
+      vaults: Array.isArray(value.vaults)
+        ? value.vaults.flatMap((vault) => {
+            if (vault === null || typeof vault !== "object" || Array.isArray(vault)) return []
+            const ref = vault as { vaultId?: unknown; name?: unknown }
+            return typeof ref.vaultId === "string"
+              ? [{ vaultId: ref.vaultId, ...(typeof ref.name === "string" ? { name: ref.name } : {}) }]
+              : []
+          })
+        : [],
+      documents: Array.isArray(value.documents)
+        ? value.documents.flatMap((document) => {
+            if (document === null || typeof document !== "object" || Array.isArray(document)) return []
+            const ref = document as { vaultId?: unknown; documentId?: unknown; name?: unknown }
+            return typeof ref.vaultId === "string" && typeof ref.documentId === "string"
+              ? [{
+                  vaultId: ref.vaultId,
+                  documentId: ref.documentId,
+                  ...(typeof ref.name === "string" ? { name: ref.name } : {}),
+                }]
+              : []
+          })
+        : [],
+    })
   }
 
   if (value.type === "vault" && typeof value.vaultId === "string") {
@@ -131,7 +97,10 @@ function snapshotKey(snapshot: unknown) {
   }
 
   if (value.type === "document" && typeof value.vaultId === "string" && typeof value.documentId === "string") {
-    return `d:${documentKey({ vaultId: value.vaultId, documentId: value.documentId })}`
+    return draftContextKey({
+      vaults: [],
+      documents: [{ vaultId: value.vaultId, documentId: value.documentId }],
+    })
   }
 
   return ""
@@ -177,6 +146,16 @@ function useArkivraChatThreadRuntime(
     () =>
       createArkivraChatTransport({
         storageKey: `arkivra-chat-resumable-stream-id:${id}`,
+        getChatId: async () => {
+          if (!aui.threadListItem.source) return remoteId
+
+          const threadListItem = aui.threadListItem()
+          const threadState = threadListItem.getState()
+          if (threadState.id !== id) return remoteId
+          if (threadState.remoteId) return threadState.remoteId
+
+          return (await threadListItem.initialize())?.remoteId ?? remoteId
+        },
         getContextSnapshot: () => {
           const attachments = aui.composer().getState().attachments as readonly ComposerContextAttachment[]
           const composerSnapshot = snapshotFromComposerAttachments(attachments)
@@ -244,12 +223,6 @@ function useArkivraChatThreadRuntime(
 
     const threadListItem = aui.threadListItem()
     const threadState = threadListItem.getState()
-    console.log("Arkivra chat title generation state", {
-      chatId: id,
-      threadStateId: threadState.id,
-      threadStateRemoteId: threadState.remoteId,
-      currentThreadRemoteId: aui.threadListItem().getState().remoteId,
-    })
     if (threadState.id !== id) return
     if (!threadState.remoteId) return
 

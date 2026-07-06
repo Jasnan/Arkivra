@@ -252,6 +252,55 @@ describe('chat routes', () => {
     });
   });
 
+  test('does not treat local assistant-ui ids as persisted chat ids', async () => {
+    const services = createMockChatServices();
+    const vaultServices = {
+      ...createMockVaultsServices(),
+      listUserVaults: vi.fn(async () => [
+        {
+          id: 'vlt_1',
+          name: 'Finance',
+          description: null,
+          fileCount: 1,
+          totalSize: 1,
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          deletedAt: null,
+          role: 'owner',
+          isAdmin: false,
+          isMember: true,
+        },
+      ]),
+    } as unknown as VaultsServices;
+    const { app } = createTestApp({ services, vaultServices });
+
+    const response = await app.request('/api/chats/messages/stream', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
+      body: JSON.stringify({
+        id: 'aui-local-thread-id',
+        contextSnapshot: { type: 'global', vaultIds: [] },
+        messages: [USER_MESSAGE],
+        config: { modelName: 'ollama:llama3.2' },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(services.getConversation).not.toHaveBeenCalled();
+    expect(services.createMessageStream).toHaveBeenCalledWith({
+      userId: 'usr_1',
+      scope: {
+        type: 'global',
+        vaultIds: ['vlt_1'],
+      },
+      messages: [USER_MESSAGE],
+      intent: undefined,
+      responseMode: 'multimodal',
+      includeCitations: true,
+      model: 'ollama:llama3.2',
+    });
+  });
+
   test('scopes an existing assistant-ui stream to attached document context', async () => {
     const services = createMockChatServices({
       getConversation: vi.fn(async () =>
@@ -376,6 +425,90 @@ describe('chat routes', () => {
         vaultIds: ['vlt_1'],
       },
       messages: [USER_MESSAGE],
+      intent: undefined,
+      responseMode: 'text',
+      includeCitations: true,
+      model: 'ollama:llama3.2',
+    });
+  });
+
+  test('does not reuse prior user attachment context when the latest assistant-ui request is global', async () => {
+    const services = createMockChatServices({
+      getConversation: vi.fn(async () =>
+        createConversation({
+          contextSnapshot: {
+            type: 'selection' as const,
+            vaults: [],
+            documents: [{ vaultId: 'vlt_1', documentId: 'doc_selected' }],
+          },
+        }),
+      ),
+    });
+    const vaultServices = {
+      ...createMockVaultsServices(),
+      listUserVaults: vi.fn(async () => [
+        {
+          id: 'vlt_1',
+          name: 'Finance',
+          description: null,
+          fileCount: 1,
+          totalSize: 1,
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          deletedAt: null,
+          role: 'owner',
+          isAdmin: false,
+          isMember: true,
+        },
+      ]),
+    } as unknown as VaultsServices;
+    const { app } = createTestApp({ services, vaultServices });
+
+    const response = await app.request('/api/chats/messages/stream', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
+      body: JSON.stringify({
+        id: 'cht_1',
+        contextSnapshot: { type: 'global', vaultIds: [] },
+        messages: [
+          {
+            id: 'msg_previous_user',
+            role: 'user',
+            parts: [{ type: 'text', text: 'Use this file' }],
+            metadata: {
+              custom: {
+                contextSnapshot: {
+                  type: 'selection',
+                  vaults: [],
+                  documents: [{ vaultId: 'vlt_1', documentId: 'doc_selected' }],
+                },
+              },
+            },
+          },
+          {
+            id: 'msg_previous_assistant',
+            role: 'assistant',
+            parts: [{ type: 'text', text: 'Okay.' }],
+          },
+          USER_MESSAGE,
+        ],
+        config: { modelName: 'ollama:llama3.2' },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(services.createMessageStream).toHaveBeenCalledWith({
+      userId: 'usr_1',
+      chatId: 'cht_1',
+      scope: {
+        type: 'global',
+        vaultIds: ['vlt_1'],
+      },
+      messages: [
+        expect.objectContaining({ id: 'msg_previous_user' }),
+        expect.objectContaining({ id: 'msg_previous_assistant' }),
+        USER_MESSAGE,
+      ],
       intent: undefined,
       responseMode: 'text',
       includeCitations: true,

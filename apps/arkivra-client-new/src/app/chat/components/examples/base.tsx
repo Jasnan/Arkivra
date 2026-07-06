@@ -774,7 +774,7 @@ export const Base: FC = () => {
       >
         <div
           className={cn(
-            "flex shrink-0 items-start border-b transition-[padding] duration-200",
+            "flex shrink-0 items-center border-b transition-[padding] duration-200",
             sidebarCollapsed ? "justify-center px-2 py-3" : "gap-3 px-4 py-3",
           )}
         >
@@ -793,9 +793,6 @@ export const Base: FC = () => {
           {!sidebarCollapsed && (
             <div className="min-w-0 flex-1">
               <h2 className="text-sm font-medium">Conversations</h2>
-              <p className="text-muted-foreground mt-0.5 text-xs">
-                Local chat drafts until backend chat is connected.
-              </p>
             </div>
           )}
         </div>

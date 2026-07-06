@@ -28,7 +28,7 @@ import {
   createResumeChatResponse,
 } from './chat.resumable-streams.js';
 
-function getLatestUserMessageContextSnapshot(messages: ChatMessage[]): ChatContextSnapshot | null {
+function getSubmittedUserMessageContextSnapshot(messages: ChatMessage[]): ChatContextSnapshot | null {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (message?.role !== 'user') continue;
@@ -40,9 +40,32 @@ function getLatestUserMessageContextSnapshot(messages: ChatMessage[]): ChatConte
         return snapshot as ChatContextSnapshot;
       }
     }
+
+    return null;
   }
 
   return null;
+}
+
+function hasRequestContextInput(body: Record<string, unknown>) {
+  return (
+    body.contextSnapshot !== undefined ||
+    body.context !== undefined ||
+    body.type === 'global' ||
+    body.type === 'selection' ||
+    body.type === 'vault' ||
+    body.type === 'document' ||
+    typeof body.vaultId === 'string' ||
+    typeof body.documentId === 'string' ||
+    Array.isArray(body.vaultIds) ||
+    Array.isArray(body.vaults) ||
+    Array.isArray(body.documents)
+  );
+}
+
+function getMessageContextInput(messages: ChatMessage[]) {
+  const messageContextSnapshot = getSubmittedUserMessageContextSnapshot(messages);
+  return messageContextSnapshot === null ? null : { contextSnapshot: messageContextSnapshot };
 }
 
 function getRequestedContextInput({
@@ -52,13 +75,9 @@ function getRequestedContextInput({
   body: Record<string, unknown>;
   messages: ChatMessage[];
 }) {
-  const messageContextSnapshot = getLatestUserMessageContextSnapshot(messages);
-  return messageContextSnapshot === null ? body : { contextSnapshot: messageContextSnapshot };
-}
+  if (hasRequestContextInput(body)) return body;
 
-function getExplicitMessageContextInput(messages: ChatMessage[]) {
-  const messageContextSnapshot = getLatestUserMessageContextSnapshot(messages);
-  return messageContextSnapshot === null ? null : { contextSnapshot: messageContextSnapshot };
+  return getMessageContextInput(messages) ?? body;
 }
 
 export function registerChatRoutes({
@@ -163,7 +182,11 @@ export function registerChatRoutes({
     }
 
     const body = (await context.req.json().catch(() => null)) as Record<string, unknown> | null;
-    const rawChatId = typeof body?.chatId === 'string' ? body.chatId : body?.id;
+    const rawChatId = typeof body?.chatId === 'string'
+      ? body.chatId
+      : typeof body?.id === 'string' && body.id.startsWith('cht_')
+        ? body.id
+        : undefined;
     const chatId = typeof rawChatId === 'string' && rawChatId.trim().length > 0
       ? rawChatId.trim()
       : undefined;
@@ -241,13 +264,13 @@ export function registerChatRoutes({
 
       let submittedScope;
       if (body !== null) {
-        const explicitMessageContextInput = getExplicitMessageContextInput(messages);
-        const requestedContextInput =
-          explicitMessageContextInput ?? (
-            body.contextSnapshot !== undefined || conversation.messages.length === 0
-              ? getRequestedContextInput({ body, messages })
-              : null
-          );
+        const requestedContextInput = hasRequestContextInput(body)
+          ? body
+          : getMessageContextInput(messages) ?? (
+              conversation.messages.length === 0
+                ? getRequestedContextInput({ body, messages })
+                : null
+            );
 
         if (requestedContextInput !== null && hasUnsupportedDocumentVersionContext(requestedContextInput)) {
           return routeError(context, {

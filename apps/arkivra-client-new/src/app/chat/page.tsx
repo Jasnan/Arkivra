@@ -1,5 +1,9 @@
 "use client"
 
+import { useEffect, useRef } from "react"
+import { useAui, useAuiState } from "@assistant-ui/react"
+import { useLocation, useNavigate, useParams } from "react-router-dom"
+
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { ChatCitationViewerDialog } from "@/app/chat/components/chat-citation-viewer-dialog"
 import { Base } from "@/app/chat/components/examples/base"
@@ -7,11 +11,78 @@ import { ChatRuntimeProvider } from "@/app/chat/components/runtime/chat-runtime-
 import { BaseConfigProvider } from "@/app/chat/lib/base/config-provider"
 import { defaultBaseConfig } from "@/app/chat/lib/base/defaults"
 
+function getChatPath(chatId?: string) {
+  return chatId ? `/chat/${encodeURIComponent(chatId)}` : "/chat"
+}
+
+function normalizeChatId(chatId: string | undefined) {
+  const normalized = chatId?.trim()
+  return normalized ? normalized : undefined
+}
+
+function ChatUrlSync() {
+  const { chatId: chatIdParam } = useParams()
+  const chatId = normalizeChatId(chatIdParam)
+  const location = useLocation()
+  const navigate = useNavigate()
+  const aui = useAui()
+  const remoteId = useAuiState((state) => state.threadListItem.remoteId)
+  const lastAppliedUrlChatIdRef = useRef<string | undefined>(undefined)
+  const pendingUrlChatIdRef = useRef<string | undefined>(undefined)
+
+  useEffect(() => {
+    if (!chatId) {
+      lastAppliedUrlChatIdRef.current = undefined
+      pendingUrlChatIdRef.current = undefined
+      return
+    }
+
+    if (lastAppliedUrlChatIdRef.current === chatId) return
+    lastAppliedUrlChatIdRef.current = chatId
+
+    if (remoteId === chatId) return
+
+    pendingUrlChatIdRef.current = chatId
+    void Promise.resolve(aui.threads().switchToThread(chatId)).catch(() => {
+      if (pendingUrlChatIdRef.current === chatId) {
+        pendingUrlChatIdRef.current = undefined
+      }
+
+      navigate(getChatPath(), { replace: true })
+    })
+  }, [aui, chatId, navigate, remoteId])
+
+  useEffect(() => {
+    if (remoteId) {
+      if (pendingUrlChatIdRef.current === remoteId) {
+        pendingUrlChatIdRef.current = undefined
+      }
+
+      if (chatId !== remoteId) {
+        const nextPath = getChatPath(remoteId)
+        lastAppliedUrlChatIdRef.current = remoteId
+        if (location.pathname !== nextPath) {
+          navigate(nextPath, { replace: true })
+        }
+      }
+
+      return
+    }
+
+    if (chatId && !pendingUrlChatIdRef.current) {
+      lastAppliedUrlChatIdRef.current = undefined
+      if (location.pathname !== getChatPath()) {
+        navigate(getChatPath(), { replace: true })
+      }
+    }
+  }, [chatId, location.pathname, navigate, remoteId])
+
+  return null
+}
+
 export default function ChatPage() {
   return (
     <BaseLayout
-      title="Chat"
-      description="Ask questions about documents and vaults. Backend chat is not connected yet."
       hideHeaderSearch
       contentClassName="overflow-hidden"
     >
@@ -19,6 +90,7 @@ export default function ChatPage() {
         <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-background">
           <BaseConfigProvider value={defaultBaseConfig}>
             <ChatRuntimeProvider>
+              <ChatUrlSync />
               <Base />
               <ChatCitationViewerDialog />
             </ChatRuntimeProvider>

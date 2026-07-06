@@ -302,6 +302,7 @@ export function createChatServices({
       let conversationRow: typeof chatConversationsTable.$inferSelect;
       let scope: ChatScopeInput;
       let previousMessageRows: Array<typeof chatMessagesTable.$inferSelect> = [];
+      let forceManifestRefresh = false;
 
       if (chatId !== undefined) {
         await tx.execute(sql`
@@ -335,6 +336,7 @@ export function createChatServices({
           const scopeChanged = newConversationScope !== undefined;
           if (scopeChanged) {
             scope = newConversationScope;
+            forceManifestRefresh = true;
             await tx
               .delete(chatConversationDocumentVersionsTable)
               .where(eq(chatConversationDocumentVersionsTable.conversationId, conversationRow.id));
@@ -401,6 +403,7 @@ export function createChatServices({
       let manifestRows = await loadConversationManifest({ db: txDb, conversationId });
 
       if (
+        forceManifestRefresh ||
         shouldMaterializeConversationManifest({
           contextFrozenAt: conversationRow.contextFrozenAt,
         })

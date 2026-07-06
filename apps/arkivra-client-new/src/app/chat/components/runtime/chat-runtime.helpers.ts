@@ -5,11 +5,18 @@ import {
 import type { AppendMessage } from "@assistant-ui/react"
 import type { CreateUIMessage, UIDataTypes, UIMessage, UIMessagePart, UITools } from "ai"
 
-import type { DraftChatContext, DraftChatDocument, DraftChatVault } from "@/app/chat/lib/chat-context-model"
-import { normalizeDraftContext } from "@/app/chat/lib/chat-context-model"
-
-const VAULT_ATTACHMENT_PREFIX = "arkivra-vault:"
-const DOCUMENT_ATTACHMENT_PREFIX = "arkivra-document:"
+import type {
+  ChatContextSnapshot,
+  DraftChatContext,
+  DraftChatDocument,
+  DraftChatVault,
+} from "@/app/chat/lib/chat-context-model"
+import {
+  DOCUMENT_CONTEXT_ATTACHMENT_PREFIX,
+  VAULT_CONTEXT_ATTACHMENT_PREFIX,
+  normalizeDraftContext,
+  snapshotFromDraftContext,
+} from "@/app/chat/lib/chat-context-model"
 
 type ArkivraChatMetadata = {
   custom?: {
@@ -18,10 +25,6 @@ type ArkivraChatMetadata = {
   }
   [key: string]: unknown
 }
-
-type ChatContextSnapshot =
-  | { type: "global"; vaultIds: string[] }
-  | { type: "selection"; vaults: DraftChatVault[]; documents: DraftChatDocument[] }
 
 export type ArkivraChatMessage = UIMessage<ArkivraChatMetadata>
 
@@ -72,18 +75,18 @@ function parseContextTextPart(text: string) {
 }
 
 function parseContextAttachmentId(attachment: NonNullable<AppendMessage["attachments"]>[number]) {
-  if (attachment.id?.startsWith(VAULT_ATTACHMENT_PREFIX)) {
+  if (attachment.id?.startsWith(VAULT_CONTEXT_ATTACHMENT_PREFIX)) {
     return {
       type: "vault" as const,
       vault: {
-        vaultId: attachment.id.slice(VAULT_ATTACHMENT_PREFIX.length),
+        vaultId: attachment.id.slice(VAULT_CONTEXT_ATTACHMENT_PREFIX.length),
         name: attachment.name,
       },
     }
   }
 
-  if (attachment.id?.startsWith(DOCUMENT_ATTACHMENT_PREFIX)) {
-    const rawKey = attachment.id.slice(DOCUMENT_ATTACHMENT_PREFIX.length)
+  if (attachment.id?.startsWith(DOCUMENT_CONTEXT_ATTACHMENT_PREFIX)) {
+    const rawKey = attachment.id.slice(DOCUMENT_CONTEXT_ATTACHMENT_PREFIX.length)
     const separatorIndex = rawKey.indexOf(":")
     if (separatorIndex === -1) return null
 
@@ -130,20 +133,6 @@ function getContextFromMessage(message: AppendMessage): DraftChatContext {
   return normalizeDraftContext(context)
 }
 
-function toContextSnapshot(context: DraftChatContext): ChatContextSnapshot | null {
-  const normalized = normalizeDraftContext(context)
-
-  if (normalized.vaults.length === 0 && normalized.documents.length === 0) {
-    return null
-  }
-
-  return {
-    type: "selection",
-    vaults: normalized.vaults,
-    documents: normalized.documents,
-  }
-}
-
 function isArkivraContextTextPart(part: UIMessagePart<UIDataTypes, UITools>) {
   return (
     part.type === "text" &&
@@ -155,7 +144,7 @@ function isArkivraContextTextPart(part: UIMessagePart<UIDataTypes, UITools>) {
 export function toArkivraCreateMessage<UI_MESSAGE extends UIMessage = ArkivraChatMessage>(
   message: AppendMessage,
 ): CreateUIMessage<UI_MESSAGE> {
-  const contextSnapshot = toContextSnapshot(getContextFromMessage(message))
+  const contextSnapshot = snapshotFromDraftContext(getContextFromMessage(message))
   const parts = message.content.flatMap((part): UIMessagePart<UIDataTypes, UITools>[] => {
     if (part.type === "text") {
       return isArkivraContextTextPart({ type: "text", text: part.text }) ? [] : [{ type: "text", text: part.text }]
@@ -188,7 +177,7 @@ export function toArkivraCreateMessage<UI_MESSAGE extends UIMessage = ArkivraCha
       ...(typeof message.metadata === "object" && message.metadata !== null ? message.metadata : {}),
       custom: {
         ...message.metadata?.custom,
-        ...(contextSnapshot ? { contextSnapshot } : {}),
+        contextSnapshot,
       },
     },
   } as CreateUIMessage<UI_MESSAGE>
@@ -196,20 +185,24 @@ export function toArkivraCreateMessage<UI_MESSAGE extends UIMessage = ArkivraCha
 
 export function createArkivraChatTransport({
   storageKey,
+  getChatId,
   getContextSnapshot,
 }: {
   storageKey?: string
+  getChatId?: () => string | undefined | Promise<string | undefined>
   getContextSnapshot?: () => unknown
 } = {}) {
   return new AssistantChatTransport<ArkivraChatMessage>({
     api: "/api/chats/messages/stream",
     credentials: "include",
     prepareSendMessagesRequest: async (options) => {
+      const chatId = await getChatId?.()
       const contextSnapshot = getContextSnapshot?.()
       return {
         body: {
           ...options.body,
           id: options.id,
+          ...(chatId ? { chatId } : {}),
           messages: options.messages,
           trigger: options.trigger,
           messageId: options.messageId,

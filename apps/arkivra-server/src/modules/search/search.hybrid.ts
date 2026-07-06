@@ -8,6 +8,7 @@ import {
   HYBRID_CITATION_DEFAULT_CANDIDATE_LIMIT,
   HYBRID_CITATION_MAX_CANDIDATE_LIMIT,
   HYBRID_CITATION_MAX_TERMS,
+  HYBRID_FOLDER_MATCH_TERM_WEIGHT,
   HYBRID_TITLE_MATCH_BASE_SCORE,
   HYBRID_TITLE_MATCH_TERM_SCORE,
   inferAssetType,
@@ -427,7 +428,16 @@ async function searchHybrid({
       sql.join(
         titleTerms.map(
           (term) =>
-            sql`CASE WHEN lower(concat_ws(' ', d.name, dv.original_name)) LIKE ${`%${term}%`} THEN 1 ELSE 0 END`,
+            sql`
+              CASE WHEN lower(concat_ws(' ', d.name, dv.original_name)) LIKE ${`%${term}%`}
+                THEN 1
+                ELSE 0
+              END
+              + CASE WHEN lower(COALESCE(folder.name, '')) LIKE ${`%${term}%`}
+                THEN ${HYBRID_FOLDER_MATCH_TERM_WEIGHT}
+                ELSE 0
+              END
+            `,
         ),
         sql` + `,
       );
@@ -450,6 +460,10 @@ async function searchHybrid({
                   ON dv.id = dc.document_version_id
                   AND dv.document_id = d.id
                   AND dv.vault_id = d.vault_id
+                LEFT JOIN vault_folders AS folder
+                  ON folder.id = d.folder_id
+                  AND folder.vault_id = d.vault_id
+                  AND folder.is_deleted = false
                 WHERE dc.vault_id IN (${scopedVaultIdList})
                   AND d.vault_id IN (${scopedVaultIdList})
                   AND d.is_deleted = false

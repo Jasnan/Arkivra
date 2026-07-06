@@ -1,22 +1,48 @@
 "use client";
 
 import { FileTextIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
+
+export type CitationBoundingBox = {
+  pageNumber: number;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  layoutWidth: number;
+  layoutHeight: number;
+  system?: string;
+};
+
+export type CitationTextLocator = {
+  sourceType: "rawMarkdown" | "rawText";
+  startOffset: number;
+  endOffset: number;
+};
 
 export type ChatCitation = {
   chunkId?: string;
   documentId?: string;
   documentVersionId?: string;
+  versionNumber?: number;
   vaultId?: string;
   vaultName?: string;
   documentName?: string;
+  mimeType?: string;
   pageStart?: number | null;
   pageEnd?: number | null;
   section?: string | null;
   snippet?: string;
+  boundingBoxes?: CitationBoundingBox[];
+  citationPrecision?: "box" | "page" | "document";
+  textLocator?: CitationTextLocator;
 };
+
+export const OPEN_CHAT_CITATION_EVENT = "arkivra:open-chat-citation";
+
+export type OpenChatCitationEvent = CustomEvent<{ citation: ChatCitation; index?: number }>;
 
 export function isCitation(value: unknown): value is ChatCitation {
   return (
@@ -71,6 +97,8 @@ export function getCitationHref(citation: ChatCitation) {
   if (citation.chunkId) params.set("chunkId", citation.chunkId);
   if (typeof citation.pageStart === "number") params.set("page", String(citation.pageStart));
   if (citation.documentVersionId) params.set("versionId", citation.documentVersionId);
+  const firstBox = citation.boundingBoxes?.find((box) => Number.isFinite(box.pageNumber));
+  if (firstBox) params.set("highlightPage", String(firstBox.pageNumber));
 
   return `/vaults/${encodeURIComponent(citation.vaultId)}/${encodeURIComponent(citation.documentId)}?${params.toString()}`;
 }
@@ -106,6 +134,18 @@ export function CitationLink({
 }) {
   const href = getCitationHref(citation);
   const label = getCitationLabel(citation, index);
+  const canOpenDialog = Boolean(citation.vaultId && citation.documentId);
+
+  function handleClick(event: MouseEvent<HTMLAnchorElement>) {
+    if (!canOpenDialog || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+    event.preventDefault();
+    window.dispatchEvent(
+      new CustomEvent(OPEN_CHAT_CITATION_EVENT, {
+        detail: { citation, index },
+      }),
+    );
+  }
 
   const content = (
     <>
@@ -130,6 +170,7 @@ export function CitationLink({
       href={href}
       className={cn("group relative inline-flex items-center", className)}
       aria-label={`Open ${label}`}
+      onClick={handleClick}
     >
       {content}
     </a>

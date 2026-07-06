@@ -1,6 +1,7 @@
 "use client"
 
 import { BaseLayout } from "@/components/layouts/base-layout"
+import { ChatCitationViewerDialog } from "@/app/chat/components/chat-citation-viewer-dialog"
 import { Base } from "@/app/chat/components/examples/base"
 import { ChatRuntimeProvider } from "@/app/chat/components/runtime/chat-runtime-provider"
 import { BaseConfigProvider } from "@/app/chat/lib/base/config-provider"
@@ -19,6 +20,7 @@ export default function ChatPage() {
           <BaseConfigProvider value={defaultBaseConfig}>
             <ChatRuntimeProvider>
               <Base />
+              <ChatCitationViewerDialog />
             </ChatRuntimeProvider>
           </BaseConfigProvider>
         </div>

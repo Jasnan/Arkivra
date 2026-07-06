@@ -14,11 +14,16 @@ import {
 import { AssistantChatTransport, useAISDKRuntime } from "@assistant-ui/react-ai-sdk"
 import type { ChatTransport } from "ai"
 
+import { documentKey, normalizeDraftContext } from "@/app/chat/lib/chat-context-model"
 import {
   createArkivraChatTransport,
   toArkivraCreateMessage,
   type ArkivraChatMessage,
 } from "@/app/chat/components/runtime/chat-runtime.helpers"
+import {
+  getLiveThreadContextSnapshot,
+  setLiveThreadContextSnapshot,
+} from "@/app/chat/components/runtime/chat-live-thread-context"
 import { createArkivraThreadListAdapter } from "@/app/chat/components/runtime/chat-thread-adapter"
 
 const feedbackAdapter: FeedbackAdapter = {
@@ -26,8 +31,139 @@ const feedbackAdapter: FeedbackAdapter = {
 }
 
 const DEFAULT_THREAD_TITLE = "New chat"
+const VAULT_ATTACHMENT_PREFIX = "arkivra-vault:"
+const DOCUMENT_ATTACHMENT_PREFIX = "arkivra-document:"
 
 type RuntimeAdapters = NonNullable<Parameters<typeof useAISDKRuntime<ArkivraChatMessage>>[1]>["adapters"]
+
+type ComposerContextAttachment = {
+  id?: string
+  name?: string
+  contentType?: string
+}
+
+function snapshotFromComposerAttachments(attachments: readonly ComposerContextAttachment[]) {
+  const context = normalizeDraftContext({
+    vaults: attachments.flatMap((attachment) => {
+      if (!attachment.id?.startsWith(VAULT_ATTACHMENT_PREFIX)) return []
+
+      return [{
+        vaultId: attachment.id.slice(VAULT_ATTACHMENT_PREFIX.length),
+        name: attachment.name,
+      }]
+    }),
+    documents: attachments.flatMap((attachment) => {
+      if (!attachment.id?.startsWith(DOCUMENT_ATTACHMENT_PREFIX)) return []
+      const rawKey = attachment.id.slice(DOCUMENT_ATTACHMENT_PREFIX.length)
+      const separatorIndex = rawKey.indexOf(":")
+      if (separatorIndex === -1) return []
+
+      return [{
+        vaultId: rawKey.slice(0, separatorIndex),
+        documentId: rawKey.slice(separatorIndex + 1),
+        name: attachment.name,
+        mimeType: attachment.contentType,
+      }]
+    }),
+  })
+
+  if (context.vaults.length === 0 && context.documents.length === 0) {
+    return { type: "global" as const, vaultIds: [] }
+  }
+
+  return {
+    type: "selection" as const,
+    vaults: context.vaults,
+    documents: context.documents,
+  }
+}
+
+function hasComposerContextAttachments(attachments: readonly ComposerContextAttachment[]) {
+  return attachments.some((attachment) => (
+    attachment.id?.startsWith(VAULT_ATTACHMENT_PREFIX) ||
+    attachment.id?.startsWith(DOCUMENT_ATTACHMENT_PREFIX)
+  ))
+}
+
+function snapshotKey(snapshot: unknown) {
+  if (snapshot === null || typeof snapshot !== "object" || Array.isArray(snapshot)) return ""
+  const value = snapshot as {
+    type?: unknown
+    vaultIds?: unknown
+    vaults?: unknown
+    documents?: unknown
+    vaultId?: unknown
+    documentId?: unknown
+  }
+
+  if (value.type === "global") {
+    return Array.isArray(value.vaultIds)
+      ? `global:${value.vaultIds.filter((vaultId): vaultId is string => typeof vaultId === "string").sort().join("|")}`
+      : "global"
+  }
+
+  if (value.type === "selection") {
+    const vaultKeys = Array.isArray(value.vaults)
+      ? value.vaults.flatMap((vault) => (
+          vault !== null &&
+          typeof vault === "object" &&
+          !Array.isArray(vault) &&
+          typeof (vault as { vaultId?: unknown }).vaultId === "string"
+            ? [`v:${(vault as { vaultId: string }).vaultId}`]
+            : []
+        ))
+      : []
+    const documentKeys = Array.isArray(value.documents)
+      ? value.documents.flatMap((document) => {
+          if (document === null || typeof document !== "object" || Array.isArray(document)) return []
+          const ref = document as { vaultId?: unknown; documentId?: unknown }
+          return typeof ref.vaultId === "string" && typeof ref.documentId === "string"
+            ? [`d:${documentKey({ vaultId: ref.vaultId, documentId: ref.documentId })}`]
+            : []
+        })
+      : []
+
+    return [...vaultKeys.sort(), ...documentKeys.sort()].join("|")
+  }
+
+  if (value.type === "vault" && typeof value.vaultId === "string") {
+    return `v:${value.vaultId}`
+  }
+
+  if (value.type === "document" && typeof value.vaultId === "string" && typeof value.documentId === "string") {
+    return `d:${documentKey({ vaultId: value.vaultId, documentId: value.documentId })}`
+  }
+
+  return ""
+}
+
+function getStreamedConversation(messages: readonly ArkivraChatMessage[]) {
+  for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+    const message = messages[messageIndex]
+    if (message === undefined) continue
+
+    const parts = message.parts ?? []
+    for (let partIndex = parts.length - 1; partIndex >= 0; partIndex -= 1) {
+      const part = parts[partIndex]
+      if (part === undefined) continue
+      if (part.type !== "data-conversation") continue
+      const data = part.data
+      if (data === null || typeof data !== "object" || Array.isArray(data)) continue
+      const conversation = (data as { conversation?: unknown }).conversation
+      if (conversation === null || typeof conversation !== "object" || Array.isArray(conversation)) continue
+
+      const value = conversation as { id?: unknown; contextSnapshot?: unknown }
+      if (typeof value.id !== "string") continue
+
+      return {
+        id: value.id,
+        contextSnapshot: value.contextSnapshot,
+      }
+    }
+  }
+
+  return null
+}
 
 function useArkivraChatThreadRuntime(
   options: {
@@ -35,14 +171,30 @@ function useArkivraChatThreadRuntime(
   },
 ) {
   const id = useAuiState((state) => state.threadListItem.id)
+  const remoteId = useAuiState((state) => state.threadListItem.remoteId)
+  const aui = useAui()
   const transport = useMemo<ChatTransport<ArkivraChatMessage>>(
     () =>
       createArkivraChatTransport({
         storageKey: `arkivra-chat-resumable-stream-id:${id}`,
+        getContextSnapshot: () => {
+          const attachments = aui.composer().getState().attachments as readonly ComposerContextAttachment[]
+          const composerSnapshot = snapshotFromComposerAttachments(attachments)
+          const liveSnapshot = getLiveThreadContextSnapshot({ threadId: id, remoteId })
+          const liveSnapshotKey = snapshotKey(liveSnapshot)
+          const composerSnapshotKey = snapshotKey(composerSnapshot)
+
+          if (hasComposerContextAttachments(attachments)) return composerSnapshot
+          if (liveSnapshotKey.startsWith("global")) return liveSnapshot
+          if (liveSnapshotKey.length > 0 && composerSnapshotKey.startsWith("global")) {
+            return composerSnapshot
+          }
+
+          return liveSnapshot
+        },
       }),
-    [id],
+    [aui, id, remoteId],
   )
-  const aui = useAui()
   const chat = useChat<ArkivraChatMessage>({
     id,
     transport,
@@ -61,6 +213,17 @@ function useArkivraChatThreadRuntime(
     resumedStreamRef.current = true
     void chat.resumeStream()
   }, [chat, transport])
+
+  useEffect(() => {
+    const conversation = getStreamedConversation(chat.messages)
+    if (conversation === null) return
+
+    setLiveThreadContextSnapshot({
+      threadId: id,
+      remoteId: conversation.id,
+      contextSnapshot: conversation.contextSnapshot,
+    })
+  }, [chat.messages, id])
 
   const runtime = useAISDKRuntime(chat, {
     adapters: options.adapters,
@@ -126,7 +289,6 @@ export function ChatRuntimeProvider({ children }: { children: ReactNode }) {
       speech: new WebSpeechSynthesisAdapter(),
       dictation: new WebSpeechDictationAdapter(),
       feedback: feedbackAdapter,
-      attachments: undefined,
     }),
     []
   )

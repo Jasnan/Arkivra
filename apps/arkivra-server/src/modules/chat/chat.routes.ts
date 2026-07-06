@@ -56,6 +56,11 @@ function getRequestedContextInput({
   return messageContextSnapshot === null ? body : { contextSnapshot: messageContextSnapshot };
 }
 
+function getExplicitMessageContextInput(messages: ChatMessage[]) {
+  const messageContextSnapshot = getLatestUserMessageContextSnapshot(messages);
+  return messageContextSnapshot === null ? null : { contextSnapshot: messageContextSnapshot };
+}
+
 export function registerChatRoutes({
   app,
   db,
@@ -234,11 +239,17 @@ export function registerChatRoutes({
         });
       }
 
-      let initialScope;
-      if (conversation.messages.length === 0 && body !== null) {
-        const requestedContextInput = getRequestedContextInput({ body, messages });
+      let submittedScope;
+      if (body !== null) {
+        const explicitMessageContextInput = getExplicitMessageContextInput(messages);
+        const requestedContextInput =
+          explicitMessageContextInput ?? (
+            body.contextSnapshot !== undefined || conversation.messages.length === 0
+              ? getRequestedContextInput({ body, messages })
+              : null
+          );
 
-        if (hasUnsupportedDocumentVersionContext(requestedContextInput)) {
+        if (requestedContextInput !== null && hasUnsupportedDocumentVersionContext(requestedContextInput)) {
           return routeError(context, {
             status: 400,
             code: 'chat.invalid_context',
@@ -246,29 +257,35 @@ export function registerChatRoutes({
           });
         }
 
-        const resolvedInitialContext = await resolveCreatableContext({
-          context,
-          requestedContext: parseRequestedContext(requestedContextInput),
-          db,
-          vaultServices: vaultsServices,
-        });
+        if (requestedContextInput !== null) {
+          const resolvedSubmittedContext = await resolveCreatableContext({
+            context,
+            requestedContext: parseRequestedContext(requestedContextInput),
+            db,
+            vaultServices: vaultsServices,
+          });
 
-        if (!resolvedInitialContext.ok) {
-          return routeError(context, resolvedInitialContext);
+          if (!resolvedSubmittedContext.ok) {
+            return routeError(context, resolvedSubmittedContext);
+          }
+
+          submittedScope = resolvedSubmittedContext.scope;
         }
-
-        initialScope = resolvedInitialContext.scope;
       }
 
       const resolved = await resolveUsableContext({
         context,
-        snapshot: initialScope ?? conversation.contextSnapshot,
+        snapshot: submittedScope ?? conversation.contextSnapshot,
         db,
         vaultServices: vaultsServices,
       });
 
       if (!resolved.ok) {
-        if (conversation.contextAvailability.readOnly && isDeletedSourceResolution(resolved)) {
+        if (
+          submittedScope === undefined &&
+          conversation.contextAvailability.readOnly &&
+          isDeletedSourceResolution(resolved)
+        ) {
           return routeError(context, {
             status: 409,
             code: 'chat.context_unavailable',
@@ -279,7 +296,7 @@ export function registerChatRoutes({
         return routeError(context, resolved);
       }
 
-      if (conversation.contextAvailability.readOnly) {
+      if (submittedScope === undefined && conversation.contextAvailability.readOnly) {
         return routeError(context, {
           status: 409,
           code: 'chat.context_unavailable',
@@ -290,7 +307,7 @@ export function registerChatRoutes({
       const stream = await services.createMessageStream({
         userId,
         chatId,
-        ...(initialScope !== undefined ? { scope: initialScope } : {}),
+        ...(submittedScope !== undefined ? { scope: submittedScope } : {}),
         messages,
         intent,
         responseMode,

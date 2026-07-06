@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { FileTextIcon, PaperclipIcon, SearchIcon, VaultIcon } from "lucide-react"
 import { useAui, useAuiState } from "@assistant-ui/react"
 
@@ -9,6 +9,7 @@ import { listVaults, type VaultSummary } from "@/app/vaults/vaults.api"
 import {
   addDocumentsToDraftContext,
   addVaultsToDraftContext,
+  createEmptyDraftContext,
   documentKey,
   getDraftContextSummary,
   hydrateDraftContextLabels,
@@ -19,6 +20,10 @@ import {
   type DraftChatVault,
 } from "@/app/chat/lib/chat-context-model"
 import { TooltipIconButton } from "@/app/chat/components/assistant-ui/tooltip-icon-button"
+import {
+  setLiveThreadContextSnapshot,
+  useLiveThreadContextSnapshot,
+} from "@/app/chat/components/runtime/chat-live-thread-context"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -46,6 +51,80 @@ type ComposerAttachment = {
   id?: string
   name?: string
   contentType?: string
+}
+
+function contextFromSnapshot(snapshot: unknown): DraftChatContext {
+  if (snapshot === null || typeof snapshot !== "object" || Array.isArray(snapshot)) {
+    return normalizeDraftContext({ vaults: [], documents: [] })
+  }
+
+  const value = snapshot as {
+    type?: unknown
+    vaultId?: unknown
+    vaultName?: unknown
+    documentId?: unknown
+    documentName?: unknown
+    vaults?: unknown
+    documents?: unknown
+  }
+
+  if (value.type === "selection") {
+    return normalizeDraftContext({
+      vaults: Array.isArray(value.vaults)
+        ? value.vaults.flatMap((vault): DraftChatVault[] => {
+            if (vault === null || typeof vault !== "object" || Array.isArray(vault)) return []
+            const vaultRef = vault as { vaultId?: unknown; name?: unknown }
+            return typeof vaultRef.vaultId === "string"
+              ? [{ vaultId: vaultRef.vaultId, ...(typeof vaultRef.name === "string" ? { name: vaultRef.name } : {}) }]
+              : []
+          })
+        : [],
+      documents: Array.isArray(value.documents)
+        ? value.documents.flatMap((document): DraftChatDocument[] => {
+            if (document === null || typeof document !== "object" || Array.isArray(document)) return []
+            const documentRef = document as {
+              vaultId?: unknown
+              documentId?: unknown
+              name?: unknown
+              vaultName?: unknown
+              path?: unknown
+              mimeType?: unknown
+            }
+            return typeof documentRef.vaultId === "string" && typeof documentRef.documentId === "string"
+              ? [{
+                  vaultId: documentRef.vaultId,
+                  documentId: documentRef.documentId,
+                  ...(typeof documentRef.name === "string" ? { name: documentRef.name } : {}),
+                  ...(typeof documentRef.vaultName === "string" ? { vaultName: documentRef.vaultName } : {}),
+                  ...(typeof documentRef.path === "string" ? { path: documentRef.path } : {}),
+                  ...(typeof documentRef.mimeType === "string" ? { mimeType: documentRef.mimeType } : {}),
+                }]
+              : []
+          })
+        : [],
+    })
+  }
+
+  if (value.type === "vault" && typeof value.vaultId === "string") {
+    return normalizeDraftContext({
+      vaults: [{ vaultId: value.vaultId, ...(typeof value.vaultName === "string" ? { name: value.vaultName } : {}) }],
+      documents: [],
+    })
+  }
+
+  if (value.type === "document" && typeof value.vaultId === "string" && typeof value.documentId === "string") {
+    return normalizeDraftContext({
+      vaults: [],
+      documents: [{
+        vaultId: value.vaultId,
+        documentId: value.documentId,
+        ...(typeof value.documentName === "string" ? { name: value.documentName } : {}),
+        ...(typeof value.vaultName === "string" ? { vaultName: value.vaultName } : {}),
+      }],
+    })
+  }
+
+  return normalizeDraftContext({ vaults: [], documents: [] })
 }
 
 function vaultAttachmentId(vaultId: string) {
@@ -82,6 +161,29 @@ function contextFromAttachments(attachments: readonly ComposerAttachment[]): Dra
       ]
     }),
   })
+}
+
+function draftContextKey(context: DraftChatContext) {
+  const normalized = normalizeDraftContext(context)
+
+  return [
+    ...normalized.vaults.map((vault) => `v:${vault.vaultId}`),
+    ...normalized.documents.map((document) => `d:${documentKey(document)}`),
+  ].join("|")
+}
+
+function snapshotFromDraftContext(context: DraftChatContext) {
+  const normalized = normalizeDraftContext(context)
+
+  if (normalized.vaults.length === 0 && normalized.documents.length === 0) {
+    return { type: "global" as const, vaultIds: [] }
+  }
+
+  return {
+    type: "selection" as const,
+    vaults: normalized.vaults,
+    documents: normalized.documents,
+  }
 }
 
 async function addVaultAttachment(aui: ReturnType<typeof useAui>, vault: DraftChatVault) {
@@ -122,14 +224,8 @@ async function addDocumentAttachment(aui: ReturnType<typeof useAui>, document: D
 
 async function addContextAttachments(aui: ReturnType<typeof useAui>, current: DraftChatContext, next: DraftChatContext) {
   const normalizedNext = normalizeDraftContext(next)
-  const currentKey = [
-    ...current.vaults.map((vault) => `v:${vault.vaultId}`),
-    ...current.documents.map((document) => `d:${documentKey(document)}`),
-  ].join("|")
-  const nextKey = [
-    ...normalizedNext.vaults.map((vault) => `v:${vault.vaultId}`),
-    ...normalizedNext.documents.map((document) => `d:${documentKey(document)}`),
-  ].join("|")
+  const currentKey = draftContextKey(current)
+  const nextKey = draftContextKey(normalizedNext)
 
   if (currentKey === nextKey) return
 
@@ -146,13 +242,35 @@ async function addContextAttachments(aui: ReturnType<typeof useAui>, current: Dr
 
 export function ChatContextPicker() {
   const aui = useAui()
+  const hydratedThreadContextKeyRef = useRef<string | null>(null)
+  const previousComposerContextKeyRef = useRef("")
+  const threadId = useAuiState((state) => state.threadListItem.id)
+  const threadRemoteId = useAuiState((state) => state.threadListItem.remoteId)
   const attachments = useAuiState((state) => state.composer.attachments as readonly ComposerAttachment[])
+  const threadContextSnapshot = useAuiState((state) => state.threadListItem.custom?.contextSnapshot)
+  const liveThreadContextSnapshot = useLiveThreadContextSnapshot({
+    threadId,
+    remoteId: threadRemoteId,
+  })
   const [vaults, setVaults] = useState<VaultSummary[]>([])
   const [vaultsError, setVaultsError] = useState<string | null>(null)
   const [isLoadingVaults, setIsLoadingVaults] = useState(false)
   const [vaultDialogOpen, setVaultDialogOpen] = useState(false)
   const [documentDialogOpen, setDocumentDialogOpen] = useState(false)
-  const attachedContext = useMemo(() => hydrateDraftContextLabels({ context: contextFromAttachments(attachments), vaults }), [attachments, vaults])
+  const composerContext = useMemo(() => contextFromAttachments(attachments), [attachments])
+  const threadContext = useMemo(
+    () => contextFromSnapshot(liveThreadContextSnapshot ?? threadContextSnapshot),
+    [liveThreadContextSnapshot, threadContextSnapshot],
+  )
+  const composerContextKey = useMemo(() => draftContextKey(composerContext), [composerContext])
+  const threadContextKey = useMemo(() => draftContextKey(threadContext), [threadContext])
+  const activeContext = useMemo(() => {
+    const normalizedComposerContext = normalizeDraftContext(composerContext)
+    return normalizedComposerContext.vaults.length > 0 || normalizedComposerContext.documents.length > 0
+      ? normalizedComposerContext
+      : threadContext
+  }, [composerContext, threadContext])
+  const attachedContext = useMemo(() => hydrateDraftContextLabels({ context: activeContext, vaults }), [activeContext, vaults])
   const summary = getDraftContextSummary(attachedContext)
 
   useEffect(() => {
@@ -176,6 +294,40 @@ export function ChatContextPicker() {
       ignore = true
     }
   }, [])
+
+  useEffect(() => {
+    if (threadContextKey.length === 0) {
+      hydratedThreadContextKeyRef.current = null
+      return
+    }
+
+    if (composerContextKey.length > 0 || hydratedThreadContextKeyRef.current === threadContextKey) return
+
+    hydratedThreadContextKeyRef.current = threadContextKey
+    void addContextAttachments(aui, createEmptyDraftContext(), threadContext)
+  }, [aui, composerContextKey, threadContext, threadContextKey])
+
+  useEffect(() => {
+    const previousComposerContextKey = previousComposerContextKeyRef.current
+    previousComposerContextKeyRef.current = composerContextKey
+
+    if (composerContextKey.length > 0) {
+      setLiveThreadContextSnapshot({
+        threadId,
+        remoteId: threadRemoteId,
+        contextSnapshot: snapshotFromDraftContext(composerContext),
+      })
+      return
+    }
+
+    if (previousComposerContextKey.length === 0) return
+
+    setLiveThreadContextSnapshot({
+      threadId,
+      remoteId: threadRemoteId,
+      contextSnapshot: snapshotFromDraftContext(createEmptyDraftContext()),
+    })
+  }, [composerContext, composerContextKey, threadId, threadRemoteId])
 
   const applyVaults = async (selectedVaults: DraftChatVault[]) => {
     const nextContext = addVaultsToDraftContext(attachedContext, selectedVaults)

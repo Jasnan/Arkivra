@@ -25,8 +25,54 @@ type ChatContextSnapshot =
 
 export type ArkivraChatMessage = UIMessage<ArkivraChatMetadata>
 
+function parseContextTextPart(text: string) {
+  const lines = text.split(/\r?\n/)
+  const header = lines[0]?.trim()
+  if (header !== "Arkivra vault context" && header !== "Arkivra document context") {
+    return null
+  }
+
+  const fields = new Map<string, string>()
+  for (const line of lines.slice(1)) {
+    const separatorIndex = line.indexOf(":")
+    if (separatorIndex === -1) continue
+    const key = line.slice(0, separatorIndex).trim()
+    const value = line.slice(separatorIndex + 1).trim()
+    if (key.length > 0 && value.length > 0) {
+      fields.set(key, value)
+    }
+  }
+
+  if (header === "Arkivra vault context") {
+    const vaultId = fields.get("vaultId")
+    if (!vaultId) return null
+
+    return {
+      type: "vault" as const,
+      vault: {
+        vaultId,
+        name: fields.get("name"),
+      },
+    }
+  }
+
+  const vaultId = fields.get("vaultId")
+  const documentId = fields.get("documentId")
+  if (!vaultId || !documentId) return null
+
+  return {
+    type: "document" as const,
+    document: {
+      vaultId,
+      documentId,
+      name: fields.get("name"),
+      vaultName: fields.get("vaultName"),
+    },
+  }
+}
+
 function parseContextAttachmentId(attachment: NonNullable<AppendMessage["attachments"]>[number]) {
-  if (attachment.id.startsWith(VAULT_ATTACHMENT_PREFIX)) {
+  if (attachment.id?.startsWith(VAULT_ATTACHMENT_PREFIX)) {
     return {
       type: "vault" as const,
       vault: {
@@ -36,7 +82,7 @@ function parseContextAttachmentId(attachment: NonNullable<AppendMessage["attachm
     }
   }
 
-  if (attachment.id.startsWith(DOCUMENT_ATTACHMENT_PREFIX)) {
+  if (attachment.id?.startsWith(DOCUMENT_ATTACHMENT_PREFIX)) {
     const rawKey = attachment.id.slice(DOCUMENT_ATTACHMENT_PREFIX.length)
     const separatorIndex = rawKey.indexOf(":")
     if (separatorIndex === -1) return null
@@ -55,14 +101,25 @@ function parseContextAttachmentId(attachment: NonNullable<AppendMessage["attachm
   return null
 }
 
-function getContextFromAttachments(attachments: AppendMessage["attachments"]): DraftChatContext {
+function getContextFromMessage(message: AppendMessage): DraftChatContext {
   const context = normalizeDraftContext({
     vaults: [],
     documents: [],
   })
 
-  for (const attachment of attachments ?? []) {
-    const parsed = parseContextAttachmentId(attachment)
+  const parsedContextItems = [
+    ...(message.attachments ?? []).flatMap((attachment) => [
+      parseContextAttachmentId(attachment),
+      ...attachment.content.flatMap((part) => (
+        part.type === "text" ? [parseContextTextPart(part.text)] : []
+      )),
+    ]),
+    ...message.content.flatMap((part) => (
+      part.type === "text" ? [parseContextTextPart(part.text)] : []
+    )),
+  ]
+
+  for (const parsed of parsedContextItems) {
     if (parsed?.type === "vault") {
       context.vaults.push(parsed.vault)
     } else if (parsed?.type === "document") {
@@ -73,11 +130,11 @@ function getContextFromAttachments(attachments: AppendMessage["attachments"]): D
   return normalizeDraftContext(context)
 }
 
-function toContextSnapshot(context: DraftChatContext): ChatContextSnapshot {
+function toContextSnapshot(context: DraftChatContext): ChatContextSnapshot | null {
   const normalized = normalizeDraftContext(context)
 
   if (normalized.vaults.length === 0 && normalized.documents.length === 0) {
-    return { type: "global", vaultIds: [] }
+    return null
   }
 
   return {
@@ -98,7 +155,7 @@ function isArkivraContextTextPart(part: UIMessagePart<UIDataTypes, UITools>) {
 export function toArkivraCreateMessage<UI_MESSAGE extends UIMessage = ArkivraChatMessage>(
   message: AppendMessage,
 ): CreateUIMessage<UI_MESSAGE> {
-  const contextSnapshot = toContextSnapshot(getContextFromAttachments(message.attachments))
+  const contextSnapshot = toContextSnapshot(getContextFromMessage(message))
   const parts = message.content.flatMap((part): UIMessagePart<UIDataTypes, UITools>[] => {
     if (part.type === "text") {
       return isArkivraContextTextPart({ type: "text", text: part.text }) ? [] : [{ type: "text", text: part.text }]
@@ -131,16 +188,36 @@ export function toArkivraCreateMessage<UI_MESSAGE extends UIMessage = ArkivraCha
       ...(typeof message.metadata === "object" && message.metadata !== null ? message.metadata : {}),
       custom: {
         ...message.metadata?.custom,
-        contextSnapshot,
+        ...(contextSnapshot ? { contextSnapshot } : {}),
       },
     },
   } as CreateUIMessage<UI_MESSAGE>
 }
 
-export function createArkivraChatTransport({ storageKey }: { storageKey?: string } = {}) {
+export function createArkivraChatTransport({
+  storageKey,
+  getContextSnapshot,
+}: {
+  storageKey?: string
+  getContextSnapshot?: () => unknown
+} = {}) {
   return new AssistantChatTransport<ArkivraChatMessage>({
     api: "/api/chats/messages/stream",
     credentials: "include",
+    prepareSendMessagesRequest: async (options) => {
+      const contextSnapshot = getContextSnapshot?.()
+      return {
+        body: {
+          ...options.body,
+          id: options.id,
+          messages: options.messages,
+          trigger: options.trigger,
+          messageId: options.messageId,
+          metadata: options.requestMetadata,
+          ...(contextSnapshot !== undefined ? { contextSnapshot } : {}),
+        },
+      }
+    },
     resumable: {
       storage: createResumableSessionStorage({
         key: storageKey ?? "arkivra-chat-resumable-stream-id",

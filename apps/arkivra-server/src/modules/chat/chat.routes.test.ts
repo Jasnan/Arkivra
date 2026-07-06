@@ -252,6 +252,137 @@ describe('chat routes', () => {
     });
   });
 
+  test('scopes an existing assistant-ui stream to attached document context', async () => {
+    const services = createMockChatServices({
+      getConversation: vi.fn(async () =>
+        createConversation({
+          contextSnapshot: { type: 'global' as const, vaultIds: ['vlt_1', 'vlt_2'] },
+        }),
+      ),
+    });
+    const { app } = createTestApp({
+      db: createMockDb([{ id: 'doc_selected', name: 'Selected.pdf' }]),
+      services,
+    });
+
+    const response = await app.request('/api/chats/messages/stream', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
+      body: JSON.stringify({
+        id: 'cht_1',
+        messages: [
+          {
+            ...USER_MESSAGE,
+            metadata: {
+              custom: {
+                contextSnapshot: {
+                  type: 'selection',
+                  vaults: [],
+                  documents: [
+                    {
+                      vaultId: 'vlt_1',
+                      documentId: 'doc_selected',
+                      name: 'Selected.pdf',
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        ],
+        config: { modelName: 'ollama:llama3.2' },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(services.createMessageStream).toHaveBeenCalledWith({
+      userId: 'usr_1',
+      chatId: 'cht_1',
+      scope: {
+        type: 'selection',
+        vaults: [],
+        documents: [
+          {
+            vaultId: 'vlt_1',
+            documentId: 'doc_selected',
+            name: 'Selected.pdf',
+            vaultName: 'Finance',
+          },
+        ],
+      },
+      messages: [
+        expect.objectContaining({
+          id: USER_MESSAGE.id,
+          role: USER_MESSAGE.role,
+          parts: USER_MESSAGE.parts,
+        }),
+      ],
+      intent: undefined,
+      responseMode: 'text',
+      includeCitations: true,
+      model: 'ollama:llama3.2',
+    });
+  });
+
+  test('rescopes an existing assistant-ui stream to global context from request body', async () => {
+    const services = createMockChatServices({
+      getConversation: vi.fn(async () =>
+        createConversation({
+          contextSnapshot: {
+            type: 'selection' as const,
+            vaults: [],
+            documents: [{ vaultId: 'vlt_1', documentId: 'doc_selected' }],
+          },
+        }),
+      ),
+    });
+    const vaultServices = {
+      ...createMockVaultsServices(),
+      listUserVaults: vi.fn(async () => [
+        {
+          id: 'vlt_1',
+          name: 'Finance',
+          description: null,
+          fileCount: 1,
+          totalSize: 1,
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          deletedAt: null,
+          role: 'owner',
+          isAdmin: false,
+          isMember: true,
+        },
+      ]),
+    } as unknown as VaultsServices;
+    const { app } = createTestApp({ services, vaultServices });
+
+    const response = await app.request('/api/chats/messages/stream', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
+      body: JSON.stringify({
+        id: 'cht_1',
+        contextSnapshot: { type: 'global', vaultIds: [] },
+        messages: [USER_MESSAGE],
+        config: { modelName: 'ollama:llama3.2' },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(services.createMessageStream).toHaveBeenCalledWith({
+      userId: 'usr_1',
+      chatId: 'cht_1',
+      scope: {
+        type: 'global',
+        vaultIds: ['vlt_1'],
+      },
+      messages: [USER_MESSAGE],
+      intent: undefined,
+      responseMode: 'text',
+      includeCitations: true,
+      model: 'ollama:llama3.2',
+    });
+  });
+
   test('passes assistant-ui citation preference through stream config', async () => {
     const services = createMockChatServices();
     const { app } = createTestApp({ services });
@@ -420,6 +551,85 @@ describe('chat routes', () => {
       },
     });
     expect(services.createMessageStream).not.toHaveBeenCalled();
+  });
+
+  test('allows rescoping a read-only conversation with attached document context', async () => {
+    const services = createMockChatServices({
+      getConversation: vi.fn(async () =>
+        createConversation({
+          documentId: 'doc_deleted',
+          contextSnapshot: {
+            type: 'document' as const,
+            vaultId: 'vlt_1',
+            documentId: 'doc_deleted',
+            vaultName: 'Finance',
+            documentName: 'Deleted source.pdf',
+          },
+          contextAvailability: {
+            status: 'source_document_deleted' as const,
+            readOnly: true as const,
+            message:
+              'One or more source documents were deleted. This conversation is available as read-only history.',
+          },
+        }),
+      ),
+    });
+    const { app } = createTestApp({
+      db: createMockDb([{ id: 'doc_selected', name: 'Selected.pdf' }]),
+      services,
+    });
+
+    const response = await app.request('/api/chats/messages/stream', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
+      body: JSON.stringify({
+        id: 'cht_1',
+        messages: [
+          {
+            ...USER_MESSAGE,
+            metadata: {
+              custom: {
+                contextSnapshot: {
+                  type: 'selection',
+                  vaults: [],
+                  documents: [{ vaultId: 'vlt_1', documentId: 'doc_selected' }],
+                },
+              },
+            },
+          },
+        ],
+        config: { modelName: 'ollama:llama3.2' },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(services.createMessageStream).toHaveBeenCalledWith({
+      userId: 'usr_1',
+      chatId: 'cht_1',
+      scope: {
+        type: 'selection',
+        vaults: [],
+        documents: [
+          {
+            vaultId: 'vlt_1',
+            documentId: 'doc_selected',
+            name: 'Selected.pdf',
+            vaultName: 'Finance',
+          },
+        ],
+      },
+      messages: [
+        expect.objectContaining({
+          id: USER_MESSAGE.id,
+          role: USER_MESSAGE.role,
+          parts: USER_MESSAGE.parts,
+        }),
+      ],
+      intent: undefined,
+      responseMode: 'text',
+      includeCitations: true,
+      model: 'ollama:llama3.2',
+    });
   });
 
   test('checks vault access before unavailable-source stream rejection', async () => {

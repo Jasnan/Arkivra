@@ -19,6 +19,7 @@ import {
 import type { LanguageModel } from 'ai';
 import { and, asc, desc, eq, exists, sql } from 'drizzle-orm';
 import {
+  chatConversationDocumentVersionsTable,
   chatConversationsTable,
   chatMessageCitationsTable,
   chatMessagesTable,
@@ -330,10 +331,14 @@ export function createChatServices({
           .where(eq(chatMessagesTable.conversationId, chatId))
           .orderBy(asc(chatMessagesTable.createdAt), asc(chatMessagesTable.id));
 
-        if (previousMessageRows.length === 0) {
-          const nextScope = newConversationScope ?? scope;
+        if (newConversationScope !== undefined || previousMessageRows.length === 0) {
           const scopeChanged = newConversationScope !== undefined;
-          scope = nextScope;
+          if (scopeChanged) {
+            scope = newConversationScope;
+            await tx
+              .delete(chatConversationDocumentVersionsTable)
+              .where(eq(chatConversationDocumentVersionsTable.conversationId, conversationRow.id));
+          }
           const scopeValues = getScopeValues(scope);
           const [updatedConversation] = await tx
             .update(chatConversationsTable)

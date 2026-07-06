@@ -19,6 +19,7 @@ const DEFAULT_CHAT_TITLE = "New chat"
 type ChatConversation = {
   id: string
   title: string
+  contextSnapshot?: unknown
   createdAt: string
   updatedAt: string
 }
@@ -91,6 +92,7 @@ function toThreadMetadata(conversation: ChatConversation) {
     remoteId: conversation.id,
     title: conversation.title,
     custom: {
+      contextSnapshot: conversation.contextSnapshot,
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt,
     },

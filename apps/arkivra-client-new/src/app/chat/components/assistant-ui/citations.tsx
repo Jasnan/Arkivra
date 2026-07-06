@@ -1,7 +1,7 @@
 "use client";
 
 import { FileTextIcon } from "lucide-react";
-import type { MouseEvent, ReactNode } from "react";
+import { useState, type MouseEvent, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -199,21 +199,33 @@ export function CitationMarker({
 
 export function CitationData({ data }: { data: unknown }) {
   const citations = getCitationsFromData(data);
+  const [showSources, setShowSources] = useState(false);
   if (citations.length === 0) return null;
 
   return (
-    <div className="mt-3 flex flex-wrap gap-2">
-      {citations.map((citation, index) => (
-        <CitationLink
-          key={`${citation.chunkId ?? citation.documentName}-${citation.pageStart ?? "document"}-${index}`}
-          citation={citation}
-          index={index}
-          className="border-border bg-muted/40 text-muted-foreground max-w-full gap-1.5 rounded-md border px-2 py-1 text-xs hover:bg-muted hover:text-foreground"
-        >
-          <FileTextIcon className="size-3.5 shrink-0" />
-          <span className="truncate">{getCitationLabel(citation, index)}</span>
-        </CitationLink>
-      ))}
+    <div className="mt-3">
+      {showSources ? (
+        <div className="mb-2 flex flex-wrap gap-2">
+          {citations.map((citation, index) => (
+            <CitationLink
+              key={`${citation.chunkId ?? citation.documentName}-${citation.pageStart ?? "document"}-${index}`}
+              citation={citation}
+              index={index}
+              className="border-border bg-muted/40 text-muted-foreground max-w-full gap-1.5 rounded-md border px-2 py-1 text-xs hover:bg-muted hover:text-foreground"
+            >
+              <FileTextIcon className="size-3.5 shrink-0" />
+              <span className="truncate">{getCitationLabel(citation, index)}</span>
+            </CitationLink>
+          ))}
+        </div>
+      ) : null}
+      <button
+        type="button"
+        className="text-muted-foreground hover:text-foreground text-xs font-medium underline-offset-4 hover:underline"
+        onClick={() => setShowSources((current) => !current)}
+      >
+        {showSources ? "Hide sources" : `Show retrieved sources (${citations.length})`}
+      </button>
     </div>
   );
 }

@@ -580,6 +580,15 @@ export function createChatServices({
       .slice(-MAX_RECENT_MESSAGES);
     const assistantMessageId = assistantMessageRow.id;
     const textPartId = generateId({ prefix: 'txt' });
+    let latestConversationActivityAt = new Date(conversation.updatedAt);
+
+    function nextConversationActivityTimestamp() {
+      const now = new Date();
+      const timestamp = new Date(Math.max(now.getTime(), latestConversationActivityAt.getTime() + 1));
+      latestConversationActivityAt = timestamp;
+
+      return timestamp;
+    }
 
     const stream = createUIMessageStream<ChatMessage>({
       originalMessages: messages,
@@ -947,15 +956,18 @@ export function createChatServices({
       citations: Citation[];
       metrics: ChatGenerationMetrics | null;
     }) {
+      const updatedAt = nextConversationActivityTimestamp();
       const assistantMessage = buildAssistantMessage({
         id,
         content,
-        metadata,
+        metadata: {
+          ...metadata,
+          updatedAt: toIso(updatedAt),
+        },
         citations,
         metrics,
       });
       await db.transaction(async (tx) => {
-        const updatedAt = sql`now()`;
         const [assistantMessageRow] = await tx
           .insert(chatMessagesTable)
           .values({

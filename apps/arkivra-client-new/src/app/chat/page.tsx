@@ -8,6 +8,7 @@ import { BaseLayout } from "@/components/layouts/base-layout"
 import { ChatCitationViewerDialog } from "@/app/chat/components/chat-citation-viewer-dialog"
 import { Base } from "@/app/chat/components/examples/base"
 import { ChatRuntimeProvider } from "@/app/chat/components/runtime/chat-runtime-provider"
+import { restoreChatThreadFromUrl } from "@/app/chat/components/runtime/chat-url-thread-restore"
 import { BaseConfigProvider } from "@/app/chat/lib/base/config-provider"
 import { defaultBaseConfig } from "@/app/chat/lib/base/defaults"
 
@@ -58,13 +59,20 @@ function ChatUrlSync() {
     if (persistedChatId === chatId) return
 
     pendingUrlChatIdRef.current = chatId
-    void Promise.resolve(aui.threads().switchToThread(chatId)).catch(() => {
-      if (pendingUrlChatIdRef.current === chatId) {
-        pendingUrlChatIdRef.current = undefined
-      }
-
-      navigate(getChatPath(), { replace: true })
+    void restoreChatThreadFromUrl({
+      chatId,
+      threads: aui.threads(),
+      onReloadError: (error) => {
+        console.warn("[Arkivra chat] failed to refresh chat thread list after URL restore", error)
+      },
     })
+      .catch(() => {
+        if (pendingUrlChatIdRef.current === chatId) {
+          pendingUrlChatIdRef.current = undefined
+        }
+
+        navigate(getChatPath(), { replace: true })
+      })
   }, [aui, chatId, navigate, persistedChatId])
 
   useEffect(() => {

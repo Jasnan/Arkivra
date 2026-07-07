@@ -141,12 +141,13 @@ function getStreamedConversation(messages: readonly ArkivraChatMessage[]) {
       const conversation = (data as { conversation?: unknown }).conversation
       if (conversation === null || typeof conversation !== "object" || Array.isArray(conversation)) continue
 
-      const value = conversation as { id?: unknown; contextSnapshot?: unknown }
+      const value = conversation as { id?: unknown; contextSnapshot?: unknown; updatedAt?: unknown }
       if (typeof value.id !== "string") continue
 
       return {
         id: value.id,
         contextSnapshot: value.contextSnapshot,
+        updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : undefined,
       }
     }
   }
@@ -233,6 +234,7 @@ function useArkivraChatThreadRuntime(
   const resumedStreamRef = useRef(false)
   const wasRunningRef = useRef(false)
   const completedRunRef = useRef<string | null>(null)
+  const streamedActivityReloadRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (resumedStreamRef.current) return
@@ -260,7 +262,17 @@ function useArkivraChatThreadRuntime(
       remoteId: conversation.id,
       contextSnapshot: conversation.contextSnapshot,
     })
-  }, [chat.messages, id])
+
+    if (!aui.threadListItem.source) return
+
+    const activityKey = `${conversation.id}:${conversation.updatedAt ?? ""}`
+    if (streamedActivityReloadRef.current === activityKey) return
+
+    streamedActivityReloadRef.current = activityKey
+    void aui.threads().reload().catch((error: unknown) => {
+      console.warn("[Arkivra chat] failed to refresh chat thread list", error)
+    })
+  }, [aui, chat.messages, id])
 
   const runtime = useAISDKRuntime(chat, {
     adapters: options.adapters,

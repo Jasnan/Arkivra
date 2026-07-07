@@ -64,6 +64,13 @@
       "when": 1783186801180,
       "tag": "0008_furry_cobalt_man",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783458355041,
+      "tag": "0009_typical_doomsday",
+      "breakpoints": true
     }
   ]
 }

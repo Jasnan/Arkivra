@@ -107,9 +107,9 @@ export default function ChatPage() {
   return (
     <BaseLayout
       hideHeaderSearch
-      contentClassName="overflow-hidden"
+      contentClassName="overflow-hidden [&>div]:flex-1 [&>div>div]:flex-1"
     >
-      <div className="flex h-[calc(100svh-var(--header-height)-10.5rem)] min-h-[32rem] overflow-hidden px-4 pb-4 lg:px-6">
+      <div className="flex min-h-0 flex-1 overflow-hidden px-4 lg:px-6">
         <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-background">
           <BaseConfigProvider value={defaultBaseConfig}>
             <ChatRuntimeProvider>

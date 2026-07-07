@@ -123,6 +123,8 @@ describe('chat service helpers', () => {
     expect(prompt).toContain('Records are retained for seven years.');
     expect(prompt).toContain('Table 1:\nRow 1: Retention | 7 years');
     expect(prompt).toContain('Figure 1 (page 3): Figure 1. Records retention timeline');
+    expect(prompt).toContain('answer in the same language as the user\'s latest question');
+    expect(prompt).toContain('Retrieved documents may be written in a different language');
     expect(prompt).toContain('Respect explicit constraints in the question');
     expect(prompt).toContain('If the retrieved context is insufficient');
     expect(prompt).toContain('Evidence excerpt:');

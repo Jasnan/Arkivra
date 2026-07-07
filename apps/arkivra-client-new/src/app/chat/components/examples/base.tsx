@@ -31,6 +31,7 @@ import {
 } from "@/app/chat/lib/chat-model-options";
 import { useBaseConfig } from "@/app/chat/lib/base/config-provider";
 import type { BaseSuggestionIconId } from "@/app/chat/lib/base/defaults";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
   ComposerQuotePreview,
@@ -84,7 +85,7 @@ import {
   SquareIcon,
   WrenchIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type FC } from "react";
+import { useEffect, useId, useMemo, useState, type FC } from "react";
 import { ModelSelector } from "@/app/chat/components/assistant-ui/model-selector";
 
 const ModelPicker: FC = () => {
@@ -92,6 +93,7 @@ const ModelPicker: FC = () => {
   const [defaultModel, setDefaultModel] = useState<string | undefined>();
   const [selectedModel, setSelectedModel] = useState<string | undefined>();
   const [includeCitations, setIncludeCitations] = useState(true);
+  const citationsSwitchId = useId();
   const [isLoadingModels, setIsLoadingModels] = useState(true);
   const [modelOptionsError, setModelOptionsError] = useState<string | null>(
     null,
@@ -163,21 +165,19 @@ const ModelPicker: FC = () => {
         contentClassName="min-w-72"
         searchable={models.length > 8}
       />
-      <TooltipIconButton
-        tooltip={includeCitations ? "Citations on" : "Citations off"}
-        side="bottom"
-        type="button"
-        aria-pressed={includeCitations}
-        onClick={() => setIncludeCitations((current) => !current)}
-        className={cn(
-          "size-7 rounded-full",
-          includeCitations
-            ? "bg-accent text-accent-foreground"
-            : "text-muted-foreground",
-        )}
+      <label
+        htmlFor={citationsSwitchId}
+        className="text-muted-foreground hover:text-foreground inline-flex h-7 cursor-pointer items-center gap-2 rounded-full px-2 text-xs font-medium transition-colors"
       >
-        <FileTextIcon className="size-4" />
-      </TooltipIconButton>
+        <span>{includeCitations ? "Citations on" : "Citations off"}</span>
+        <Switch
+          id={citationsSwitchId}
+          checked={includeCitations}
+          onCheckedChange={setIncludeCitations}
+          aria-label={includeCitations ? "Citations on" : "Citations off"}
+          className="h-5 w-9 data-[state=checked]:bg-foreground data-[state=unchecked]:bg-muted-foreground/35 [&_[data-slot=switch-thumb]]:size-4"
+        />
+      </label>
     </>
   );
 };

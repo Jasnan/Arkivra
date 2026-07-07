@@ -48,6 +48,18 @@ function hasComposerContextAttachments(attachments: readonly ComposerContextAtta
   return hasDraftContext(draftContextFromAttachments(attachments))
 }
 
+function getPersistedChatId({
+  id,
+  remoteId,
+  externalId,
+}: {
+  id: string
+  remoteId?: string
+  externalId?: string
+}) {
+  return remoteId ?? externalId ?? (id.startsWith("cht_") ? id : undefined)
+}
+
 function snapshotKey(snapshot: unknown) {
   if (snapshot === null || typeof snapshot !== "object" || Array.isArray(snapshot)) return ""
   const value = snapshot as {
@@ -149,25 +161,33 @@ function useArkivraChatThreadRuntime(
 ) {
   const id = useAuiState((state) => state.threadListItem.id)
   const remoteId = useAuiState((state) => state.threadListItem.remoteId)
+  const externalId = useAuiState((state) => state.threadListItem.externalId)
   const aui = useAui()
+  const persistedChatId = getPersistedChatId({ id, remoteId, externalId })
   const transport = useMemo<ChatTransport<ArkivraChatMessage>>(
     () =>
       createArkivraChatTransport({
-        storageKey: `arkivra-chat-resumable-stream-id:${id}`,
+        storageKey: `arkivra-chat-resumable-stream-id:${persistedChatId ?? id}`,
         getChatId: async () => {
-          if (!aui.threadListItem.source) return remoteId
+          if (!aui.threadListItem.source) return persistedChatId
 
           const threadListItem = aui.threadListItem()
           const threadState = threadListItem.getState()
-          if (threadState.id !== id) return remoteId
-          if (threadState.remoteId) return threadState.remoteId
+          if (threadState.id !== id) return persistedChatId
 
-          return (await threadListItem.initialize())?.remoteId ?? remoteId
+          const currentPersistedChatId = getPersistedChatId({
+            id: threadState.id,
+            remoteId: threadState.remoteId,
+            externalId: threadState.externalId,
+          })
+          if (currentPersistedChatId) return currentPersistedChatId
+
+          return (await threadListItem.initialize())?.remoteId ?? persistedChatId
         },
         getContextSnapshot: () => {
           const attachments = aui.composer().getState().attachments as readonly ComposerContextAttachment[]
           const composerSnapshot = snapshotFromComposerAttachments(attachments)
-          const liveSnapshot = getLiveThreadContextSnapshot({ threadId: id, remoteId })
+          const liveSnapshot = getLiveThreadContextSnapshot({ threadId: id, remoteId: persistedChatId })
           const liveSnapshotKey = snapshotKey(liveSnapshot)
           const composerSnapshotKey = snapshotKey(composerSnapshot)
           let selectedSnapshot = liveSnapshot
@@ -186,7 +206,7 @@ function useArkivraChatThreadRuntime(
 
           console.debug("[Arkivra chat context] selected request snapshot", {
             threadId: id,
-            remoteId,
+            remoteId: persistedChatId,
             selectionReason,
             attachments: attachments.map((attachment) => ({
               id: attachment.id,
@@ -204,7 +224,7 @@ function useArkivraChatThreadRuntime(
           return selectedSnapshot
         },
       }),
-    [aui, id, remoteId],
+    [aui, id, persistedChatId],
   )
   const chat = useChat<ArkivraChatMessage>({
     id,
@@ -212,7 +232,7 @@ function useArkivraChatThreadRuntime(
   })
   const resumedStreamRef = useRef(false)
   const wasRunningRef = useRef(false)
-  const titleGenerationRunRef = useRef<string | null>(null)
+  const completedRunRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (resumedStreamRef.current) return
@@ -264,18 +284,24 @@ function useArkivraChatThreadRuntime(
     if (threadState.id !== id) return
     if (!threadState.remoteId) return
 
-    const currentTitle = threadState.title?.trim()
-    if (currentTitle && currentTitle !== DEFAULT_THREAD_TITLE) return
-
     const userMessages = chat.messages.filter((message) => message.role === "user")
     const lastUserMessage = userMessages[userMessages.length - 1]
     const runKey = `${threadState.id}:${lastUserMessage?.id ?? "unknown"}:${chat.messages.length}`
-    if (titleGenerationRunRef.current === runKey) return
+    if (completedRunRef.current === runKey) return
 
-    titleGenerationRunRef.current = runKey
-    void Promise.resolve(threadListItem.generateTitle()).catch((error: unknown) => {
-      console.error("Failed to generate chat title:", error)
-    })
+    completedRunRef.current = runKey
+    const currentTitle = threadState.title?.trim()
+    const titleTask = currentTitle && currentTitle !== DEFAULT_THREAD_TITLE
+      ? Promise.resolve()
+      : Promise.resolve(threadListItem.generateTitle()).catch((error: unknown) => {
+          console.error("Failed to generate chat title:", error)
+        })
+
+    void titleTask
+      .then(() => aui.threads().reload())
+      .catch((error: unknown) => {
+        console.warn("[Arkivra chat] failed to refresh chat thread list", error)
+      })
   }, [aui, chat.messages, chat.status, id])
 
   if (transport instanceof AssistantChatTransport) {

@@ -20,13 +20,28 @@ function normalizeChatId(chatId: string | undefined) {
   return normalized ? normalized : undefined
 }
 
+function getPersistedChatId({
+  id,
+  remoteId,
+  externalId,
+}: {
+  id?: string
+  remoteId?: string
+  externalId?: string
+}) {
+  return remoteId ?? externalId ?? (id?.startsWith("cht_") ? id : undefined)
+}
+
 function ChatUrlSync() {
   const { chatId: chatIdParam } = useParams()
   const chatId = normalizeChatId(chatIdParam)
   const location = useLocation()
   const navigate = useNavigate()
   const aui = useAui()
+  const threadId = useAuiState((state) => state.threadListItem.id)
   const remoteId = useAuiState((state) => state.threadListItem.remoteId)
+  const externalId = useAuiState((state) => state.threadListItem.externalId)
+  const persistedChatId = getPersistedChatId({ id: threadId, remoteId, externalId })
   const lastAppliedUrlChatIdRef = useRef<string | undefined>(undefined)
   const pendingUrlChatIdRef = useRef<string | undefined>(undefined)
 
@@ -40,7 +55,7 @@ function ChatUrlSync() {
     if (lastAppliedUrlChatIdRef.current === chatId) return
     lastAppliedUrlChatIdRef.current = chatId
 
-    if (remoteId === chatId) return
+    if (persistedChatId === chatId) return
 
     pendingUrlChatIdRef.current = chatId
     void Promise.resolve(aui.threads().switchToThread(chatId)).catch(() => {
@@ -50,17 +65,17 @@ function ChatUrlSync() {
 
       navigate(getChatPath(), { replace: true })
     })
-  }, [aui, chatId, navigate, remoteId])
+  }, [aui, chatId, navigate, persistedChatId])
 
   useEffect(() => {
-    if (remoteId) {
-      if (pendingUrlChatIdRef.current === remoteId) {
+    if (persistedChatId) {
+      if (pendingUrlChatIdRef.current === persistedChatId) {
         pendingUrlChatIdRef.current = undefined
       }
 
-      if (chatId !== remoteId) {
-        const nextPath = getChatPath(remoteId)
-        lastAppliedUrlChatIdRef.current = remoteId
+      if (chatId !== persistedChatId) {
+        const nextPath = getChatPath(persistedChatId)
+        lastAppliedUrlChatIdRef.current = persistedChatId
         if (location.pathname !== nextPath) {
           navigate(nextPath, { replace: true })
         }
@@ -75,7 +90,7 @@ function ChatUrlSync() {
         navigate(getChatPath(), { replace: true })
       }
     }
-  }, [chatId, location.pathname, navigate, remoteId])
+  }, [chatId, location.pathname, navigate, persistedChatId])
 
   return null
 }

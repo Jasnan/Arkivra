@@ -64,6 +64,14 @@ function toChatTitle(text: string) {
   return `${normalized.slice(0, MAX_TITLE_LENGTH - 1).trimEnd()}...`
 }
 
+function sortConversationsByUpdatedAt(conversations: readonly ChatConversation[]) {
+  return [...conversations].sort((left, right) => (
+    Date.parse(right.updatedAt) - Date.parse(left.updatedAt) ||
+    Date.parse(right.createdAt) - Date.parse(left.createdAt) ||
+    right.id.localeCompare(left.id)
+  ))
+}
+
 function createTitleStream(title: string): TitleStream {
   return new ReadableStream({
     start(controller) {
@@ -90,6 +98,7 @@ function toThreadMetadata(conversation: ChatConversation) {
   return {
     status: "regular" as const,
     remoteId: conversation.id,
+    externalId: conversation.id,
     title: conversation.title,
     custom: {
       contextSnapshot: conversation.contextSnapshot,
@@ -108,10 +117,11 @@ function createHistoryAdapter(aui: ReturnType<typeof useAui>): ThreadHistoryAdap
     withFormat<TMessage>() {
       return {
         async load() {
-          const { remoteId } = aui.threadListItem().getState()
-          if (!remoteId) return { messages: [] }
+          const { id, remoteId, externalId } = aui.threadListItem().getState()
+          const persistedChatId = remoteId ?? externalId ?? (id.startsWith("cht_") ? id : undefined)
+          if (!persistedChatId) return { messages: [] }
 
-          const { conversation } = await fetchJson<ChatDetailResponse>(`/api/chats/${remoteId}`)
+          const { conversation } = await fetchJson<ChatDetailResponse>(`/api/chats/${persistedChatId}`)
           return {
             headId: conversation.messages.at(-1)?.id ?? null,
             messages: conversation.messages.map((message, index): MessageFormatItem<TMessage> => ({
@@ -138,7 +148,7 @@ export function createArkivraThreadListAdapter(): RemoteThreadListAdapter {
   return {
     async list() {
       const { conversations } = await fetchJson<ChatListResponse>("/api/chats")
-      return { threads: conversations.map(toThreadMetadata) }
+      return { threads: sortConversationsByUpdatedAt(conversations).map(toThreadMetadata) }
     },
     async initialize() {
       const { conversation } = await fetchJson<ChatCreateResponse>("/api/chats", {
@@ -147,7 +157,7 @@ export function createArkivraThreadListAdapter(): RemoteThreadListAdapter {
         body: JSON.stringify({ contextSnapshot: { type: "global", vaultIds: [] } }),
       })
 
-      return { remoteId: conversation.id, externalId: undefined }
+      return { remoteId: conversation.id, externalId: conversation.id }
     },
     async rename(remoteId, newTitle) {
       await fetchJson<ChatCreateResponse>(`/api/chats/${remoteId}`, {

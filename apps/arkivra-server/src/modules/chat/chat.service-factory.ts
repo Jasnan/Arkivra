@@ -156,7 +156,11 @@ export function createChatServices({
           ),
         ),
       )
-      .orderBy(desc(chatConversationsTable.updatedAt), desc(chatConversationsTable.createdAt));
+      .orderBy(
+        desc(chatConversationsTable.updatedAt),
+        desc(chatConversationsTable.createdAt),
+        desc(chatConversationsTable.id),
+      );
 
     return { conversations: rows.map(toConversation) };
   }
@@ -496,6 +500,16 @@ export function createChatServices({
         throw new Error('Failed to persist assistant message');
       }
 
+      const [activityConversation] = await tx
+        .update(chatConversationsTable)
+        .set({ updatedAt: assistantCreatedAt })
+        .where(eq(chatConversationsTable.id, conversationId))
+        .returning();
+
+      if (activityConversation !== undefined) {
+        conversationRow = activityConversation;
+      }
+
       return {
         conversation: toConversation(conversationRow),
         manifestRows,
@@ -754,8 +768,28 @@ export function createChatServices({
                   includeInlineCitations,
                 })
               : includeInlineCitations
-                ? 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and support claims with the inline source markers requested by the user prompt. If context is insufficient, say so.'
-                : 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and answer in plain markdown without source markers. If context is insufficient, say so.';
+                ? [
+                    'You are Arkivra, a private document-vault assistant.',
+                    '',
+                    "Use only the supplied vault context. Answer in the user's latest language unless they ask otherwise.",
+                    '',
+                    'Answer directly and concisely. Prefer the user\'s intent over overly literal wording. Treat common document terms as equivalent when supported by context, e.g. surname/family name/last name, given name/first name, expiry/expiration, bill/invoice, passport/travel document.',
+                    '',
+                    'If the latest message clarifies an earlier question, answer the clarified question. Combine sources when useful. If sources disagree, mention the conflict. If the answer cannot be determined from the supplied context, say so plainly.',
+                    '',
+                    'Do not invent facts, documents, dates, pages, or citations. Do not mention internal IDs. Support factual claims with the requested inline source markers.',
+                  ].join('\n')
+                : [
+                    'You are Arkivra, a private document-vault assistant.',
+                    '',
+                    "Use only the supplied vault context. Answer in the user's latest language unless they ask otherwise.",
+                    '',
+                    'Answer directly and concisely. Prefer the user\'s intent over overly literal wording. Treat common document terms as equivalent when supported by context, e.g. surname/family name/last name, given name/first name, expiry/expiration, bill/invoice, passport/travel document.',
+                    '',
+                    'If the latest message clarifies an earlier question, answer the clarified question. Combine sources when useful. If sources disagree, mention the conflict. If the answer cannot be determined from the supplied context, say so plainly.',
+                    '',
+                    'Do not invent facts, documents, dates, pages, or citations. Do not mention internal IDs. Answer in plain markdown without source markers.',
+                  ].join('\n');
             const modelMessages = await convertToModelMessages(
               [
                 ...previousMessages.map(omitMessageId),

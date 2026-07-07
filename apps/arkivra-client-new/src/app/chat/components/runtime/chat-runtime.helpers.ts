@@ -8,8 +8,6 @@ import type { CreateUIMessage, UIDataTypes, UIMessage, UIMessagePart, UITools } 
 import type {
   ChatContextSnapshot,
   DraftChatContext,
-  DraftChatDocument,
-  DraftChatVault,
 } from "@/app/chat/lib/chat-context-model"
 import {
   DOCUMENT_CONTEXT_ATTACHMENT_PREFIX,
@@ -198,6 +196,22 @@ export function createArkivraChatTransport({
     prepareSendMessagesRequest: async (options) => {
       const chatId = await getChatId?.()
       const contextSnapshot = getContextSnapshot?.()
+      const messages = Array.isArray(options.messages) ? options.messages : []
+      const latestMessage = messages.at(-1)
+      const latestMessageContextSnapshot = latestMessage?.metadata?.custom?.contextSnapshot
+
+      console.debug("[Arkivra chat context] outgoing stream request", {
+        threadId: options.id,
+        chatId,
+        trigger: options.trigger,
+        messageId: options.messageId,
+        messageCount: messages.length,
+        bodyContextSnapshot: contextSnapshot,
+        latestMessageContextSnapshot,
+        latestMessageRole: latestMessage?.role,
+        latestMessagePartTypes: latestMessage?.parts?.map((part) => part.type),
+      })
+
       return {
         body: {
           ...options.body,

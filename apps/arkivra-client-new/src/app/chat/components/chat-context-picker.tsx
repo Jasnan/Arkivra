@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
 import { FileTextIcon, PaperclipIcon, SearchIcon, VaultIcon } from "lucide-react"
 import { useAui, useAuiState } from "@assistant-ui/react"
 
@@ -19,17 +19,13 @@ import {
   hydrateDraftContextLabels,
   normalizeDraftContext,
   searchResultToDraftDocument,
-  snapshotFromDraftContext,
   vaultContextAttachmentId,
   type DraftChatContext,
   type DraftChatDocument,
   type DraftChatVault,
 } from "@/app/chat/lib/chat-context-model"
 import { TooltipIconButton } from "@/app/chat/components/assistant-ui/tooltip-icon-button"
-import {
-  setLiveThreadContextSnapshot,
-  useLiveThreadContextSnapshot,
-} from "@/app/chat/components/runtime/chat-live-thread-context"
+import { useLiveThreadContextSnapshot } from "@/app/chat/components/runtime/chat-live-thread-context"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -113,9 +109,14 @@ async function addContextAttachments(aui: ReturnType<typeof useAui>, current: Dr
 export function ChatContextPicker() {
   const aui = useAui()
   const hydratedThreadContextKeyRef = useRef<string | null>(null)
+  const isComposerContextAuthoritativeRef = useRef(false)
+  const isApplyingContextAttachmentsRef = useRef(false)
   const previousComposerContextKeyRef = useRef("")
+  const previousThreadKeyRef = useRef("")
+  const wasThreadRunningRef = useRef(false)
   const threadId = useAuiState((state) => state.threadListItem.id)
   const threadRemoteId = useAuiState((state) => state.threadListItem.remoteId)
+  const isThreadRunning = useAuiState((state) => state.thread.isRunning)
   const attachments = useAuiState((state) => state.composer.attachments as readonly ComposerAttachment[])
   const threadContextSnapshot = useAuiState((state) => state.threadListItem.custom?.contextSnapshot)
   const liveThreadContextSnapshot = useLiveThreadContextSnapshot({
@@ -127,6 +128,7 @@ export function ChatContextPicker() {
   const [isLoadingVaults, setIsLoadingVaults] = useState(false)
   const [vaultDialogOpen, setVaultDialogOpen] = useState(false)
   const [documentDialogOpen, setDocumentDialogOpen] = useState(false)
+  const [isComposerContextAuthoritative, setIsComposerContextAuthoritative] = useState(false)
   const composerContext = useMemo(() => draftContextFromAttachments(attachments), [attachments])
   const threadContext = useMemo(
     () => draftContextFromSnapshot(liveThreadContextSnapshot ?? threadContextSnapshot),
@@ -134,12 +136,15 @@ export function ChatContextPicker() {
   )
   const composerContextKey = useMemo(() => draftContextKey(composerContext), [composerContext])
   const threadContextKey = useMemo(() => draftContextKey(threadContext), [threadContext])
+  const threadKey = `${threadId}:${threadRemoteId ?? ""}`
   const activeContext = useMemo(() => {
     const normalizedComposerContext = normalizeDraftContext(composerContext)
+    if (isComposerContextAuthoritative) return normalizedComposerContext
+
     return normalizedComposerContext.vaults.length > 0 || normalizedComposerContext.documents.length > 0
       ? normalizedComposerContext
       : threadContext
-  }, [composerContext, threadContext])
+  }, [composerContext, isComposerContextAuthoritative, threadContext])
   const attachedContext = useMemo(() => hydrateDraftContextLabels({ context: activeContext, vaults }), [activeContext, vaults])
   const summary = getDraftContextSummary(attachedContext)
 
@@ -166,47 +171,88 @@ export function ChatContextPicker() {
   }, [])
 
   useEffect(() => {
-    if (threadContextKey.length === 0) {
-      hydratedThreadContextKeyRef.current = null
+    if (previousThreadKeyRef.current === threadKey) return
+
+    previousThreadKeyRef.current = threadKey
+    hydratedThreadContextKeyRef.current = null
+    previousComposerContextKeyRef.current = composerContextKey
+    isComposerContextAuthoritativeRef.current = false
+    setIsComposerContextAuthoritative(false)
+  }, [composerContextKey, threadKey])
+
+  useEffect(() => {
+    if (isThreadRunning) {
+      wasThreadRunningRef.current = true
+      isComposerContextAuthoritativeRef.current = false
+      setIsComposerContextAuthoritative(false)
       return
     }
 
-    if (composerContextKey.length > 0 || hydratedThreadContextKeyRef.current === threadContextKey) return
-
-    hydratedThreadContextKeyRef.current = threadContextKey
-    void addContextAttachments(aui, createEmptyDraftContext(), threadContext)
-  }, [aui, composerContextKey, threadContext, threadContextKey])
+    if (!wasThreadRunningRef.current) return
+    wasThreadRunningRef.current = false
+    hydratedThreadContextKeyRef.current = null
+  }, [isThreadRunning])
 
   useEffect(() => {
     const previousComposerContextKey = previousComposerContextKeyRef.current
     previousComposerContextKeyRef.current = composerContextKey
 
-    if (composerContextKey.length > 0) {
-      setLiveThreadContextSnapshot({
-        threadId,
-        remoteId: threadRemoteId,
-        contextSnapshot: snapshotFromDraftContext(composerContext),
-      })
+    if (previousComposerContextKey === composerContextKey) return
+    if (isApplyingContextAttachmentsRef.current) return
+    if (isThreadRunning) return
+
+    if (previousComposerContextKey.length > 0 && composerContextKey.length === 0) {
+      isComposerContextAuthoritativeRef.current = true
+      setIsComposerContextAuthoritative(true)
+    }
+  }, [composerContextKey, isThreadRunning])
+
+  useEffect(() => {
+    if (threadContextKey.length === 0) {
+      hydratedThreadContextKeyRef.current = null
       return
     }
 
-    if (previousComposerContextKey.length === 0) return
+    if (
+      isThreadRunning ||
+      isComposerContextAuthoritativeRef.current ||
+      isComposerContextAuthoritative ||
+      composerContextKey.length > 0 ||
+      hydratedThreadContextKeyRef.current === threadContextKey
+    ) {
+      return
+    }
 
-    setLiveThreadContextSnapshot({
-      threadId,
-      remoteId: threadRemoteId,
-      contextSnapshot: snapshotFromDraftContext(createEmptyDraftContext()),
+    hydratedThreadContextKeyRef.current = threadContextKey
+    isApplyingContextAttachmentsRef.current = true
+    void addContextAttachments(aui, createEmptyDraftContext(), threadContext).finally(() => {
+      isApplyingContextAttachmentsRef.current = false
+      previousComposerContextKeyRef.current = threadContextKey
     })
-  }, [composerContext, composerContextKey, threadId, threadRemoteId])
+  }, [aui, composerContextKey, isComposerContextAuthoritative, isThreadRunning, threadContext, threadContextKey])
 
   const applyVaults = async (selectedVaults: DraftChatVault[]) => {
     const nextContext = addVaultsToDraftContext(attachedContext, selectedVaults)
-    await addContextAttachments(aui, attachedContext, nextContext)
+    isComposerContextAuthoritativeRef.current = true
+    setIsComposerContextAuthoritative(true)
+    isApplyingContextAttachmentsRef.current = true
+    try {
+      await addContextAttachments(aui, attachedContext, nextContext)
+    } finally {
+      isApplyingContextAttachmentsRef.current = false
+    }
   }
 
   const applyDocuments = async (selectedDocuments: DraftChatDocument[]) => {
     const nextContext = addDocumentsToDraftContext(attachedContext, selectedDocuments)
-    await addContextAttachments(aui, attachedContext, nextContext)
+    isComposerContextAuthoritativeRef.current = true
+    setIsComposerContextAuthoritative(true)
+    isApplyingContextAttachmentsRef.current = true
+    try {
+      await addContextAttachments(aui, attachedContext, nextContext)
+    } finally {
+      isApplyingContextAttachmentsRef.current = false
+    }
   }
 
   return (
@@ -367,11 +413,11 @@ function DocumentSelectionDialog({
   const [documentsError, setDocumentsError] = useState<string | null>(null)
   const normalizedContext = useMemo(() => normalizeDraftContext(context), [context])
   const selectedVaultIds = useMemo(() => new Set(normalizedContext.vaults.map((vault) => vault.vaultId)), [normalizedContext.vaults])
-  const effectiveVaultIds = useMemo(
-    () => (filterVaultIds.size > 0 ? Array.from(filterVaultIds) : vaults.map((vault) => vault.id)),
-    [filterVaultIds, vaults],
+  const selectedFilterVaultIds = useMemo(
+    () => (filterVaultIds.size > 0 ? Array.from(filterVaultIds) : undefined),
+    [filterVaultIds],
   )
-  const effectiveVaultIdsKey = effectiveVaultIds.join(",")
+  const effectiveVaultIdsKey = selectedFilterVaultIds?.join(",") ?? "all"
 
   useEffect(() => {
     if (!open) return
@@ -381,7 +427,7 @@ function DocumentSelectionDialog({
   }, [normalizedContext.documents, open])
 
   useEffect(() => {
-    if (!open || effectiveVaultIds.length === 0) {
+    if (!open || vaults.length === 0) {
       setDocuments([])
       return
     }
@@ -392,7 +438,7 @@ function DocumentSelectionDialog({
       query,
       pageIndex: 0,
       pageSize: 100,
-      vaultIds: effectiveVaultIds,
+      vaultIds: selectedFilterVaultIds,
       sortBy: "name_asc",
     })
       .then((result) => {
@@ -411,7 +457,7 @@ function DocumentSelectionDialog({
     return () => {
       ignore = true
     }
-  }, [effectiveVaultIds, effectiveVaultIdsKey, open, query])
+  }, [effectiveVaultIdsKey, open, query, selectedFilterVaultIds, vaults.length])
 
   const filteredVaultLabel = filterVaultIds.size === 0 ? "All vaults" : `${filterVaultIds.size} vaults`
   const confirm = async () => {
@@ -467,7 +513,7 @@ function DocumentSelectionDialog({
               <PickerEmpty>Loading vaults...</PickerEmpty>
             ) : vaultsError ? (
               <PickerEmpty>{vaultsError}</PickerEmpty>
-            ) : effectiveVaultIds.length === 0 ? (
+            ) : vaults.length === 0 ? (
               <PickerEmpty>No vaults available.</PickerEmpty>
             ) : isLoadingDocuments ? (
               <PickerEmpty>Loading files...</PickerEmpty>
@@ -559,25 +605,49 @@ function SelectionRow({
   description?: string
   onToggle: () => void
 }) {
+  const handleToggle = () => {
+    if (!disabled) onToggle()
+  }
+
+  const handleCheckboxClick = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    handleToggle()
+  }
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (disabled) return
+    if (event.key !== "Enter" && event.key !== " ") return
+
+    event.preventDefault()
+    handleToggle()
+  }
+
   return (
-    <button
-      type="button"
-      disabled={disabled}
+    <div
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled}
       className={cn(
         "flex min-h-14 w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors",
         checked && "bg-primary/10",
         !disabled && "hover:bg-muted",
         disabled && "cursor-not-allowed opacity-60",
       )}
-      onClick={onToggle}
+      onClick={handleToggle}
+      onKeyDown={handleKeyDown}
     >
-      <Checkbox checked={checked} disabled={disabled} tabIndex={-1} />
+      <Checkbox
+        checked={checked}
+        disabled={disabled}
+        tabIndex={-1}
+        onClick={handleCheckboxClick}
+      />
       <div className="text-muted-foreground">{icon}</div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium">{title}</div>
         {description ? <div className="truncate text-xs text-muted-foreground">{description}</div> : null}
       </div>
-    </button>
+    </div>
   )
 }
 

@@ -107,7 +107,15 @@ function snapshotKey(snapshot: unknown) {
 }
 
 function getStreamedConversation(messages: readonly ArkivraChatMessage[]) {
+  let latestUserMessageIndex = -1
   for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+    if (messages[messageIndex]?.role === "user") {
+      latestUserMessageIndex = messageIndex
+      break
+    }
+  }
+
+  for (let messageIndex = messages.length - 1; messageIndex > latestUserMessageIndex; messageIndex -= 1) {
     const message = messages[messageIndex]
     if (message === undefined) continue
 
@@ -162,14 +170,38 @@ function useArkivraChatThreadRuntime(
           const liveSnapshot = getLiveThreadContextSnapshot({ threadId: id, remoteId })
           const liveSnapshotKey = snapshotKey(liveSnapshot)
           const composerSnapshotKey = snapshotKey(composerSnapshot)
+          let selectedSnapshot = liveSnapshot
+          let selectionReason = "live-thread"
 
-          if (hasComposerContextAttachments(attachments)) return composerSnapshot
-          if (liveSnapshotKey.startsWith("global")) return liveSnapshot
-          if (liveSnapshotKey.length > 0 && composerSnapshotKey.startsWith("global")) {
-            return composerSnapshot
+          if (hasComposerContextAttachments(attachments)) {
+            selectedSnapshot = composerSnapshot
+            selectionReason = "composer-attachments"
+          } else if (liveSnapshotKey.startsWith("global")) {
+            selectedSnapshot = liveSnapshot
+            selectionReason = "live-global"
+          } else if (liveSnapshotKey.length > 0 && composerSnapshotKey.startsWith("global")) {
+            selectedSnapshot = composerSnapshot
+            selectionReason = "composer-global-reset"
           }
 
-          return liveSnapshot
+          console.debug("[Arkivra chat context] selected request snapshot", {
+            threadId: id,
+            remoteId,
+            selectionReason,
+            attachments: attachments.map((attachment) => ({
+              id: attachment.id,
+              name: attachment.name,
+              contentType: attachment.contentType,
+            })),
+            composerSnapshot,
+            composerSnapshotKey,
+            liveSnapshot,
+            liveSnapshotKey,
+            selectedSnapshot,
+            selectedSnapshotKey: snapshotKey(selectedSnapshot),
+          })
+
+          return selectedSnapshot
         },
       }),
     [aui, id, remoteId],
@@ -185,13 +217,19 @@ function useArkivraChatThreadRuntime(
   useEffect(() => {
     if (resumedStreamRef.current) return
     if (!(transport instanceof AssistantChatTransport)) return
+    if (chat.status !== "ready") return
+    if (chat.messages.length > 0) return
 
     const resumableAdapter = transport.getResumableAdapter()
-    if (resumableAdapter?.storage.getStreamId() === null) return
+    const streamId = resumableAdapter?.storage.getStreamId()
+    if (!streamId) return
 
     resumedStreamRef.current = true
-    void chat.resumeStream()
-  }, [chat, transport])
+    void chat.resumeStream().catch((error: unknown) => {
+      resumedStreamRef.current = false
+      console.warn("[Arkivra chat] failed to resume stored chat stream", error)
+    })
+  }, [chat, chat.messages.length, chat.status, transport])
 
   useEffect(() => {
     const conversation = getStreamedConversation(chat.messages)

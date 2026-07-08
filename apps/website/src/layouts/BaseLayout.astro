@@ -1,0 +1,103 @@
+---
+import "@/styles/global.css";
+
+type Props = {
+	title?: string;
+	description?: string;
+};
+
+const {
+	title = "Arkivra - Open-source document management",
+	description = "Open-source, self-hostable document management system for vaults, search, and optional AI-assisted workflows.",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta name="generator" content={Astro.generator} />
+		<title>{title}</title>
+		<meta name="title" content={title} />
+		<meta name="description" content={description} />
+		<link rel="icon" type="image/png" href="/favicon.png" />
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="Arkivra" />
+		<meta property="og:title" content={title} />
+		<meta property="og:description" content={description} />
+		<meta property="og:image" content="/og-image.png" />
+		<meta property="og:image:alt" content="Arkivra document management preview" />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content={title} />
+		<meta name="twitter:description" content={description} />
+		<meta name="twitter:image" content="/og-image.png" />
+		<meta name="twitter:image:alt" content="Arkivra document management preview" />
+		<script is:inline>
+			const storedTheme = localStorage.getItem("arkivra-theme");
+			const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+			if (storedTheme === "dark" || (!storedTheme && prefersDark)) {
+				document.documentElement.classList.add("dark");
+			}
+		</script>
+	</head>
+	<body>
+		<slot />
+		<script is:inline>
+			const root = document.documentElement;
+			const drawer = document.querySelector("[data-mobile-drawer]");
+			const drawerBackdrop = document.querySelector("[data-drawer-backdrop]");
+			const openButtons = document.querySelectorAll("[data-drawer-open]");
+			const closeButtons = document.querySelectorAll("[data-drawer-close]");
+
+			const setDrawerOpen = (open) => {
+				if (!drawer || !drawerBackdrop) return;
+				drawer.dataset.open = String(open);
+				drawerBackdrop.dataset.open = String(open);
+				document.body.style.overflow = open ? "hidden" : "";
+				openButtons.forEach((button) => {
+					button.setAttribute("aria-expanded", String(open));
+				});
+			};
+
+			document.querySelectorAll(".theme-toggle").forEach((button) => {
+				button.addEventListener("click", () => {
+					const nextIsDark = !root.classList.contains("dark");
+					root.classList.toggle("dark", nextIsDark);
+					localStorage.setItem("arkivra-theme", nextIsDark ? "dark" : "light");
+				});
+			});
+
+			openButtons.forEach((button) => button.addEventListener("click", () => setDrawerOpen(true)));
+			closeButtons.forEach((button) => button.addEventListener("click", () => setDrawerOpen(false)));
+			drawerBackdrop?.addEventListener("click", () => setDrawerOpen(false));
+			document.addEventListener("keydown", (event) => {
+				if (event.key === "Escape") setDrawerOpen(false);
+			});
+
+			document.querySelectorAll(".js-scroll-link").forEach((link) => {
+				link.addEventListener("click", (event) => {
+					const href = link.getAttribute("href");
+					if (!href?.startsWith("#")) return;
+					const target = document.querySelector(href);
+					if (!target) return;
+					event.preventDefault();
+					setDrawerOpen(false);
+					target.scrollIntoView({ behavior: "smooth", block: "start" });
+				});
+			});
+
+			document.querySelectorAll("details[data-faq-item]").forEach((item) => {
+				item.addEventListener("toggle", () => {
+					if (!item.open) return;
+
+					document.querySelectorAll("details[data-faq-item][open]").forEach((openItem) => {
+						if (openItem !== item) {
+							openItem.open = false;
+						}
+					});
+				});
+			});
+		</script>
+	</body>
+</html>

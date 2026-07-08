@@ -1,0 +1,87 @@
+---
+type Props = {
+	lightSrc: string;
+	darkSrc: string;
+	alt: string;
+	class?: string;
+	direction?: "left" | "right";
+	fit?: "cover" | "contain";
+	fade?: boolean;
+};
+
+const {
+	lightSrc,
+	darkSrc,
+	alt,
+	class: className = "",
+	direction = "left",
+	fit = "cover",
+	fade = true,
+} = Astro.props;
+const isRight = direction === "right";
+const fitClass = fit === "contain" ? "object-contain" : "object-cover";
+---
+
+<div class:list={["group relative aspect-[4/3] w-full", className]}>
+	<div class="size-full perspective-distant transform-3d">
+		<div
+			class="image-3d-glow absolute rounded-3xl bg-gradient-to-r from-primary/10 via-blue-500/10 to-purple-500/10 opacity-0 blur-2xl transition-all duration-1000 group-hover:opacity-100 sm:-inset-8"
+		>
+		</div>
+		<div
+			class="relative size-full transform-3d transition-all duration-700 ease-out group-hover:rotate-x-8 group-hover:rotate-y-12 group-hover:translate-z-16"
+		>
+			<div class="absolute inset-0 translate-x-2 translate-y-4 -translate-z-8 rounded-2xl">
+				<div class="size-full rounded-2xl bg-gradient-to-br from-primary/10 via-background/40 to-secondary/10 shadow-xl">
+				</div>
+			</div>
+			<div class="relative z-10 size-full overflow-hidden rounded-2xl shadow-2xl shadow-primary/20">
+				<div
+					class:list={[
+						"pointer-events-none absolute inset-0 z-20 -skew-x-12 bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 ease-out",
+						isRight ? "translate-x-full group-hover:-translate-x-full" : "-translate-x-full group-hover:translate-x-full",
+					]}
+				>
+				</div>
+				{
+					fade && (
+						<div
+							class:list={[
+								"pointer-events-none absolute inset-0 z-15",
+								isRight
+									? "bg-linear-to-l from-background from-0% via-background/85 via-15% to-transparent to-40%"
+									: "bg-linear-to-r from-background from-0% via-background/85 via-15% to-transparent to-40%",
+							]}
+						/>
+					)
+				}
+				<img
+					src={lightSrc}
+					alt={`${alt} - Light Mode`}
+					class:list={[
+						"block size-full transition-transform duration-700 group-hover:scale-105 dark:hidden",
+						fitClass,
+						isRight ? "object-center" : "object-left",
+					]}
+					loading="lazy"
+					decoding="async"
+				/>
+				<img
+					src={darkSrc}
+					alt={`${alt} - Dark Mode`}
+					class:list={[
+						"hidden size-full transition-transform duration-700 group-hover:scale-105 dark:block",
+						fitClass,
+						isRight ? "object-center" : "object-left",
+					]}
+					loading="lazy"
+					decoding="async"
+				/>
+				<div
+					class="absolute inset-0 rounded-2xl ring-1 ring-white/20 transition-all duration-500 group-hover:ring-primary/40 dark:ring-white/10"
+				>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>

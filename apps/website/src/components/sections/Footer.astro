@@ -1,160 +1,122 @@
 ---
-import Logo from "@/components/ui/Logo.astro";
-import ToTop from "@/components/widgets/ToTop.astro";
-import { siteConfig, socialLinks } from "@/config/site.js";
+import GitHubMark from "@/components/icons/GitHubMark.astro";
+import Logo from "@/components/icons/Logo.astro";
+import Button from "@/components/ui/Button.astro";
+import { footerLinks, githubUrl } from "@/data/landing";
+import { Heart, Mail, Rss } from "@lucide/astro";
 
-const currentYear = new Date().getFullYear();
+const socialLinks = [
+	{ name: "GitHub", href: githubUrl, icon: GitHubMark },
+	{ name: "Email", href: "mailto:contact@arkivra.app", icon: Mail },
+	{ name: "RSS", href: "/rss.xml", icon: Rss },
+];
 
-const footerLinks = {
-	product: [
-		{
-			name: "Self-host",
-			url: "https://docs.arkivra.app/self-hosting/using-docker-compose/",
-		},
-		{ name: "Documentation", url: "https://docs.arkivra.app/" },
-		{ name: "Blog", url: "/blog" },
-	],
-	resources: [
-		{ name: "Repository", url: siteConfig.social.github },
-		{
-			name: "Contributing",
-			url: `${siteConfig.social.github}/blob/main/CONTRIBUTING.md`,
-		},
-		{
-			name: "Code of Conduct",
-			url: `${siteConfig.social.github}/blob/main/CODE_OF_CONDUCT.md`,
-		},
-		{ name: "License", url: `${siteConfig.social.github}/blob/main/LICENSE` },
-		{ name: "Roadmap", url: `${siteConfig.social.github}/projects` },
-	],
-	legal: [
-		{ name: "Contact", url: "/contact" },
-		{ name: "Privacy Policy", url: "/privacy" },
-		{ name: "Terms of Service", url: "/terms-of-service" },
-		{
-			name: "License (AGPL-3.0)",
-			url: `${siteConfig.social.github}/blob/main/LICENSE`,
-		},
-	],
-};
+const year = new Date().getFullYear();
 ---
 
-<section class="text-gray-700 border-t mt-20 md:mt-48 border-dashed border-primary/15 dark:border-primary-dark/15 border-[.75px]">
-  <div class="container mx-auto px-7 max-w-7xl py-12 md:py-16">
-    <!-- Top: Logo + Description -->
-    <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-8 mb-12">
-      <div class="max-w-sm">
-        <Logo />
-        <p class="mt-4 text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
-          Open-source document management system with powerful search and optional AI.
-        </p>
-        <p class="mt-3 text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
-          Arkivra is an open-source project created and maintained by
-          <a href="https://jasnan.xyz/" target="_blank" rel="noopener" class="text-primary hover:text-primary-strong dark:text-primary-light dark:hover:text-primary-light-dark transition-colors">
-            Jasnan Thachaparamban
-          </a>.
-        </p>
-      </div>
+<footer class="border-t bg-background">
+	<div class="container mx-auto px-4 py-16 sm:px-6 lg:px-8">
+		<div class="grid grid-cols-4 gap-8 lg:grid-cols-6">
+			<div class="col-span-4 max-w-2xl lg:col-span-3">
+				<a href="#hero" class="js-scroll-link mb-4 flex items-center space-x-2 max-lg:justify-center">
+					<Logo size={32} />
+					<span class="text-xl font-bold">Arkivra</span>
+				</a>
+				<p class="mb-6 text-muted-foreground max-lg:text-center">
+					Open-source document management system with powerful search and optional AI.
+				</p>
+				<div class="flex space-x-4 max-lg:justify-center">
+					{
+						socialLinks.map((social) => {
+							const Icon = social.icon;
+							const isExternal = social.href.startsWith("http");
 
-      <!-- Footer link columns -->
-      <div class="grid grid-cols-2 sm:grid-cols-3 gap-8 md:gap-12">
-        <!-- Product -->
-        <div>
-          <h4 class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 mb-4">Product</h4>
-          <ul class="space-y-3">
-            {footerLinks.product.map((link) => (
-              <li>
-                <a href={link.url} class="text-sm text-neutral-500 dark:text-neutral-400 hover:text-primary dark:hover:text-primary-light transition-colors duration-200">
-                  {link.name}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
+							return (
+								<Button
+									href={social.href}
+									variant="ghost"
+									size="icon"
+									target={isExternal ? "_blank" : undefined}
+									rel={isExternal ? "noopener noreferrer" : undefined}
+									ariaLabel={social.name}
+								>
+									<Icon class="size-4" />
+								</Button>
+							);
+						})
+					}
+				</div>
+			</div>
 
-        <!-- Resources -->
-        <div>
-          <h4 class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 mb-4">Resources</h4>
-          <ul class="space-y-3">
-            {footerLinks.resources.map((link) => (
-              <li>
-                <a href={link.url} class="text-sm text-neutral-500 dark:text-neutral-400 hover:text-primary dark:hover:text-primary-light transition-colors duration-200">
-                  {link.name}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
+			<div class="max-md:col-span-2 lg:col-span-1">
+				<h4 class="mb-4 font-semibold">Project</h4>
+				<ul class="space-y-3">
+					{
+						footerLinks.project.map((link) => (
+							<li>
+								<a href={link.href} class="js-scroll-link text-muted-foreground transition-colors hover:text-foreground">
+									{link.name}
+								</a>
+							</li>
+						))
+					}
+				</ul>
+			</div>
 
-        <!-- Legal -->
-        <div>
-          <h4 class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 mb-4">Legal</h4>
-          <ul class="space-y-3">
-            {footerLinks.legal.map((link) => (
-              <li>
-                <a href={link.url} class="text-sm text-neutral-500 dark:text-neutral-400 hover:text-primary dark:hover:text-primary-light transition-colors duration-200">
-                  {link.name}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </div>
+			<div class="max-md:col-span-2 lg:col-span-1">
+				<h4 class="mb-4 font-semibold">Resources</h4>
+				<ul class="space-y-3">
+					{
+						footerLinks.resources.map((link) => (
+							<li>
+								<a
+									href={link.href}
+									class="text-muted-foreground transition-colors hover:text-foreground"
+									target={link.href.startsWith("http") ? "_blank" : undefined}
+									rel={link.href.startsWith("http") ? "noopener noreferrer" : undefined}
+								>
+									{link.name}
+								</a>
+							</li>
+						))
+					}
+				</ul>
+			</div>
 
-    <!-- Bottom bar -->
-    <div class="border-t border-dashed border-primary/10 dark:border-primary-dark/10 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-      <p class="text-sm text-neutral-400 dark:text-neutral-500">
-        © {currentYear}
-        <a href={siteConfig.url || " "} target="_blank" class="hover:text-primary dark:hover:text-primary-light transition-colors">{siteConfig.author || " "}</a>.
-        Released under the AGPL-3.0 license.
-      </p>
+			<div class="max-md:col-span-2 lg:col-span-1">
+				<h4 class="mb-4 font-semibold">Legal</h4>
+				<ul class="space-y-3">
+					{
+						footerLinks.legal.map((link) => (
+							<li>
+								<a href={link.href} class="text-muted-foreground transition-colors hover:text-foreground">
+									{link.name}
+								</a>
+							</li>
+						))
+					}
+				</ul>
+			</div>
+		</div>
 
-      <div class="flex items-center gap-4">
-        <span class="inline-flex justify-center space-x-4">
-          {socialLinks.map((social) => (
-            <a
-              href={social.url}
-              target="_blank"
-              class="footer-social-icon-link text-neutral-400 dark:text-neutral-500 hover:text-primary dark:hover:text-primary-light transition-colors duration-200"
-              title={social.name}
-            >
-              <span class="sr-only">{social.name}</span>
-              <div class="footer-social-icon">
-                <Fragment set:html={social.icon} />
-              </div>
-            </a>
-          ))}
-        </span>
-      </div>
-    </div>
-  </div>
-</section>
+		<div class="my-8 h-px w-full bg-border"></div>
 
-<!-- Back to top -->
-<ToTop />
-
-<style is:global>
-  .footer-social-icon {
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-  }
-
-  .footer-social-icon svg {
-    width: 18px;
-    height: 18px;
-    fill: currentColor;
-  }
-
-  .footer-social-icon-link:hover .ic-github {
-    color: #333;
-  }
-
-  .footer-social-icon-link:hover .ic-rss {
-    color: #F26522;
-  }
-</style>
+		<div class="flex flex-col items-center justify-between gap-2 text-sm text-muted-foreground lg:flex-row">
+			<span class="flex flex-wrap items-center justify-center gap-1.5">
+				Created and maintained
+				<Heart class="size-4 fill-red-500 text-red-500" aria-label="love" />
+				by
+				<a
+					href="https://jasnan.xyz/"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="font-medium text-foreground transition-colors hover:text-primary"
+				>
+					Jasnan Thachaparamban
+				</a>
+				.
+			</span>
+			<span>&copy; {year} Arkivra</span>
+		</div>
+	</div>
+</footer>

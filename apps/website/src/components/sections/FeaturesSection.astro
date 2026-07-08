@@ -1,0 +1,117 @@
+---
+import Badge from "@/components/ui/Badge.astro";
+import Button from "@/components/ui/Button.astro";
+import Image3D from "@/components/ui/Image3D.astro";
+import {
+	docsUrl,
+	documentFeatures,
+	optionalAiFeatures,
+	retrievalFeatures,
+} from "@/data/landing";
+import { ArrowRight } from "@lucide/astro";
+---
+
+<section id="features" class="bg-muted/30 py-24 sm:py-32">
+	<div class="container mx-auto px-4 sm:px-6 lg:px-8">
+		<div class="mx-auto mb-16 max-w-3xl text-center">
+			<Badge variant="outline" class="mb-4">Document workflows</Badge>
+			<h2 class="mb-4 text-3xl font-bold tracking-tight text-balance sm:text-4xl">
+				Built for everyday document management.
+			</h2>
+			<p class="text-lg text-muted-foreground text-pretty">
+				Practical tools for organizing documents, finding information, and working with knowledge stored across your
+				vaults.
+			</p>
+		</div>
+
+		<div class="mb-24 grid items-center gap-12 lg:grid-cols-2 lg:gap-8 xl:gap-16">
+			<Image3D
+				lightSrc="/images/vaults_screenshot_list_light.png"
+				darkSrc="/images/vaults_screenshot_list_dark.png"
+				alt="Arkivra vault list workspace"
+				direction="right"
+				fit="contain"
+				fade={false}
+			/>
+
+			<div class="space-y-6">
+				<div class="space-y-4">
+					<h3 class="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+						Organize documents around real collections
+					</h3>
+					<p class="text-base text-muted-foreground text-pretty">
+						Arkivra is built around vaults, folders, tags, versions, and permissions so document collections stay
+						structured as they grow.
+					</p>
+				</div>
+
+				<ul class="grid gap-4 sm:grid-cols-2">
+					{
+						documentFeatures.map((feature) => {
+							const Icon = feature.icon;
+
+							return (
+								<li class="flex items-start gap-3 rounded-lg p-2 transition-colors hover:bg-accent/5">
+									<Icon class="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+									<div>
+										<h3 class="font-medium text-foreground">{feature.title}</h3>
+										<p class="mt-1 text-sm text-muted-foreground">{feature.description}</p>
+									</div>
+								</li>
+							);
+						})
+					}
+				</ul>
+			</div>
+		</div>
+
+		<div class="grid items-center gap-12 lg:grid-cols-2 lg:gap-8 xl:gap-16">
+			<div class="order-2 space-y-6 lg:order-1">
+				<div class="space-y-4">
+					<h3 class="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+						Document management with search and optional AI
+					</h3>
+					<p class="text-base text-muted-foreground text-pretty">
+						Core document management and full-text search work without AI. Optional AI features can add semantic
+						retrieval, chat, and translation through operator-configured providers.
+					</p>
+				</div>
+
+				<ul class="grid gap-4 sm:grid-cols-2">
+					{
+						[...retrievalFeatures, ...optionalAiFeatures].map((feature) => {
+							const Icon = feature.icon;
+
+							return (
+								<li class="flex items-start gap-3 rounded-lg p-2 transition-colors hover:bg-accent/5">
+									<Icon class="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+									<div>
+										<h3 class="font-medium text-foreground">{feature.title}</h3>
+										<p class="mt-1 text-sm text-muted-foreground">{feature.description}</p>
+									</div>
+								</li>
+							);
+						})
+					}
+				</ul>
+
+				<div class="flex flex-col gap-4 pe-4 pt-2 sm:flex-row">
+					<Button href={docsUrl} size="lg" target="_blank" rel="noopener noreferrer" class="flex items-center">
+						View documentation
+						<ArrowRight class="ms-2 size-4" aria-hidden="true" />
+					</Button>
+				</div>
+			</div>
+
+			<Image3D
+				lightSrc="/images/arkivra-chat-light.png"
+				darkSrc="/images/arkivra-chat-dark.png"
+				alt="Arkivra document chat and search workspace"
+				direction="right"
+				fit="contain"
+				fade={false}
+				class="order-1 lg:order-2"
+			/>
+		</div>
+	</div>
+</section>

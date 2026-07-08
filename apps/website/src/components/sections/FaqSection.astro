@@ -1,0 +1,34 @@
+---
+import Badge from "@/components/ui/Badge.astro";
+import { faqItems } from "@/data/landing";
+import { ChevronDown, CircleQuestionMark } from "@lucide/astro";
+---
+
+<section id="faq" class="py-24 sm:py-32">
+	<div class="container mx-auto px-4 sm:px-6 lg:px-8">
+		<div class="mx-auto mb-16 max-w-2xl text-center">
+			<Badge variant="outline" class="mb-4">FAQ</Badge>
+			<h2 class="mb-4 text-3xl font-bold tracking-tight sm:text-4xl">Frequently asked questions</h2>
+			<p class="text-lg text-muted-foreground">Answers to the questions people usually ask before running Arkivra.</p>
+		</div>
+
+		<div class="mx-auto max-w-4xl space-y-5">
+			{
+				faqItems.map((item) => (
+					<details class="rounded-md border bg-transparent" data-faq-item name="arkivra-faq">
+						<summary class="flex cursor-pointer items-center justify-between gap-4 rounded-none bg-transparent py-2 ps-3 pe-4">
+							<div class="flex items-center gap-4">
+								<div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+									<CircleQuestionMark class="size-5" />
+								</div>
+								<span class="text-start font-semibold">{item.question}</span>
+							</div>
+							<ChevronDown class="faq-chevron size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+						</summary>
+						<div class="border-t bg-transparent p-4 text-sm leading-6 text-muted-foreground">{item.answer}</div>
+					</details>
+				))
+			}
+		</div>
+	</div>
+</section>

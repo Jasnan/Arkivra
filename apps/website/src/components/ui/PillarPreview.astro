@@ -1,0 +1,97 @@
+---
+import { FileText, FolderOpen, Search, Sparkles } from "@lucide/astro";
+
+type Props = {
+	visual: "organize" | "search" | "understand";
+};
+
+const { visual } = Astro.props;
+---
+
+{
+	visual === "organize" && (
+		<div class="flex h-32 w-full flex-col justify-center rounded-xl bg-background/70 p-3">
+			<div class="space-y-1 text-xs text-muted-foreground">
+				<div class="flex items-center gap-2 text-foreground">
+					<span class="size-2 rounded-full bg-primary/40" />
+					Personal Vault
+				</div>
+				<div class="ml-5 flex items-center gap-2">
+					<FolderOpen class="size-3.5 text-primary" />
+					Home
+				</div>
+				<div class="ml-10 flex items-center gap-2 text-[11px]">
+					<FileText class="size-3 text-muted-foreground" />
+					home-insurance.pdf
+				</div>
+				<div class="ml-10 flex items-center gap-2 text-[11px]">
+					<FileText class="size-3 text-muted-foreground" />
+					lease-agreement.pdf
+				</div>
+				<div class="ml-5 flex items-center gap-2 pt-0.5">
+					<FolderOpen class="size-3.5 text-primary" />
+					Family
+				</div>
+				<div class="ml-10 flex items-center gap-2 text-[11px]">
+					<FileText class="size-3 text-muted-foreground" />
+					passports.docx
+				</div>
+				<div class="ml-10 flex items-center gap-2 text-[11px]">
+					<FileText class="size-3 text-muted-foreground" />
+					emergency-contacts.txt
+				</div>
+			</div>
+		</div>
+	)
+}
+
+{
+	visual === "search" && (
+		<div class="flex h-32 w-full flex-col justify-center rounded-xl bg-background/70 p-3">
+			<div class="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground">
+				<Search class="size-4 text-primary" />
+				<span>Zahlungsfrist</span>
+			</div>
+			<div class="mt-3 rounded-lg bg-primary/5 p-3">
+				<div class="flex items-start gap-3">
+					<div class="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+						<FileText class="size-4" />
+					</div>
+					<div class="min-w-0 flex-1">
+						<span class="block truncate text-xs font-medium text-foreground">service agreement.pdf</span>
+						<div class="mt-2 space-y-1.5">
+							<div class="h-1.5 w-5/6 rounded-full bg-primary/20"></div>
+							<div class="h-1.5 w-2/3 rounded-full bg-muted"></div>
+						</div>
+					</div>
+				</div>
+				<div class="mt-3 flex flex-wrap gap-2">
+					<span class="rounded-md bg-background px-2 py-1 text-[10px] text-muted-foreground">payment deadline</span>
+					<span class="rounded-md bg-background px-2 py-1 text-[10px] text-muted-foreground">due date</span>
+					<span class="rounded-md bg-background px-2 py-1 text-[10px] text-muted-foreground">net 30</span>
+				</div>
+			</div>
+		</div>
+	)
+}
+
+{
+	visual === "understand" && (
+		<div class="flex h-32 w-full flex-col justify-center rounded-xl bg-background/70 p-3">
+			<div class="ml-auto w-fit rounded-lg bg-primary/10 px-3 py-2 text-xs text-primary">
+				What are the key terms in this contract?
+			</div>
+			<div class="mt-3 rounded-lg border bg-background p-3">
+				<div class="mb-2 flex items-center gap-2 text-primary">
+					<Sparkles class="size-4" />
+					<span class="text-xs font-medium">AI summary</span>
+				</div>
+				<div class="space-y-2">
+					<div class="h-2 w-5/6 rounded-full bg-primary/20"></div>
+					<div class="h-2 w-3/4 rounded-full bg-primary/20"></div>
+					<div class="h-2 w-1/2 rounded-full bg-primary/20"></div>
+				</div>
+			</div>
+		</div>
+	)
+}

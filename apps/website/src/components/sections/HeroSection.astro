@@ -1,0 +1,62 @@
+---
+import GitHubMark from "@/components/icons/GitHubMark.astro";
+import Badge from "@/components/ui/Badge.astro";
+import Button from "@/components/ui/Button.astro";
+import DotPattern from "@/components/ui/DotPattern.astro";
+import { githubUrl, selfHostingGuideUrl } from "@/data/landing";
+import { ArrowRight } from "@lucide/astro";
+---
+
+<section id="hero" class="relative overflow-hidden pt-16 pb-16 sm:pt-20 lg:pb-24">
+	<div class="absolute inset-0">
+		<DotPattern class="opacity-100" size="md" fade="ellipse" />
+	</div>
+
+	<div class="container relative mx-auto px-4 sm:px-6 lg:px-8">
+		<div class="grid items-center gap-12 lg:grid-cols-[0.92fr_1.08fr] lg:gap-16">
+			<div class="mx-auto max-w-2xl text-center lg:mx-0 lg:text-left">
+				<div class="mb-6 flex flex-wrap justify-center gap-2 lg:justify-start">
+					<Badge variant="outline" class="border-foreground/40 px-4 py-2">Open-source</Badge>
+					<Badge variant="secondary" class="px-4 py-2">Self-hostable</Badge>
+				</div>
+
+				<h1 class="mb-6 text-4xl font-bold tracking-tight text-balance sm:text-6xl lg:text-7xl">
+					Your documents, finally under control.
+				</h1>
+
+				<p class="mb-10 text-lg text-muted-foreground text-pretty sm:text-xl">
+					Store, organize, and search everything from personal records to work documents. Self-host Arkivra and turn
+					scattered files into information you can actually use.
+				</p>
+
+				<div class="flex flex-col gap-4 sm:flex-row sm:justify-center lg:justify-start">
+					<Button href={selfHostingGuideUrl} size="lg" class="text-base" target="_blank" rel="noopener noreferrer">
+						Self-host Arkivra
+						<ArrowRight class="ml-2 size-4" />
+					</Button>
+					<Button href={githubUrl} variant="outline" size="lg" class="text-base" target="_blank" rel="noopener noreferrer">
+						<GitHubMark class="mr-2 size-4" />
+						View on GitHub
+					</Button>
+				</div>
+			</div>
+
+			<div class="relative overflow-hidden rounded-xl border border-border/70 bg-card/80 p-2 shadow-2xl backdrop-blur sm:p-3">
+				<img
+					src="/images/vaults_screenshot_grid_light.png"
+					alt="Arkivra vaults grid view"
+					class="aspect-[2480/1364] w-full rounded-lg object-cover dark:hidden"
+					loading="eager"
+					decoding="async"
+				/>
+				<img
+					src="/images/vaults_screenshot_grid_dark.png"
+					alt="Arkivra vaults grid view"
+					class="hidden aspect-[2480/1364] w-full rounded-lg object-cover dark:block"
+					loading="eager"
+					decoding="async"
+				/>
+			</div>
+		</div>
+	</div>
+</section>

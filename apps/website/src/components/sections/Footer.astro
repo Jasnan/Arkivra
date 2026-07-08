@@ -5,6 +5,16 @@ import Button from "@/components/ui/Button.astro";
 import { footerLinks, githubUrl } from "@/data/landing";
 import { Heart, Mail, Rss } from "@lucide/astro";
 
+type Props = {
+	homeHref?: string;
+	sectionHrefPrefix?: string;
+};
+
+const { homeHref = "#hero", sectionHrefPrefix = "" } = Astro.props;
+
+const resolveFooterHref = (href: string) =>
+	href.startsWith("#") ? `${sectionHrefPrefix}${href}` : href;
+
 const socialLinks = [
 	{ name: "GitHub", href: githubUrl, icon: GitHubMark },
 	{ name: "Email", href: "mailto:contact@arkivra.app", icon: Mail },
@@ -18,12 +28,14 @@ const year = new Date().getFullYear();
 	<div class="container mx-auto px-4 py-16 sm:px-6 lg:px-8">
 		<div class="grid grid-cols-4 gap-8 lg:grid-cols-6">
 			<div class="col-span-4 max-w-2xl lg:col-span-3">
-				<a href="#hero" class="js-scroll-link mb-4 flex items-center space-x-2 max-lg:justify-center">
+				<a href={homeHref} class="js-scroll-link mb-4 flex items-center space-x-2 max-lg:justify-center">
 					<Logo size={32} />
 					<span class="text-xl font-bold">Arkivra</span>
 				</a>
 				<p class="mb-6 text-muted-foreground max-lg:text-center">
-					Open-source document management system with powerful search and optional AI.
+					Open-source document management system
+					<br />
+					with powerful search and optional AI.
 				</p>
 				<div class="flex space-x-4 max-lg:justify-center">
 					{
@@ -54,7 +66,10 @@ const year = new Date().getFullYear();
 					{
 						footerLinks.project.map((link) => (
 							<li>
-								<a href={link.href} class="js-scroll-link text-muted-foreground transition-colors hover:text-foreground">
+								<a
+									href={resolveFooterHref(link.href)}
+									class="js-scroll-link text-muted-foreground transition-colors hover:text-foreground"
+								>
 									{link.name}
 								</a>
 							</li>
@@ -114,9 +129,8 @@ const year = new Date().getFullYear();
 				>
 					Jasnan Thachaparamban
 				</a>
-				.
 			</span>
-			<span>&copy; {year} Arkivra</span>
+			<span>&copy; {year} Arkivra. All rights reserved.</span>
 		</div>
 	</div>
 </footer>

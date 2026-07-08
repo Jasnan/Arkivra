@@ -23,8 +23,8 @@ export const githubUrl = "https://github.com/Jasnan/Arkivra";
 
 export const navigationItems = [
 	{ name: "Home", href: "#hero" },
-	{ name: "About", href: "#about" },
 	{ name: "Features", href: "#features" },
+	{ name: "About", href: "#about" },
 	{ name: "FAQ", href: "#faq" },
 ];
 
@@ -71,19 +71,19 @@ export const documentPillars = [
 	{
 		title: "Organize",
 		description:
-			"Turn scattered files into vaults, folders, and file trees that match how you think about your documents.",
+			"Create vaults, folders, tags, and collections that match how your documents are stored in real life.",
 		visual: "organize",
 	},
 	{
 		title: "Search",
 		description:
-			"Find related document content by meaning, then narrow results with tags and metadata as your archive grows.",
+			"Find documents quickly with full-text search, filters, metadata, and optional semantic search.",
 		visual: "search",
 	},
 	{
 		title: "Understand",
 		description:
-			"Use optional AI to ask focused questions, summarize context, and translate content when it helps.",
+			"Use optional AI to ask questions, summarize files, translate documents, and retrieve the information buried inside your archive.",
 		visual: "understand",
 	},
 ] as const;
@@ -93,25 +93,24 @@ export const documentFeatures = [
 		icon: Folder,
 		title: "Vault organization",
 		description:
-			"Create vaults to group documents the way that makes sense to you.",
+			"Group documents into vaults that match how your records belong together.",
 	},
 	{
 		icon: Tag,
 		title: "Tags & metadata",
-		description:
-			"Use tags, filters, and metadata to keep your documents structured and easy to find.",
+		description: "Keep documents easier to filter, recognize, and find later.",
 	},
 	{
 		icon: History,
 		title: "Version history",
 		description:
-			"Track document changes over time and restore previous versions when needed.",
+			"Keep older versions available when documents change over time.",
 	},
 	{
 		icon: Users,
 		title: "Access control",
 		description:
-			"Manage vault members, roles, and permissions around document collections.",
+			"Manage who can view, upload, and organize documents in each vault.",
 	},
 ];
 
@@ -119,47 +118,41 @@ export const retrievalFeatures = [
 	{
 		icon: Search,
 		title: "Full-text search",
-		description: "Search the content of your documents, not just file names.",
+		description: "Search document content, not just file names.",
 	},
 	{
 		icon: FileText,
-		title: "Scanned document support",
-		description: "Extract searchable text from many scanned PDFs and images.",
+		title: "Scanned documents",
+		description: "Extract searchable text from scanned PDFs and images.",
 	},
 	{
 		icon: SlidersHorizontal,
-		title: "Filters and metadata",
-		description:
-			"Narrow results with tags, vaults, document metadata, and processing state.",
-	},
-	{
-		icon: Brain,
-		title: "Semantic search",
-		description:
-			"Optionally find relevant information by meaning, not just exact keywords.",
+		title: "Filters & metadata",
+		description: "Narrow results by vault, tag, metadata, or processing state.",
 	},
 ];
 
 export const optionalAiFeatures = [
 	{
-		icon: MessageCircle,
-		title: "Chat with documents",
+		icon: Brain,
+		title: "Semantic search",
 		description:
-			"Ask questions and get answers from selected documents or entire vaults.",
+			"Find relevant information by meaning, not just exact keywords.",
 	},
 	{
-		icon: Brain,
-		title: "Provider-configured AI",
-		description:
-			"Connect local models or supported cloud providers when AI fits your workflow.",
+		icon: MessageCircle,
+		title: "Chat with documents",
+		description: "Ask questions across selected documents or entire vaults.",
 	},
 	{
 		icon: Languages,
 		title: "Document translation",
-		description:
-			"Translate documents into multiple languages when translation is enabled.",
+		description: "Translate documents when translation is enabled.",
 	},
 ];
+
+export const aiFlexibilityNote =
+	"Bring your own AI setup: connect local models or supported cloud providers when AI fits your setup.";
 
 export const faqItems = [
 	{

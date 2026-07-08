@@ -96,6 +96,109 @@ function getParticipationBadgeClass(vault: VaultSummary) {
   return 'border-primary/20 bg-primary/10 text-foreground';
 }
 
+const demoVaults: VaultSummary[] = [
+  {
+    id: 'demo-vault-insurance',
+    name: 'Insurance',
+    description: 'Health, home, car, travel policies',
+    fileCount: 186,
+    totalSize: 558 * 1024 * 1024,
+    createdAt: '2026-01-04T10:00:00.000Z',
+    updatedAt: '2026-06-18T10:00:00.000Z',
+    role: 'owner',
+    isAdmin: false,
+    isMember: true,
+  },
+  {
+    id: 'demo-vault-vehicles',
+    name: 'Vehicles',
+    description: 'Registration, service, manuals',
+    fileCount: 161,
+    totalSize: 724.5 * 1024 * 1024,
+    createdAt: '2026-01-08T10:00:00.000Z',
+    updatedAt: '2026-06-12T10:00:00.000Z',
+    role: 'owner',
+    isAdmin: false,
+    isMember: true,
+  },
+  {
+    id: 'demo-vault-travel',
+    name: 'Travel',
+    description: 'Trip plans, bookings, tickets',
+    fileCount: 216,
+    totalSize: 729 * 1024 * 1024,
+    createdAt: '2026-01-12T10:00:00.000Z',
+    updatedAt: '2026-06-03T10:00:00.000Z',
+    role: 'owner',
+    isAdmin: false,
+    isMember: true,
+  },
+  {
+    id: 'demo-vault-home-inventory',
+    name: 'Home Inventory',
+    description: 'Valuables, warranties, serial numbers',
+    fileCount: 56,
+    totalSize: 63 * 1024 * 1024,
+    createdAt: '2026-01-16T10:00:00.000Z',
+    updatedAt: '2026-05-25T10:00:00.000Z',
+    role: 'owner',
+    isAdmin: false,
+    isMember: true,
+  },
+  {
+    id: 'demo-vault-work',
+    name: 'Work',
+    description: 'Work related documents',
+    fileCount: 71,
+    totalSize: 319.5 * 1024 * 1024,
+    createdAt: '2026-01-20T10:00:00.000Z',
+    updatedAt: '2026-05-17T10:00:00.000Z',
+    role: 'owner',
+    isAdmin: false,
+    isMember: true,
+  },
+  {
+    id: 'demo-vault-tax-records',
+    name: 'Tax Records',
+    description: 'Returns, receipts, deductions',
+    fileCount: 94,
+    totalSize: 248.2 * 1024 * 1024,
+    createdAt: '2026-01-24T10:00:00.000Z',
+    updatedAt: '2026-05-09T10:00:00.000Z',
+    role: 'owner',
+    isAdmin: false,
+    isMember: true,
+  },
+  {
+    id: 'demo-vault-property',
+    name: 'Property',
+    description: 'Lease, mortgage, repairs',
+    fileCount: 128,
+    totalSize: 486.7 * 1024 * 1024,
+    createdAt: '2026-01-28T10:00:00.000Z',
+    updatedAt: '2026-04-28T10:00:00.000Z',
+    role: 'owner',
+    isAdmin: false,
+    isMember: true,
+  },
+  {
+    id: 'demo-vault-medical',
+    name: 'Medical',
+    description: 'Reports, prescriptions, visits',
+    fileCount: 143,
+    totalSize: 392.4 * 1024 * 1024,
+    createdAt: '2026-02-01T10:00:00.000Z',
+    updatedAt: '2026-04-19T10:00:00.000Z',
+    role: 'owner',
+    isAdmin: false,
+    isMember: true,
+  },
+];
+
+function isDemoVault(vault: VaultSummary) {
+  return vault.id.startsWith('demo-vault-');
+}
+
 function VaultGrid({
   vaults,
   onOpenVault,
@@ -246,8 +349,8 @@ export default function VaultsPage() {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const sortedVaults = useMemo(
-    () => [...vaults].sort((a, b) => a.name.localeCompare(b.name)),
+  const displayVaults = useMemo(
+    () => [...vaults].sort((a, b) => a.name.localeCompare(b.name)).concat(demoVaults),
     [vaults],
   );
   const headerActions = useMemo(
@@ -302,14 +405,20 @@ export default function VaultsPage() {
   }, [loadVaults]);
 
   function openVault(vault: VaultSummary) {
+    if (isDemoVault(vault)) return;
+
     navigate(`/vaults/${vault.id}`);
   }
 
   function openSettings(vault: VaultSummary) {
+    if (isDemoVault(vault)) return;
+
     navigate(`/vaults/${vault.id}/settings`);
   }
 
   function openActivity(vault: VaultSummary) {
+    if (isDemoVault(vault)) return;
+
     navigate(`/vaults/${vault.id}/activity`);
   }
 
@@ -342,6 +451,8 @@ export default function VaultsPage() {
   function openContextMenu(event: MouseEvent<HTMLElement>, vault: VaultSummary) {
     event.preventDefault();
     event.stopPropagation();
+    if (isDemoVault(vault)) return;
+
     setContextMenu({
       vault,
       x: event.clientX,
@@ -389,7 +500,7 @@ export default function VaultsPage() {
             {errorMessage}
           </div>
         </div>
-      ) : sortedVaults.length === 0 ? (
+      ) : displayVaults.length === 0 ? (
         <div className="px-4 lg:px-6">
           <div className="flex min-h-80 flex-col items-center justify-center rounded-lg border bg-muted/20 p-8 text-center">
             <div className="flex size-14 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
@@ -406,14 +517,14 @@ export default function VaultsPage() {
       ) : view === 'grid' ? (
         <div className="px-4 lg:px-6">
           <VaultGrid
-            vaults={sortedVaults}
+            vaults={displayVaults}
             onOpenVault={openVault}
             onOpenContextMenu={openContextMenu}
           />
         </div>
       ) : (
         <VaultList
-          vaults={sortedVaults}
+          vaults={displayVaults}
           onOpenVault={openVault}
           onOpenContextMenu={openContextMenu}
         />

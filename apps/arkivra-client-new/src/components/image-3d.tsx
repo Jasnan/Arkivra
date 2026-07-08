@@ -8,6 +8,16 @@ interface Image3DProps {
   alt: string
   className?: string
   direction?: "left" | "right"
+  fit?: "cover" | "contain"
+  fade?: boolean
+}
+
+function resolveImageSrc(src: string) {
+  if (/^(?:[a-z]+:)?\/\//i.test(src) || src.startsWith("/") || src.startsWith("data:")) {
+    return src
+  }
+
+  return assetUrl(src)
 }
 
 export function Image3D({
@@ -15,13 +25,16 @@ export function Image3D({
   darkSrc,
   alt,
   className,
-  direction = "left"
+  direction = "left",
+  fit = "cover",
+  fade = true
 }: Image3DProps) {
   const isRight = direction === "right"
+  const fitClassName = fit === "contain" ? "object-contain" : "object-cover"
 
   return (
     <div className={cn("group relative aspect-[4/3] w-full", className)}>
-      <div className="perspective-distant transform-3d">
+      <div className="size-full perspective-distant transform-3d">
         {/* Animated background glow */}
         <div className="absolute sm:-inset-8 rounded-3xl bg-gradient-to-r from-primary/10 via-blue-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-all duration-1000 blur-2xl" />
 
@@ -43,20 +56,22 @@ export function Image3D({
                 : "-translate-x-full group-hover:translate-x-full"
             )} />
 
-            {/* Content fade mask */}
-            <div className={cn(
-              "absolute inset-0 z-15 pointer-events-none",
-              isRight
-                ? "bg-linear-to-l from-background from-0% via-background/85 via-15% to-transparent to-40%"
-                : "bg-linear-to-r from-background from-0% via-background/85 via-15% to-transparent to-40%"
-            )} />
+            {fade ? (
+              <div className={cn(
+                "absolute inset-0 z-15 pointer-events-none",
+                isRight
+                  ? "bg-linear-to-l from-background from-0% via-background/85 via-15% to-transparent to-40%"
+                  : "bg-linear-to-r from-background from-0% via-background/85 via-15% to-transparent to-40%"
+              )} />
+            ) : null}
 
             {/* Theme-aware images */}
             <img
-              src={assetUrl(lightSrc)}
+              src={resolveImageSrc(lightSrc)}
               alt={`${alt} - Light Mode`}
               className={cn(
-                "block size-full object-cover dark:hidden transition-transform duration-700 group-hover:scale-105",
+                "block size-full dark:hidden transition-transform duration-700 group-hover:scale-105",
+                fitClassName,
                 isRight ? "object-center" : "object-left"
               )}
               loading="lazy"
@@ -64,10 +79,11 @@ export function Image3D({
             />
 
             <img
-              src={assetUrl(darkSrc)}
+              src={resolveImageSrc(darkSrc)}
               alt={`${alt} - Dark Mode`}
               className={cn(
-                "hidden dark:block size-full object-cover transition-transform duration-700 group-hover:scale-105",
+                "hidden dark:block size-full transition-transform duration-700 group-hover:scale-105",
+                fitClassName,
                 isRight ? "object-center" : "object-left"
               )}
               loading="lazy"

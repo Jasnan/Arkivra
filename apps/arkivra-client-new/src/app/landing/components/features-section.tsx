@@ -17,6 +17,10 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Image3D } from "@/components/image-3d"
+import arkivraChatDark from "@/assets/arkivra-chat-dark.png"
+import arkivraChatLight from "@/assets/arkivra-chat-light.png"
+import vaultsScreenshotListDark from "@/assets/vaults_screenshot_list_dark.png"
+import vaultsScreenshotListLight from "@/assets/vaults_screenshot_list_light.png"
 
 const docsUrl = "https://docs.arkivra.app/"
 
@@ -102,7 +106,14 @@ export function FeaturesSection() {
         </div>
 
         <div className="mb-24 grid items-center gap-12 lg:grid-cols-2 lg:gap-8 xl:gap-16">
-          <Image3D lightSrc="feature-1-light.png" darkSrc="feature-1-dark.png" alt="Document management workspace" direction="left" />
+          <Image3D
+            lightSrc={vaultsScreenshotListLight}
+            darkSrc={vaultsScreenshotListDark}
+            alt="Arkivra vault list workspace"
+            direction="right"
+            fit="contain"
+            fade={false}
+          />
 
           <div className="space-y-6">
             <div className="space-y-4">
@@ -164,10 +175,12 @@ export function FeaturesSection() {
           </div>
 
           <Image3D
-            lightSrc="feature-2-light.png"
-            darkSrc="feature-2-dark.png"
-            alt="Search and retrieval workspace"
+            lightSrc={arkivraChatLight}
+            darkSrc={arkivraChatDark}
+            alt="Arkivra document chat and search workspace"
             direction="right"
+            fit="contain"
+            fade={false}
             className="order-1 lg:order-2"
           />
         </div>

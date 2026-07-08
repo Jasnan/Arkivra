@@ -1,7 +1,9 @@
 "use client"
 
 import {
+  FileText,
   FolderOpen,
+  Search,
   Sparkles,
 } from "lucide-react"
 
@@ -18,7 +20,7 @@ const documentPillars = [
   {
     title: "Search",
     description:
-      "Find document content directly, then narrow results with tags and metadata as your archive grows.",
+      "Find related document content by meaning, then narrow results with tags and metadata as your archive grows.",
     visual: "search",
   },
   {
@@ -107,16 +109,28 @@ function OrganizePreview() {
 function SearchPreview() {
   return (
     <div className="flex h-32 w-full flex-col justify-center rounded-xl bg-background/70 p-3">
-      <div className="rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground">invoice from acme 2024</div>
-      <div className="mt-3 flex items-center gap-3">
-        <span className="rounded-md border border-destructive/30 bg-destructive/10 px-2 py-2 text-xs font-semibold text-destructive">
-          PDF
-        </span>
-        <div className="min-w-0 flex-1 space-y-2">
-          <div className="h-2 w-4/5 rounded-full bg-muted" />
-          <div className="h-2 w-2/3 rounded-full bg-muted" />
+      <div className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground">
+        <Search className="size-4 text-primary" />
+        <span>Zahlungsfrist</span>
+      </div>
+      <div className="mt-3 rounded-lg bg-primary/5 p-3">
+        <div className="flex items-start gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <FileText className="size-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <span className="block truncate text-xs font-medium text-foreground">service agreement.pdf</span>
+            <div className="mt-2 space-y-1.5">
+              <div className="h-1.5 w-5/6 rounded-full bg-primary/20" />
+              <div className="h-1.5 w-2/3 rounded-full bg-muted" />
+            </div>
+          </div>
         </div>
-        <span className="rounded-md bg-primary/10 px-2 py-1 text-xs text-primary">acme</span>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <span className="rounded-md bg-background px-2 py-1 text-[10px] text-muted-foreground">payment deadline</span>
+          <span className="rounded-md bg-background px-2 py-1 text-[10px] text-muted-foreground">due date</span>
+          <span className="rounded-md bg-background px-2 py-1 text-[10px] text-muted-foreground">net 30</span>
+        </div>
       </div>
     </div>
   )

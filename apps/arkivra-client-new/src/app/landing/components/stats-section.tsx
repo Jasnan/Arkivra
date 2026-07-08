@@ -1,69 +1,67 @@
 "use client"
 
 import {
-  Package,
-  Download,
-  Users,
-  Star
-} from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/card'
-import { DotPattern } from '@/components/dot-pattern'
+  FolderOpen,
+  Sparkles,
+} from "lucide-react"
 
+import { DotPattern } from "@/components/dot-pattern"
+import { Card, CardContent } from "@/components/ui/card"
 
-const stats = [
+const documentPillars = [
   {
-    icon: Package,
-    value: '500+',
-    label: 'Components',
-    description: 'Ready-to-use blocks'
+    title: "Organize",
+    description:
+      "Turn scattered files into vaults, folders, and tags that match how you think about your documents.",
+    visual: "organize",
   },
   {
-    icon: Download,
-    value: '25K+',
-    label: 'Downloads',
-    description: 'Trusted worldwide'
+    title: "Search",
+    description:
+      "Find document content directly, then narrow results with tags and metadata as your archive grows.",
+    visual: "search",
   },
   {
-    icon: Users,
-    value: '10K+',
-    label: 'Developers',
-    description: 'Active community'
+    title: "Understand",
+    description:
+      "Use optional AI to ask focused questions, summarize context, and translate content when it helps.",
+    visual: "understand",
   },
-  {
-    icon: Star,
-    value: '4.9',
-    label: 'Rating',
-    description: 'User satisfaction'
-  }
 ]
 
 export function StatsSection() {
   return (
-    <section className="py-12 sm:py-16 relative">
-      {/* Background with transparency */}
+    <section className="relative py-16 sm:py-24">
       <div className="absolute inset-0 bg-gradient-to-r from-primary/8 via-transparent to-secondary/20" />
       <DotPattern className="opacity-75" size="md" fadeStyle="circle" />
 
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
-          {stats.map((stat, index) => (
-            <Card
-              key={index}
-              className="text-center bg-background/60 backdrop-blur-sm border-border/50 py-0"
-            >
-              <CardContent className="p-6">
-                <div className="flex justify-center mb-4">
-                  <div className="p-3 bg-primary/10 rounded-xl">
-                    <stat.icon className="h-6 w-6 text-primary" />
+      <div className="container relative mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-3xl text-center">
+          <h2 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl">
+            More than a folder of files.
+          </h2>
+          <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground text-pretty">
+            Arkivra helps you structure what you store, search across it quickly, and use AI to work with the content
+            inside.
+          </p>
+        </div>
+
+        <div className="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-3">
+          {documentPillars.map((pillar) => (
+            <Card key={pillar.title} className="overflow-hidden py-0 shadow-xs">
+              <CardContent className="flex h-full flex-col p-0">
+                <div className="relative flex h-52 items-center justify-center overflow-hidden border-b bg-background/50 p-6">
+                  <DotPattern className="opacity-75" size="sm" fadeStyle="ellipse" />
+                  <div className="relative flex h-full w-full items-center">
+                    {pillar.visual === "organize" && <OrganizePreview />}
+                    {pillar.visual === "search" && <SearchPreview />}
+                    {pillar.visual === "understand" && <UnderstandPreview />}
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <h3 className="text-2xl sm:text-3xl font-bold text-foreground">
-                    {stat.value}
-                  </h3>
-                  <p className="font-semibold text-foreground">{stat.label}</p>
-                  <p className="text-sm text-muted-foreground">{stat.description}</p>
+
+                <div className="flex flex-1 flex-col items-center p-6 text-center">
+                  <h3 className="text-xl font-medium text-balance">{pillar.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{pillar.description}</p>
                 </div>
               </CardContent>
             </Card>
@@ -71,5 +69,76 @@ export function StatsSection() {
         </div>
       </div>
     </section>
+  )
+}
+
+function OrganizePreview() {
+  return (
+    <div className="flex h-32 w-full flex-col justify-center rounded-xl bg-background/70 p-3">
+      <div className="space-y-1.5 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 text-foreground">
+          <span className="size-2 rounded-full bg-primary/40" />
+          My Vault
+        </div>
+        <div className="ml-5 flex items-center gap-2">
+          <FolderOpen className="size-3.5 text-primary" />
+          Projects
+        </div>
+        <div className="ml-10 flex items-center gap-2">
+          <FolderOpen className="size-3.5 text-primary" />
+          Design
+        </div>
+        <div className="ml-10 flex items-center gap-2">
+          <FolderOpen className="size-3.5 text-primary" />
+          Research
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <span className="rounded-md bg-primary/10 px-2 py-1 text-xs text-primary">important</span>
+        <span className="rounded-md bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700 dark:text-emerald-300">
+          2024
+        </span>
+        <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">client</span>
+      </div>
+    </div>
+  )
+}
+
+function SearchPreview() {
+  return (
+    <div className="flex h-32 w-full flex-col justify-center rounded-xl bg-background/70 p-3">
+      <div className="rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground">invoice from acme 2024</div>
+      <div className="mt-3 flex items-center gap-3">
+        <span className="rounded-md border border-destructive/30 bg-destructive/10 px-2 py-2 text-xs font-semibold text-destructive">
+          PDF
+        </span>
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="h-2 w-4/5 rounded-full bg-muted" />
+          <div className="h-2 w-2/3 rounded-full bg-muted" />
+        </div>
+        <span className="rounded-md bg-primary/10 px-2 py-1 text-xs text-primary">acme</span>
+      </div>
+    </div>
+  )
+}
+
+function UnderstandPreview() {
+  return (
+    <div className="flex h-32 w-full flex-col justify-center rounded-xl bg-background/70 p-3">
+      <div className="ml-auto w-fit rounded-lg bg-primary/10 px-3 py-2 text-xs text-primary">
+        What are the key terms in this contract?
+      </div>
+      <div className="mt-3 rounded-lg border bg-background p-3">
+        <div className="mb-2 flex items-center gap-2 text-primary">
+          <Sparkles className="size-4" />
+          <span className="text-xs font-medium">AI summary</span>
+        </div>
+        <div className="space-y-2">
+          <div className="h-2 w-5/6 rounded-full bg-primary/20" />
+          <div className="h-2 w-3/4 rounded-full bg-primary/20" />
+          <div className="h-2 w-1/2 rounded-full bg-primary/20" />
+        </div>
+      </div>
+    </div>
   )
 }

@@ -1,178 +1,172 @@
 "use client"
 
 import {
-  BarChart3,
-  Zap,
-  Users,
   ArrowRight,
-  Database,
-  Package,
-  Crown,
-  Layout,
-  Palette
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Image3D } from '@/components/image-3d'
+  Brain,
+  FileText,
+  Folder,
+  History,
+  Languages,
+  MessageCircle,
+  Search,
+  SlidersHorizontal,
+  Tag,
+  Users,
+} from "lucide-react"
 
-const mainFeatures = [
-  {
-    icon: Package,
-    title: 'Curated Component Library',
-    description: 'Hand-picked blocks and templates for quality and reliability.'
-  },
-  {
-    icon: Crown,
-    title: 'Free & Premium Options',
-    description: 'Start free, upgrade to premium collections when you need more.'
-  },
-  {
-    icon: Layout,
-    title: 'Ready-to-Use Templates',
-    description: 'Copy-paste components that just work out of the box.'
-  },
-  {
-    icon: Zap,
-    title: 'Regular Updates',
-    description: 'New blocks and templates added weekly to keep you current.'
-  }
-]
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Image3D } from "@/components/image-3d"
 
-const secondaryFeatures = [
+const docsUrl = "https://docs.arkivra.app/"
+
+const documentFeatures = [
   {
-    icon: BarChart3,
-    title: 'Multiple Frameworks',
-    description: 'React, Next.js, and Vite compatibility for flexible development.'
+    icon: Folder,
+    title: "Vault organization",
+    description: "Create vaults to group documents the way that makes sense to you.",
   },
   {
-    icon: Palette,
-    title: 'Modern Tech Stack',
-    description: 'Built with shadcn/ui, Tailwind CSS, and TypeScript.'
+    icon: Tag,
+    title: "Tags & metadata",
+    description: "Use tags, filters, and metadata to keep your documents structured and easy to find.",
+  },
+  {
+    icon: History,
+    title: "Version history",
+    description: "Track document changes over time and restore previous versions when needed.",
   },
   {
     icon: Users,
-    title: 'Responsive Design',
-    description: 'Mobile-first components for all screen sizes and devices.'
+    title: "Access control",
+    description: "Manage vault members, roles, and permissions around document collections.",
+  },
+]
+
+const retrievalFeatures = [
+  {
+    icon: Search,
+    title: "Full-text search",
+    description: "Search the content of your documents, not just file names.",
   },
   {
-    icon: Database,
-    title: 'Developer-Friendly',
-    description: 'Clean code, well-documented, easy integration and customization.'
-  }
+    icon: FileText,
+    title: "Scanned document support",
+    description: "Extract searchable text from many scanned PDFs and images.",
+  },
+  {
+    icon: SlidersHorizontal,
+    title: "Filters and metadata",
+    description: "Narrow results with tags, vaults, document metadata, and processing state.",
+  },
+  {
+    icon: Brain,
+    title: "Semantic search",
+    description: "Optionally find relevant information by meaning, not just exact keywords.",
+  },
+]
+
+const optionalAiFeatures = [
+  {
+    icon: MessageCircle,
+    title: "Chat with documents",
+    description: "Ask questions and get answers from selected documents or entire vaults.",
+  },
+  {
+    icon: Brain,
+    title: "Provider-configured AI",
+    description: "Connect local models or supported cloud providers when AI fits your workflow.",
+  },
+  {
+    icon: Languages,
+    title: "Document translation",
+    description: "Translate documents into multiple languages when translation is enabled.",
+  },
 ]
 
 export function FeaturesSection() {
   return (
-    <section id="features" className="py-24 sm:py-32 bg-muted/30">
+    <section id="features" className="bg-muted/30 py-24 sm:py-32">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Section Header */}
-        <div className="mx-auto max-w-2xl text-center mb-16">
-          <Badge variant="outline" className="mb-4">Marketplace Features</Badge>
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl mb-4">
-            Everything you need to build amazing web applications
+        <div className="mx-auto mb-16 max-w-3xl text-center">
+          <Badge variant="outline" className="mb-4">
+            Document workflows
+          </Badge>
+          <h2 className="mb-4 text-3xl font-bold tracking-tight text-balance sm:text-4xl">
+            Built for everyday document management.
           </h2>
-          <p className="text-lg text-muted-foreground">
-            Our marketplace provides curated blocks, templates, landing pages, and admin dashboards to help you build professional applications faster than ever.
+          <p className="text-lg text-muted-foreground text-pretty">
+            Practical tools for organizing documents, finding information, and working with knowledge stored across
+            your vaults.
           </p>
         </div>
 
-        {/* First Feature Section */}
-        <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-8 xl:gap-16 mb-24">
-          {/* Left Image */}
-          <Image3D
-            lightSrc="feature-1-light.png"
-            darkSrc="feature-1-dark.png"
-            alt="Analytics dashboard"
-            direction="left"
-          />
-          {/* Right Content */}
+        <div className="mb-24 grid items-center gap-12 lg:grid-cols-2 lg:gap-8 xl:gap-16">
+          <Image3D lightSrc="feature-1-light.png" darkSrc="feature-1-dark.png" alt="Document management workspace" direction="left" />
+
           <div className="space-y-6">
             <div className="space-y-4">
               <h3 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-                Components that accelerate development
+                Organize documents around real collections
               </h3>
-              <p className="text-muted-foreground text-base text-pretty">
-                Our curated marketplace offers premium blocks and templates designed to save time and ensure consistency across your admin projects.
+              <p className="text-base text-muted-foreground text-pretty">
+                Arkivra is built around vaults, folders, tags, versions, and permissions so document collections stay
+                structured as they grow.
               </p>
             </div>
 
             <ul className="grid gap-4 sm:grid-cols-2">
-              {mainFeatures.map((feature, index) => (
-                <li key={index} className="group hover:bg-accent/5 flex items-start gap-3 p-2 rounded-lg transition-colors">
-                  <div className="mt-0.5 flex shrink-0 items-center justify-center">
-                    <feature.icon className="size-5 text-primary" aria-hidden="true" />
-                  </div>
+              {documentFeatures.map((feature) => (
+                <li key={feature.title} className="flex items-start gap-3 rounded-lg p-2 transition-colors hover:bg-accent/5">
+                  <feature.icon className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
                   <div>
-                    <h3 className="text-foreground font-medium">{feature.title}</h3>
-                    <p className="text-muted-foreground mt-1 text-sm">{feature.description}</p>
+                    <h3 className="font-medium text-foreground">{feature.title}</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">{feature.description}</p>
                   </div>
                 </li>
               ))}
             </ul>
-
-            <div className="flex flex-col sm:flex-row gap-4 pe-4 pt-2">
-              <Button size="lg" className="cursor-pointer">
-                <a href="https://shadcnstore.com/templates" className='flex items-center'>
-                  Browse Templates
-                  <ArrowRight className="ms-2 size-4" aria-hidden="true" />
-                </a>
-              </Button>
-              <Button size="lg" variant="outline" className="cursor-pointer">
-                <a href="https://shadcnstore.com/blocks">
-                  View Components
-                </a>
-              </Button>
-            </div>
           </div>
         </div>
 
-        {/* Second Feature Section - Flipped Layout */}
         <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-8 xl:gap-16">
-          {/* Left Content */}
-          <div className="space-y-6 order-2 lg:order-1">
+          <div className="order-2 space-y-6 lg:order-1">
             <div className="space-y-4">
               <h3 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-                Built for modern development workflows
+                Document management with search and optional AI
               </h3>
-              <p className="text-muted-foreground text-base text-pretty">
-                Every component follows best practices with TypeScript, responsive design, and clean code architecture that integrates seamlessly into your projects.
+              <p className="text-base text-muted-foreground text-pretty">
+                Core document management and full-text search work without AI. Optional AI features can add semantic
+                retrieval, chat, and translation through operator-configured providers.
               </p>
             </div>
 
             <ul className="grid gap-4 sm:grid-cols-2">
-              {secondaryFeatures.map((feature, index) => (
-                <li key={index} className="group hover:bg-accent/5 flex items-start gap-3 p-2 rounded-lg transition-colors">
-                  <div className="mt-0.5 flex shrink-0 items-center justify-center">
-                    <feature.icon className="size-5 text-primary" aria-hidden="true" />
-                  </div>
+              {[...retrievalFeatures, ...optionalAiFeatures].map((feature) => (
+                <li key={feature.title} className="flex items-start gap-3 rounded-lg p-2 transition-colors hover:bg-accent/5">
+                  <feature.icon className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
                   <div>
-                    <h3 className="text-foreground font-medium">{feature.title}</h3>
-                    <p className="text-muted-foreground mt-1 text-sm">{feature.description}</p>
+                    <h3 className="font-medium text-foreground">{feature.title}</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">{feature.description}</p>
                   </div>
                 </li>
               ))}
             </ul>
 
-            <div className="flex flex-col sm:flex-row gap-4 pe-4 pt-2">
-              <Button size="lg" className="cursor-pointer">
-                <a href="#" className='flex items-center'>
-                  View Documentation
+            <div className="flex flex-col gap-4 pe-4 pt-2 sm:flex-row">
+              <Button size="lg" asChild>
+                <a href={docsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center">
+                  View documentation
                   <ArrowRight className="ms-2 size-4" aria-hidden="true" />
-                </a>
-              </Button>
-              <Button size="lg" variant="outline" className="cursor-pointer">
-                <a href="https://github.com/Jasnan/Arkivra" target="_blank" rel="noopener noreferrer">
-                  GitHub Repository
                 </a>
               </Button>
             </div>
           </div>
 
-          {/* Right Image */}
           <Image3D
             lightSrc="feature-2-light.png"
             darkSrc="feature-2-dark.png"
-            alt="Performance dashboard"
+            alt="Search and retrieval workspace"
             direction="right"
             className="order-1 lg:order-2"
           />

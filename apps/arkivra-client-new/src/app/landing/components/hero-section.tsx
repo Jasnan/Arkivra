@@ -1,101 +1,122 @@
 "use client"
 
-import { ArrowRight, Play, Star } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { DotPattern } from '@/components/dot-pattern'
-import { assetUrl, getAppUrl } from "@/lib/utils"
+import { ArrowRight, Github, Search, Vault } from "lucide-react"
+
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { DotPattern } from "@/components/dot-pattern"
+
+const selfHostingGuideUrl = "https://docs.arkivra.app/self-hosting/using-docker-compose/"
+const githubUrl = "https://github.com/Jasnan/Arkivra"
+
+const vaults = [
+  {
+    title: "IDs & Passports",
+    description: "Passports, national IDs, visas",
+    files: "31 files",
+    size: "23.3 MB",
+  },
+  {
+    title: "Insurance",
+    description: "Health, home, car, travel policies",
+    files: "186 files",
+    size: "558.0 MB",
+  },
+  {
+    title: "Vehicles",
+    description: "Registration, service, manuals",
+    files: "161 files",
+    size: "724.5 MB",
+  },
+  {
+    title: "Travel",
+    description: "Trip plans, bookings, tickets",
+    files: "216 files",
+    size: "729.0 MB",
+  },
+  {
+    title: "Home Inventory",
+    description: "Valuables, warranties, serial numbers",
+    files: "56 files",
+    size: "63.0 MB",
+  },
+  {
+    title: "Work",
+    description: "Work related documents",
+    files: "71 files",
+    size: "319.5 MB",
+  },
+]
 
 export function HeroSection() {
   return (
-    <section id="hero" className="relative overflow-hidden bg-gradient-to-b from-background to-background/80 pt-16 sm:pt-20 pb-16">
-      {/* Background Pattern */}
+    <section id="hero" className="relative overflow-hidden pt-16 pb-16 sm:pt-20 lg:pb-24">
       <div className="absolute inset-0">
-        {/* Dot pattern overlay using reusable component */}
         <DotPattern className="opacity-100" size="md" fadeStyle="ellipse" />
       </div>
 
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
-        <div className="mx-auto max-w-4xl text-center">
-          {/* Announcement Badge */}
-          <div className="mb-8 flex justify-center">
-            <Badge variant="outline" className="px-4 py-2 border-foreground">
-              <Star className="w-3 h-3 mr-2 fill-current" />
-              New: Premium Template Collection
-              <ArrowRight className="w-3 h-3 ml-2" />
-            </Badge>
-          </div>
+      <div className="container relative mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid items-center gap-12 lg:grid-cols-[0.92fr_1.08fr] lg:gap-16">
+          <div className="mx-auto max-w-2xl text-center lg:mx-0 lg:text-left">
+            <div className="mb-6 flex flex-wrap justify-center gap-2 lg:justify-start">
+              <Badge variant="outline" className="border-foreground/40 px-4 py-2">
+                Open-source
+              </Badge>
+              <Badge variant="secondary" className="px-4 py-2">
+                Self-hostable
+              </Badge>
+            </div>
 
-          {/* Main Headline */}
-          <h1 className="mb-6 text-4xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
-            Build Better
-            <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              {" "}Web Applications{" "}
-            </span>
-            with Ready-Made Components
-          </h1>
+            <h1 className="mb-6 text-4xl font-bold tracking-tight text-balance sm:text-6xl lg:text-7xl">
+              Your documents, finally under control.
+            </h1>
 
-          {/* Subheading */}
-          <p className="mx-auto mb-10 max-w-2xl text-lg text-muted-foreground sm:text-xl">
-            Accelerate your development with our curated collection of blocks, templates, landing pages,
-            and admin dashboards. From free components to complete solutions, built with shadcn/ui.
-          </p>
+            <p className="mb-10 text-lg text-muted-foreground text-pretty sm:text-xl">
+              Store, organize, and search everything from personal records to work documents. Self-host Arkivra and
+              turn scattered files into information you can actually use.
+            </p>
 
-          {/* CTA Buttons */}
-          <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
-            <Button size="lg" className="text-base cursor-pointer" asChild>
-              <a href={getAppUrl("/register")}>
-                Get Started Free
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </a>
-            </Button>
-            <Button variant="outline" size="lg" className="text-base cursor-pointer" asChild>
-              <a href="#">
-                <Play className="mr-2 h-4 w-4" />
-                Watch Demo
-              </a>
-            </Button>
-          </div>
-        </div>
-
-        {/* Hero Image/Visual */}
-        <div className="mx-auto mt-20 max-w-6xl">
-          <div className="relative group">
-            {/* Top background glow effect - positioned above the image */}
-            <div className="absolute top-2 lg:-top-8 left-1/2 transform -translate-x-1/2 w-[90%] mx-auto h-24 lg:h-80 bg-primary/50 rounded-full blur-3xl"></div>
-
-            <div className="relative rounded-xl border bg-card shadow-2xl">
-              {/* Light mode dashboard image */}
-              <img
-                src={assetUrl("dashboard-light.png")}
-                alt="Dashboard Preview - Light Mode"
-                className="w-full rounded-xl object-cover block dark:hidden"
-              />
-
-              {/* Dark mode dashboard image */}
-              <img
-                src={assetUrl("dashboard-dark.png")}
-                alt="Dashboard Preview - Dark Mode"
-                className="w-full rounded-xl object-cover hidden dark:block"
-              />
-
-              {/* Bottom fade effect - gradient overlay that fades the image to background */}
-              <div className="absolute bottom-0 left-0 w-full h-32 md:h-40 lg:h-48 bg-gradient-to-b from-background/0 via-background/70 to-background rounded-b-xl"></div>
-
-              {/* Overlay play button for demo */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Button
-                  size="lg"
-                  className="rounded-full h-16 w-16 p-0 cursor-pointer hover:scale-105 transition-transform"
-                  asChild
-                >
-                  <a href="#" aria-label="Watch demo video">
-                    <Play className="h-6 w-6 fill-current" />
-                  </a>
-                </Button>
-              </div>
+            <div className="flex flex-col gap-4 sm:flex-row sm:justify-center lg:justify-start">
+              <Button size="lg" className="text-base" asChild>
+                <a href={selfHostingGuideUrl} target="_blank" rel="noopener noreferrer">
+                  Self-host Arkivra
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </a>
+              </Button>
+              <Button variant="outline" size="lg" className="text-base" asChild>
+                <a href={githubUrl} target="_blank" rel="noopener noreferrer">
+                  <Github className="mr-2 h-4 w-4" />
+                  View on GitHub
+                </a>
+              </Button>
             </div>
           </div>
+
+          <Card className="relative overflow-hidden border-border/70 bg-card/80 shadow-2xl backdrop-blur">
+            <CardContent className="p-3 sm:p-4">
+              <div className="mb-3 flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground">
+                <Search className="size-4" />
+                invoice from acme 2024
+              </div>
+
+              <div className="grid h-[360px] grid-cols-2 gap-3 overflow-hidden sm:grid-cols-3 lg:h-[430px]">
+                {vaults.map((vault) => (
+                  <article
+                    key={vault.title}
+                    className="flex min-h-0 flex-col justify-center rounded-lg border bg-background/80 px-3 py-4 text-center"
+                  >
+                    <Vault className="mx-auto mb-2 size-6 text-primary" strokeWidth={1.8} />
+                    <h3 className="text-sm font-semibold leading-tight">{vault.title}</h3>
+                    <p className="mt-1 truncate text-xs text-muted-foreground">{vault.description}</p>
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      {vault.files} · {vault.size}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </section>

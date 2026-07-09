@@ -11,6 +11,7 @@ import {
 	RotateCcw,
 	Search,
 	Server,
+	ShieldCheck,
 	SlidersHorizontal,
 	Tag,
 	Users,
@@ -24,7 +25,6 @@ export const githubUrl = "https://github.com/Jasnan/Arkivra";
 export const navigationItems = [
 	{ name: "Home", href: "#hero" },
 	{ name: "Features", href: "#features" },
-	{ name: "About", href: "#about" },
 	{ name: "FAQ", href: "#faq" },
 ];
 
@@ -33,7 +33,7 @@ export const values = [
 		icon: GitFork,
 		title: "Open Source",
 		description:
-			"AGPL-3.0 licensed and community driven. Transparent, auditable, and built for the long term.",
+			"Fully open source under AGPL-3.0. Inspect the code, contribute improvements, and deploy with confidence",
 	},
 	{
 		icon: Server,
@@ -42,16 +42,16 @@ export const values = [
 			"Deploy with Docker and run Arkivra on your own servers or private infrastructure.",
 	},
 	{
-		icon: Brain,
-		title: "Use with or without AI",
+		icon: ShieldCheck,
+		title: "Privacy choices",
 		description:
-			"Arkivra works on its own. Enable AI for smarter search and answers, using local models or supported cloud providers.",
+			"Keep AI local, connect supported cloud providers, or disable it entirely. You decide where your documents are processed.",
 	},
 	{
 		icon: LockKeyhole,
 		title: "Document Encryption",
 		description:
-			"Uploaded originals and stored extracted assets are encrypted by Arkivra. Database records follow your PostgreSQL deployment controls.",
+			"Original files and extracted assets are encrypted at rest, with security controlled by your own deployment.",
 	},
 	{
 		icon: ClipboardList,
@@ -62,8 +62,7 @@ export const values = [
 	{
 		icon: RotateCcw,
 		title: "Backups & Recovery",
-		description:
-			"Back up your data regularly and restore when needed using your self-hosted deployment workflow.",
+		description: "Create full instance backups for easy recovery or migration.",
 	},
 ];
 
@@ -136,8 +135,7 @@ export const optionalAiFeatures = [
 	{
 		icon: Brain,
 		title: "Semantic search",
-		description:
-			"Find relevant information by meaning, not just exact keywords.",
+		description: "Find related information by meaning.",
 	},
 	{
 		icon: MessageCircle,

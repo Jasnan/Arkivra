@@ -8,26 +8,28 @@ import { values } from "@/data/landing";
 	<div class="container mx-auto px-4 sm:px-6 lg:px-8">
 		<div class="mx-auto mb-16 max-w-4xl text-center">
 			<Badge variant="outline" class="mb-4">About Arkivra</Badge>
-			<h2 class="mb-6 text-3xl font-bold tracking-tight text-balance sm:text-4xl">Open source. Self-hostable.</h2>
-			<p class="text-lg text-muted-foreground text-pretty">
+			<h2 class="mb-6 text-4xl font-bold tracking-tight text-balance sm:text-5xl">
+				Designed for ownership, privacy, and flexibility.
+			</h2>
+			<p class="text-xl leading-8 text-muted-foreground text-pretty">
 				Deploy Arkivra wherever you want and decide how your documents and AI integrations are handled.
 			</p>
 		</div>
 
-		<div class="grid grid-cols-1 gap-x-8 gap-y-12 sm:grid-cols-2 xl:grid-cols-3">
+		<div class="grid grid-cols-1 gap-x-8 gap-y-8 sm:grid-cols-2 xl:grid-cols-3">
 			{
 				values.map((value) => {
 					const Icon = value.icon;
 
 					return (
-						<div class="card py-2 shadow-xs">
-							<div class="card-content p-8">
+						<div class="card shadow-xs">
+							<div class="card-content p-6">
 								<div class="flex flex-col items-center text-center">
 									<CardDecorator>
 										<Icon class="size-6" aria-hidden="true" />
 									</CardDecorator>
-									<h3 class="mt-6 font-medium text-balance">{value.title}</h3>
-									<p class="mt-3 text-sm text-muted-foreground">{value.description}</p>
+									<h3 class="mt-4 text-xl font-medium text-balance">{value.title}</h3>
+									<p class="mt-2 text-base leading-6 text-muted-foreground">{value.description}</p>
 								</div>
 							</div>
 						</div>

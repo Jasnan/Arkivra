@@ -9,9 +9,12 @@ import {
   createChatServices,
   buildExpandedCitationForChat,
   buildManifestHybridSearchArgs,
+  filterCitationsToManifest,
   buildGlobalIntentSystemPrompt,
   getFrozenManifestContextAvailability,
   formatFollowUpAssistantMessage,
+  hasAnswerableRetrievalContext,
+  isLowSignalChatQuery,
   isEmptyGeneratedChatContent,
   isLikelyTruncatedSingleTokenAnswer,
   normalizeCitationsForDisplay,
@@ -19,6 +22,7 @@ import {
   rankCitationsForQuestion,
   sanitizeCitationsForMessagePersistence,
   shouldMaterializeConversationManifest,
+  shouldRequireRetrievalConfidence,
 } from './chat.services.js';
 
 const citation: Citation = {
@@ -119,6 +123,8 @@ describe('chat service helpers', () => {
     expect(prompt).toContain('Records are retained for seven years.');
     expect(prompt).toContain('Table 1:\nRow 1: Retention | 7 years');
     expect(prompt).toContain('Figure 1 (page 3): Figure 1. Records retention timeline');
+    expect(prompt).toContain('answer in the same language as the user\'s latest question');
+    expect(prompt).toContain('Retrieved documents may be written in a different language');
     expect(prompt).toContain('Respect explicit constraints in the question');
     expect(prompt).toContain('If the retrieved context is insufficient');
     expect(prompt).toContain('Evidence excerpt:');
@@ -221,6 +227,126 @@ describe('chat service helpers', () => {
         citations: [pageCitation, tableCitation],
       }).map(item => item.chunkId),
     ).toEqual(['chk_page', 'chk_table']);
+  });
+
+  test('rejects low-confidence broad retrieval with no query overlap', () => {
+    expect(
+      hasAnswerableRetrievalContext({
+        question: 'asfsdafsdaf sdfsdfsdlkafjsd asdfsdlklaf sdaflkh',
+        citations: [
+          {
+            ...citation,
+            snippet: 'Residence permit details and dates from a personal document.',
+            score: 0.016,
+          },
+        ],
+      }),
+    ).toBe(false);
+  });
+
+  test('accepts broad retrieval when query terms or semantic score support the hit', () => {
+    expect(
+      hasAnswerableRetrievalContext({
+        question: 'How long are records retained?',
+        citations: [
+          {
+            ...citation,
+            snippet: 'Records are retained for seven years.',
+            score: 0.016,
+          },
+        ],
+      }),
+    ).toBe(true);
+
+    expect(
+      hasAnswerableRetrievalContext({
+        question: 'Which policy controls archived files?',
+        citations: [
+          {
+            ...citation,
+            snippet: 'Retention rules are described here.',
+            score: 0.2,
+          },
+        ],
+      }),
+    ).toBe(true);
+  });
+
+  test('detects low-signal chat queries without blocking normal document requests', () => {
+    expect(isLowSignalChatQuery('sfsdfsdfsdf sdfsdfsdfsdf sdfsdfdsfsdf')).toBe(true);
+    expect(isLowSignalChatQuery('!!!!!!!!')).toBe(true);
+    expect(isLowSignalChatQuery('summarise this document')).toBe(false);
+    expect(isLowSignalChatQuery('what is this document about?')).toBe(false);
+    expect(isLowSignalChatQuery('2024 admission deadline')).toBe(false);
+  });
+
+  test('temporarily bypasses retrieval confidence for all chat context scopes', () => {
+    expect(
+      shouldRequireRetrievalConfidence({
+        type: 'global',
+        vaultIds: ['vlt_1'],
+      }),
+    ).toBe(false);
+    expect(
+      shouldRequireRetrievalConfidence({
+        type: 'selection',
+        vaults: [{ vaultId: 'vlt_1', name: 'Operations' }],
+        documents: [
+          {
+            vaultId: 'vlt_2',
+            documentId: 'doc_2',
+            vaultName: 'Legal',
+            name: 'Contract.pdf',
+          },
+        ],
+      }),
+    ).toBe(false);
+    expect(
+      shouldRequireRetrievalConfidence({
+        type: 'vault',
+        vaultId: 'vlt_1',
+        vaultName: 'Operations',
+      }),
+    ).toBe(false);
+    expect(
+      shouldRequireRetrievalConfidence({
+        type: 'document',
+        vaultId: 'vlt_1',
+        documentId: 'doc_1',
+        vaultName: 'Operations',
+        documentName: 'Policy.pdf',
+      }),
+    ).toBe(false);
+  });
+
+  test('filters retrieved chat citations to the frozen conversation manifest', () => {
+    const allowedCitation: Citation = {
+      ...citation,
+      vaultId: 'vlt_allowed',
+      documentId: 'doc_allowed',
+      documentVersionId: 'dvr_allowed',
+    };
+    const leakedCitation: Citation = {
+      ...citation,
+      chunkId: 'chk_leaked',
+      vaultId: 'vlt_blocked',
+      documentId: 'doc_blocked',
+      documentVersionId: 'dvr_blocked',
+    };
+
+    expect(
+      filterCitationsToManifest({
+        manifestRows: [
+          {
+            vaultId: 'vlt_allowed',
+            documentId: 'doc_allowed',
+            documentVersionId: 'dvr_allowed',
+            includedBy: 'document',
+          },
+        ],
+        citations: [allowedCitation, leakedCitation],
+      }).map(item => item.chunkId),
+    ).toEqual(['chk_1']);
   });
 
   test('does not duplicate context chunks from the same source element after relevance ranking', () => {

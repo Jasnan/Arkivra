@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { Box, CloseButton, Flex, Stack, Text, chakra } from '@chakra-ui/react';
-import { FileText, Lock, Paperclip, Vault, X } from 'lucide-react';
+import { FileText, Paperclip, Vault, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -132,7 +132,6 @@ export function ContextChipList({
         <Text as="span" flexShrink="0" fontSize="xs" fontWeight="semibold">
           Context:
         </Text>
-        {locked ? <Lock size={13} style={{ flexShrink: 0 }} /> : null}
         <Text as="span" minW="0" truncate fontSize="xs" fontWeight="medium">
           {summary.label}
         </Text>
@@ -206,9 +205,7 @@ function ContextDetailsDialog({
         </DialogClose>
         <DialogHeader style={{ padding: '1.25rem 1.25rem 0.75rem' }}>
           <DialogTitle>Conversation Context</DialogTitle>
-          <DialogDescription>
-            {locked ? `Context locked: ${summary.label}` : summary.label}
-          </DialogDescription>
+          <DialogDescription>{summary.label}</DialogDescription>
         </DialogHeader>
         <DialogBody asChild>
           <Stack gap="4" px="5" pb="5">

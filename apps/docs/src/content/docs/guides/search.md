@@ -16,10 +16,10 @@ By default, document search targets the current completed version of each active
 Semantic search requires all of the following:
 
 - AI features enabled by an admin
+- the platform `system.use_ai` privilege for the requesting user, unless the user is an administrator
 - an embedding provider configuration
 - an embedding model and dimensions
 - a built and active embedding index
-- vault-level AI access for the requesting user when using AI-enhanced retrieval
 
 The current runtime path for embedding generation uses the configured Ollama-compatible embedding provider. Changing the embedding model or dimensions requires building a new embedding index. Existing search can continue using the current active index until the new one is ready.
 
@@ -27,4 +27,4 @@ Embedding rows are owned by document versions. Normal semantic search follows th
 
 ## Permissions
 
-Vault membership and AI access are separate. A user may be able to read a vault without being allowed to use AI-assisted retrieval for that vault. Chat and semantic retrieval must stay within the user's authorized vault, document, and document-version context.
+AI-assisted retrieval requires the platform Use AI privilege and normal document access. Chat can use any document the user is already allowed to read. It must stay within the user's authorized vault, document, and document-version context.

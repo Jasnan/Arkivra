@@ -1,6 +1,5 @@
 import type { Session, User } from 'better-auth';
 import type {
-  AiAccessLevel,
   SystemCapability,
   SystemRole,
   VaultRole,
@@ -21,10 +20,9 @@ export type ServerContext = {
     systemCapabilities: SystemCapability[];
     isAdmin: boolean;
     canCreateVault: boolean;
+    canUseAI: boolean;
     vaultId: string | null;
     vaultRole: VaultRole | null;
-    vaultAiAccessLevel: AiAccessLevel;
     vaultIsMember: boolean;
-    vaultAccessMode: 'member' | 'admin' | null;
   };
 };

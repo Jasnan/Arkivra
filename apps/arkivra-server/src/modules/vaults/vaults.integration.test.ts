@@ -17,7 +17,6 @@ function createMockVaultsServices() {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      aiAccessLevel: 'none',
       isAdmin: false,
       userId,
     })),
@@ -28,7 +27,7 @@ function createMockVaultsServices() {
     listMembers: vi.fn(async () => []),
     listPendingInvitations: vi.fn(async () => []),
     listUserVaults: vi.fn(async () => []),
-    createEmailInvitation: vi.fn(async ({ email, invitedBy, vaultId, role, aiAccessLevel, expiresAt }) => ({
+    createEmailInvitation: vi.fn(async ({ email, invitedBy, vaultId, role, expiresAt }) => ({
       id: 'emi_1',
       type: 'vault_member',
       status: 'pending',
@@ -36,20 +35,25 @@ function createMockVaultsServices() {
       invitedBy,
       vaultId,
       vaultRole: role,
-      aiAccessLevel,
       expiresAt,
     })),
-    createPermissionRequest: vi.fn(async ({ type, requestedBy, vaultId, targetUserId, payload }) => ({
-      id: 'perm_req_1',
-      type,
-      status: 'pending',
-      requestedBy,
-      vaultId: vaultId ?? null,
-      targetUserId: targetUserId ?? null,
-      payload: payload ?? {},
-    })),
+    createPermissionRequest: vi.fn(
+      async ({ type, requestedBy, vaultId, targetUserId, payload }) => ({
+        id: 'perm_req_1',
+        type,
+        status: 'pending',
+        requestedBy,
+        vaultId: vaultId ?? null,
+        targetUserId: targetUserId ?? null,
+        payload: payload ?? {},
+      }),
+    ),
     removeMember: vi.fn(async () => ({ userId: 'usr_member_1' })),
-    updateVaultIdentity: vi.fn(async ({ name, description }) => ({ id: 'vlt_test_1', name, description })),
+    updateVaultIdentity: vi.fn(async ({ name, description }) => ({
+      id: 'vlt_test_1',
+      name,
+      description,
+    })),
     upsertMember: vi.fn(async ({ role, userId }) => ({ role, userId })),
   };
 
@@ -71,11 +75,10 @@ function createTestApp({
     context.set('userDisabled', false);
     context.set('isAdmin', false);
     context.set('canCreateVault', canCreateVault);
+    context.set('canUseAI', true);
     context.set('vaultId', null);
     context.set('vaultRole', null);
-    context.set('vaultAiAccessLevel', 'none');
     context.set('vaultIsMember', false);
-    context.set('vaultAccessMode', null);
 
     const userIdHeader = context.req.header('x-test-user-id');
 
@@ -303,7 +306,6 @@ describe('vaults integration', () => {
       fileCount: 2,
       totalSize: 2048,
       role: 'owner',
-      aiAccessLevel: 'none',
       isAdmin: false,
     }));
 
@@ -333,10 +335,8 @@ describe('vaults integration', () => {
       fileCount: 2,
       totalSize: 2048,
       role: null,
-      aiAccessLevel: 'none',
       isAdmin: true,
       isMember: false,
-      accessMode: 'admin',
     }));
 
     const app = createTestApp({ services });
@@ -348,7 +348,6 @@ describe('vaults integration', () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as any;
     expect(body.vault.role).toBeNull();
-    expect(body.vault.accessMode).toBe('admin');
   });
 
   test('blocks editor from reading vault members roster', async () => {
@@ -360,10 +359,8 @@ describe('vaults integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'editor',
-      aiAccessLevel: 'none',
       isAdmin: false,
       isMember: true,
-      accessMode: 'member',
     }));
 
     const app = createTestApp({ services });
@@ -385,10 +382,8 @@ describe('vaults integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: null,
-      aiAccessLevel: 'none',
       isAdmin: true,
       isMember: false,
-      accessMode: 'admin',
     }));
     (services as any).listMembers = vi.fn(async () => [
       {
@@ -396,7 +391,6 @@ describe('vaults integration', () => {
         role: 'owner',
         email: 'owner@example.com',
         name: 'Owner',
-        aiAccessLevel: 'full',
       },
     ]);
 
@@ -419,10 +413,8 @@ describe('vaults integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      aiAccessLevel: 'none',
       isAdmin: false,
       isMember: true,
-      accessMode: 'member',
     }));
     (services as any).listPendingInvitations = vi.fn(async () => [
       {
@@ -431,7 +423,6 @@ describe('vaults integration', () => {
         status: 'approval_pending',
         email: 'pending@example.com',
         role: 'viewer',
-        aiAccessLevel: 'none',
         requestedBy: 'usr_owner',
         expiresAt: null,
         createdAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -455,7 +446,6 @@ describe('vaults integration', () => {
           status: 'approval_pending',
           email: 'pending@example.com',
           role: 'viewer',
-          aiAccessLevel: 'none',
           requestedBy: 'usr_owner',
           expiresAt: null,
           createdAt: '2026-01-01T00:00:00.000Z',
@@ -465,7 +455,7 @@ describe('vaults integration', () => {
     });
   });
 
-  test('blocks admin administrative access from mutating vault settings', async () => {
+  test('allows admin administrative access to mutate vault settings without membership', async () => {
     const services = createMockVaultsServices();
     (services as any).getVaultForUser = vi.fn(async () => ({
       id: 'vlt_1',
@@ -477,10 +467,8 @@ describe('vaults integration', () => {
       fileCount: 2,
       totalSize: 2048,
       role: null,
-      aiAccessLevel: 'none',
       isAdmin: true,
       isMember: false,
-      accessMode: 'admin',
     }));
 
     const app = createTestApp({ services });
@@ -494,8 +482,12 @@ describe('vaults integration', () => {
       body: JSON.stringify({ name: 'New name' }),
     });
 
-    expect(response.status).toBe(403);
-    expect(services.updateVaultIdentity).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(services.updateVaultIdentity).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      name: 'New name',
+      description: null,
+    });
   });
 
   test('queues vault deletion request for non-admin owner when vault is empty', async () => {
@@ -507,10 +499,8 @@ describe('vaults integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      aiAccessLevel: 'none',
       isAdmin: false,
       isMember: true,
-      accessMode: 'member',
     }));
 
     const app = createTestApp({ services });
@@ -539,10 +529,8 @@ describe('vaults integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      aiAccessLevel: 'none',
       isAdmin: false,
       isMember: true,
-      accessMode: 'member',
     }));
     const app = createTestApp({ services });
 
@@ -561,7 +549,7 @@ describe('vaults integration', () => {
     expect(services.hardDeleteVault).not.toHaveBeenCalled();
   });
 
-  test('allows admin vault deletion when vault has folders', async () => {
+  test('allows admin vault deletion through administrative access without membership', async () => {
     const services = createMockVaultsServices();
     (services as any).getVaultForUser = vi.fn(async () => ({
       id: 'vlt_1',
@@ -569,11 +557,9 @@ describe('vaults integration', () => {
       createdAt: new Date('2025-01-01T00:00:00.000Z'),
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
-      role: 'owner',
-      aiAccessLevel: 'none',
+      role: null,
       isAdmin: true,
-      isMember: true,
-      accessMode: 'member',
+      isMember: false,
     }));
     const app = createTestApp({ services });
 
@@ -597,10 +583,8 @@ describe('vaults integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      aiAccessLevel: 'none',
       isAdmin: true,
       isMember: true,
-      accessMode: 'member',
     }));
 
     const app = createTestApp({ services });
@@ -616,76 +600,6 @@ describe('vaults integration', () => {
     });
   });
 
-  test('allows admin administrative user to join vault as explicit member', async () => {
-    const services = createMockVaultsServices();
-    (services as any).getVaultForUser = vi.fn(async () => ({
-      id: 'vlt_1',
-      name: 'Team Vault',
-      createdAt: new Date('2025-01-01T00:00:00.000Z'),
-      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
-      deletedAt: null,
-      description: 'Shared finance documents',
-      fileCount: 2,
-      totalSize: 2048,
-      role: null,
-      aiAccessLevel: 'none',
-      isAdmin: true,
-      isMember: false,
-      accessMode: 'admin',
-    }));
-
-    const app = createTestApp({ services });
-
-    const response = await app.request('/api/vaults/vlt_1/membership/self', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-test-user-id': 'usr_root',
-      },
-      body: JSON.stringify({ role: 'owner', aiAccessLevel: 'full' }),
-    });
-
-    expect(response.status).toBe(201);
-    expect(services.upsertMember).toHaveBeenCalledWith({
-      vaultId: 'vlt_1',
-      userId: 'usr_root',
-      role: 'owner',
-      aiAccessLevel: 'full',
-    });
-  });
-
-  test('allows admin explicit member to leave vault membership', async () => {
-    const services = createMockVaultsServices();
-    (services as any).getVaultForUser = vi.fn(async () => ({
-      id: 'vlt_1',
-      name: 'Team Vault',
-      createdAt: new Date('2025-01-01T00:00:00.000Z'),
-      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
-      deletedAt: null,
-      description: 'Shared finance documents',
-      fileCount: 2,
-      totalSize: 2048,
-      role: 'editor',
-      aiAccessLevel: 'full',
-      isAdmin: true,
-      isMember: true,
-      accessMode: 'member',
-    }));
-
-    const app = createTestApp({ services });
-
-    const response = await app.request('/api/vaults/vlt_1/membership/self', {
-      method: 'DELETE',
-      headers: { 'x-test-user-id': 'usr_root' },
-    });
-
-    expect(response.status).toBe(204);
-    expect(services.removeMember).toHaveBeenCalledWith({
-      vaultId: 'vlt_1',
-      userId: 'usr_root',
-    });
-  });
-
   test('blocks member from adding vault members', async () => {
     const services = createMockVaultsServices();
     (services as any).getVaultForUser = vi.fn(async () => ({
@@ -695,7 +609,6 @@ describe('vaults integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'editor',
-      aiAccessLevel: 'none',
       isAdmin: false,
     }));
 
@@ -722,7 +635,6 @@ describe('vaults integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      aiAccessLevel: 'none',
       isAdmin: false,
     }));
 
@@ -737,7 +649,6 @@ describe('vaults integration', () => {
       body: JSON.stringify({
         userId: 'usr_2',
         role: 'editor',
-        aiAccessLevel: 'none',
       }),
     });
 
@@ -746,7 +657,41 @@ describe('vaults integration', () => {
       vaultId: 'vlt_1',
       userId: 'usr_2',
       role: 'editor',
-      aiAccessLevel: 'none',
+    });
+  });
+
+  test('allows admin to add vault members through administrative access without membership', async () => {
+    const services = createMockVaultsServices();
+    (services as any).getVaultForUser = vi.fn(async () => ({
+      id: 'vlt_1',
+      name: 'Team Vault',
+      createdAt: new Date('2025-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-01-01T00:00:00.000Z'),
+      deletedAt: null,
+      role: null,
+      isAdmin: true,
+      isMember: false,
+    }));
+
+    const app = createTestApp({ services });
+
+    const response = await app.request('/api/vaults/vlt_1/members', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-user-id': 'usr_root',
+      },
+      body: JSON.stringify({
+        userId: 'usr_2',
+        role: 'editor',
+      }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(services.upsertMember).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      userId: 'usr_2',
+      role: 'editor',
     });
   });
 
@@ -759,10 +704,8 @@ describe('vaults integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      aiAccessLevel: 'none',
       isAdmin: false,
       isMember: true,
-      accessMode: 'member',
     }));
 
     const app = createTestApp({ services });
@@ -776,7 +719,6 @@ describe('vaults integration', () => {
       body: JSON.stringify({
         email: 'Pending@Example.com',
         role: 'viewer',
-        aiAccessLevel: 'none',
         expiresAt: null,
       }),
     });
@@ -789,7 +731,6 @@ describe('vaults integration', () => {
       payload: {
         email: 'pending@example.com',
         role: 'viewer',
-        aiAccessLevel: 'none',
         expiresAt: null,
       },
     });
@@ -805,10 +746,8 @@ describe('vaults integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      aiAccessLevel: 'none',
       isAdmin: false,
       isMember: true,
-      accessMode: 'member',
     }));
     (services as any).getUserByEmail = vi.fn(async () => ({
       id: 'usr_existing',
@@ -827,7 +766,6 @@ describe('vaults integration', () => {
       body: JSON.stringify({
         email: 'Existing@Example.com',
         role: 'viewer',
-        aiAccessLevel: 'none',
       }),
     });
 
@@ -836,13 +774,12 @@ describe('vaults integration', () => {
       vaultId: 'vlt_1',
       userId: 'usr_existing',
       role: 'viewer',
-      aiAccessLevel: 'none',
     });
     expect(services.createPermissionRequest).not.toHaveBeenCalled();
     expect(services.createEmailInvitation).not.toHaveBeenCalled();
   });
 
-  test('creates admin owner email invitation immediately', async () => {
+  test('creates admin email invitation immediately through administrative access without membership', async () => {
     const services = createMockVaultsServices();
     (services as any).getVaultForUser = vi.fn(async () => ({
       id: 'vlt_1',
@@ -850,11 +787,9 @@ describe('vaults integration', () => {
       createdAt: new Date('2025-01-01T00:00:00.000Z'),
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
-      role: 'owner',
-      aiAccessLevel: 'none',
+      role: null,
       isAdmin: true,
-      isMember: true,
-      accessMode: 'member',
+      isMember: false,
     }));
 
     const app = createTestApp({ services });
@@ -868,7 +803,6 @@ describe('vaults integration', () => {
       body: JSON.stringify({
         email: 'Invitee@Example.com',
         role: 'editor',
-        aiAccessLevel: 'full',
         expiresAt: '2026-02-01T00:00:00.000Z',
       }),
     });
@@ -879,7 +813,6 @@ describe('vaults integration', () => {
       invitedBy: 'usr_root',
       vaultId: 'vlt_1',
       role: 'editor',
-      aiAccessLevel: 'full',
       expiresAt: new Date('2026-02-01T00:00:00.000Z'),
     });
     expect(services.createPermissionRequest).not.toHaveBeenCalled();
@@ -894,15 +827,12 @@ describe('vaults integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      aiAccessLevel: 'none',
       isAdmin: false,
       isMember: true,
-      accessMode: 'member',
     }));
     (services as any).getMember = vi.fn(async () => ({
       userId: 'usr_2',
       role: 'owner',
-      aiAccessLevel: 'full',
     }));
     (services as any).removeMember = vi.fn(async () => ({ userId: 'usr_2' }));
 
@@ -929,15 +859,12 @@ describe('vaults integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      aiAccessLevel: 'none',
       isAdmin: false,
       isMember: true,
-      accessMode: 'member',
     }));
     (services as any).getMember = vi.fn(async () => ({
       userId: 'usr_owner',
       role: 'owner',
-      aiAccessLevel: 'full',
     }));
     (services as any).upsertMember = vi.fn(async () => {
       throw new Error('authorization.last_vault_owner');
@@ -953,7 +880,6 @@ describe('vaults integration', () => {
       },
       body: JSON.stringify({
         role: 'viewer',
-        aiAccessLevel: 'full',
       }),
     });
 
@@ -975,7 +901,6 @@ describe('vaults integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'editor',
-      aiAccessLevel: 'none',
       isAdmin: false,
     }));
 
@@ -1001,8 +926,11 @@ describe('vaults integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'owner',
-      aiAccessLevel: 'none',
       isAdmin: false,
+    }));
+    (services as any).getMember = vi.fn(async () => ({
+      userId: 'usr_2',
+      role: 'editor',
     }));
 
     const app = createTestApp({ services });

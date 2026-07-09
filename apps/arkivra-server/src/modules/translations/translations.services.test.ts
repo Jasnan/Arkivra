@@ -37,20 +37,22 @@ describe('translation services', () => {
     expect(body.model).toBe('gemma4:e4b');
     expect(body.messages[0].role).toBe('system');
     expect(body.messages[0].content).toContain('translation, not transcription');
-    expect(body.messages[1].content).toContain('English');
+    expect(body.messages[1].content).toContain('professional German (de) to English (en) translator');
+    expect(body.messages[1].content).toContain('Produce only the English translation');
+    expect(body.messages[1].content).toContain('Please translate the following German text into English');
     expect(body.messages[1].content).toContain('Hallo Welt');
     expect(body.messages[1].images).toBeUndefined();
   });
 
-  test('sends rendered page images with a strict page-translation prompt', async () => {
-    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse({ message: { content: 'Translated page' } }));
+  test('sends rendered page images with the professional translator prompt', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse({ message: { content: 'This is a page.' } }));
     const provider = createRuntimeConfiguredOllamaTranslationProvider({
       resolveSettings: async () => ({ host: 'http://ollama.test', model: 'gemma4:e4b' }),
       fetchImpl: fetchMock,
     });
 
-    await provider.translate({
-      targetLanguage: 'de',
+    const result = await provider.translate({
+      targetLanguage: 'en',
       source: {
         type: 'page-image',
         pageNumber: 1,
@@ -59,29 +61,27 @@ describe('translation services', () => {
       },
     });
 
+    expect(result.text).toBe('This is a page.');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
     const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string);
     expect(body.messages[0].content).toContain('translation, not transcription');
-    expect(body.messages[1].content).toContain('TASK: Translate the rendered PDF page image into German');
-    expect(body.messages[1].content).toContain('FINAL OUTPUT LANGUAGE: German');
-    expect(body.messages[1].content).toContain('The source language is unknown');
-    expect(body.messages[1].content).toContain('Identify the source language or languages');
-    expect(body.messages[1].content).toContain('Read/OCR all visible text on the page silently');
-    expect(body.messages[1].content).toContain('not already in German');
-    expect(body.messages[1].content).toContain('Return only the translated page content');
-    expect(body.messages[1].content).toContain('Do not output the OCR transcript in the detected source language');
-    expect(body.messages[1].content).toContain('Do not copy source-language sentences');
-    expect(body.messages[1].content).toContain('if any translated sentence is still in a detected source language instead of German');
+    expect(body.messages[1].content).toContain('professional German (de) to English (en) translator');
+    expect(body.messages[1].content).toContain('Produce only the English translation');
+    expect(body.messages[1].content).toContain('Please translate the following German text into English');
+    expect(body.messages[1].content).toContain('{IMAGE}');
     expect(body.messages[1].images).toEqual(['cG5n']);
   });
 
-  test('sends selected visual areas to Ollama image inputs', async () => {
-    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse({ message: { content: 'Translated area' } }));
+  test('sends selected visual areas with the professional translator prompt', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      jsonResponse({ message: { content: 'This sheet is for your information only.' } }));
     const provider = createRuntimeConfiguredOllamaTranslationProvider({
       resolveSettings: async () => ({ host: 'http://ollama.test', model: 'gemma4:e4b' }),
       fetchImpl: fetchMock,
     });
 
-    await provider.translate({
+    const result = await provider.translate({
       targetLanguage: 'en',
       source: {
         type: 'area-image',
@@ -92,9 +92,14 @@ describe('translation services', () => {
       },
     });
 
+    expect(result.text).toBe('This sheet is for your information only.');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
     const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string);
-    expect(body.messages[1].content).toContain('selected visual region');
-    expect(body.messages[1].content).toContain('Only translate content inside the selected region');
+    expect(body.messages[0].content).toContain('translation, not transcription');
+    expect(body.messages[1].content).toContain('professional German (de) to English (en) translator');
+    expect(body.messages[1].content).toContain('Please translate the following German text into English');
+    expect(body.messages[1].content).toContain('{IMAGE}');
     expect(body.messages[1].images).toEqual(['YXJlYQ==']);
   });
 

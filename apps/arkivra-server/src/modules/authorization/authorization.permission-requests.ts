@@ -110,7 +110,6 @@ export function createPermissionRequestServices({ db }: { db: Database }) {
           vaultId: vault.id,
           userId: request.requestedBy,
           role: 'owner',
-          aiAccessLevel: 'none',
         });
 
         result.vaultId = vault.id;
@@ -171,7 +170,6 @@ export function createPermissionRequestServices({ db }: { db: Database }) {
             vaultId: request.vaultId,
             userId: request.targetUserId,
             role: 'owner',
-            aiAccessLevel: 'none',
           })
           .onConflictDoUpdate({
             target: [vaultMembersTable.vaultId, vaultMembersTable.userId],
@@ -179,34 +177,6 @@ export function createPermissionRequestServices({ db }: { db: Database }) {
           });
         result.vaultId = request.vaultId;
         result.userId = request.targetUserId;
-      } else if (request.type === 'vault.ai_access_grant') {
-        if (request.vaultId === null || request.targetUserId === null) {
-          throw new Error('authorization.invalid_permission_request_payload');
-        }
-
-        const aiAccessLevel = request.payload.aiAccessLevel ?? 'full';
-        if (aiAccessLevel !== 'full') {
-          throw new Error('authorization.invalid_permission_request_payload');
-        }
-
-        const [member] = await tx
-          .update(vaultMembersTable)
-          .set({ aiAccessLevel, updatedAt: sql`now()` })
-          .where(
-            and(
-              eq(vaultMembersTable.vaultId, request.vaultId),
-              eq(vaultMembersTable.userId, request.targetUserId),
-            ),
-          )
-          .returning({ userId: vaultMembersTable.userId });
-
-        if (member === undefined) {
-          throw new Error('authorization.permission_request_apply_failed');
-        }
-
-        result.vaultId = request.vaultId;
-        result.userId = request.targetUserId;
-        result.aiAccessLevel = aiAccessLevel;
       } else if (request.type === 'vault.external_invite') {
         if (request.vaultId === null) {
           throw new Error('authorization.invalid_permission_request_payload');
@@ -214,7 +184,6 @@ export function createPermissionRequestServices({ db }: { db: Database }) {
 
         const email = typeof request.payload.email === 'string' ? normalizeEmail(request.payload.email) : '';
         const role = request.payload.role;
-        const aiAccessLevel = request.payload.aiAccessLevel ?? 'none';
         const expiresAt =
           typeof request.payload.expiresAt === 'string'
             ? new Date(request.payload.expiresAt)
@@ -223,7 +192,6 @@ export function createPermissionRequestServices({ db }: { db: Database }) {
         if (
           email.length === 0 ||
           (role !== 'owner' && role !== 'editor' && role !== 'viewer') ||
-          (aiAccessLevel !== 'none' && aiAccessLevel !== 'full') ||
           (expiresAt !== null && Number.isNaN(expiresAt.getTime()))
         ) {
           throw new Error('authorization.invalid_permission_request_payload');
@@ -237,12 +205,8 @@ export function createPermissionRequestServices({ db }: { db: Database }) {
             invitedBy: request.requestedBy,
             vaultId: request.vaultId,
             vaultRole: role,
-            aiAccessLevel,
-            systemRole: 'member',
             expiresAt,
             payload: {
-              systemCapabilities: [],
-              vaultMemberships: [],
               permissionRequestId: request.id,
             },
           })
@@ -256,7 +220,6 @@ export function createPermissionRequestServices({ db }: { db: Database }) {
         result.invitationId = invitation.id;
         result.email = email;
         result.role = role;
-        result.aiAccessLevel = aiAccessLevel;
       }
 
       const [updatedRequest] = await tx

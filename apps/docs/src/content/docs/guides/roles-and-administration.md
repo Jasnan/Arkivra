@@ -1,20 +1,25 @@
 ---
 title: Roles And Administration
-description: Understand system roles, vault roles, and vault AI access.
+description: Understand platform administration, platform privileges, and vault roles.
 ---
 
-Arkivra separates system administration from vault membership. System admins can manage instance-level settings and users, while vault roles control access inside individual vaults.
+Arkivra separates platform authorization from vault membership. Platform authorization controls instance-level administration and global privileges. Vault roles control access inside individual vaults.
 
-## System Roles
+## Platform
 
-Arkivra has two system roles:
+Arkivra stores administrator status internally as a system role:
 
-- `admin`: can access admin surfaces and manage instance-level settings.
-- `member`: a regular account without global admin access.
+- `admin`: an administrator who can access admin surfaces, manage users, configure server settings, review audit logs, manage backups, and use administrator capabilities.
+- `member`: a regular account without administrator access.
 
 The first registered user is promoted to admin when no active admin exists and that user reaches an authenticated API route.
 
-Arkivra also supports the `system.create_vaults` capability for users who should be able to create vaults without being full admins.
+Platform privileges are global user capabilities:
+
+- `system.use_ai`: allows use of chat and AI-assisted retrieval when AI features and providers are configured.
+- `system.create_vaults`: allows creating vaults without approval.
+
+Administrators implicitly receive every platform privilege. Regular members receive only explicitly assigned privileges.
 
 ## Vault Roles
 
@@ -26,17 +31,14 @@ Vault membership uses these roles:
 
 Vault authorization is separate from system administration. Do not treat admin status and vault ownership as the same permission boundary.
 
-## Vault AI Access
+## Chat And AI
 
-Vault AI access is separate from read access. Each vault membership has an AI access level:
+Chat is controlled by the platform `system.use_ai` privilege and by normal document access.
 
-- `none`: the user cannot use AI-assisted retrieval for that vault.
-- `full`: the user can use document chat and semantic retrieval for that vault.
-
-A user may be able to read documents in a vault while still being blocked from AI-assisted retrieval for that vault.
+Chat can use any document the user is already allowed to read. It does not grant access to vaults or documents outside the user's vault memberships. Administrator visibility is not document access.
 
 ## Invitations And Requests
 
 Admins can invite users to the instance. Vault owners and admins can invite or add vault members depending on the flow and approval requirements.
 
-Some sensitive vault actions use approval-oriented request types, including vault creation, vault deletion, owner promotion, AI access grants, and external vault invitations.
+Some sensitive vault actions use approval-oriented request types, including vault creation, vault deletion, owner promotion, and external vault invitations.

@@ -2,7 +2,6 @@ import type { Database } from '../database/database.js';
 import type { DocumentsServices } from '../documents/documents.services.js';
 import type { Citation, DocumentSearchServices } from '../search/search.types.js';
 import type {
-  ChatConversation,
   ChatConversationDetail,
   ChatGenerationMetrics,
   ChatIntent,
@@ -18,7 +17,7 @@ import {
   streamText,
 } from 'ai';
 import type { LanguageModel } from 'ai';
-import { asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, exists, sql } from 'drizzle-orm';
 import {
   chatConversationDocumentVersionsTable,
   chatConversationsTable,
@@ -30,7 +29,6 @@ import { buildChatGenerationMetrics, createChatModel } from './chat-ai-sdk.js';
 import {
   CHAT_RETRIEVAL_CANDIDATE_POOL_LIMIT,
   CHAT_RETRIEVAL_LIMIT,
-  DEFAULT_CHAT_TITLE,
   MAX_CONTEXT_CITATIONS,
   MAX_RECENT_MESSAGES,
   TEXT_ONLY_CONTEXT_CITATIONS,
@@ -58,7 +56,11 @@ import type {
   IntentResolution,
 } from './chat.core.js';
 import { buildAnswerPrompt, collectCitationImages } from './chat.answer-prompt.js';
-import { normalizeCitationsForDisplay, rankCitationsForQuestion } from './chat.citation-ranking.js';
+import {
+  hasAnswerableRetrievalContext,
+  normalizeCitationsForDisplay,
+  rankCitationsForQuestion,
+} from './chat.citation-ranking.js';
 import {
   buildChatMessageCitationRows,
   insertChatMessageCitationRow,
@@ -72,6 +74,7 @@ import {
 } from './chat.generation-guards.js';
 import {
   buildRetrievalDiagnostics,
+  filterCitationsToManifest,
   getConversationOwnershipConditions,
   getScopeValues,
   loadConversationManifest,
@@ -120,6 +123,11 @@ async function resolveIntentFollowUp({
   return intentResolutionSchema.parse(result.object);
 }
 
+export function shouldRequireRetrievalConfidence(scope: ChatScopeInput) {
+  void scope;
+  return false;
+}
+
 export function createChatServices({
   db,
   searchServices,
@@ -137,121 +145,24 @@ export function createChatServices({
     const rows = await db
       .select()
       .from(chatConversationsTable)
-      .where(getConversationOwnershipConditions({ userId }))
-      .orderBy(desc(chatConversationsTable.updatedAt), desc(chatConversationsTable.createdAt));
+      .where(
+        and(
+          getConversationOwnershipConditions({ userId }),
+          exists(
+            db
+              .select({ id: chatMessagesTable.id })
+              .from(chatMessagesTable)
+              .where(eq(chatMessagesTable.conversationId, chatConversationsTable.id)),
+          ),
+        ),
+      )
+      .orderBy(
+        desc(chatConversationsTable.updatedAt),
+        desc(chatConversationsTable.createdAt),
+        desc(chatConversationsTable.id),
+      );
 
     return { conversations: rows.map(toConversation) };
-  }
-
-  async function createConversation({
-    scope,
-    userId,
-    title,
-  }: {
-    scope: ChatScopeInput;
-    userId: string;
-    title?: string;
-  }) {
-    const scopeValues = getScopeValues(scope);
-    const [row] = await db
-      .insert(chatConversationsTable)
-      .values({
-        vaultId: scopeValues.vaultId,
-        documentId: scopeValues.documentId,
-        scope: scopeValues.scope,
-        contextSnapshot: scope,
-        userId,
-        title: title && title.trim().length > 0 ? truncate(title, 96) : DEFAULT_CHAT_TITLE,
-        updatedAt: sql`now()`,
-      })
-      .returning();
-
-    if (row === undefined) {
-      throw new Error('Failed to create chat conversation');
-    }
-
-    return { conversation: toConversation(row) };
-  }
-
-  async function updatePristineConversationContext({
-    userId,
-    chatId,
-    scope,
-  }: {
-    userId: string;
-    chatId: string;
-    scope: ChatScopeInput;
-  }): Promise<
-    | { status: 'updated'; conversation: ChatConversation }
-    | { status: 'not_found' }
-    | { status: 'not_pristine' }
-  > {
-    return db.transaction(async (tx) => {
-      await tx.execute(sql`
-        SELECT id
-        FROM chat_conversations
-        WHERE id = ${chatId}
-          AND user_id = ${userId}
-          AND deleted_at IS NULL
-        FOR UPDATE
-      `);
-
-      const [conversation] = await tx
-        .select({
-          id: chatConversationsTable.id,
-          contextFrozenAt: chatConversationsTable.contextFrozenAt,
-        })
-        .from(chatConversationsTable)
-        .where(getConversationOwnershipConditions({ userId, chatId }))
-        .limit(1);
-
-      if (conversation === undefined) {
-        return { status: 'not_found' };
-      }
-
-      if (conversation.contextFrozenAt !== null) {
-        return { status: 'not_pristine' };
-      }
-
-      const [message] = await tx
-        .select({ id: chatMessagesTable.id })
-        .from(chatMessagesTable)
-        .where(eq(chatMessagesTable.conversationId, chatId))
-        .limit(1);
-
-      if (message !== undefined) {
-        return { status: 'not_pristine' };
-      }
-
-      const [manifestRow] = await tx
-        .select({ conversationId: chatConversationDocumentVersionsTable.conversationId })
-        .from(chatConversationDocumentVersionsTable)
-        .where(eq(chatConversationDocumentVersionsTable.conversationId, chatId))
-        .limit(1);
-
-      if (manifestRow !== undefined) {
-        return { status: 'not_pristine' };
-      }
-
-      const scopeValues = getScopeValues(scope);
-      const [row] = await tx
-        .update(chatConversationsTable)
-        .set({
-          vaultId: scopeValues.vaultId,
-          documentId: scopeValues.documentId,
-          scope: scopeValues.scope,
-          contextSnapshot: scope,
-          updatedAt: sql`now()`,
-        })
-        .where(getConversationOwnershipConditions({ userId, chatId }))
-        .returning();
-
-      if (row === undefined) {
-        return { status: 'not_found' };
-      }
-
-      return { status: 'updated', conversation: toConversation(row) };
-    });
   }
 
   async function getConversation({
@@ -289,6 +200,61 @@ export function createChatServices({
     };
   }
 
+  async function createConversation({
+    userId,
+    scope,
+    title = 'New chat',
+  }: {
+    userId: string;
+    scope: ChatScopeInput;
+    title?: string;
+  }) {
+    const now = new Date();
+    const scopeValues = getScopeValues(scope);
+    const [conversation] = await db
+      .insert(chatConversationsTable)
+      .values({
+        vaultId: scopeValues.vaultId,
+        documentId: scopeValues.documentId,
+        scope: scopeValues.scope,
+        contextSnapshot: scope,
+        contextFrozenAt: null,
+        userId,
+        title: truncate(title, 96),
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    if (conversation === undefined) {
+      throw new Error('Failed to create chat conversation');
+    }
+
+    return toConversation(conversation);
+  }
+
+  async function renameConversation({
+    userId,
+    chatId,
+    title,
+  }: {
+    userId: string;
+    chatId: string;
+    title: string;
+  }) {
+    const normalizedTitle = truncate(title.trim() || 'New chat', 96);
+    const [conversation] = await db
+      .update(chatConversationsTable)
+      .set({
+        title: normalizedTitle,
+        updatedAt: sql`now()`,
+      })
+      .where(getConversationOwnershipConditions({ userId, chatId }))
+      .returning();
+
+    return conversation === undefined ? null : toConversation(conversation);
+  }
+
   async function deleteConversation({ userId, chatId }: { userId: string; chatId: string }) {
     const [row] = await db
       .update(chatConversationsTable)
@@ -319,74 +285,155 @@ export function createChatServices({
     };
   }
 
-  async function persistUserMessageAndFreezeContext({
+  async function prepareMessageGeneration({
     userId,
     chatId,
+    scope: newConversationScope,
     submittedUserMessage,
     content,
     intent,
     now,
   }: {
     userId: string;
-    chatId: string;
+    chatId?: string;
+    scope?: ChatScopeInput;
     submittedUserMessage: ChatMessage;
     content: string;
     intent?: ChatIntent;
     now: Date;
   }) {
     return db.transaction(async (tx) => {
-      await tx.execute(sql`
-        SELECT id
-        FROM chat_conversations
-        WHERE id = ${chatId}
-          AND user_id = ${userId}
-          AND deleted_at IS NULL
-        FOR UPDATE
-      `);
+      let conversationRow: typeof chatConversationsTable.$inferSelect;
+      let scope: ChatScopeInput;
+      let previousMessageRows: Array<typeof chatMessagesTable.$inferSelect> = [];
+      let forceManifestRefresh = false;
 
-      const [lockedConversation] = await tx
-        .select()
-        .from(chatConversationsTable)
-        .where(getConversationOwnershipConditions({ userId, chatId }))
-        .limit(1);
+      if (chatId !== undefined) {
+        await tx.execute(sql`
+          SELECT id
+          FROM chat_conversations
+          WHERE id = ${chatId}
+            AND user_id = ${userId}
+            AND deleted_at IS NULL
+          FOR UPDATE
+        `);
 
-      if (lockedConversation === undefined) {
-        return null;
+        const [lockedConversation] = await tx
+          .select()
+          .from(chatConversationsTable)
+          .where(getConversationOwnershipConditions({ userId, chatId }))
+          .limit(1);
+
+        if (lockedConversation === undefined) {
+          return null;
+        }
+
+        conversationRow = lockedConversation;
+        scope = normalizeConversationContextSnapshot(lockedConversation);
+        previousMessageRows = await tx
+          .select()
+          .from(chatMessagesTable)
+          .where(eq(chatMessagesTable.conversationId, chatId))
+          .orderBy(asc(chatMessagesTable.createdAt), asc(chatMessagesTable.id));
+
+        if (newConversationScope !== undefined || previousMessageRows.length === 0) {
+          const scopeChanged = newConversationScope !== undefined;
+          if (scopeChanged) {
+            scope = newConversationScope;
+            forceManifestRefresh = true;
+            await tx
+              .delete(chatConversationDocumentVersionsTable)
+              .where(eq(chatConversationDocumentVersionsTable.conversationId, conversationRow.id));
+          }
+          const scopeValues = getScopeValues(scope);
+          const [updatedConversation] = await tx
+            .update(chatConversationsTable)
+            .set({
+              ...(scopeChanged
+                ? {
+                    vaultId: scopeValues.vaultId,
+                    documentId: scopeValues.documentId,
+                    scope: scopeValues.scope,
+                    contextSnapshot: scope,
+                    contextFrozenAt: null,
+                  }
+                : {}),
+              ...(conversationRow.title.trim() === 'New chat'
+                ? { title: truncate(content, 96) }
+                : {}),
+              updatedAt: now,
+            })
+            .where(eq(chatConversationsTable.id, conversationRow.id))
+            .returning();
+
+          if (updatedConversation !== undefined) {
+            conversationRow = updatedConversation;
+          }
+        }
+      } else {
+        if (newConversationScope === undefined) {
+          throw new Error('A chat context is required to create a conversation.');
+        }
+
+        scope = newConversationScope;
+        const scopeValues = getScopeValues(scope);
+        const [createdConversation] = await tx
+          .insert(chatConversationsTable)
+          .values({
+            vaultId: scopeValues.vaultId,
+            documentId: scopeValues.documentId,
+            scope: scopeValues.scope,
+            contextSnapshot: scope,
+            contextFrozenAt: null,
+            userId,
+            title: truncate(content, 96),
+            createdAt: now,
+            updatedAt: now,
+          })
+          .returning();
+
+        if (createdConversation === undefined) {
+          throw new Error('Failed to create chat conversation');
+        }
+
+        conversationRow = createdConversation;
       }
 
-      const previousMessageRows = await tx
-        .select()
-        .from(chatMessagesTable)
-        .where(eq(chatMessagesTable.conversationId, chatId))
-        .orderBy(asc(chatMessagesTable.createdAt), asc(chatMessagesTable.id));
-      const scope = normalizeConversationContextSnapshot(lockedConversation);
+      const conversationId = conversationRow.id;
       const scopeValues = getScopeValues(scope);
       const txDb = tx as unknown as Database;
+      const assistantCreatedAt = new Date(now.getTime() + 1);
 
-      let manifestRows = await loadConversationManifest({ db: txDb, conversationId: chatId });
+      let manifestRows = await loadConversationManifest({ db: txDb, conversationId });
 
       if (
+        forceManifestRefresh ||
         shouldMaterializeConversationManifest({
-          contextFrozenAt: lockedConversation.contextFrozenAt,
+          contextFrozenAt: conversationRow.contextFrozenAt,
         })
       ) {
         manifestRows = await materializeConversationManifest({
           db: txDb,
-          conversationId: chatId,
+          conversationId,
           scope,
         });
 
-        await tx
+        const [frozenConversation] = await tx
           .update(chatConversationsTable)
-          .set({ contextFrozenAt: lockedConversation.contextFrozenAt ?? now, updatedAt: now })
-          .where(eq(chatConversationsTable.id, chatId));
+          .set({ contextFrozenAt: conversationRow.contextFrozenAt ?? now, updatedAt: now })
+          .where(eq(chatConversationsTable.id, conversationId))
+          .returning();
+
+        if (frozenConversation !== undefined) {
+          conversationRow = frozenConversation;
+        }
       }
 
       const userMessage = buildUserMessage({
         message: submittedUserMessage,
         metadata: {
           intent,
-          conversationId: chatId,
+          conversationId,
           vaultId: scopeValues.vaultId,
           documentId: scopeValues.documentId,
           scope: scopeValues.scope,
@@ -398,12 +445,13 @@ export function createChatServices({
       const [userMessageRow] = await tx
         .insert(chatMessagesTable)
         .values({
-          conversationId: chatId,
+          conversationId,
           vaultId: scopeValues.vaultId,
           documentId: scopeValues.documentId,
           scope: scopeValues.scope,
           userId,
           message: userMessage,
+          createdAt: now,
           updatedAt: now,
         })
         .returning();
@@ -412,20 +460,64 @@ export function createChatServices({
         throw new Error('Failed to persist user message');
       }
 
-      if (lockedConversation.title === DEFAULT_CHAT_TITLE) {
-        await tx
-          .update(chatConversationsTable)
-          .set({ title: truncate(content, 96), updatedAt: now })
-          .where(eq(chatConversationsTable.id, chatId));
+      const assistantMessageId = generateId({ prefix: 'msg' });
+      const pendingAssistantMetadata: ChatMessageMetadata = {
+        conversationId,
+        vaultId: scopeValues.vaultId,
+        documentId: scopeValues.documentId,
+        scope: scopeValues.scope,
+        userId,
+        citations: [],
+        generationMetrics: null,
+        generationStatus: 'pending',
+        generationError: null,
+        createdAt: toIso(assistantCreatedAt),
+        updatedAt: toIso(assistantCreatedAt),
+      };
+      const pendingAssistantMessage = buildAssistantMessage({
+        id: assistantMessageId,
+        content: '',
+        metadata: pendingAssistantMetadata,
+        citations: [],
+        metrics: null,
+      });
+      const [assistantMessageRow] = await tx
+        .insert(chatMessagesTable)
+        .values({
+          id: assistantMessageId,
+          conversationId,
+          vaultId: scopeValues.vaultId,
+          documentId: scopeValues.documentId,
+          scope: scopeValues.scope,
+          userId,
+          message: pendingAssistantMessage,
+          createdAt: assistantCreatedAt,
+          updatedAt: assistantCreatedAt,
+        })
+        .returning();
+
+      if (assistantMessageRow === undefined) {
+        throw new Error('Failed to persist assistant message');
+      }
+
+      const [activityConversation] = await tx
+        .update(chatConversationsTable)
+        .set({ updatedAt: assistantCreatedAt })
+        .where(eq(chatConversationsTable.id, conversationId))
+        .returning();
+
+      if (activityConversation !== undefined) {
+        conversationRow = activityConversation;
       }
 
       return {
-        conversation: lockedConversation,
+        conversation: toConversation(conversationRow),
         manifestRows,
         previousMessageRows,
         scope,
         scopeValues,
         userMessageRow,
+        assistantMessageRow,
       };
     });
   }
@@ -433,28 +525,22 @@ export function createChatServices({
   async function createMessageStream({
     userId,
     chatId,
+    scope,
     messages,
     intent,
     responseMode,
+    includeCitations,
     model,
   }: {
     userId: string;
-    chatId: string;
+    chatId?: string;
+    scope?: ChatScopeInput;
     messages: ChatMessage[];
     intent?: ChatIntent;
     responseMode: 'text' | 'multimodal';
+    includeCitations: boolean;
     model?: string;
   }) {
-    const conversation = await getConversation({ userId, chatId });
-
-    if (conversation === null) {
-      return null;
-    }
-
-    if (conversation.contextAvailability.readOnly) {
-      throw new Error(conversation.contextAvailability.message);
-    }
-
     const now = new Date();
     const submittedUserMessage = getLatestUserMessage(messages);
     const content = submittedUserMessage === null ? '' : getMessageText(submittedUserMessage);
@@ -463,46 +549,46 @@ export function createChatServices({
       throw new Error('Message content is required.');
     }
 
-    const persistedUserMessage = await persistUserMessageAndFreezeContext({
+    const prepared = await prepareMessageGeneration({
       userId,
       chatId,
+      scope,
       submittedUserMessage,
       content,
       intent,
       now,
     });
 
-    if (persistedUserMessage === null) {
+    if (prepared === null) {
       return null;
     }
 
-    const { manifestRows, previousMessageRows, scope, scopeValues } = persistedUserMessage;
+    const {
+      conversation,
+      manifestRows,
+      previousMessageRows,
+      scope: generationScope,
+      scopeValues,
+      userMessageRow,
+      assistantMessageRow,
+    } = prepared;
+    const conversationId = conversation.id;
+    const persistedUserMessage = hydratePersistedChatMessage(userMessageRow);
+    const pendingAssistantMessage = hydratePersistedChatMessage(assistantMessageRow);
     const previousMessages = previousMessageRows
       .map(hydratePersistedChatMessage)
       .slice(-MAX_RECENT_MESSAGES);
-    const assistantMessageId = generateId({ prefix: 'msg' });
+    const assistantMessageId = assistantMessageRow.id;
     const textPartId = generateId({ prefix: 'txt' });
-    const pendingAssistantMetadata: ChatMessageMetadata = {
-      conversationId: chatId,
-      vaultId: scopeValues.vaultId,
-      documentId: scopeValues.documentId,
-      scope: scopeValues.scope,
-      userId,
-      citations: [],
-      generationMetrics: null,
-      generationStatus: 'pending',
-      generationError: null,
-      createdAt: toIso(now),
-      updatedAt: toIso(now),
-    };
+    let latestConversationActivityAt = new Date(conversation.updatedAt);
 
-    await persistAssistantMessage({
-      id: assistantMessageId,
-      content: '',
-      metadata: pendingAssistantMetadata,
-      citations: [],
-      metrics: null,
-    });
+    function nextConversationActivityTimestamp() {
+      const now = new Date();
+      const timestamp = new Date(Math.max(now.getTime(), latestConversationActivityAt.getTime() + 1));
+      latestConversationActivityAt = timestamp;
+
+      return timestamp;
+    }
 
     const stream = createUIMessageStream<ChatMessage>({
       originalMessages: messages,
@@ -517,13 +603,22 @@ export function createChatServices({
         let generationStartMs: number | null = null;
         let generationFinishedMs: number | null = null;
         let firstTokenAtMs: number | null = null;
+        let generatedFromRetrievedContext = false;
         const includeImages = responseMode === 'multimodal';
-        const includeInlineCitations = responseMode === 'multimodal';
-        const citationLimit =
-          responseMode === 'multimodal' ? MAX_CONTEXT_CITATIONS : TEXT_ONLY_CONTEXT_CITATIONS;
+        const includeInlineCitations = includeCitations;
+        const citationLimit = includeCitations ? MAX_CONTEXT_CITATIONS : TEXT_ONLY_CONTEXT_CITATIONS;
         const retrievalLimit = Math.min(50, Math.max(CHAT_RETRIEVAL_LIMIT, citationLimit));
 
         try {
+          writer.write({
+            type: 'data-conversation',
+            data: {
+              conversation,
+              userMessage: persistedUserMessage,
+              assistantMessage: pendingAssistantMessage,
+            },
+          });
+
           const defaultSettings = await resolveAiSettings();
           const requestedModel = model?.trim();
           const availableModels = await listAvailableModels();
@@ -556,7 +651,7 @@ export function createChatServices({
           const chatModel = createChatModel({ settings, model: effectiveSelection.model });
           assistantMetadata = {
             model: effectiveSelection.value,
-            conversationId: chatId,
+            conversationId,
             vaultId: scopeValues.vaultId,
             documentId: scopeValues.documentId,
             scope: scopeValues.scope,
@@ -569,7 +664,7 @@ export function createChatServices({
             messageMetadata: assistantMetadata,
           });
 
-          if (isGlobalScope(scope) && intent) {
+          if (isGlobalScope(generationScope) && intent) {
             writeStatus(writer, 'generation');
             const resolution = await resolveIntentFollowUp({
               model: chatModel,
@@ -623,19 +718,31 @@ export function createChatServices({
             limit: retrievalLimit,
             candidateLimit: CHAT_RETRIEVAL_CANDIDATE_POOL_LIMIT,
           });
+          const scopedRetrievedCitations = filterCitationsToManifest({
+            manifestRows,
+            citations: result.citations,
+          });
           const expandedCitations = await expandRetrievedCitationsForChat({
             db,
             question: content,
-            citations: result.citations,
+            citations: scopedRetrievedCitations,
           });
           const rankedCitations = rankCitationsForQuestion({
             question: content,
             citations: expandedCitations,
           });
-          citations = normalizeCitationsForDisplay(rankedCitations.slice(0, citationLimit));
+          const answerableRetrievalContext =
+            !shouldRequireRetrievalConfidence(generationScope) ||
+            hasAnswerableRetrievalContext({
+              question: content,
+              citations: rankedCitations,
+            });
+          citations = answerableRetrievalContext
+            ? normalizeCitationsForDisplay(rankedCitations.slice(0, citationLimit))
+            : [];
           retrievalDiagnostics = buildRetrievalDiagnostics({
             mode: result.mode,
-            retrievedCitations: result.citations,
+            retrievedCitations: scopedRetrievedCitations,
             expandedCitations,
             finalCitations: citations,
             requestedContextLimit: citationLimit,
@@ -662,15 +769,36 @@ export function createChatServices({
                 })
               : [];
             generationStartMs = Date.now();
+            generatedFromRetrievedContext = true;
 
-            const answerSystemPrompt = isGlobalScope(scope)
+            const answerSystemPrompt = isGlobalScope(generationScope)
               ? buildGlobalAnswerSystemPrompt({
                   intent,
                   includeInlineCitations,
                 })
               : includeInlineCitations
-                ? 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and support claims with the inline source markers requested by the user prompt. If context is insufficient, say so.'
-                : 'You are Arkivra, a local document-vault assistant. Use only supplied vault context. Be concise, precise, and answer in plain markdown without source markers. If context is insufficient, say so.';
+                ? [
+                    'You are Arkivra, a private document-vault assistant.',
+                    '',
+                    "Use only the supplied vault context. Answer in the user's latest language unless they ask otherwise.",
+                    '',
+                    'Answer directly and concisely. Prefer the user\'s intent over overly literal wording. Treat common document terms as equivalent when supported by context, e.g. surname/family name/last name, given name/first name, expiry/expiration, bill/invoice, passport/travel document.',
+                    '',
+                    'If the latest message clarifies an earlier question, answer the clarified question. Combine sources when useful. If sources disagree, mention the conflict. If the answer cannot be determined from the supplied context, say so plainly.',
+                    '',
+                    'Do not invent facts, documents, dates, pages, or citations. Do not mention internal IDs. Support factual claims with the requested inline source markers.',
+                  ].join('\n')
+                : [
+                    'You are Arkivra, a private document-vault assistant.',
+                    '',
+                    "Use only the supplied vault context. Answer in the user's latest language unless they ask otherwise.",
+                    '',
+                    'Answer directly and concisely. Prefer the user\'s intent over overly literal wording. Treat common document terms as equivalent when supported by context, e.g. surname/family name/last name, given name/first name, expiry/expiration, bill/invoice, passport/travel document.',
+                    '',
+                    'If the latest message clarifies an earlier question, answer the clarified question. Combine sources when useful. If sources disagree, mention the conflict. If the answer cannot be determined from the supplied context, say so plainly.',
+                    '',
+                    'Do not invent facts, documents, dates, pages, or citations. Do not mention internal IDs. Answer in plain markdown without source markers.',
+                  ].join('\n');
             const modelMessages = await convertToModelMessages(
               [
                 ...previousMessages.map(omitMessageId),
@@ -737,12 +865,12 @@ export function createChatServices({
             generatedContent = '';
             throw new Error('The model stopped after a partial answer. Please try again.');
           }
-          if (result.citations.length > 0) {
+          if (generatedFromRetrievedContext && scopedRetrievedCitations.length > 0) {
             const answerExpandedCitations = await expandRetrievedCitationsForChat({
               db,
               question: content,
               answerText: generatedContent,
-              citations: result.citations,
+              citations: scopedRetrievedCitations,
             });
             const answerRankedCitations = rankCitationsForQuestion({
               question: content,
@@ -751,7 +879,7 @@ export function createChatServices({
             citations = normalizeCitationsForDisplay(answerRankedCitations.slice(0, citationLimit));
             retrievalDiagnostics = buildRetrievalDiagnostics({
               mode: result.mode,
-              retrievedCitations: result.citations,
+              retrievedCitations: scopedRetrievedCitations,
               expandedCitations: answerExpandedCitations,
               finalCitations: citations,
               requestedContextLimit: citationLimit,
@@ -828,20 +956,23 @@ export function createChatServices({
       citations: Citation[];
       metrics: ChatGenerationMetrics | null;
     }) {
+      const updatedAt = nextConversationActivityTimestamp();
       const assistantMessage = buildAssistantMessage({
         id,
         content,
-        metadata,
+        metadata: {
+          ...metadata,
+          updatedAt: toIso(updatedAt),
+        },
         citations,
         metrics,
       });
       await db.transaction(async (tx) => {
-        const updatedAt = sql`now()`;
         const [assistantMessageRow] = await tx
           .insert(chatMessagesTable)
           .values({
             id,
-            conversationId: chatId,
+            conversationId,
             vaultId: scopeValues.vaultId,
             documentId: scopeValues.documentId,
             scope: scopeValues.scope,
@@ -868,7 +999,7 @@ export function createChatServices({
 
         const txDb = tx as unknown as Database;
         for (const row of buildChatMessageCitationRows({
-          conversationId: chatId,
+          conversationId,
           messageId: id,
           citations,
         })) {
@@ -878,7 +1009,7 @@ export function createChatServices({
         await tx
           .update(chatConversationsTable)
           .set({ updatedAt })
-          .where(eq(chatConversationsTable.id, chatId));
+          .where(eq(chatConversationsTable.id, conversationId));
       });
     }
 
@@ -887,9 +1018,9 @@ export function createChatServices({
 
   return {
     listConversations,
-    createConversation,
-    updatePristineConversationContext,
     getConversation,
+    createConversation,
+    renameConversation,
     deleteConversation,
     getModelOptions,
     createMessageStream,

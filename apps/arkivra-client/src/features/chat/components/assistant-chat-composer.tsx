@@ -1,4 +1,4 @@
-import type { ChangeEvent, RefObject } from 'react';
+import type { ChangeEvent, FormEvent, RefObject } from 'react';
 import { Fragment, useMemo } from 'react';
 import {
   Box,
@@ -49,6 +49,7 @@ export function AssistantChatComposer({
   onRemoveDocument,
   textareaRef,
   onDraftValueChange,
+  onSubmitStart,
 }: {
   disabled: boolean;
   placeholder: string;
@@ -67,6 +68,7 @@ export function AssistantChatComposer({
   onRemoveDocument?: (document: DraftChatDocument) => void;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   onDraftValueChange: (nextValue: string) => void;
+  onSubmitStart?: (content: string) => void;
 }) {
   const hasModelPicker = Boolean(onSelectedModelChange);
   const modelLabel = selectedModel
@@ -91,6 +93,17 @@ export function AssistantChatComposer({
     onDraftValueChange(event.currentTarget.value);
   }
 
+  function handleSubmitCapture(event: FormEvent<HTMLFormElement>) {
+    if (disabled) return;
+    const form = event.currentTarget;
+    const input = form.querySelector<HTMLTextAreaElement>('textarea');
+    const content = input?.value.trim() ?? '';
+
+    if (content.length > 0) {
+      onSubmitStart?.(content);
+    }
+  }
+
   return (
     <Box alignSelf="end" flexShrink="0" px="4" pb="4" pt="2" sm={{ px: '6', pb: '5' }}>
       <ComposerRoot
@@ -103,6 +116,7 @@ export function AssistantChatComposer({
         bg="bg.surface"
         p="3"
         boxShadow="md"
+        onSubmitCapture={handleSubmitCapture}
       >
         {context && onRemoveVault && onRemoveDocument ? (
           <ContextChipList

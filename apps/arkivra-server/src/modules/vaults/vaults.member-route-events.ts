@@ -6,7 +6,7 @@ import { getAuditActorFromContext, getAuditRequestContext } from '../audit/audit
 import { AUDIT_EVENT_TYPES } from '../audit/audit.types.js';
 import type { ServerContext } from '../server/server.types.js';
 import { getMemberUpdateAuditEventType } from './vaults.route-helpers.js';
-import type { AiAccessLevel, VaultRole } from './vaults.types.js';
+import type { VaultRole } from './vaults.types.js';
 
 type VaultMemberRouteContext = Context<ServerContext>;
 type AuditServices = ReturnType<typeof createAuditServices>;
@@ -16,6 +16,10 @@ function userTarget(memberUserId: string, displayName?: string) {
   return displayName === undefined
     ? { type: 'user' as const, id: memberUserId }
     : { type: 'user' as const, id: memberUserId, displayName };
+}
+
+function getVaultAccessMode(context: VaultMemberRouteContext) {
+  return context.get('isAdmin') && context.get('vaultRole') !== 'owner' ? 'admin' : 'member';
 }
 
 export async function emitVaultOwnerPromotionRequested({
@@ -43,36 +47,12 @@ export async function emitVaultOwnerPromotionRequested({
     target: userTarget(memberUserId, displayName),
     source: 'web',
     requestContext: getAuditRequestContext(context),
-    metadata: { request_id: requestId, request_type: 'vault.owner_promote', member_user_id: memberUserId },
-  });
-}
-
-export async function emitVaultAiAccessRequested({
-  context,
-  auditServices,
-  vaultId,
-  memberUserId,
-  requestId,
-  displayName,
-}: {
-  context: VaultMemberRouteContext;
-  auditServices?: AuditServices;
-  vaultId: string;
-  memberUserId: string;
-  requestId: string;
-  displayName?: string;
-}) {
-  await auditServices?.emitAuditEvent({
-    eventType: AUDIT_EVENT_TYPES.vaultAiAccessRequested,
-    eventCategory: 'permission',
-    severity: 'notice',
-    outcome: 'success',
-    actor: getAuditActorFromContext(context),
-    vaultId,
-    target: userTarget(memberUserId, displayName),
-    source: 'web',
-    requestContext: getAuditRequestContext(context),
-    metadata: { request_id: requestId, request_type: 'vault.ai_access_grant', member_user_id: memberUserId },
+    metadata: {
+      request_id: requestId,
+      request_type: 'vault.owner_promote',
+      member_user_id: memberUserId,
+      access_mode: getVaultAccessMode(context),
+    },
   });
 }
 
@@ -84,7 +64,6 @@ export async function emitVaultExternalInvitationRequested({
   requestId,
   email,
   role,
-  aiAccessLevel,
 }: {
   context: VaultMemberRouteContext;
   auditServices?: AuditServices;
@@ -93,7 +72,6 @@ export async function emitVaultExternalInvitationRequested({
   requestId: string;
   email: string;
   role: string;
-  aiAccessLevel: string;
 }) {
   await activityServices?.emitActivityEvent({
     activityType: ACTIVITY_EVENT_TYPES.vaultApprovalRequested,
@@ -103,7 +81,7 @@ export async function emitVaultExternalInvitationRequested({
     vaultId,
     target: { type: 'permission_request', id: requestId, displayName: email },
     source: 'web',
-    metadata: { request_type: 'vault.external_invite', email, role, ai_access_level: aiAccessLevel },
+    metadata: { request_type: 'vault.external_invite', email, role },
   });
   await auditServices?.emitAuditEvent({
     eventType: AUDIT_EVENT_TYPES.vaultExternalInvitationRequested,
@@ -115,7 +93,13 @@ export async function emitVaultExternalInvitationRequested({
     target: { type: 'email_invitation', displayName: email },
     source: 'web',
     requestContext: getAuditRequestContext(context),
-    metadata: { request_id: requestId, request_type: 'vault.external_invite', email, role, ai_access_level: aiAccessLevel },
+    metadata: {
+      request_id: requestId,
+      request_type: 'vault.external_invite',
+      email,
+      role,
+      access_mode: getVaultAccessMode(context),
+    },
   });
 }
 
@@ -126,7 +110,6 @@ export async function emitVaultMemberAdded({
   vaultId,
   memberUserId,
   role,
-  aiAccessLevel,
   displayName,
 }: {
   context: VaultMemberRouteContext;
@@ -135,7 +118,6 @@ export async function emitVaultMemberAdded({
   vaultId: string;
   memberUserId: string;
   role: string;
-  aiAccessLevel: string;
   displayName?: string;
 }) {
   await auditServices?.emitAuditEvent({
@@ -147,7 +129,7 @@ export async function emitVaultMemberAdded({
     target: userTarget(memberUserId, displayName),
     source: 'web',
     requestContext: getAuditRequestContext(context),
-    metadata: { member_user_id: memberUserId, role, ai_access_level: aiAccessLevel },
+    metadata: { member_user_id: memberUserId, role, access_mode: getVaultAccessMode(context) },
   });
   await activityServices?.emitActivityEvent({
     activityType: ACTIVITY_EVENT_TYPES.vaultMemberAdded,
@@ -157,7 +139,7 @@ export async function emitVaultMemberAdded({
     vaultId,
     target: { type: 'user', id: memberUserId },
     source: 'web',
-    metadata: { member_user_id: memberUserId, role, ai_access_level: aiAccessLevel },
+    metadata: { member_user_id: memberUserId, role, access_mode: getVaultAccessMode(context) },
   });
 }
 
@@ -169,8 +151,6 @@ export async function emitVaultMemberUpdated({
   memberUserId,
   previousRole,
   nextRole,
-  previousAiAccessLevel,
-  nextAiAccessLevel,
 }: {
   context: VaultMemberRouteContext;
   auditServices?: AuditServices;
@@ -179,15 +159,11 @@ export async function emitVaultMemberUpdated({
   memberUserId: string;
   previousRole: VaultRole;
   nextRole: VaultRole;
-  previousAiAccessLevel: AiAccessLevel;
-  nextAiAccessLevel: AiAccessLevel;
 }) {
   await auditServices?.emitAuditEvent({
     eventType: getMemberUpdateAuditEventType({
       previousRole,
       nextRole,
-      previousAiAccessLevel,
-      nextAiAccessLevel,
     }),
     eventCategory: 'vault',
     outcome: 'success',
@@ -200,14 +176,14 @@ export async function emitVaultMemberUpdated({
       member_user_id: memberUserId,
       previous_role: previousRole,
       next_role: nextRole,
-      previous_ai_access_level: previousAiAccessLevel,
-      next_ai_access_level: nextAiAccessLevel,
+      access_mode: getVaultAccessMode(context),
     },
   });
   await activityServices?.emitActivityEvent({
-    activityType: nextRole !== previousRole || nextAiAccessLevel !== previousAiAccessLevel
-      ? ACTIVITY_EVENT_TYPES.vaultMemberRoleChanged
-      : ACTIVITY_EVENT_TYPES.vaultMemberAdded,
+    activityType:
+      nextRole !== previousRole
+        ? ACTIVITY_EVENT_TYPES.vaultMemberRoleChanged
+        : ACTIVITY_EVENT_TYPES.vaultMemberAdded,
     entityType: 'vault',
     entityId: vaultId,
     actor: getAuditActorFromContext(context),
@@ -218,8 +194,7 @@ export async function emitVaultMemberUpdated({
       member_user_id: memberUserId,
       previous_role: previousRole,
       next_role: nextRole,
-      previous_ai_access_level: previousAiAccessLevel,
-      next_ai_access_level: nextAiAccessLevel,
+      access_mode: getVaultAccessMode(context),
     },
   });
 }
@@ -248,7 +223,7 @@ export async function emitVaultMemberRemoved({
     target: { type: 'user', id: memberUserId },
     source: 'web',
     requestContext: getAuditRequestContext(context),
-    metadata: { member_user_id: memberUserId, role },
+    metadata: { member_user_id: memberUserId, role, access_mode: getVaultAccessMode(context) },
   });
   await activityServices?.emitActivityEvent({
     activityType: ACTIVITY_EVENT_TYPES.vaultMemberRemoved,
@@ -258,6 +233,6 @@ export async function emitVaultMemberRemoved({
     vaultId,
     target: { type: 'user', id: memberUserId },
     source: 'web',
-    metadata: { member_user_id: memberUserId, role },
+    metadata: { member_user_id: memberUserId, role, access_mode: getVaultAccessMode(context) },
   });
 }

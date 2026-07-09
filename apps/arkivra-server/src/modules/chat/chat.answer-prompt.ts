@@ -282,6 +282,7 @@ export function buildAnswerPrompt({
   return [
     'Answer the user question using only the retrieved Arkivra vault context below.',
     'Write the answer in clear markdown with short paragraphs and lists when helpful.',
+    'By default, answer in the same language as the user\'s latest question. Retrieved documents may be written in a different language; use their facts without adopting their language. If the user explicitly asks for a different response language, follow that request.',
     'Respect explicit constraints in the question, such as years, dates, account details, document names, and vault names.',
     'Prefer sources that match those constraints. Do not substitute a different year, date, or document unless you say the matching context is unavailable.',
     includeInlineCitations

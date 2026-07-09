@@ -50,6 +50,7 @@ export const HYBRID_CITATION_MAX_CANDIDATE_LIMIT = 200;
 export const HYBRID_CITATION_MAX_TERMS = 24;
 export const HYBRID_TITLE_MATCH_BASE_SCORE = 0.03;
 export const HYBRID_TITLE_MATCH_TERM_SCORE = 0.004;
+export const HYBRID_FOLDER_MATCH_TERM_WEIGHT = 2;
 export const HYBRID_TITLE_TERM_STOP_WORDS = new Set([
   'about',
   'after',

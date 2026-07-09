@@ -6,16 +6,22 @@ import { registerUserPreferencesRoutes } from './user-preferences.routes.js';
 
 function createPreferences() {
   return {
-    accentColor: 'teal',
-    density: 'comfortable',
-    fontFamily: 'inter',
-    fontSize: 'md',
-    radius: 'md',
-    language: 'en',
-    dateFormat: null,
-    showExtractedTextTab: false,
-    defaultFileBrowserView: 'list',
-    defaultChatAnswerMode: 'text',
+    appearancePreferences: {
+      themeMode: 'system',
+      selectedTheme: 'default',
+      selectedTweakcnTheme: '',
+      selectedRadius: '0.5rem',
+      brandColors: {},
+      sidebar: {
+        variant: 'inset',
+        collapsible: 'offcanvas',
+        side: 'left',
+      },
+    },
+    regionalPreferences: {
+      language: 'en',
+      dateFormat: null,
+    },
     createdAt: '2026-05-15T00:00:00.000Z',
     updatedAt: '2026-05-15T00:00:00.000Z',
   } as const;
@@ -78,20 +84,25 @@ describe('user preferences routes', () => {
     await expect(response.json()).resolves.toEqual({ preferences: createPreferences() });
   });
 
-  test('partially updates validated preferences', async () => {
+  test('updates validated appearance preferences', async () => {
     const { app, services } = createTestApp();
 
     const response = await app.request('/api/me/preferences', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        accentColor: 'blue',
-        fontFamily: 'sora',
-        language: 'de',
-        dateFormat: 'DD.MM.YYYY',
-        defaultFileBrowserView: 'grid',
-        defaultChatAnswerMode: 'multimodal',
-        showExtractedTextTab: true,
+        appearancePreferences: {
+          themeMode: 'dark',
+          selectedTheme: 'default',
+          selectedTweakcnTheme: '',
+          selectedRadius: '0.5rem',
+          brandColors: { '--primary': '#2563eb' },
+          sidebar: {
+            variant: 'inset',
+            collapsible: 'offcanvas',
+            side: 'left',
+          },
+        },
       }),
     });
 
@@ -99,30 +110,19 @@ describe('user preferences routes', () => {
     expect(services.updatePreferences).toHaveBeenCalledWith({
       userId: 'usr_test',
       preferences: {
-        accentColor: 'blue',
-        fontFamily: 'sora',
-        language: 'de',
-        dateFormat: 'DD.MM.YYYY',
-        defaultFileBrowserView: 'grid',
-        defaultChatAnswerMode: 'multimodal',
-        showExtractedTextTab: true,
+        appearancePreferences: {
+          themeMode: 'dark',
+          selectedTheme: 'default',
+          selectedTweakcnTheme: '',
+          selectedRadius: '0.5rem',
+          brandColors: { '--primary': '#2563eb' },
+          sidebar: {
+            variant: 'inset',
+            collapsible: 'offcanvas',
+            side: 'left',
+          },
+        },
       },
-    });
-  });
-
-  test('normalizes legacy font preference values', async () => {
-    const { app, services } = createTestApp();
-
-    const response = await app.request('/api/me/preferences', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ fontFamily: 'manrope' }),
-    });
-
-    expect(response.status).toBe(200);
-    expect(services.updatePreferences).toHaveBeenCalledWith({
-      userId: 'usr_test',
-      preferences: { fontFamily: 'sora' },
     });
   });
 
@@ -132,20 +132,90 @@ describe('user preferences routes', () => {
     const response = await app.request('/api/me/preferences', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ accentColor: 'brown' }),
+      body: JSON.stringify({ appearancePreferences: { themeMode: 'brown' } }),
     });
 
     expect(response.status).toBe(400);
     expect(services.updatePreferences).not.toHaveBeenCalled();
   });
 
-  test('rejects theme mode updates because theme is browser-local', async () => {
+  test('updates validated regional preferences', async () => {
+    const { app, services } = createTestApp();
+
+    const response = await app.request('/api/me/preferences', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        regionalPreferences: {
+          language: 'en',
+          dateFormat: 'YYYY-MM-DD',
+        },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(services.updatePreferences).toHaveBeenCalledWith({
+      userId: 'usr_test',
+      preferences: {
+        regionalPreferences: {
+          language: 'en',
+          dateFormat: 'YYYY-MM-DD',
+        },
+      },
+    });
+  });
+
+  test('rejects unsupported regional languages', async () => {
+    const { app, services } = createTestApp();
+
+    const response = await app.request('/api/me/preferences', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        regionalPreferences: {
+          language: 'de',
+          dateFormat: null,
+        },
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(services.updatePreferences).not.toHaveBeenCalled();
+  });
+
+  test('rejects legacy top-level theme mode updates', async () => {
     const { app, services } = createTestApp();
 
     const response = await app.request('/api/me/preferences', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ themeMode: 'dark' }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(services.updatePreferences).not.toHaveBeenCalled();
+  });
+
+  test('rejects invalid appearance preference payloads', async () => {
+    const { app, services } = createTestApp();
+
+    const response = await app.request('/api/me/preferences', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        appearancePreferences: {
+          themeMode: 'sepia',
+          selectedTheme: 'default',
+          selectedTweakcnTheme: '',
+          selectedRadius: '0.5rem',
+          brandColors: {},
+          sidebar: {
+            variant: 'inset',
+            collapsible: 'offcanvas',
+            side: 'left',
+          },
+        },
+      }),
     });
 
     expect(response.status).toBe(400);

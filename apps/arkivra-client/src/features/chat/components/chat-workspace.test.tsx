@@ -6,6 +6,15 @@ import { ChatWorkspace } from './chat-workspace';
 import { renderWithProviders } from '@/test/utils';
 import type { ChatContextSnapshot } from '../chat.types';
 
+type MockVaultAccess = {
+  id: string;
+  name: string;
+  fileCount: number;
+  aiAccessLevel: 'none' | 'full';
+  isAdmin: boolean;
+  accessMode: 'member' | 'admin';
+};
+
 const createConversationMock = vi.hoisted(() => vi.fn());
 const updateConversationContextMock = vi.hoisted(() => vi.fn());
 const deleteConversationMock = vi.hoisted(() => vi.fn());
@@ -38,6 +47,43 @@ const chatModelOptionsState = vi.hoisted(() => ({
   defaultModel: 'ollama:llama3.2',
   isLoading: false,
   isError: false,
+}));
+const vaultsQueryState = vi.hoisted(
+  (): { vault: MockVaultAccess; vaults: MockVaultAccess[] } => ({
+  vault: {
+    id: 'vlt_1',
+    name: 'Finance',
+    fileCount: 4,
+    aiAccessLevel: 'full' as const,
+    isAdmin: false,
+    accessMode: 'member' as const,
+  },
+  vaults: [
+    {
+      id: 'vlt_1',
+      name: 'Finance',
+      fileCount: 4,
+      aiAccessLevel: 'full' as const,
+      isAdmin: false,
+      accessMode: 'member' as const,
+    },
+    {
+      id: 'vlt_2',
+      name: 'Legal',
+      fileCount: 2,
+      aiAccessLevel: 'full' as const,
+      isAdmin: false,
+      accessMode: 'member' as const,
+    },
+    {
+      id: 'vlt_3',
+      name: 'Archive',
+      fileCount: 8,
+      aiAccessLevel: 'full' as const,
+      isAdmin: false,
+      accessMode: 'member' as const,
+    },
+  ],
 }));
 
 function haveSameMessageIds(left: any[], right: any[]) {
@@ -177,6 +223,7 @@ vi.mock('./assistant-chat-composer', async () => {
       onRemoveDocument,
       textareaRef,
       onDraftValueChange,
+      onSubmitStart,
     }: any) => {
       const [value, setValue] = React.useState('');
 
@@ -187,6 +234,7 @@ vi.mock('./assistant-chat-composer', async () => {
             event.preventDefault();
             const text = value.trim();
             if (!text || disabled) return;
+            onSubmitStart?.(text);
             await assistantRuntimeHandleState.handle?.sendText(text, { intent: null });
             setValue('');
             onDraftValueChange('');
@@ -251,15 +299,16 @@ vi.mock('./assistant-chat-thread', async () => {
   }
 
   return {
-    AssistantChatThread: () => {
+    AssistantChatThread: ({ optimisticMessages = [] }: { optimisticMessages?: any[] }) => {
       const [openSources, setOpenSources] = React.useState(false);
       const [openPreview, setOpenPreview] = React.useState(false);
-      const citations = assistantRuntimeState.messages.flatMap(getCitations);
+      const messages = [...optimisticMessages, ...assistantRuntimeState.messages];
+      const citations = messages.flatMap(getCitations);
 
       return React.createElement(
         'div',
         { role: 'log', 'aria-label': 'Conversation timeline' },
-        assistantRuntimeState.messages.map((message: any) => {
+        messages.map((message: any) => {
           const text = getText(message);
           const loading = message.parts?.some((part: any) => part.type === 'data-status');
           return React.createElement(
@@ -319,16 +368,12 @@ vi.mock('../chat.api', () => ({
 
 vi.mock('@/features/vaults/vaults.queries', () => ({
   useVaultQuery: () => ({
-    data: { vault: { aiAccessLevel: 'full' } },
+    data: { vault: vaultsQueryState.vault },
     isLoading: false,
   }),
   useVaultsQuery: () => ({
     data: {
-      vaults: [
-        { id: 'vlt_1', name: 'Finance', fileCount: 4, aiAccessLevel: 'full' },
-        { id: 'vlt_2', name: 'Legal', fileCount: 2, aiAccessLevel: 'full' },
-        { id: 'vlt_3', name: 'Archive', fileCount: 8, aiAccessLevel: 'full' },
-      ],
+      vaults: vaultsQueryState.vaults,
     },
     isLoading: false,
   }),
@@ -739,6 +784,40 @@ describe('chat workspace new chat drafts', () => {
     chatModelOptionsState.defaultModel = 'ollama:llama3.2';
     chatModelOptionsState.isLoading = false;
     chatModelOptionsState.isError = false;
+    vaultsQueryState.vault = {
+      id: 'vlt_1',
+      name: 'Finance',
+      fileCount: 4,
+      aiAccessLevel: 'full',
+      isAdmin: false,
+      accessMode: 'member',
+    };
+    vaultsQueryState.vaults = [
+      {
+        id: 'vlt_1',
+        name: 'Finance',
+        fileCount: 4,
+        aiAccessLevel: 'full',
+        isAdmin: false,
+        accessMode: 'member',
+      },
+      {
+        id: 'vlt_2',
+        name: 'Legal',
+        fileCount: 2,
+        aiAccessLevel: 'full',
+        isAdmin: false,
+        accessMode: 'member',
+      },
+      {
+        id: 'vlt_3',
+        name: 'Archive',
+        fileCount: 8,
+        aiAccessLevel: 'full',
+        isAdmin: false,
+        accessMode: 'member',
+      },
+    ];
     createConversationMock.mockImplementation(async ({ title, contextSnapshot }) => {
       createdConversationState.conversation = {
         id: 'chat_created',
@@ -899,6 +978,52 @@ describe('chat workspace new chat drafts', () => {
 
     expect(createConversationMock).not.toHaveBeenCalled();
     expect(runtimeSendTextMock).not.toHaveBeenCalled();
+  });
+
+  it('allows global chat for admin-readable vaults without direct AI membership', async () => {
+    const user = userEvent.setup();
+    vaultsQueryState.vault = {
+      id: 'vlt_admin',
+      name: 'Admin Vault',
+      fileCount: 2,
+      aiAccessLevel: 'none',
+      isAdmin: true,
+      accessMode: 'admin',
+    };
+    vaultsQueryState.vaults = [
+      {
+        id: 'vlt_admin',
+        name: 'Admin Vault',
+        fileCount: 2,
+        aiAccessLevel: 'none',
+        isAdmin: true,
+        accessMode: 'admin',
+      },
+    ];
+
+    await renderWithProviders(
+      <ChatWorkspace
+        scope={{}}
+        inputPlaceholder="Ask anything"
+      />,
+    );
+
+    expect(
+      screen.queryByText(/To start using chat, use at least one vault where chat is available./i),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/chat message/i)).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /send message/i })).not.toBeDisabled();
+
+    await user.type(screen.getByLabelText(/chat message/i), 'Summarize admin vaults');
+    await user.click(screen.getByRole('button', { name: /send message/i }));
+
+    await waitFor(() => {
+      expect(createConversationMock).toHaveBeenCalledTimes(1);
+    });
+    expect(createConversationMock).toHaveBeenCalledWith({
+      title: 'Summarize admin vaults',
+      contextSnapshot: { type: 'global', vaultIds: [] },
+    });
   });
 
   it('loads saved history only after selecting a previous conversation', async () => {
@@ -1168,6 +1293,33 @@ describe('chat workspace new chat drafts', () => {
   it('shows the assistant loading state immediately after submit', async () => {
     const user = userEvent.setup();
     let resolveStream: (() => void) | undefined;
+    let resolveCreate: (() => void) | undefined;
+    const delayedCreate = new Promise<void>((resolve) => {
+      resolveCreate = resolve;
+    });
+    createConversationMock.mockImplementationOnce(async ({ title, contextSnapshot }) => {
+      await delayedCreate;
+      const conversation = {
+        id: 'chat_created',
+        title: title ?? 'New chat',
+        scope: contextSnapshot.type === 'document'
+          ? 'document' as const
+          : contextSnapshot.type === 'vault'
+            ? 'vault' as const
+            : 'global' as const,
+        vaultId: contextSnapshot.type === 'document' || contextSnapshot.type === 'vault'
+          ? contextSnapshot.vaultId
+          : null,
+        documentId: contextSnapshot.type === 'document' ? contextSnapshot.documentId : null,
+        contextSnapshot,
+        userId: 'usr_1',
+        createdAt: '2026-05-05T11:00:00.000Z',
+        updatedAt: '2026-05-05T11:00:00.000Z',
+        deletedAt: null,
+      };
+      createdConversationState.conversation = conversation;
+      return { conversation };
+    });
     runtimeSendBlocker.promise = new Promise<void>((resolve) => {
       resolveStream = resolve;
     });
@@ -1182,7 +1334,14 @@ describe('chat workspace new chat drafts', () => {
     await user.type(screen.getByLabelText(/chat message/i), 'What changed?');
     await user.click(screen.getByRole('button', { name: /send message/i }));
 
+    expect(screen.getAllByText('What changed?').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Chat with your documents')).not.toBeInTheDocument();
     expect(await screen.findByText('Preparing the answer')).toBeInTheDocument();
+
+    resolveCreate?.();
+    await waitFor(() => {
+      expect(createConversationMock).toHaveBeenCalledTimes(1);
+    });
     expect(runtimeSendTextMock).toHaveBeenCalledWith({
       text: 'What changed?',
       options: { intent: null },

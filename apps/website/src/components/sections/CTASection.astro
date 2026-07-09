@@ -1,0 +1,49 @@
+---
+import GitHubMark from "@/components/icons/GitHubMark.astro";
+import Button from "@/components/ui/Button.astro";
+import { githubUrl, selfHostingGuideUrl } from "@/data/landing";
+import { ArrowRight, Server } from "@lucide/astro";
+---
+
+<section class="bg-muted/80 py-16 lg:py-24">
+	<div class="container mx-auto px-4 lg:px-8">
+		<div class="mx-auto max-w-4xl text-center">
+			<div class="space-y-8">
+				<div class="space-y-6">
+					<h1 class="text-4xl font-bold tracking-tight text-balance sm:text-5xl lg:text-6xl">
+						Ready to organize your documents?
+					</h1>
+
+					<p class="mx-auto max-w-2xl text-balance text-muted-foreground lg:text-xl">
+						Start with the self-hosting guide, review the code, and decide how Arkivra fits your document workflow.
+					</p>
+				</div>
+
+				<div class="flex flex-col justify-center gap-4 sm:flex-row sm:gap-6">
+					<Button
+						href={selfHostingGuideUrl}
+						size="lg"
+						class="px-6 text-base font-medium"
+						target="_blank"
+						rel="noopener noreferrer"
+					>
+						<Server class="me-2 size-4" />
+						Self-host Arkivra
+					</Button>
+					<Button
+						href={githubUrl}
+						variant="outline"
+						size="lg"
+						class="group px-6 text-base font-medium"
+						target="_blank"
+						rel="noopener noreferrer"
+					>
+						<GitHubMark class="me-2 size-4" />
+						View on GitHub
+						<ArrowRight class="ms-2 size-4 transition-transform group-hover:translate-x-1" />
+					</Button>
+				</div>
+			</div>
+		</div>
+	</div>
+</section>

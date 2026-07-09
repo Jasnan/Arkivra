@@ -1,13 +1,13 @@
 import type { Database } from '../database/database.js';
 import type {
-  AiAccessLevel,
   EmailInvitationType,
   SystemCapability,
   SystemRole,
   VaultAuthorizationState,
   VaultRole,
 } from './authorization.types.js';
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { createHash, randomBytes } from 'node:crypto';
+import { and, asc, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import {
   authAccountsTable,
   emailInvitationsTable,
@@ -16,20 +16,26 @@ import {
   vaultMembersTable,
   vaultsTable,
 } from '../database/schema/index.js';
+import { generateId } from '../database/schema/helpers.js';
 import { createPermissionRequestServices } from './authorization.permission-requests.js';
 import {
-  canUseDocumentChatLevel,
-  canUseSemanticRetrievalLevel,
-  canVaultRoleManageMembers,
-  canVaultRoleMutateDocuments,
   canVaultRoleRead,
   CREATE_VAULTS_CAPABILITY,
-  getAiAccessRank,
   getInvitationSystemCapabilities,
-  getInvitationVaultMemberships,
   isAdminRole,
   normalizeEmail,
+  USE_AI_CAPABILITY,
 } from './authorization.rules.js';
+
+const DEFAULT_INVITATION_EXPIRY_MS = 1000 * 60 * 60 * 24 * 7;
+
+export function createEmailInvitationToken() {
+  return randomBytes(32).toString('base64url');
+}
+
+export function hashEmailInvitationToken(token: string) {
+  return createHash('sha256').update(token).digest('hex');
+}
 
 export function createAuthorizationServices({ db }: { db: Database }) {
   async function ensureBootstrapAdmin({ userId }: { userId: string }) {
@@ -96,6 +102,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     const systemCapabilities = await listSystemCapabilitiesForUser({ userId });
     const isAdmin = isAdminRole(user.systemRole as SystemRole);
     const canCreateVault = isAdmin || systemCapabilities.includes(CREATE_VAULTS_CAPABILITY);
+    const canUseAI = isAdmin || systemCapabilities.includes(USE_AI_CAPABILITY);
 
     return {
       userId: user.id,
@@ -104,6 +111,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       systemCapabilities,
       isAdmin,
       canCreateVault,
+      canUseAI,
     };
   }
 
@@ -186,6 +194,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       const systemCapabilities = capabilitiesByUserId.get(user.id) ?? [];
       const isAdmin = isAdminRole(systemRole);
       const canCreateVault = isAdmin || systemCapabilities.includes(CREATE_VAULTS_CAPABILITY);
+      const canUseAI = isAdmin || systemCapabilities.includes(USE_AI_CAPABILITY);
 
       return {
         ...user,
@@ -193,6 +202,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
         systemCapabilities,
         isAdmin,
         canCreateVault,
+        canUseAI,
         authMethods: {
           hasPassword: (accountsByUserId.get(user.id) ?? []).some(account => account.providerId === 'credential' && account.password),
           oauthProviders: (accountsByUserId.get(user.id) ?? [])
@@ -202,6 +212,76 @@ export function createAuthorizationServices({ db }: { db: Database }) {
         },
       };
     });
+  }
+
+  async function getUserByEmail({ email }: { email: string }) {
+    const [user] = await db
+      .select({
+        id: usersTable.id,
+        email: usersTable.email,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.email, normalizeEmail(email)))
+      .limit(1);
+
+    return user ?? null;
+  }
+
+  async function expirePendingEmailInvitations({
+    email,
+    type,
+  }: {
+    email?: string;
+    type?: EmailInvitationType;
+  } = {}) {
+    await db
+      .update(emailInvitationsTable)
+      .set({ status: 'expired', updatedAt: sql`now()` })
+      .where(and(
+        ...(email ? [eq(emailInvitationsTable.email, normalizeEmail(email))] : []),
+        ...(type ? [eq(emailInvitationsTable.type, type)] : []),
+        eq(emailInvitationsTable.status, 'pending'),
+        sql`${emailInvitationsTable.expiresAt} IS NOT NULL`,
+        sql`${emailInvitationsTable.expiresAt} <= now()`,
+      ));
+  }
+
+  async function listEmailInvitations({
+    type = 'platform_account',
+  }: {
+    type?: EmailInvitationType;
+  } = {}) {
+    await expirePendingEmailInvitations({ type });
+
+    return db
+      .select()
+      .from(emailInvitationsTable)
+      .where(eq(emailInvitationsTable.type, type))
+      .orderBy(desc(emailInvitationsTable.createdAt));
+  }
+
+  async function getPendingEmailInvitationForInvite({
+    email,
+    type,
+  }: {
+    email: string;
+    type: EmailInvitationType;
+  }) {
+    await expirePendingEmailInvitations({ email, type });
+
+    const [invitation] = await db
+      .select()
+      .from(emailInvitationsTable)
+      .where(and(
+        eq(emailInvitationsTable.email, normalizeEmail(email)),
+        eq(emailInvitationsTable.type, type),
+        eq(emailInvitationsTable.status, 'pending'),
+        or(isNull(emailInvitationsTable.expiresAt), gt(emailInvitationsTable.expiresAt, sql`now()`)),
+      ))
+      .orderBy(desc(emailInvitationsTable.createdAt))
+      .limit(1);
+
+    return invitation ?? null;
   }
 
   async function getUserWithAuthorization({ userId }: { userId: string }) {
@@ -329,32 +409,47 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     invitedBy,
     vaultId = null,
     vaultRole = null,
-    aiAccessLevel = 'none',
     systemRole = null,
     expiresAt = null,
     payload = {},
+    tokenHash = null,
   }: {
     type: EmailInvitationType;
     email: string;
     invitedBy?: string | null;
     vaultId?: string | null;
     vaultRole?: VaultRole | null;
-    aiAccessLevel?: AiAccessLevel;
     systemRole?: SystemRole | null;
     expiresAt?: Date | null;
     payload?: Record<string, unknown>;
+    tokenHash?: string | null;
   }) {
+    const normalizedEmail = normalizeEmail(email);
+
+    if (type === 'platform_account') {
+      if (await getUserByEmail({ email: normalizedEmail })) {
+        throw new Error('authorization.invitation_user_exists');
+      }
+
+      if (await getPendingEmailInvitationForInvite({ email: normalizedEmail, type })) {
+        throw new Error('authorization.invitation_already_pending');
+      }
+    }
+
+    const effectiveExpiresAt =
+      expiresAt ?? (type === 'platform_account' ? new Date(Date.now() + DEFAULT_INVITATION_EXPIRY_MS) : null);
+
     const [invitation] = await db
       .insert(emailInvitationsTable)
       .values({
         type,
-        email: normalizeEmail(email),
+        email: normalizedEmail,
+        tokenHash,
         invitedBy: invitedBy ?? null,
         vaultId,
         vaultRole,
-        aiAccessLevel,
         systemRole,
-        expiresAt,
+        expiresAt: effectiveExpiresAt,
         payload,
       })
       .returning();
@@ -366,13 +461,23 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     return invitation;
   }
 
-  async function getPendingEmailInvitation({ invitationId, email }: { invitationId?: string; email: string }) {
+  async function getPendingEmailInvitation({
+    invitationId,
+    invitationToken,
+    email,
+  }: {
+    invitationId?: string;
+    invitationToken?: string;
+    email: string;
+  }) {
     const normalizedEmail = normalizeEmail(email);
+    const tokenHash = invitationToken ? hashEmailInvitationToken(invitationToken) : undefined;
     await db
       .update(emailInvitationsTable)
       .set({ status: 'expired', updatedAt: sql`now()` })
       .where(and(
         ...(invitationId ? [eq(emailInvitationsTable.id, invitationId)] : []),
+        ...(tokenHash ? [eq(emailInvitationsTable.tokenHash, tokenHash)] : []),
         eq(emailInvitationsTable.email, normalizedEmail),
         eq(emailInvitationsTable.status, 'pending'),
         sql`${emailInvitationsTable.expiresAt} IS NOT NULL`,
@@ -384,6 +489,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       .from(emailInvitationsTable)
       .where(and(
         ...(invitationId ? [eq(emailInvitationsTable.id, invitationId)] : []),
+        ...(tokenHash ? [eq(emailInvitationsTable.tokenHash, tokenHash)] : []),
         eq(emailInvitationsTable.email, normalizedEmail),
         eq(emailInvitationsTable.status, 'pending'),
       ))
@@ -399,14 +505,16 @@ export function createAuthorizationServices({ db }: { db: Database }) {
 
   async function acceptEmailInvitation({
     invitationId,
+    invitationToken,
     email,
     userId,
   }: {
     invitationId?: string;
+    invitationToken?: string;
     email: string;
     userId: string;
   }) {
-    const invitation = await getPendingEmailInvitation({ invitationId, email });
+    const invitation = await getPendingEmailInvitation({ invitationId, invitationToken, email });
 
     if (invitation === null) {
       return null;
@@ -415,8 +523,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     return db.transaction(async (tx) => {
       let vaultMemberId: string | null = null;
 
-      const invitationSystemRole = invitation.systemRole ?? (invitation.type === 'admin_account' ? 'admin' : null);
-      if (invitationSystemRole === 'admin') {
+      if (invitation.type === 'platform_account' && invitation.systemRole === 'admin') {
         await tx
           .update(usersTable)
           .set({ systemRole: 'admin', updatedAt: sql`now()` })
@@ -442,42 +549,17 @@ export function createAuthorizationServices({ db }: { db: Database }) {
             vaultId: invitation.vaultId,
             userId,
             role: invitation.vaultRole,
-            aiAccessLevel: invitation.aiAccessLevel as AiAccessLevel,
           })
           .onConflictDoUpdate({
             target: [vaultMembersTable.vaultId, vaultMembersTable.userId],
             set: {
               role: invitation.vaultRole,
-              aiAccessLevel: invitation.aiAccessLevel as AiAccessLevel,
               updatedAt: sql`now()`,
             },
           })
           .returning({ id: vaultMembersTable.id });
 
         vaultMemberId = member?.id ?? null;
-      }
-
-      const vaultMemberships = getInvitationVaultMemberships(invitation.payload);
-      for (const membership of vaultMemberships) {
-        const [member] = await tx
-          .insert(vaultMembersTable)
-          .values({
-            vaultId: membership.vaultId,
-            userId,
-            role: membership.role,
-            aiAccessLevel: membership.aiAccessLevel,
-          })
-          .onConflictDoUpdate({
-            target: [vaultMembersTable.vaultId, vaultMembersTable.userId],
-            set: {
-              role: membership.role,
-              aiAccessLevel: membership.aiAccessLevel,
-              updatedAt: sql`now()`,
-            },
-          })
-          .returning({ id: vaultMembersTable.id });
-
-        vaultMemberId ??= member?.id ?? null;
       }
 
       const [accepted] = await tx
@@ -498,9 +580,11 @@ export function createAuthorizationServices({ db }: { db: Database }) {
 
   async function acceptEmailInvitationForRegisteredUser({
     invitationId,
+    invitationToken,
     email,
   }: {
     invitationId?: string;
+    invitationToken?: string;
     email: string;
   }) {
     const [user] = await db
@@ -513,7 +597,151 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       return null;
     }
 
-    return acceptEmailInvitation({ invitationId, email, userId: user.id });
+    return acceptEmailInvitation({ invitationId, invitationToken, email, userId: user.id });
+  }
+
+  async function getPendingPlatformInvitationByToken({ token }: { token: string }) {
+    const tokenHash = hashEmailInvitationToken(token);
+    await db
+      .update(emailInvitationsTable)
+      .set({ status: 'expired', updatedAt: sql`now()` })
+      .where(and(
+        eq(emailInvitationsTable.tokenHash, tokenHash),
+        eq(emailInvitationsTable.type, 'platform_account'),
+        eq(emailInvitationsTable.status, 'pending'),
+        sql`${emailInvitationsTable.expiresAt} IS NOT NULL`,
+        sql`${emailInvitationsTable.expiresAt} <= now()`,
+      ));
+
+    const [invitation] = await db
+      .select()
+      .from(emailInvitationsTable)
+      .where(and(
+        eq(emailInvitationsTable.tokenHash, tokenHash),
+        eq(emailInvitationsTable.type, 'platform_account'),
+        eq(emailInvitationsTable.status, 'pending'),
+      ))
+      .limit(1);
+
+    return invitation ?? null;
+  }
+
+  async function updateEmailInvitationToken({
+    invitationId,
+    tokenHash,
+  }: {
+    invitationId: string;
+    tokenHash: string;
+  }) {
+    const [invitation] = await db
+      .update(emailInvitationsTable)
+      .set({ tokenHash, updatedAt: sql`now()` })
+      .where(and(
+        eq(emailInvitationsTable.id, invitationId),
+        eq(emailInvitationsTable.type, 'platform_account'),
+        eq(emailInvitationsTable.status, 'pending'),
+      ))
+      .returning();
+
+    return invitation ?? null;
+  }
+
+  async function revokeEmailInvitation({ invitationId }: { invitationId: string }) {
+    const [invitation] = await db
+      .update(emailInvitationsTable)
+      .set({ status: 'revoked', tokenHash: null, updatedAt: sql`now()` })
+      .where(and(
+        eq(emailInvitationsTable.id, invitationId),
+        eq(emailInvitationsTable.type, 'platform_account'),
+        eq(emailInvitationsTable.status, 'pending'),
+      ))
+      .returning();
+
+    return invitation ?? null;
+  }
+
+  async function acceptPlatformInvitationWithPassword({
+    token,
+    name,
+    passwordHash,
+  }: {
+    token: string;
+    name: string;
+    passwordHash: string;
+  }) {
+    const invitation = await getPendingPlatformInvitationByToken({ token });
+
+    if (invitation === null) {
+      return null;
+    }
+
+    if (await getUserByEmail({ email: invitation.email })) {
+      throw new Error('authorization.invitation_user_exists');
+    }
+
+    const systemCapabilities = getInvitationSystemCapabilities(invitation.payload);
+
+    return db.transaction(async (tx) => {
+      const [user] = await tx
+        .insert(usersTable)
+        .values({
+          email: invitation.email,
+          emailVerified: true,
+          name,
+          systemRole: invitation.systemRole ?? 'member',
+        })
+        .returning({
+          id: usersTable.id,
+          email: usersTable.email,
+          name: usersTable.name,
+          emailVerified: usersTable.emailVerified,
+          systemRole: usersTable.systemRole,
+          createdAt: usersTable.createdAt,
+          updatedAt: usersTable.updatedAt,
+        });
+
+      if (user === undefined) {
+        throw new Error('authorization.invitation_user_create_failed');
+      }
+
+      await tx
+        .insert(authAccountsTable)
+        .values({
+          id: generateId({ prefix: 'acc' }),
+          userId: user.id,
+          accountId: user.id,
+          providerId: 'credential',
+          password: passwordHash,
+        });
+
+      if (systemCapabilities.length > 0) {
+        await tx
+          .insert(systemCapabilitiesTable)
+          .values(systemCapabilities.map(capability => ({
+            userId: user.id,
+            capability,
+            createdBy: invitation.invitedBy,
+          })))
+          .onConflictDoNothing();
+      }
+
+      const [accepted] = await tx
+        .update(emailInvitationsTable)
+        .set({
+          status: 'accepted',
+          acceptedBy: user.id,
+          acceptedAt: sql`now()`,
+          tokenHash: null,
+          updatedAt: sql`now()`,
+        })
+        .where(eq(emailInvitationsTable.id, invitation.id))
+        .returning();
+
+      return {
+        invitation: accepted ?? invitation,
+        user,
+      };
+    });
   }
 
   async function getVaultAuthorizationState({
@@ -533,7 +761,6 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       .select({
         vaultId: vaultsTable.id,
         role: vaultMembersTable.role,
-        aiAccessLevel: vaultMembersTable.aiAccessLevel,
       })
       .from(vaultsTable)
       .leftJoin(
@@ -548,7 +775,6 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     }
 
     const role = member.role as VaultRole | null;
-    const aiAccessLevel = (member.aiAccessLevel ?? 'none') as AiAccessLevel;
 
     if (!userState.isAdmin && role === null) {
       return null;
@@ -559,38 +785,12 @@ export function createAuthorizationServices({ db }: { db: Database }) {
       vaultId,
       isAdmin: userState.isAdmin,
       role,
-      aiAccessLevel,
       isMember: role !== null,
-      accessMode: role !== null ? 'member' : 'admin',
     };
-  }
-
-  function canAdministrativelyViewVault(state: VaultAuthorizationState | null) {
-    return state !== null && (state.isAdmin || canVaultRoleRead(state.role));
-  }
-
-  function canParticipateInVault(state: VaultAuthorizationState | null) {
-    return state !== null && state.role !== null;
-  }
-
-  function canAccessVault(state: VaultAuthorizationState | null) {
-    return canAdministrativelyViewVault(state);
   }
 
   function canReadVault(state: VaultAuthorizationState | null) {
     return state !== null && canVaultRoleRead(state.role);
-  }
-
-  function canManageVault(state: VaultAuthorizationState | null) {
-    return state !== null && state.role === 'owner';
-  }
-
-  function canManageVaultMembers(state: VaultAuthorizationState | null) {
-    return state !== null && canVaultRoleManageMembers(state.role);
-  }
-
-  function canMutateVaultDocuments(state: VaultAuthorizationState | null) {
-    return state !== null && canVaultRoleMutateDocuments(state.role);
   }
 
   async function canCreateVault({ userId }: { userId: string }) {
@@ -598,78 +798,26 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     return state?.disabledAt === null && state.canCreateVault;
   }
 
-  function canUseDocumentChat(state: VaultAuthorizationState | null) {
-    return state !== null && canUseDocumentChatLevel(state.aiAccessLevel);
-  }
-
-  async function getReadableVaultIdsForUser({ userId }: { userId: string }) {
+  async function canUseAI({ userId }: { userId: string }) {
     const state = await getUserAuthorizationState({ userId });
-
-    if (state === null || state.disabledAt !== null) {
-      return [];
-    }
-
-    const rows = await db
-      .select({ id: vaultMembersTable.vaultId })
-      .from(vaultMembersTable)
-      .innerJoin(vaultsTable, eq(vaultMembersTable.vaultId, vaultsTable.id))
-      .where(and(eq(vaultMembersTable.userId, userId), isNull(vaultsTable.deletedAt)));
-
-    return rows.map(row => row.id);
-  }
-
-  async function getAiAuthorizedVaultIdsForUser({ userId }: { userId: string }) {
-    const state = await getUserAuthorizationState({ userId });
-
-    if (state === null || state.disabledAt !== null) {
-      return [];
-    }
-
-    const rows = await db
-      .select({ id: vaultMembersTable.vaultId })
-      .from(vaultMembersTable)
-      .innerJoin(vaultsTable, eq(vaultMembersTable.vaultId, vaultsTable.id))
-      .where(
-        and(
-          eq(vaultMembersTable.userId, userId),
-          eq(vaultMembersTable.aiAccessLevel, 'full'),
-          isNull(vaultsTable.deletedAt),
-        ),
-      );
-
-    return rows.map(row => row.id);
-  }
-
-  async function canUseGlobalChat({ userId }: { userId: string }) {
-    const vaultIds = await getAiAuthorizedVaultIdsForUser({ userId });
-    return vaultIds.length > 0;
-  }
-
-  function canUseSemanticRetrieval(state: VaultAuthorizationState | null) {
-    return state !== null && canUseSemanticRetrievalLevel(state.aiAccessLevel);
+    return state?.disabledAt === null && state.canUseAI;
   }
 
   return {
-    canAdministrativelyViewVault,
-    canAccessVault,
     canCreateVault,
-    canManageVault,
-    canManageVaultMembers,
-    canMutateVaultDocuments,
-    canParticipateInVault,
+    canUseAI,
     canReadVault,
-    canUseDocumentChat,
-    canUseGlobalChat,
-    canUseSemanticRetrieval,
     countActiveAdmins,
     acceptEmailInvitation,
     acceptEmailInvitationForRegisteredUser,
+    acceptPlatformInvitationWithPassword,
     createEmailInvitation,
     ensureBootstrapAdmin,
-    getAiAuthorizedVaultIdsForUser,
-    getAiAccessRank,
+    expirePendingEmailInvitations,
     getPendingEmailInvitation,
-    getReadableVaultIdsForUser,
+    getPendingEmailInvitationForInvite,
+    getPendingPlatformInvitationByToken,
+    getUserByEmail,
     getUserAuthorizationState,
     getUserWithAuthorization,
     getVaultAuthorizationState,
@@ -677,10 +825,13 @@ export function createAuthorizationServices({ db }: { db: Database }) {
     grantSystemCapability,
     hasAnyUsers,
     listSystemCapabilitiesForUser,
+    listEmailInvitations,
     listUsers,
     revokeAdmin,
+    revokeEmailInvitation,
     revokeSystemCapability,
     setUserDisabled,
+    updateEmailInvitationToken,
     ...permissionRequestServices,
   };
 }

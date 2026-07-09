@@ -1,0 +1,1 @@
+CREATE INDEX "chat_conversations_user_updated_created_id_idx" ON "chat_conversations" USING btree ("user_id","updated_at" DESC NULLS LAST,"created_at" DESC NULLS LAST,"id" DESC NULLS LAST) WHERE "chat_conversations"."deleted_at" IS NULL;

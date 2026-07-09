@@ -363,6 +363,30 @@ describe('document search services', () => {
     expect(result.citations).toEqual([]);
   });
 
+  it('includes active folder names in hybrid citation metadata matching', async () => {
+    const execute = vi.fn(async () => ({ rows: [] }));
+    const searchServices = createDocumentSearchServices({
+      db: { execute } as any,
+    });
+
+    await searchServices.searchHybrid({
+      vaultId: 'vlt_1',
+      query: 'tax return filings',
+      limit: 5,
+      mode: 'fts',
+    });
+
+    const combinedQueryText = (execute.mock.calls as unknown as any[][])
+      .map((call) => flattenSqlChunks(call[0]?.queryChunks ?? []))
+      .join('\n');
+
+    expect(combinedQueryText).toContain('title_first_chunks');
+    expect(combinedQueryText).toContain('LEFT JOIN vault_folders AS folder');
+    expect(combinedQueryText).toContain('folder.id = d.folder_id');
+    expect(combinedQueryText).toContain('folder.is_deleted = false');
+    expect(combinedQueryText).toContain("lower(COALESCE(folder.name, '')) LIKE");
+  });
+
   it('diversifies duplicate table/page representations from the same source region by score first', async () => {
     const execute = vi.fn(async () => ({
       rows: [

@@ -1,8 +1,8 @@
 {
 	"name": "@arkivra/website",
 	"type": "module",
-	"version": "0.0.1",
-	"description": "Website for Arkivra, an open-source document management system for vaults, search, and optional AI-assisted workflows",
+	"version": "0.1.0",
+	"description": "Marketing website for Arkivra, an open-source self-hostable document management system.",
 	"engines": {
 		"node": ">=22.12.0",
 		"pnpm": ">=9"
@@ -20,23 +20,14 @@
 		"test:fast": "pnpm run check"
 	},
 	"dependencies": {
-		"@astrojs/mdx": "^6.0.1",
-		"@astrojs/rss": "^4.0.18",
-		"@astrojs/sitemap": "^3.7.3",
 		"@lucide/astro": "^1.17.0",
 		"@tailwindcss/vite": "^4.1.14",
-		"aos": "^2.3.4",
-		"motion": "^12.23.24",
-		"sharp": "^0.34.4"
+		"tailwindcss": "^4.1.14"
 	},
 	"devDependencies": {
 		"@astrojs/check": "^0.9.9",
 		"@biomejs/biome": "1.7.3",
-		"@tailwindcss/typography": "^0.5.13",
 		"astro": "^6.4.2",
-		"postcss": "^8.4.31",
-		"tailwindcss": "^4.1.14",
-		"typescript": "^5.4.5",
-		"vite": "^7.3.3"
+		"typescript": "^5.4.5"
 	}
 }

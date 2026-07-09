@@ -41,10 +41,8 @@ describe('documents integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: null,
-      aiAccessLevel: 'none',
       isAdmin: true,
       isMember: false,
-      accessMode: 'admin',
     }));
 
     const app = createTestApp({ docServices, vaultServices });
@@ -67,7 +65,6 @@ describe('documents integration', () => {
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
       deletedAt: null,
       role: 'viewer',
-      aiAccessLevel: 'none',
       isAdmin: false,
     }));
 
@@ -116,7 +113,6 @@ describe('documents integration', () => {
         updatedAt: new Date('2025-01-01T00:00:00.000Z'),
         deletedAt: null,
         role: 'owner',
-        aiAccessLevel: 'none',
         isAdmin: false,
       },
       {
@@ -126,7 +122,6 @@ describe('documents integration', () => {
         updatedAt: new Date('2025-01-01T00:00:00.000Z'),
         deletedAt: null,
         role: 'viewer',
-        aiAccessLevel: 'none',
         isAdmin: false,
       },
     ]);
@@ -157,7 +152,6 @@ describe('documents integration', () => {
         updatedAt: new Date('2025-01-01T00:00:00.000Z'),
         deletedAt: null,
         role: 'owner',
-        aiAccessLevel: 'none',
         isAdmin: false,
       },
       {
@@ -167,7 +161,6 @@ describe('documents integration', () => {
         updatedAt: new Date('2025-01-01T00:00:00.000Z'),
         deletedAt: null,
         role: 'viewer',
-        aiAccessLevel: 'none',
         isAdmin: false,
       },
     ]);

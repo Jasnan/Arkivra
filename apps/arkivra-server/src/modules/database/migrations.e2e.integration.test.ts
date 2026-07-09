@@ -1202,7 +1202,7 @@ describe.sequential('migrations smoke', () => {
     );
   });
 
-  test('baseline keeps date format optional and excludes manual timezone', async () => {
+  test('baseline stores UI preferences as appearance and regional JSON columns', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -1218,41 +1218,49 @@ describe.sequential('migrations smoke', () => {
         FROM information_schema.columns
         WHERE table_schema = 'public'
           AND table_name = 'user_ui_preferences'
-          AND column_name IN ('language', 'timezone', 'date_format')
+          AND column_name IN (
+            'appearance_preferences',
+            'regional_preferences',
+            'accent_color',
+            'date_format',
+            'default_chat_answer_mode',
+            'default_file_browser_view',
+            'density',
+            'font_family',
+            'font_size',
+            'language',
+            'radius',
+            'show_extracted_text_tab',
+            'theme_mode',
+            'timezone'
+          )
       `,
     );
 
     const byName = Object.fromEntries(rows.map((row) => [row.column_name, row]));
 
-    expect(byName.language?.data_type).toBe('text');
-    expect(byName.language?.is_nullable).toBe('NO');
-    expect(byName.language?.column_default).toContain("'en'");
+    expect(byName.appearance_preferences?.data_type).toBe('jsonb');
+    expect(byName.appearance_preferences?.is_nullable).toBe('NO');
+    expect(byName.appearance_preferences?.column_default).toContain('themeMode');
+    expect(byName.regional_preferences?.data_type).toBe('jsonb');
+    expect(byName.regional_preferences?.is_nullable).toBe('NO');
+    expect(byName.regional_preferences?.column_default).toContain('language');
 
+    expect(byName.accent_color).toBeUndefined();
+    expect(byName.date_format).toBeUndefined();
+    expect(byName.default_chat_answer_mode).toBeUndefined();
+    expect(byName.default_file_browser_view).toBeUndefined();
+    expect(byName.density).toBeUndefined();
+    expect(byName.font_family).toBeUndefined();
+    expect(byName.font_size).toBeUndefined();
+    expect(byName.language).toBeUndefined();
+    expect(byName.radius).toBeUndefined();
+    expect(byName.show_extracted_text_tab).toBeUndefined();
+    expect(byName.theme_mode).toBeUndefined();
     expect(byName.timezone).toBeUndefined();
-    expect(byName.date_format?.data_type).toBe('text');
-    expect(byName.date_format?.is_nullable).toBe('YES');
-    expect(byName.date_format?.column_default).toBeNull();
   });
 
-  test('baseline excludes persisted theme mode from user UI preferences', async () => {
-    if (pool === null) {
-      throw new Error('Migration smoke pool not initialised');
-    }
-
-    const { rows } = await pool.query<{ column_name: string }>(
-      `
-        SELECT column_name
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-          AND table_name = 'user_ui_preferences'
-          AND column_name = 'theme_mode'
-      `,
-    );
-
-    expect(rows).toEqual([]);
-  });
-
-  test('baseline includes admin, capability, vault role, and AI access schema', async () => {
+  test('baseline includes platform privileges and vault role schema', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -1271,7 +1279,7 @@ describe.sequential('migrations smoke', () => {
           AND (
             (table_name = 'users' AND column_name = 'system_role')
             OR (table_name = 'vaults' AND column_name = 'created_by')
-            OR (table_name = 'vault_members' AND column_name IN ('role', 'ai_access_level'))
+            OR (table_name = 'vault_members' AND column_name = 'role')
             OR table_name IN ('system_capabilities', 'permission_requests', 'email_invitations')
           )
       `,
@@ -1286,16 +1294,12 @@ describe.sequential('migrations smoke', () => {
     expect(byKey['users.system_role']?.column_default).toContain("'member'");
 
     expect(byKey['vaults.created_by']?.data_type).toBe('text');
-    expect(byKey['vault_members.ai_access_level']?.data_type).toBe('text');
-    expect(byKey['vault_members.ai_access_level']?.is_nullable).toBe('NO');
-    expect(byKey['vault_members.ai_access_level']?.column_default).toContain("'none'");
 
     expect(byKey['system_capabilities.user_id']?.is_nullable).toBe('NO');
     expect(byKey['system_capabilities.capability']?.is_nullable).toBe('NO');
     expect(byKey['permission_requests.type']?.is_nullable).toBe('NO');
     expect(byKey['permission_requests.status']?.column_default).toContain("'pending'");
     expect(byKey['email_invitations.type']?.is_nullable).toBe('NO');
-    expect(byKey['email_invitations.ai_access_level']?.column_default).toContain("'none'");
 
     const { rows: tableRows } = await pool.query<{ table_name: string }>(
       `

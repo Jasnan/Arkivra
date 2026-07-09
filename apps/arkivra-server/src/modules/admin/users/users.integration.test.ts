@@ -82,9 +82,9 @@ function createTestApp({
     context.set('systemCapabilities', []);
     context.set('isAdmin', isAdmin);
     context.set('canCreateVault', false);
+    context.set('canUseAI', isAdmin);
     context.set('vaultId', null);
     context.set('vaultRole', null);
-    context.set('vaultAiAccessLevel', 'none');
     await next();
   });
 

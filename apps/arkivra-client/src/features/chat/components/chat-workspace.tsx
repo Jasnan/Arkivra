@@ -106,6 +106,7 @@ export function ChatWorkspace({
   const [localRuntimeMessagesByChatId, setLocalRuntimeMessagesByChatId] = useState<
     Record<string, ChatMessage[]>
   >({});
+  const [optimisticSubmitMessages, setOptimisticSubmitMessages] = useState<ChatMessage[]>([]);
   const [isMobileConversationRailOpen, setIsMobileConversationRailOpen] = useState(false);
   const [isVaultDialogOpen, setIsVaultDialogOpen] = useState(false);
   const [isDocumentDialogOpen, setIsDocumentDialogOpen] = useState(false);
@@ -116,10 +117,6 @@ export function ChatWorkspace({
   const hasManualResponseModeRef = useRef(false);
   const previousSelectedConversationIdRef = useRef(selectedConversationId);
   const activeRuntimeChatIdRef = useRef('');
-  const isStreaming =
-    runtimeState.status === 'submitted' ||
-    runtimeState.status === 'streaming' ||
-    hasPendingAssistantMessage(runtimeState.messages);
   const isDraftConversation = selectedChatId === NEW_CHAT_DRAFT_ID;
   const effectiveSelectedChatId = isDraftConversation ? '' : selectedChatId;
   const selectedLocalRuntimeMessages = effectiveSelectedChatId
@@ -128,6 +125,15 @@ export function ChatWorkspace({
   const selectedHasPendingLocalMessages = hasPendingAssistantMessage(
     selectedLocalRuntimeMessages ?? [],
   );
+  const optimisticMessagesForDisplay = runtimeState.messages.length > 0
+    ? []
+    : optimisticSubmitMessages;
+  const isStreaming =
+    runtimeState.status === 'submitted' ||
+    runtimeState.status === 'streaming' ||
+    hasPendingAssistantMessage(runtimeState.messages) ||
+    selectedHasPendingLocalMessages ||
+    hasPendingAssistantMessage(optimisticSubmitMessages);
   const selectedChatQuery = useChatConversationQuery({
     chatId: effectiveSelectedChatId,
     refetchInterval: (query) => {
@@ -203,21 +209,30 @@ export function ChatWorkspace({
   ]);
   const isActiveGlobalChat = !activeVaultId;
   const experience = getChatExperienceConfig({ scope: activeScope, documentName });
-  const vaultAiAccessLevel = activeVaultId ? vaultQuery.data?.vault.aiAccessLevel : undefined;
-  const aiAccessByVaultId = useMemo(() => {
-    const accessByVaultId = new Map<string, 'none' | 'full'>();
+  const activeVault = vaultQuery.data?.vault;
+  const chatAccessByVaultId = useMemo(() => {
+    const accessByVaultId = new Map<string, boolean>();
     for (const vault of vaultsQuery.data?.vaults ?? []) {
-      accessByVaultId.set(vault.id, vault.aiAccessLevel);
+      accessByVaultId.set(
+        vault.id,
+        vault.aiAccessLevel === 'full' || vault.isAdmin === true || vault.accessMode === 'admin',
+      );
     }
 
-    if (activeVaultId && vaultAiAccessLevel) {
-      accessByVaultId.set(activeVaultId, vaultAiAccessLevel);
+    if (activeVaultId && activeVault) {
+      accessByVaultId.set(
+        activeVaultId,
+        activeVault.aiAccessLevel === 'full' ||
+          activeVault.isAdmin === true ||
+          activeVault.accessMode === 'admin',
+      );
     }
 
     return accessByVaultId;
-  }, [activeVaultId, vaultAiAccessLevel, vaultsQuery.data?.vaults]);
-  const hasFullAiVault = (vaultsQuery.data?.vaults ?? []).some(
-    (vault) => vault.aiAccessLevel === 'full',
+  }, [activeVault, activeVaultId, vaultsQuery.data?.vaults]);
+  const hasChatAccessibleVault = (vaultsQuery.data?.vaults ?? []).some(
+    (vault) =>
+      vault.aiAccessLevel === 'full' || vault.isAdmin === true || vault.accessMode === 'admin',
   );
   const isContextAccessLoading =
     vaultsQuery.isLoading || (activeVaultId ? vaultQuery.isLoading : false);
@@ -226,8 +241,8 @@ export function ChatWorkspace({
     (isContextAccessLoading ||
       canUseContextSnapshot({
         snapshot: activeContextSnapshot,
-        aiAccessByVaultId,
-        hasFullAiVault,
+        chatAccessByVaultId,
+        hasChatAccessibleVault,
       }));
   const aiAccessMessage = getContextAccessMessage(activeContextSnapshot);
   const contextUnavailableMessage = getContextUnavailableMessage(
@@ -262,7 +277,12 @@ export function ChatWorkspace({
         : persistedMessages,
     [persistedMessages, selectedLocalRuntimeMessages],
   );
-  const messages = runtimeState.messages;
+  const messages =
+    runtimeState.messages.length > 0
+      ? runtimeState.messages
+      : optimisticSubmitMessages.length > 0
+        ? optimisticSubmitMessages
+        : runtimeMessagesForSelectedChat;
   const activeConversationIntent = useMemo(() => getLatestIntent(messages), [messages]);
   const effectiveIntent = activeConversationIntent;
   const isSelectedConversationLoading =
@@ -321,6 +341,7 @@ export function ChatWorkspace({
   const resetComposerState = useCallback(() => {
     setComposerValue('');
     setRuntimeState({ messages: [], status: 'ready' });
+    setOptimisticSubmitMessages([]);
   }, []);
 
   const setLocalRuntimeMessages = useCallback(
@@ -368,6 +389,10 @@ export function ChatWorkspace({
 
       if (!targetChatId || targetChatId === effectiveSelectedChatId) {
         setRuntimeState(state);
+      }
+
+      if (state.messages.length > 0) {
+        setOptimisticSubmitMessages([]);
       }
     },
     [effectiveSelectedChatId, setLocalRuntimeMessages],
@@ -538,6 +563,35 @@ export function ChatWorkspace({
     applyContextChange(removeDocumentFromDraftContext(displayedContext, document));
   }
 
+  function showOptimisticSubmitMessages(content: string, intentOverride?: ChatIntent | null) {
+    const resolvedIntent = isActiveGlobalChat ? (intentOverride ?? effectiveIntent) : null;
+    const now = new Date().toISOString();
+    const optimisticKey = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+    setOptimisticSubmitMessages([
+      {
+        id: `optimistic_user_${optimisticKey}`,
+        role: 'user',
+        metadata: {
+          intent: resolvedIntent ?? undefined,
+          conversationId: effectiveSelectedChatId || undefined,
+          createdAt: now,
+        },
+        parts: [{ type: 'text', text: content }],
+      } as ChatMessage,
+      {
+        id: `optimistic_assistant_${optimisticKey}`,
+        role: 'assistant',
+        metadata: {
+          conversationId: effectiveSelectedChatId || undefined,
+          generationStatus: 'pending',
+          createdAt: now,
+        },
+        parts: [{ type: 'data-status', data: { label: 'generation' } }],
+      } as ChatMessage,
+    ]);
+  }
+
   function handleForkDialogOpenChange(open: boolean) {
     setIsForkDialogOpen(open);
     if (!open) {
@@ -577,11 +631,13 @@ export function ChatWorkspace({
     const resolvedIntent = isActiveGlobalChat ? (intentOverride ?? effectiveIntent) : null;
     if (runtimeHandle === null || !hasUsableChatModels) return;
     activeRuntimeChatIdRef.current = effectiveSelectedChatId;
+    showOptimisticSubmitMessages(content, intentOverride);
 
     try {
       await runtimeHandle.sendText(content, { intent: resolvedIntent });
       setComposerValue('');
     } catch (error) {
+      setOptimisticSubmitMessages([]);
       const message = error instanceof Error ? error.message : 'Could not send message.';
       toast.error(message);
     }
@@ -786,6 +842,7 @@ export function ChatWorkspace({
             <AssistantChatThread
               currentVaultId={activeVaultId}
               scope={activeScope}
+              optimisticMessages={optimisticMessagesForDisplay}
               onQuickReplySelect={
                 isActiveGlobalChat && hasUsableChatModels
                   ? (reply) => {
@@ -818,6 +875,7 @@ export function ChatWorkspace({
             onRemoveDocument={handleRemoveDocument}
             textareaRef={textareaRef}
             onDraftValueChange={setComposerValue}
+            onSubmitStart={(content) => showOptimisticSubmitMessages(content)}
           />
         </AssistantChatRuntimeProvider>
       </Box>

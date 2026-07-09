@@ -2,8 +2,11 @@ import process from 'node:process';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { loadApiEnvFiles } from '../modules/config/env-loader.js';
 
 async function runMigrations() {
+  loadApiEnvFiles();
+
   const databaseUrl =
     process.env.ARKIVRA_DATABASE_URL ?? 'postgres://arkivra:arkivra@localhost:5432/arkivra';
 

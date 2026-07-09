@@ -8,9 +8,7 @@ import { getAuditActorFromContext, getAuditRequestContext } from '../audit/audit
 type VaultAuthorizationPredicate = (args: {
   isAdmin: boolean;
   role: VaultRole | null;
-  aiAccessLevel: 'none' | 'full';
   isMember: boolean;
-  accessMode: 'member' | 'admin' | null;
 }) => boolean;
 
 function forbidden(context: Parameters<Parameters<typeof createMiddleware>[0]>[0]) {
@@ -50,11 +48,9 @@ function requireVaultAuthorization(
   return createMiddleware(async (context, next) => {
     const isAdmin = context.get('isAdmin');
     const role = context.get('vaultRole');
-    const aiAccessLevel = context.get('vaultAiAccessLevel');
     const isMember = context.get('vaultIsMember');
-    const accessMode = context.get('vaultAccessMode');
 
-    if (!predicate({ isAdmin, role, aiAccessLevel, isMember, accessMode })) {
+    if (!predicate({ isAdmin, role, isMember })) {
       const action = getDocumentAccessDeniedAction(context.req.method, context.req.path);
       const vaultId = context.get('vaultId') ?? context.req.param('vaultId') ?? null;
       const documentId = context.req.param('documentId') || null;
@@ -130,9 +126,10 @@ export function requireVaultAccess({
     if (vault === null) {
       const documentId = context.req.param('documentId') || null;
       await auditServices?.emitAuditEvent({
-        eventType: documentId === null
-          ? AUDIT_EVENT_TYPES.vaultAccessDenied
-          : AUDIT_EVENT_TYPES.documentAccessDenied,
+        eventType:
+          documentId === null
+            ? AUDIT_EVENT_TYPES.vaultAccessDenied
+            : AUDIT_EVENT_TYPES.documentAccessDenied,
         eventCategory: 'permission',
         outcome: 'denied',
         actor: getAuditActorFromContext(context),
@@ -144,7 +141,12 @@ export function requireVaultAccess({
         },
         source: 'web',
         requestContext: getAuditRequestContext(context),
-        metadata: { action: documentId === null ? 'access' : getDocumentAccessDeniedAction(context.req.method, context.req.path) ?? 'access' },
+        metadata: {
+          action:
+            documentId === null
+              ? 'access'
+              : (getDocumentAccessDeniedAction(context.req.method, context.req.path) ?? 'access'),
+        },
       });
 
       return context.json(
@@ -160,61 +162,32 @@ export function requireVaultAccess({
 
     context.set('vaultId', vaultId);
     context.set('vaultRole', vault.role);
-    context.set('vaultAiAccessLevel', vault.aiAccessLevel);
     context.set('vaultIsMember', vault.isMember);
-    context.set('vaultAccessMode', vault.accessMode);
     context.set('isAdmin', vault.isAdmin || context.get('isAdmin'));
 
     await next();
   });
 }
 
-export function requireVaultRole(...roles: VaultRole[]) {
-  return createMiddleware(async (context, next) => {
-    const vaultRole = context.get('vaultRole');
-
-    if (vaultRole === null || !roles.includes(vaultRole)) {
-      return context.json(
-        {
-          error: {
-            code: 'vault.forbidden',
-            message: 'Forbidden',
-          },
-        },
-        403,
-      );
-    }
-
-    await next();
-  });
-}
-
 export function requireCanReadVault(options: { auditServices?: AuditServices } = {}) {
-  return requireVaultAuthorization(({ role }) => canReadRole(role), options);
+  return requireVaultAuthorization(({ isAdmin, role }) => isAdmin || canReadRole(role), options);
 }
 
 export function requireCanViewVaultManagement() {
-  return requireVaultAuthorization(({ isAdmin, role, accessMode }) =>
-    role === 'owner' || isAdmin || accessMode === 'admin',
-  );
+  return requireVaultAuthorization(({ isAdmin, role }) => role === 'owner' || isAdmin);
 }
 
 export function requireCanMutateVaultDocuments(options: { auditServices?: AuditServices } = {}) {
-  return requireVaultAuthorization(({ role }) => canMutateDocumentsRole(role), options);
+  return requireVaultAuthorization(
+    ({ isAdmin, role }) => isAdmin || canMutateDocumentsRole(role),
+    options,
+  );
 }
 
 export function requireCanManageVaultMembers() {
-  return requireVaultAuthorization(({ role }) => role === 'owner');
+  return requireVaultAuthorization(({ isAdmin, role }) => isAdmin || role === 'owner');
 }
 
 export function requireCanManageVault() {
-  return requireVaultAuthorization(({ role }) => role === 'owner');
-}
-
-export function requireCanUseDocumentChat() {
-  return requireVaultAuthorization(({ aiAccessLevel }) => aiAccessLevel === 'full');
-}
-
-export function requireCanUseSemanticRetrieval() {
-  return requireVaultAuthorization(({ aiAccessLevel }) => aiAccessLevel === 'full');
+  return requireVaultAuthorization(({ isAdmin, role }) => isAdmin || role === 'owner');
 }

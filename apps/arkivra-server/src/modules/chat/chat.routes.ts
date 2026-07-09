@@ -10,17 +10,75 @@ import {
   getUserId,
   hasUnsupportedDocumentVersionContext,
   isDeletedSourceResolution,
+  parseIncludeCitations,
   parseIntent,
   parseMessages,
   parseModel,
   parseRequestedContext,
   parseResponseMode,
-  parseTitle,
   resolveCreatableContext,
   resolveUsableContext,
   routeError,
   SOURCE_DOCUMENT_DELETED_CONTEXT,
 } from './chat.route-helpers.js';
+import type { ChatContextSnapshot, ChatMessage } from './chat.types.js';
+import {
+  createChatResumableStreamId,
+  createResumableChatResponse,
+  createResumeChatResponse,
+} from './chat.resumable-streams.js';
+
+function getSubmittedUserMessageContextSnapshot(messages: ChatMessage[]): ChatContextSnapshot | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role !== 'user') continue;
+    const metadata = message.metadata as Record<string, unknown> | undefined;
+    const custom = metadata?.custom;
+    if (custom !== null && typeof custom === 'object' && !Array.isArray(custom)) {
+      const snapshot = (custom as { contextSnapshot?: unknown }).contextSnapshot;
+      if (snapshot !== null && typeof snapshot === 'object' && !Array.isArray(snapshot)) {
+        return snapshot as ChatContextSnapshot;
+      }
+    }
+
+    return null;
+  }
+
+  return null;
+}
+
+function hasRequestContextInput(body: Record<string, unknown>) {
+  return (
+    body.contextSnapshot !== undefined ||
+    body.context !== undefined ||
+    body.type === 'global' ||
+    body.type === 'selection' ||
+    body.type === 'vault' ||
+    body.type === 'document' ||
+    typeof body.vaultId === 'string' ||
+    typeof body.documentId === 'string' ||
+    Array.isArray(body.vaultIds) ||
+    Array.isArray(body.vaults) ||
+    Array.isArray(body.documents)
+  );
+}
+
+function getMessageContextInput(messages: ChatMessage[]) {
+  const messageContextSnapshot = getSubmittedUserMessageContextSnapshot(messages);
+  return messageContextSnapshot === null ? null : { contextSnapshot: messageContextSnapshot };
+}
+
+function getRequestedContextInput({
+  body,
+  messages,
+}: {
+  body: Record<string, unknown>;
+  messages: ChatMessage[];
+}) {
+  if (hasRequestContextInput(body)) return body;
+
+  return getMessageContextInput(messages) ?? body;
+}
 
 export function registerChatRoutes({
   app,
@@ -83,15 +141,6 @@ export function registerChatRoutes({
     }
 
     const body = (await context.req.json().catch(() => ({}))) as Record<string, unknown>;
-    const title = parseTitle(body.title);
-
-    if (title === null) {
-      return routeError(context, {
-        status: 400,
-        code: 'chat.invalid_title',
-        message: 'title must be a string',
-      });
-    }
 
     if (hasUnsupportedDocumentVersionContext(body)) {
       return routeError(context, {
@@ -112,10 +161,302 @@ export function registerChatRoutes({
       return routeError(context, resolved);
     }
 
-    return context.json(
-      await services.createConversation({ scope: resolved.scope, userId, title }),
-      201,
+    const title = typeof body.title === 'string' ? body.title : undefined;
+    const conversation = await services.createConversation({
+      userId,
+      scope: resolved.scope,
+      ...(title !== undefined ? { title } : {}),
+    });
+
+    return context.json({ conversation }, 201);
+  });
+
+  app.post('/api/chats/messages/stream', async (context) => {
+    const userId = getUserId(context);
+    if (userId === null) {
+      return routeError(context, {
+        status: 401,
+        code: 'auth.unauthorized',
+        message: 'Unauthorized',
+      });
+    }
+
+    const body = (await context.req.json().catch(() => null)) as Record<string, unknown> | null;
+    const rawChatId = typeof body?.chatId === 'string'
+      ? body.chatId
+      : typeof body?.id === 'string' && body.id.startsWith('cht_')
+        ? body.id
+        : undefined;
+    const chatId = typeof rawChatId === 'string' && rawChatId.trim().length > 0
+      ? rawChatId.trim()
+      : undefined;
+    const messages = parseMessages(body?.messages);
+    const content = getLatestUserMessageContent(messages);
+    const intent = parseIntent(body?.intent);
+    const responseMode = parseResponseMode(body?.responseMode ?? (chatId ? 'text' : undefined));
+    const config = body?.config;
+    const configModel = config !== null
+      && typeof config === 'object'
+      && !Array.isArray(config)
+      && typeof (config as { modelName?: unknown }).modelName === 'string'
+      ? (config as { modelName: string }).modelName
+      : undefined;
+    const configIncludeCitations = config !== null
+      && typeof config === 'object'
+      && !Array.isArray(config)
+      ? (config as { includeCitations?: unknown }).includeCitations
+      : undefined;
+    const model = parseModel(body?.model ?? configModel);
+    const includeCitations = parseIncludeCitations(
+      body?.includeCitations ?? configIncludeCitations,
     );
+
+    if (messages.length === 0 || content.length === 0) {
+      return routeError(context, {
+        status: 400,
+        code: 'chat.invalid_content',
+        message: 'messages must include a non-empty user text message',
+      });
+    }
+
+    if (responseMode === null) {
+      return routeError(context, {
+        status: 400,
+        code: 'chat.invalid_response_mode',
+        message: 'responseMode must be "text" or "multimodal"',
+      });
+    }
+
+    if (intent === null) {
+      return routeError(context, {
+        status: 400,
+        code: 'chat.invalid_intent',
+        message: 'intent must be "search", "summarize", "compare", or "extract"',
+      });
+    }
+
+    if (model === null) {
+      return routeError(context, {
+        status: 400,
+        code: 'chat.invalid_model',
+        message: 'model must be a non-empty string',
+      });
+    }
+
+    if (includeCitations === null) {
+      return routeError(context, {
+        status: 400,
+        code: 'chat.invalid_include_citations',
+        message: 'includeCitations must be a boolean',
+      });
+    }
+
+    if (chatId !== undefined) {
+      const conversation = await services.getConversation({ userId, chatId });
+
+      if (conversation === null) {
+        return routeError(context, {
+          status: 404,
+          code: 'chat.not_found',
+          message: 'Chat not found',
+        });
+      }
+
+      let submittedScope;
+      if (body !== null) {
+        const requestedContextInput = hasRequestContextInput(body)
+          ? body
+          : getMessageContextInput(messages) ?? (
+              conversation.messages.length === 0
+                ? getRequestedContextInput({ body, messages })
+                : null
+            );
+
+        if (requestedContextInput !== null && hasUnsupportedDocumentVersionContext(requestedContextInput)) {
+          return routeError(context, {
+            status: 400,
+            code: 'chat.invalid_context',
+            message: 'Explicit document versions are not supported in chat context yet',
+          });
+        }
+
+        if (requestedContextInput !== null) {
+          const resolvedSubmittedContext = await resolveCreatableContext({
+            context,
+            requestedContext: parseRequestedContext(requestedContextInput),
+            db,
+            vaultServices: vaultsServices,
+          });
+
+          if (!resolvedSubmittedContext.ok) {
+            return routeError(context, resolvedSubmittedContext);
+          }
+
+          submittedScope = resolvedSubmittedContext.scope;
+        }
+      }
+
+      const resolved = await resolveUsableContext({
+        context,
+        snapshot: submittedScope ?? conversation.contextSnapshot,
+        db,
+        vaultServices: vaultsServices,
+      });
+
+      if (!resolved.ok) {
+        if (
+          submittedScope === undefined &&
+          conversation.contextAvailability.readOnly &&
+          isDeletedSourceResolution(resolved)
+        ) {
+          return routeError(context, {
+            status: 409,
+            code: 'chat.context_unavailable',
+            message: conversation.contextAvailability.message,
+          });
+        }
+
+        return routeError(context, resolved);
+      }
+
+      if (submittedScope === undefined && conversation.contextAvailability.readOnly) {
+        return routeError(context, {
+          status: 409,
+          code: 'chat.context_unavailable',
+          message: conversation.contextAvailability.message,
+        });
+      }
+
+      const stream = await services.createMessageStream({
+        userId,
+        chatId,
+        ...(submittedScope !== undefined ? { scope: submittedScope } : {}),
+        messages,
+        intent,
+        responseMode,
+        includeCitations,
+        model,
+      });
+
+      if (stream === null) {
+        return routeError(context, {
+          status: 404,
+          code: 'chat.not_found',
+          message: 'Chat not found',
+        });
+      }
+
+      return createResumableChatResponse({
+        response: stream,
+        streamId: createChatResumableStreamId({ userId, chatId }),
+      });
+    }
+
+    if (body === null) {
+      return routeError(context, {
+        status: 400,
+        code: 'chat.invalid_context',
+        message: 'Explicit document versions are not supported in chat context yet',
+      });
+    }
+
+    const requestedContextInput = getRequestedContextInput({ body, messages });
+
+    if (hasUnsupportedDocumentVersionContext(requestedContextInput)) {
+      return routeError(context, {
+        status: 400,
+        code: 'chat.invalid_context',
+        message: 'Explicit document versions are not supported in chat context yet',
+      });
+    }
+
+    const resolved = await resolveCreatableContext({
+      context,
+      requestedContext: parseRequestedContext(requestedContextInput),
+      db,
+      vaultServices: vaultsServices,
+    });
+
+    if (!resolved.ok) {
+      return routeError(context, resolved);
+    }
+
+    const stream = await services.createMessageStream({
+      userId,
+      scope: resolved.scope,
+      messages,
+      intent,
+      responseMode,
+      includeCitations,
+      model,
+    });
+
+    if (stream === null) {
+      return routeError(context, {
+        status: 404,
+        code: 'chat.not_found',
+        message: 'Chat not found',
+      });
+    }
+
+    return createResumableChatResponse({
+      response: stream,
+      streamId: createChatResumableStreamId({ userId }),
+    });
+  });
+
+  app.get('/api/chats/messages/stream/:streamId', async (context) => {
+    const userId = getUserId(context);
+    if (userId === null) {
+      return routeError(context, {
+        status: 401,
+        code: 'auth.unauthorized',
+        message: 'Unauthorized',
+      });
+    }
+
+    return createResumeChatResponse({
+      streamId: context.req.param('streamId'),
+      userId,
+    });
+  });
+
+  app.patch('/api/chats/:chatId', async (context) => {
+    const userId = getUserId(context);
+    if (userId === null) {
+      return routeError(context, {
+        status: 401,
+        code: 'auth.unauthorized',
+        message: 'Unauthorized',
+      });
+    }
+
+    const body = (await context.req.json().catch(() => null)) as Record<string, unknown> | null;
+    const title = typeof body?.title === 'string' ? body.title : null;
+
+    if (title === null) {
+      return routeError(context, {
+        status: 400,
+        code: 'chat.invalid_content',
+        message: 'title must be a string',
+      });
+    }
+
+    const conversation = await services.renameConversation({
+      userId,
+      chatId: context.req.param('chatId'),
+      title,
+    });
+
+    if (conversation === null) {
+      return routeError(context, {
+        status: 404,
+        code: 'chat.not_found',
+        message: 'Chat not found',
+      });
+    }
+
+    return context.json({ conversation });
   });
 
   app.get('/api/chats/:chatId', async (context) => {
@@ -164,61 +505,6 @@ export function registerChatRoutes({
     return context.json({ conversation });
   });
 
-  app.patch('/api/chats/:chatId/context', async (context) => {
-    const userId = getUserId(context);
-    if (userId === null) {
-      return routeError(context, {
-        status: 401,
-        code: 'auth.unauthorized',
-        message: 'Unauthorized',
-      });
-    }
-
-    const body = (await context.req.json().catch(() => ({}))) as Record<string, unknown>;
-    if (hasUnsupportedDocumentVersionContext(body)) {
-      return routeError(context, {
-        status: 400,
-        code: 'chat.invalid_context',
-        message: 'Explicit document versions are not supported in chat context yet',
-      });
-    }
-
-    const resolved = await resolveCreatableContext({
-      context,
-      requestedContext: parseRequestedContext(body),
-      db,
-      vaultServices: vaultsServices,
-    });
-
-    if (!resolved.ok) {
-      return routeError(context, resolved);
-    }
-
-    const result = await services.updatePristineConversationContext({
-      userId,
-      chatId: context.req.param('chatId'),
-      scope: resolved.scope,
-    });
-
-    if (result.status === 'not_found') {
-      return routeError(context, {
-        status: 404,
-        code: 'chat.not_found',
-        message: 'Chat not found',
-      });
-    }
-
-    if (result.status === 'not_pristine') {
-      return routeError(context, {
-        status: 409,
-        code: 'chat.not_pristine',
-        message: 'Conversation context can only be changed before the first message.',
-      });
-    }
-
-    return context.json({ conversation: result.conversation });
-  });
-
   app.delete('/api/chats/:chatId', async (context) => {
     const userId = getUserId(context);
     if (userId === null) {
@@ -226,19 +512,6 @@ export function registerChatRoutes({
         status: 401,
         code: 'auth.unauthorized',
         message: 'Unauthorized',
-      });
-    }
-
-    const conversation = await services.getConversation({
-      userId,
-      chatId: context.req.param('chatId'),
-    });
-
-    if (conversation === null) {
-      return routeError(context, {
-        status: 404,
-        code: 'chat.not_found',
-        message: 'Chat not found',
       });
     }
 
@@ -256,121 +529,5 @@ export function registerChatRoutes({
     }
 
     return new Response(null, { status: 204 });
-  });
-
-  app.post('/api/chats/:chatId/messages/stream', async (context) => {
-    const userId = getUserId(context);
-    if (userId === null) {
-      return routeError(context, {
-        status: 401,
-        code: 'auth.unauthorized',
-        message: 'Unauthorized',
-      });
-    }
-
-    const conversation = await services.getConversation({
-      userId,
-      chatId: context.req.param('chatId'),
-    });
-
-    if (conversation === null) {
-      return routeError(context, {
-        status: 404,
-        code: 'chat.not_found',
-        message: 'Chat not found',
-      });
-    }
-
-    const resolved = await resolveUsableContext({
-      context,
-      snapshot: conversation.contextSnapshot,
-      db,
-      vaultServices: vaultsServices,
-    });
-
-    const contextAvailability = conversation.contextAvailability;
-
-    if (!resolved.ok) {
-      if (contextAvailability.readOnly && isDeletedSourceResolution(resolved)) {
-        return routeError(context, {
-          status: 409,
-          code: 'chat.context_unavailable',
-          message: contextAvailability.message,
-        });
-      }
-
-      return routeError(context, resolved);
-    }
-
-    if (contextAvailability.readOnly) {
-      return routeError(context, {
-        status: 409,
-        code: 'chat.context_unavailable',
-        message: contextAvailability.message,
-      });
-    }
-
-    const body = (await context.req.json().catch(() => null)) as {
-      messages?: unknown;
-      intent?: unknown;
-      responseMode?: unknown;
-      model?: unknown;
-    } | null;
-    const messages = parseMessages(body?.messages);
-    const content = getLatestUserMessageContent(messages);
-    const intent = parseIntent(body?.intent);
-    const responseMode = parseResponseMode(body?.responseMode);
-    const model = parseModel(body?.model);
-
-    if (messages.length === 0 || content.length === 0) {
-      return routeError(context, {
-        status: 400,
-        code: 'chat.invalid_content',
-        message: 'messages must include a non-empty user text message',
-      });
-    }
-
-    if (responseMode === null) {
-      return routeError(context, {
-        status: 400,
-        code: 'chat.invalid_response_mode',
-        message: 'responseMode must be "text" or "multimodal"',
-      });
-    }
-
-    if (intent === null) {
-      return routeError(context, {
-        status: 400,
-        code: 'chat.invalid_intent',
-        message: 'intent must be "search", "summarize", "compare", or "extract"',
-      });
-    }
-
-    if (model === null) {
-      return routeError(context, {
-        status: 400,
-        code: 'chat.invalid_model',
-        message: 'model must be a non-empty string',
-      });
-    }
-
-    const stream = await services.createMessageStream({
-      userId,
-      chatId: context.req.param('chatId'),
-      messages,
-      intent,
-      responseMode,
-      model,
-    });
-
-    if (stream === null) {
-      return routeError(context, {
-        status: 404,
-        code: 'chat.not_found',
-        message: 'Chat not found',
-      });
-    }
-
-    return stream;
   });
 }

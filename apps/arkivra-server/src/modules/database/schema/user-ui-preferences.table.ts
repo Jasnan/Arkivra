@@ -1,6 +1,49 @@
-import { boolean, pgTable, text } from 'drizzle-orm/pg-core';
+import { jsonb, pgTable, text } from 'drizzle-orm/pg-core';
 import { createTimestampColumns } from './helpers.js';
 import { usersTable } from './users.table.js';
+
+export interface UserAppearancePreferencesJson {
+  themeMode: 'dark' | 'light' | 'system';
+  selectedTheme: string;
+  selectedTweakcnTheme: string;
+  selectedRadius: string;
+  brandColors: Record<string, string>;
+  sidebar: {
+    variant: 'sidebar' | 'floating' | 'inset';
+    collapsible: 'offcanvas' | 'icon' | 'none';
+    side: 'left' | 'right';
+  };
+}
+
+export interface UserRegionalPreferencesJson {
+  language: 'en';
+  dateFormat:
+    | 'DD.MM.YYYY'
+    | 'DD/MM/YYYY'
+    | 'DD-MM-YYYY'
+    | 'MM/DD/YYYY'
+    | 'YYYY-MM-DD'
+    | 'YYYY/MM/DD'
+    | null;
+}
+
+export const defaultUserAppearancePreferencesJson = {
+  themeMode: 'system',
+  selectedTheme: 'default',
+  selectedTweakcnTheme: '',
+  selectedRadius: '0.5rem',
+  brandColors: {},
+  sidebar: {
+    variant: 'inset',
+    collapsible: 'offcanvas',
+    side: 'left',
+  },
+} as const satisfies UserAppearancePreferencesJson;
+
+export const defaultUserRegionalPreferencesJson = {
+  language: 'en',
+  dateFormat: null,
+} as const satisfies UserRegionalPreferencesJson;
 
 export const userUiPreferencesTable = pgTable('user_ui_preferences', {
   userId: text('user_id')
@@ -8,18 +51,12 @@ export const userUiPreferencesTable = pgTable('user_ui_preferences', {
     .references(() => usersTable.id, { onDelete: 'cascade' }),
   ...createTimestampColumns(),
 
-  accentColor: text('accent_color', {
-    enum: ['gray', 'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'cyan', 'purple', 'pink'],
-  }).notNull().default('blue'),
-  density: text('density', { enum: ['compact', 'comfortable', 'relaxed'] }).notNull().default('comfortable'),
-  fontFamily: text('font_family', { enum: ['inter', 'sora', 'space-grotesk'] }).notNull().default('inter'),
-  fontSize: text('font_size', { enum: ['sm', 'md', 'lg', 'xl', '2xl'] }).notNull().default('md'),
-  radius: text('radius', { enum: ['none', 'sm', 'md', 'lg', 'xl'] }).notNull().default('md'),
-  language: text('language', { enum: ['en', 'de', 'fr'] }).notNull().default('en'),
-  dateFormat: text('date_format', {
-    enum: ['DD.MM.YYYY', 'DD/MM/YYYY', 'DD-MM-YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD', 'YYYY/MM/DD'],
-  }),
-  showExtractedTextTab: boolean('show_extracted_text_tab').notNull().default(false),
-  defaultFileBrowserView: text('default_file_browser_view', { enum: ['list', 'grid'] }).notNull().default('list'),
-  defaultChatAnswerMode: text('default_chat_answer_mode', { enum: ['text', 'multimodal'] }).notNull().default('text'),
+  appearancePreferences: jsonb('appearance_preferences')
+    .$type<UserAppearancePreferencesJson>()
+    .notNull()
+    .default(defaultUserAppearancePreferencesJson),
+  regionalPreferences: jsonb('regional_preferences')
+    .$type<UserRegionalPreferencesJson>()
+    .notNull()
+    .default(defaultUserRegionalPreferencesJson),
 });

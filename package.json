@@ -13,7 +13,9 @@
     "dev:worker": "pnpm --filter @arkivra/api dev:worker",
     "dev:all": "pnpm --filter @arkivra/api dev",
     "dev:web": "pnpm --filter @arkivra/web dev",
+    "dev:web:new": "pnpm --filter @arkivra/web-new dev",
     "dev:docs": "pnpm --filter @arkivra/docs dev",
+    "build:web:new": "pnpm --filter @arkivra/web-new build",
     "build": "pnpm --filter './apps/*' build",
     "commitmsg:check": "node scripts/validate-commit-message.mjs",
     "deps:audit": "pnpm audit --audit-level high",
@@ -50,6 +52,7 @@
     "overrides": {
       "@babel/core": "7.29.6",
       "brace-expansion": "5.0.6",
+      "minimatch@3.1.5>brace-expansion": "2.0.2",
       "esbuild": "0.28.1",
       "js-yaml": "4.2.0",
       "yaml": "2.9.0"

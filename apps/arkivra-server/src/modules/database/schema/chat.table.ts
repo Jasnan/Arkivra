@@ -7,6 +7,7 @@ import {
   timestamp,
   unique,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { createPrimaryKeyField, createTimestampColumns } from './helpers.js';
 import { documentChunksTable } from './document-chunks.table.js';
 import { documentsTable, documentVersionsTable } from './documents.table.js';
@@ -35,6 +36,9 @@ export const chatConversationsTable = pgTable(
     index('chat_conversations_user_id_vault_idx').on(table.userId, table.vaultId),
     index('chat_conversations_scope_user_idx').on(table.userId, table.scope, table.createdAt),
     index('chat_conversations_document_created_idx').on(table.documentId, table.createdAt),
+    index('chat_conversations_user_updated_created_id_idx')
+      .on(table.userId, table.updatedAt.desc(), table.createdAt.desc(), table.id.desc())
+      .where(sql`${table.deletedAt} IS NULL`),
   ],
 );
 

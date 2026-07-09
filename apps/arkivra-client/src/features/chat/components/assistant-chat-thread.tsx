@@ -85,10 +85,12 @@ export function AssistantChatThread({
   currentVaultId,
   scope,
   onQuickReplySelect,
+  optimisticMessages = [],
 }: {
   currentVaultId?: string;
   scope: ChatApiScope;
   onQuickReplySelect?: (reply: string) => void;
+  optimisticMessages?: ChatMessage[];
 }) {
   return (
     <AssistantChatThreadContext.Provider value={{ currentVaultId, scope, onQuickReplySelect }}>
@@ -119,6 +121,13 @@ export function AssistantChatThread({
             sm={{ px: '6' }}
           >
             <Flex direction="column" gap="4" minW="0" w="full">
+              {optimisticMessages.map((message) =>
+                message.role === 'user' ? (
+                  <DirectUserMessage key={message.id} message={message} />
+                ) : message.role === 'assistant' ? (
+                  <DirectAssistantMessage key={message.id} message={message} scope={scope} />
+                ) : null,
+              )}
               <ThreadPrimitive.Messages
                 components={{
                   UserMessage: AssistantUserMessage,
@@ -155,6 +164,50 @@ export function AssistantChatThread({
         </Box>
       </ThreadRoot>
     </AssistantChatThreadContext.Provider>
+  );
+}
+
+function DirectUserMessage({ message }: { message: ChatMessage }) {
+  const metadata = getMessageMetadata(message);
+
+  return (
+    <Flex gap="4" minW="0" w="full" maxW="100%" overflow="hidden" justify="flex-end">
+      <Box minW="0" maxW="min(38rem, calc(100% - 3rem))">
+        <Flex direction="column" align="flex-end" w="100%">
+          <Box
+            rounded="xl"
+            bg="teal.solid"
+            px="4"
+            py="3"
+            textStyle="chat"
+            color="fg.inverted"
+            maxW="min(38rem, 100%)"
+            shadow="sm"
+          >
+            <Text whiteSpace="pre-wrap" overflowWrap="anywhere">
+              {normalizeChatDisplayContent(getMessageText(message))}
+            </Text>
+          </Box>
+        </Flex>
+        {metadata.createdAt ? (
+          <Text mt="1" fontSize="xs" color="fg.muted">
+            {formatDate(metadata.createdAt)}
+          </Text>
+        ) : null}
+      </Box>
+      <Flex
+        mt="1"
+        boxSize="9"
+        shrink="0"
+        align="center"
+        justify="center"
+        rounded="lg"
+        bg="bg.subtle"
+        color="fg.muted"
+      >
+        <User size={16} />
+      </Flex>
+    </Flex>
   );
 }
 
@@ -204,6 +257,47 @@ function AssistantUserMessage() {
         </Flex>
       </Flex>
     </MessagePrimitive.Root>
+  );
+}
+
+function DirectAssistantMessage({ message, scope }: { message: ChatMessage; scope: ChatApiScope }) {
+  const activeStatus = getMessageActiveStatus(message);
+
+  return (
+    <Flex gap="4" minW="0" w="full" maxW="100%" overflow="hidden">
+      <Flex
+        mt="0"
+        boxSize="11"
+        shrink="0"
+        align="center"
+        justify="center"
+        rounded="full"
+        bg="teal.solid"
+        color="fg.inverted"
+        shadow="sm"
+      >
+        <Sparkles size={18} />
+      </Flex>
+
+      <Box minW="0" w="100%" maxW="min(56rem, calc(100% - 3.75rem))">
+        <Box
+          minW="0"
+          w="100%"
+          maxW="full"
+          overflow="hidden"
+          rounded="xl"
+          bg="bg.surface"
+          color="fg"
+          borderWidth="1px"
+          borderColor="border.surface"
+          shadow="sm"
+        >
+          <Box px={{ base: '5', md: '7' }} py={{ base: '4', md: '5' }} textStyle="chat">
+            <StreamingAnswerSkeleton label={statusLabel(activeStatus, scope)} />
+          </Box>
+        </Box>
+      </Box>
+    </Flex>
   );
 }
 

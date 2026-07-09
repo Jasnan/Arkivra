@@ -108,6 +108,11 @@ export type ChatMessageMetadata = {
 
 export type ChatMessageDataParts = {
   [key: string]: unknown;
+  conversation: {
+    conversation: ChatConversation;
+    userMessage: ChatMessage;
+    assistantMessage: ChatMessage;
+  };
   status: { label: ChatStreamStatus };
   citations: Citation[];
   metrics: ChatGenerationMetrics;

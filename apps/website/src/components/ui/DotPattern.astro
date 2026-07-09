@@ -1,0 +1,17 @@
+---
+type Props = {
+	size?: "sm" | "md";
+	fade?: "ellipse" | "circle";
+	opacity?: string;
+	class?: string;
+};
+
+const {
+	size = "md",
+	fade = "ellipse",
+	opacity = "opacity-50",
+	class: className = "",
+} = Astro.props;
+---
+
+<div class:list={["dot-pattern", size === "sm" ? "dot-sm" : "dot-md", `dot-fade-${fade}`, opacity, className]} />

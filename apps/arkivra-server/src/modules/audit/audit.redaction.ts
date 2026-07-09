@@ -1,6 +1,7 @@
 import type { AuditJson } from './audit.types.js';
 
-const DANGEROUS_KEY_PATTERN = /password|token|access_token|refresh_token|authorization|cookie|secret|api_key|private_key|file_content|content|raw_text|ocr_text/i;
+const DANGEROUS_KEY_PATTERN =
+  /password|token|access_token|refresh_token|authorization|cookie|secret|api_key|private_key|file_content|content|raw_text|ocr_text/i;
 const REDACTED = '[redacted]';
 
 const SAFE_METADATA_BY_EVENT: Record<string, Set<string>> = {
@@ -10,9 +11,14 @@ const SAFE_METADATA_BY_EVENT: Record<string, Set<string>> = {
   'document.downloaded': new Set(['file_name', 'access_method']),
   'document.access_denied': new Set(['action']),
   'document.delete_failed': new Set(['document_name', 'file_name', 'deletion_type', 'reason']),
-  'vault.member_added': new Set(['member_user_id', 'role', 'ai_access_level']),
-  'vault.member_removed': new Set(['member_user_id', 'role']),
-  'vault.member_role_changed': new Set(['member_user_id', 'previous_role', 'next_role', 'previous_ai_access_level', 'next_ai_access_level']),
+  'vault.member_added': new Set(['member_user_id', 'role', 'access_mode']),
+  'vault.member_removed': new Set(['member_user_id', 'role', 'access_mode']),
+  'vault.member_role_changed': new Set([
+    'member_user_id',
+    'previous_role',
+    'next_role',
+    'access_mode',
+  ]),
   'vault.access_denied': new Set(['action']),
   'auth.two_factor_enabled': new Set(['method']),
   'auth.two_factor_disabled': new Set(['method']),
@@ -31,7 +37,7 @@ function isPlainObject(value: unknown): value is AuditJson {
 
 function redactValue(value: unknown): unknown {
   if (Array.isArray(value)) {
-    return value.map(item => redactValue(item));
+    return value.map((item) => redactValue(item));
   }
 
   if (!isPlainObject(value)) {
@@ -59,7 +65,10 @@ export function sanitizeAuditJson(value: AuditJson | null | undefined): AuditJso
   return sanitizeObject(value);
 }
 
-export function sanitizeAuditMetadata(eventType: string, metadata: AuditJson | null | undefined): AuditJson | null {
+export function sanitizeAuditMetadata(
+  eventType: string,
+  metadata: AuditJson | null | undefined,
+): AuditJson | null {
   if (metadata === null || metadata === undefined) {
     return null;
   }

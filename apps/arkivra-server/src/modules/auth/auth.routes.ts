@@ -78,11 +78,13 @@ export function registerAuthRoutes({
         invitationToken?: unknown;
       };
       const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : null;
+      const rawInvitationToken = typeof body.invitationToken === 'string' ? body.invitationToken : undefined;
       const invitationId = typeof body.invitationId === 'string'
         ? body.invitationId
-        : typeof body.invitationToken === 'string'
-          ? body.invitationToken
+        : rawInvitationToken?.startsWith('invite_')
+          ? rawInvitationToken
           : undefined;
+      const invitationToken = rawInvitationToken?.startsWith('invite_') ? undefined : rawInvitationToken;
       if (!config.auth.isRegistrationEnabled && await authorizationServices.hasAnyUsers()) {
         if (email === null) {
           return context.json(
@@ -91,7 +93,11 @@ export function registerAuthRoutes({
           );
         }
 
-        const invitation = await authorizationServices.getPendingEmailInvitation({ invitationId, email });
+        const invitation = await authorizationServices.getPendingEmailInvitation({
+          invitationId,
+          invitationToken,
+          email,
+        });
         if (invitation === null) {
           return context.json(
             { error: { code: 'auth.invitation_required', message: 'Email invitation required' } },
@@ -103,7 +109,7 @@ export function registerAuthRoutes({
       const response = await auth.handler(context.req.raw);
 
       if (response.ok && email !== null) {
-        await authorizationServices.acceptEmailInvitationForRegisteredUser({ invitationId, email });
+        await authorizationServices.acceptEmailInvitationForRegisteredUser({ invitationId, invitationToken, email });
       }
 
       return response;
@@ -137,6 +143,7 @@ export function registerAuthRoutes({
         context.set('systemCapabilities', authorizationState?.systemCapabilities ?? []);
         context.set('isAdmin', authorizationState?.isAdmin ?? false);
         context.set('canCreateVault', authorizationState?.canCreateVault ?? false);
+        context.set('canUseAI', authorizationState?.canUseAI ?? false);
       }
     }
 

@@ -39,18 +39,18 @@ export function conversationScopeValuesFromSnapshot(snapshot: ChatContextSnapsho
 
 export function getContextAccessMessage(snapshot: ChatContextSnapshot) {
   if (snapshot.type === 'document') {
-    return 'Document chat requires document chat or full AI access on this vault.';
+    return 'Document chat is not available for this vault with your current access.';
   }
 
   if (snapshot.type === 'vault') {
-    return 'To chat with this vault, join it as a member with full AI access. Admin access alone is not enough.';
+    return 'Chat is not available for this vault with your current access.';
   }
 
   if (snapshot.type === 'selection') {
-    return 'Selected context includes vaults or documents without the required AI access.';
+    return 'Selected context includes vaults or documents where chat is not available.';
   }
 
-  return 'To start using chat, join at least one vault as a member with full AI access. Admin access alone is not enough.';
+  return 'To start using chat, use at least one vault where chat is available.';
 }
 
 export function getContextUnavailableMessage(message?: string) {
@@ -165,24 +165,24 @@ export function shouldUseLocalRuntimeMessages({
 
 export function canUseContextSnapshot({
   snapshot,
-  aiAccessByVaultId,
-  hasFullAiVault,
+  chatAccessByVaultId,
+  hasChatAccessibleVault,
 }: {
   snapshot: ChatContextSnapshot;
-  aiAccessByVaultId: Map<string, 'none' | 'full'>;
-  hasFullAiVault: boolean;
+  chatAccessByVaultId: Map<string, boolean>;
+  hasChatAccessibleVault: boolean;
 }) {
   if (snapshot.type === 'global') {
-    if (snapshot.vaultIds.length === 0) return hasFullAiVault;
-    return snapshot.vaultIds.every((vaultId) => aiAccessByVaultId.get(vaultId) === 'full');
+    if (snapshot.vaultIds.length === 0) return hasChatAccessibleVault;
+    return snapshot.vaultIds.every((vaultId) => chatAccessByVaultId.get(vaultId) === true);
   }
 
   if (snapshot.type === 'vault') {
-    return aiAccessByVaultId.get(snapshot.vaultId) === 'full';
+    return chatAccessByVaultId.get(snapshot.vaultId) === true;
   }
 
   if (snapshot.type === 'document') {
-    return aiAccessByVaultId.get(snapshot.vaultId) === 'full';
+    return chatAccessByVaultId.get(snapshot.vaultId) === true;
   }
 
   if (snapshot.vaults.length === 0 && snapshot.documents.length === 0) {
@@ -190,7 +190,7 @@ export function canUseContextSnapshot({
   }
 
   return (
-    snapshot.vaults.every((vault) => aiAccessByVaultId.get(vault.vaultId) === 'full') &&
-    snapshot.documents.every((document) => aiAccessByVaultId.get(document.vaultId) === 'full')
+    snapshot.vaults.every((vault) => chatAccessByVaultId.get(vault.vaultId) === true) &&
+    snapshot.documents.every((document) => chatAccessByVaultId.get(document.vaultId) === true)
   );
 }

@@ -1,23 +1,9 @@
 # Arkivra Website
 
-This is the Astro marketing website for Arkivra, an open-source document management system for organizing files in vaults, searching their contents, and using optional provider-configured AI features when they fit your workflow.
+Fresh Astro marketing site for Arkivra.
 
-## Development
+## Commands
 
-```bash
-pnpm install
-pnpm dev
-```
-
-## Build
-
-```bash
-pnpm build
-pnpm preview
-```
-
-The website builds as a static Astro site for Cloudflare Pages. The production domain is `https://arkivra.app`.
-
-## License
-
-This website follows the repository license. Arkivra itself is licensed under AGPL-3.0.
+- `pnpm --dir apps/website dev`
+- `pnpm --dir apps/website build`
+- `pnpm --dir apps/website check`

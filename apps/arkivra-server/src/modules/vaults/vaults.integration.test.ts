@@ -20,7 +20,7 @@ function createMockVaultsServices() {
       isAdmin: false,
       userId,
     })),
-    hardDeleteVault: vi.fn(async () => ({ id: 'vlt_test_1' })),
+    hardDeleteVault: vi.fn(async () => ({ id: 'vlt_test_1', name: 'Team Vault' })),
     getMember: vi.fn(async () => null),
     getUserByEmail: vi.fn(async () => null),
     getVaultForUser: vi.fn(async () => null),
@@ -63,9 +63,11 @@ function createMockVaultsServices() {
 function createTestApp({
   services,
   canCreateVault = true,
+  auditServices,
 }: {
   services: VaultsServices;
   canCreateVault?: boolean;
+  auditServices?: { emitAuditEvent: ReturnType<typeof vi.fn> };
 }) {
   const app = new Hono<ServerContext>();
 
@@ -101,6 +103,7 @@ function createTestApp({
     app,
     db: {} as Database,
     services,
+    auditServices: auditServices as any,
   });
 
   return app;
@@ -153,7 +156,8 @@ describe('vaults integration', () => {
 
   test('creates vault for authenticated user', async () => {
     const services = createMockVaultsServices();
-    const app = createTestApp({ services });
+    const auditServices = { emitAuditEvent: vi.fn(async () => ({ id: 'aud_1' })) };
+    const app = createTestApp({ services, auditServices });
 
     const response = await app.request('/api/vaults', {
       method: 'POST',
@@ -170,6 +174,20 @@ describe('vaults integration', () => {
       name: 'Finance',
       description: 'Bank statements and receipts',
     });
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'vault.created',
+        eventCategory: 'vault',
+        outcome: 'success',
+        vaultId: 'vlt_test_1',
+        target: { type: 'vault', id: 'vlt_test_1', displayName: 'Finance' },
+        metadata: expect.objectContaining({
+          vault_id: 'vlt_test_1',
+          vault_name: 'Finance',
+          creation_type: 'direct',
+        }),
+      }),
+    );
   });
 
   test('creates vault with omitted optional description', async () => {
@@ -261,7 +279,8 @@ describe('vaults integration', () => {
 
   test('forbids vault creation when user lacks vault creation permission', async () => {
     const services = createMockVaultsServices();
-    const app = createTestApp({ services, canCreateVault: false });
+    const auditServices = { emitAuditEvent: vi.fn(async () => ({ id: 'aud_1' })) };
+    const app = createTestApp({ services, canCreateVault: false, auditServices });
 
     const response = await app.request('/api/vaults', {
       method: 'POST',
@@ -279,6 +298,20 @@ describe('vaults integration', () => {
       requestedBy: 'usr_1',
       payload: { name: 'Finance', description: null },
     });
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'vault.create_requested',
+        eventCategory: 'vault',
+        severity: 'notice',
+        outcome: 'success',
+        target: { type: 'permission_request', id: 'perm_req_1', displayName: 'Finance' },
+        metadata: expect.objectContaining({
+          vault_name: 'Finance',
+          request_id: 'perm_req_1',
+          creation_type: 'approval_request',
+        }),
+      }),
+    );
   });
 
   test('forbids vault detail access when user is not a member', async () => {
@@ -551,6 +584,7 @@ describe('vaults integration', () => {
 
   test('allows admin vault deletion through administrative access without membership', async () => {
     const services = createMockVaultsServices();
+    const auditServices = { emitAuditEvent: vi.fn(async () => ({ id: 'aud_1' })) };
     (services as any).getVaultForUser = vi.fn(async () => ({
       id: 'vlt_1',
       name: 'Team Vault',
@@ -561,7 +595,7 @@ describe('vaults integration', () => {
       isAdmin: true,
       isMember: false,
     }));
-    const app = createTestApp({ services });
+    const app = createTestApp({ services, auditServices });
 
     const response = await app.request('/api/vaults/vlt_1', {
       method: 'DELETE',
@@ -572,6 +606,21 @@ describe('vaults integration', () => {
     expect(services.hardDeleteVault).toHaveBeenCalledWith({
       vaultId: 'vlt_1',
     });
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'vault.deleted',
+        eventCategory: 'vault',
+        severity: 'critical',
+        outcome: 'success',
+        vaultId: 'vlt_1',
+        target: { type: 'vault', id: 'vlt_1', displayName: 'Team Vault' },
+        metadata: expect.objectContaining({
+          vault_id: 'vlt_1',
+          vault_name: 'Team Vault',
+          deletion_type: 'permanent',
+        }),
+      }),
+    );
   });
 
   test('allows admin vault deletion when vault is empty', async () => {

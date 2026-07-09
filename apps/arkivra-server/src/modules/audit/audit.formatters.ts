@@ -22,6 +22,10 @@ export function formatAuditEventSummary(event: AuditEventRecord) {
       return `${actor} deleted file`;
     case 'document.delete_failed':
       return `${actor} could not delete file`;
+    case 'folder.deleted':
+      return `${actor} deleted folder`;
+    case 'folder.delete_failed':
+      return `${actor} could not delete folder`;
     case 'document.access_denied':
       return `Access was denied for ${actor}`;
     case 'ai.features_toggled':
@@ -38,6 +42,16 @@ export function formatAuditEventSummary(event: AuditEventRecord) {
       return `${actor} removed a vault member`;
     case 'vault.member_role_changed':
       return `${actor} changed a member role`;
+    case 'vault.created':
+      return `${actor} created vault`;
+    case 'vault.create_requested':
+      return `${actor} requested vault creation`;
+    case 'vault.create_failed':
+      return `${actor} could not create vault`;
+    case 'vault.deleted':
+      return `${actor} deleted vault`;
+    case 'vault.delete_failed':
+      return `${actor} could not delete vault`;
     case 'vault.access_denied':
       return `Vault access was denied for ${actor}`;
     case 'auth.two_factor_enabled':

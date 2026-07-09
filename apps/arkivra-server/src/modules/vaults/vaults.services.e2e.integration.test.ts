@@ -54,6 +54,7 @@ describe.sequential('vault hard deletion services e2e', () => {
 
   afterAll(async () => {
     if (database !== null) {
+      await database.db.delete(auditEventsTable).where(eq(auditEventsTable.id, ids.audit)).catch(() => undefined);
       await database.db.delete(vaultsTable).where(eq(vaultsTable.id, ids.vault)).catch(() => undefined);
       await database.db.delete(tagsTable).where(eq(tagsTable.id, ids.tag)).catch(() => undefined);
       await database.db.delete(embeddingIndexesTable).where(eq(embeddingIndexesTable.id, ids.embeddingIndex)).catch(() => undefined);
@@ -305,7 +306,10 @@ describe.sequential('vault hard deletion services e2e', () => {
       },
     });
 
-    await expect(services.hardDeleteVault({ vaultId: ids.vault })).resolves.toEqual({ id: ids.vault });
+    await expect(services.hardDeleteVault({ vaultId: ids.vault })).resolves.toEqual({
+      id: ids.vault,
+      name: 'Hard Delete Vault',
+    });
 
     await expect(countVaultRows(db, {
       vaultId: ids.vault,
@@ -313,7 +317,7 @@ describe.sequential('vault hard deletion services e2e', () => {
       tagId: ids.tag,
     })).resolves.toEqual({
       activityEvents: 0,
-      auditEvents: 0,
+      auditEvents: 1,
       backgroundJobs: 0,
       chatConversationDocumentVersions: 0,
       chatConversations: 0,

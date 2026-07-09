@@ -7,8 +7,8 @@ describe('maintenance worker cleanup', () => {
       .fn()
       .mockResolvedValueOnce({
         rows: [
-          { id: 'doc_1', original_storage_key: 'vlt_1/doc_1', vault_id: 'vlt_1' },
-          { id: 'doc_2', original_storage_key: 'vlt_1/doc_2', vault_id: 'vlt_1' },
+          { id: 'doc_1', original_name: 'report.pdf', original_storage_key: 'vlt_1/doc_1', vault_id: 'vlt_1' },
+          { id: 'doc_2', original_name: 'notes.pdf', original_storage_key: 'vlt_1/doc_2', vault_id: 'vlt_1' },
         ],
       })
       .mockResolvedValueOnce({
@@ -26,12 +26,14 @@ describe('maintenance worker cleanup', () => {
       remove: vi.fn(async () => undefined),
       removePrefix: vi.fn(async () => undefined),
     };
+    const auditServices = { emitAuditEvent: vi.fn(async () => ({ id: 'aud_1' })) };
 
     const result = await hardDeleteExpiredDocuments({
       db: { execute } as never,
       now: new Date('2026-04-03T00:00:00.000Z'),
       retentionDays: 30,
       storage: storage as never,
+      auditServices: auditServices as never,
     });
 
     expect(result.deletedCount).toBe(2);
@@ -43,6 +45,23 @@ describe('maintenance worker cleanup', () => {
     expect(storage.removePrefix).toHaveBeenCalledWith('previews/dvr_1');
     expect(storage.removePrefix).toHaveBeenCalledWith('previews/doc_2');
     expect(execute).toHaveBeenCalledTimes(7);
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledTimes(2);
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'document.deleted',
+        eventCategory: 'document',
+        outcome: 'success',
+        actor: { type: 'system', displayName: 'System' },
+        vaultId: 'vlt_1',
+        documentId: 'doc_1',
+        source: 'background',
+        metadata: expect.objectContaining({
+          document_name: 'report.pdf',
+          file_name: 'report.pdf',
+          deletion_type: 'retention',
+        }),
+      }),
+    );
   });
 
   test('does nothing when no expired soft-deleted documents exist', async () => {

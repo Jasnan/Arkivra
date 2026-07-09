@@ -71,6 +71,11 @@ function createMockFoldersServices() {
         { type: 'document', document },
       ],
     })),
+    getFolder: vi.fn(async ({ folderId }) => {
+      if (folderId === rootFolder.id) return rootFolder;
+      if (folderId === childFolder.id) return childFolder;
+      return null;
+    }),
     createFolder: vi.fn(async ({ name, parentId, createdBy }) => ({
       success: true,
       folder: createMockFolder('fld_new', name.trim(), parentId, createdBy),
@@ -127,9 +132,11 @@ function createMockVaultsServices({
 function createTestApp({
   folderServices,
   vaultServices,
+  auditServices,
 }: {
   folderServices: FoldersServices;
   vaultServices?: VaultsServices;
+  auditServices?: { emitAuditEvent: ReturnType<typeof vi.fn> };
 }) {
   const app = new Hono<ServerContext>();
 
@@ -160,8 +167,8 @@ function createTestApp({
   const mockDb = {} as Database;
   const vs = vaultServices ?? createMockVaultsServices();
 
-  registerVaultRoutes({ app, db: mockDb, services: vs });
-  registerFolderRoutes({ app, db: mockDb, services: folderServices });
+  registerVaultRoutes({ app, db: mockDb, services: vs, auditServices: auditServices as any });
+  registerFolderRoutes({ app, db: mockDb, services: folderServices, auditServices: auditServices as any });
 
   return app;
 }
@@ -336,10 +343,11 @@ describe('folders integration', () => {
 
   test('trashes a folder with documents.delete permission', async () => {
     const folderServices = createMockFoldersServices();
+    const auditServices = { emitAuditEvent: vi.fn(async () => ({ id: 'aud_1' })) };
     const vaultServices = createMockVaultsServices({
       role: 'editor',
     });
-    const app = createTestApp({ folderServices, vaultServices });
+    const app = createTestApp({ folderServices, vaultServices, auditServices });
 
     const response = await app.request('/api/vaults/vlt_1/folders/fld_tax', {
       method: 'DELETE',
@@ -352,6 +360,51 @@ describe('folders integration', () => {
       folderId: 'fld_tax',
       deletedBy: 'usr_1',
     });
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'folder.deleted',
+        eventCategory: 'document',
+        outcome: 'success',
+        vaultId: 'vlt_1',
+        target: { type: 'folder', id: 'fld_tax', displayName: 'Tax' },
+        metadata: expect.objectContaining({
+          folder_id: 'fld_tax',
+          folder_name: 'Tax',
+          deletion_type: 'soft',
+        }),
+      }),
+    );
+  });
+
+  test('audits failed folder trash attempts', async () => {
+    const folderServices = createMockFoldersServices();
+    const auditServices = { emitAuditEvent: vi.fn(async () => ({ id: 'aud_1' })) };
+    vi.mocked(folderServices.softDeleteFolder).mockResolvedValueOnce({
+      success: false,
+      reason: 'folder_not_found',
+    });
+    const app = createTestApp({ folderServices, auditServices });
+
+    const response = await app.request('/api/vaults/vlt_1/folders/fld_missing', {
+      method: 'DELETE',
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(404);
+    expect(auditServices.emitAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'folder.delete_failed',
+        eventCategory: 'document',
+        outcome: 'failure',
+        vaultId: 'vlt_1',
+        target: { type: 'folder', id: 'fld_missing', displayName: null },
+        metadata: expect.objectContaining({
+          folder_id: 'fld_missing',
+          deletion_type: 'soft',
+          reason: 'folder_not_found',
+        }),
+      }),
+    );
   });
 
   test('restores a folder with documents.delete permission', async () => {

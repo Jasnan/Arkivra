@@ -1,33 +1,31 @@
-import * as React from 'react';
-import { Collapsible as ChakraCollapsible } from '@chakra-ui/react';
+import * as CollapsiblePrimitive from "@radix-ui/react-collapsible"
 
-type CollapsibleProps = Omit<
-  React.ComponentProps<typeof ChakraCollapsible.Root>,
-  'onOpenChange'
-> & {
-  onOpenChange?: (open: boolean) => void;
-};
-
-export function Collapsible({
-  lazyMount = true,
-  onOpenChange,
-  unmountOnExit = true,
+function Collapsible({
   ...props
-}: CollapsibleProps) {
+}: React.ComponentProps<typeof CollapsiblePrimitive.Root>) {
+  return <CollapsiblePrimitive.Root data-slot="collapsible" {...props} />
+}
+
+function CollapsibleTrigger({
+  ...props
+}: React.ComponentProps<typeof CollapsiblePrimitive.CollapsibleTrigger>) {
   return (
-    <ChakraCollapsible.Root
-      lazyMount={lazyMount}
-      onOpenChange={onOpenChange ? (event) => onOpenChange(event.open) : undefined}
-      unmountOnExit={unmountOnExit}
+    <CollapsiblePrimitive.CollapsibleTrigger
+      data-slot="collapsible-trigger"
       {...props}
     />
-  );
+  )
 }
 
-export function CollapsibleTrigger(props: React.ComponentProps<typeof ChakraCollapsible.Trigger>) {
-  return <ChakraCollapsible.Trigger {...props} />;
+function CollapsibleContent({
+  ...props
+}: React.ComponentProps<typeof CollapsiblePrimitive.CollapsibleContent>) {
+  return (
+    <CollapsiblePrimitive.CollapsibleContent
+      data-slot="collapsible-content"
+      {...props}
+    />
+  )
 }
 
-export function CollapsibleContent(props: React.ComponentProps<typeof ChakraCollapsible.Content>) {
-  return <ChakraCollapsible.Content {...props} />;
-}
+export { Collapsible, CollapsibleTrigger, CollapsibleContent }

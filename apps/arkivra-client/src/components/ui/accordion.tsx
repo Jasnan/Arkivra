@@ -1,57 +1,64 @@
-import * as React from 'react';
-import { Accordion as ChakraAccordion } from '@chakra-ui/react';
-import { ChevronDown } from 'lucide-react';
+import * as React from "react"
+import * as AccordionPrimitive from "@radix-ui/react-accordion"
+import { ChevronDownIcon } from "lucide-react"
 
-type AccordionProps = Omit<React.ComponentProps<typeof ChakraAccordion.Root>, 'onValueChange' | 'value'> & {
-  type?: 'single' | 'multiple';
-  value?: string;
-  onValueChange?: (value: string) => void;
-};
+import { cn } from "@/lib/utils"
 
-export function Accordion({
-  type = 'single',
-  value,
-  onValueChange,
-  multiple,
+function Accordion({
   ...props
-}: AccordionProps) {
+}: React.ComponentProps<typeof AccordionPrimitive.Root>) {
+  return <AccordionPrimitive.Root data-slot="accordion" {...props} />
+}
+
+function AccordionItem({
+  className,
+  ...props
+}: React.ComponentProps<typeof AccordionPrimitive.Item>) {
   return (
-    <ChakraAccordion.Root
-      multiple={multiple ?? type === 'multiple'}
-      value={value ? [value] : []}
-      onValueChange={
-        onValueChange ? (event) => onValueChange(event.value[0] ?? '') : undefined
-      }
+    <AccordionPrimitive.Item
+      data-slot="accordion-item"
+      className={cn("border-b last:border-b-0", className)}
       {...props}
     />
-  );
+  )
 }
 
-export function AccordionItem(props: React.ComponentProps<typeof ChakraAccordion.Item>) {
-  return <ChakraAccordion.Item borderColor="border.surface" {...props} />;
-}
-
-export function AccordionTrigger({
+function AccordionTrigger({
+  className,
   children,
   ...props
-}: React.ComponentProps<typeof ChakraAccordion.ItemTrigger>) {
+}: React.ComponentProps<typeof AccordionPrimitive.Trigger>) {
   return (
-    <ChakraAccordion.ItemTrigger {...props}>
-      {children}
-      <ChakraAccordion.ItemIndicator ms="auto">
-        <ChevronDown className="size-4" />
-      </ChakraAccordion.ItemIndicator>
-    </ChakraAccordion.ItemTrigger>
-  );
+    <AccordionPrimitive.Header className="flex">
+      <AccordionPrimitive.Trigger
+        data-slot="accordion-trigger"
+        className={cn(
+          "focus-visible:border-ring focus-visible:ring-ring/50 flex flex-1 items-start justify-between gap-4 rounded-md py-4 text-left text-sm font-medium transition-all outline-none hover:underline focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50 [&[data-state=open]>svg]:rotate-180",
+          className
+        )}
+        {...props}
+      >
+        {children}
+        <ChevronDownIcon className="text-muted-foreground pointer-events-none size-4 shrink-0 translate-y-0.5 transition-transform duration-200" />
+      </AccordionPrimitive.Trigger>
+    </AccordionPrimitive.Header>
+  )
 }
 
-export function AccordionContent({
+function AccordionContent({
+  className,
   children,
   ...props
-}: React.ComponentProps<typeof ChakraAccordion.ItemContent>) {
+}: React.ComponentProps<typeof AccordionPrimitive.Content>) {
   return (
-    <ChakraAccordion.ItemContent {...props}>
-      <ChakraAccordion.ItemBody>{children}</ChakraAccordion.ItemBody>
-    </ChakraAccordion.ItemContent>
-  );
+    <AccordionPrimitive.Content
+      data-slot="accordion-content"
+      className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden text-sm"
+      {...props}
+    >
+      <div className={cn("pt-0 pb-4", className)}>{children}</div>
+    </AccordionPrimitive.Content>
+  )
 }
+
+export { Accordion, AccordionItem, AccordionTrigger, AccordionContent }

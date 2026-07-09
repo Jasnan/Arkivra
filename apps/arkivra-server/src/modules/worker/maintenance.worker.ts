@@ -6,6 +6,8 @@ import type { EmbeddingIndexQueue } from '../ai/indexing/index.js';
 import { createEmbeddingIndexServices } from '../ai/indexing/index.js';
 import type { DocumentConverter } from '../document-conversion/index.js';
 import { isOfficeDocumentConvertible } from '../document-conversion/index.js';
+import type { createAuditServices } from '../audit/audit.services.js';
+import { AUDIT_EVENT_TYPES } from '../audit/audit.types.js';
 import {
   documentVersionChunkAssetStoragePrefix,
   documentVersionPreviewPdfStorageKey,
@@ -25,6 +27,7 @@ import type { OfficeDocumentConversionRuntimeStatus } from '../admin/maintenance
 
 type ExpiredDocumentRow = {
   id: string;
+  original_name: string;
   original_storage_key: string;
   vault_id: string;
 };
@@ -53,6 +56,7 @@ export type MaintenanceWorkerDeps = {
     getSettings: () => Promise<{ aiFeaturesEnabled: boolean }>;
   };
   embeddingIndexQueue?: EmbeddingIndexQueue;
+  auditServices?: ReturnType<typeof createAuditServices>;
 };
 
 type OfficePreviewCandidateRow = {
@@ -72,16 +76,18 @@ export async function hardDeleteExpiredDocuments({
   now = new Date(),
   retentionDays,
   storage,
+  auditServices,
 }: {
   db: Database;
   now?: Date;
   retentionDays: number;
   storage: StorageDriver;
+  auditServices?: ReturnType<typeof createAuditServices>;
 }) {
   const cutoff = new Date(now.getTime() - retentionDays * 24 * 60 * 60 * 1000);
 
   const expiredDocuments = await db.execute<ExpiredDocumentRow>(sql`
-    SELECT id, original_storage_key, vault_id
+    SELECT id, original_name, original_storage_key, vault_id
     FROM documents
     WHERE is_deleted = true
       AND deleted_at IS NOT NULL
@@ -117,6 +123,21 @@ export async function hardDeleteExpiredDocuments({
     await storage.remove(document.original_storage_key);
     await storage.removePrefix?.(`${document.vault_id}/${document.id}`);
     await db.execute(sql`DELETE FROM documents WHERE id = ${document.id}`);
+    await auditServices?.emitAuditEvent({
+      eventType: AUDIT_EVENT_TYPES.documentDeleted,
+      eventCategory: 'document',
+      outcome: 'success',
+      actor: { type: 'system', displayName: 'System' },
+      vaultId: document.vault_id,
+      documentId: document.id,
+      target: { type: 'document', id: document.id, displayName: document.original_name },
+      source: 'background',
+      metadata: {
+        document_name: document.original_name,
+        file_name: document.original_name,
+        deletion_type: 'retention',
+      },
+    });
     deletedCount += 1;
   }
 
@@ -466,6 +487,7 @@ export function createMaintenanceWorker({
   resolveOfficeDocumentConversionRuntimeStatus,
   adminAiServices,
   embeddingIndexQueue,
+  auditServices,
 }: MaintenanceWorkerDeps) {
   async function processMaintenanceJob(job: AsyncJob<MaintenanceJobData>) {
     if (job.name === HARD_DELETE_EXPIRED_DOCUMENTS_JOB) {
@@ -475,6 +497,7 @@ export function createMaintenanceWorker({
         db,
         retentionDays,
         storage,
+        auditServices,
       });
 
       console.info(

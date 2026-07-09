@@ -346,7 +346,7 @@ export function createServer({
 
   registerAuthRoutes({ app, auth, auditServices, authorizationServices: authzServices, config });
   registerVaultRoutes({ app, db, auditServices, activityServices });
-  registerFolderRoutes({ app, db });
+  registerFolderRoutes({ app, db, auditServices });
   registerDocumentRoutes({
     app,
     db,

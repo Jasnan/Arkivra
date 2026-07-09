@@ -1,60 +1,59 @@
-import * as React from 'react';
-import { Portal, Tooltip as ChakraTooltip } from '@chakra-ui/react';
+import * as React from "react"
+import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 
-interface TooltipProviderProps {
-  children?: React.ReactNode;
-  delayDuration?: number;
-}
+import { cn } from "@/lib/utils"
 
-export function TooltipProvider({ children, delayDuration = 100 }: TooltipProviderProps) {
-  return (
-    <ChakraTooltip.PropsProvider value={{ openDelay: delayDuration }}>
-      {children}
-    </ChakraTooltip.PropsProvider>
-  );
-}
-
-export function Tooltip(props: React.ComponentProps<typeof ChakraTooltip.Root>) {
-  return <ChakraTooltip.Root {...props} />;
-}
-
-export function TooltipTrigger(props: React.ComponentProps<typeof ChakraTooltip.Trigger>) {
-  return <ChakraTooltip.Trigger {...props} />;
-}
-
-type TooltipContentProps = React.ComponentProps<typeof ChakraTooltip.Content> & {
-  ref?: React.Ref<HTMLDivElement>;
-  side?: 'top' | 'right' | 'bottom' | 'left';
-  sideOffset?: number;
-  align?: string;
-};
-
-export function TooltipContent({
-  ref,
-  side: _side = 'top',
-  sideOffset: _sideOffset = 6,
-  align: _align,
+function TooltipProvider({
+  delayDuration = 0,
   ...props
-}: TooltipContentProps) {
+}: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
   return (
-    <Portal>
-      <ChakraTooltip.Positioner>
-        <ChakraTooltip.Content
-          ref={ref}
-          maxW="64"
-          borderWidth="1px"
-          borderColor="border.surface"
-          bg="bg.elevated"
-          color="fg.muted"
-          px="3"
-          py="2"
-          textStyle="xs"
-          shadow="lg"
-          {...props}
-        />
-      </ChakraTooltip.Positioner>
-    </Portal>
-  );
+    <TooltipPrimitive.Provider
+      data-slot="tooltip-provider"
+      delayDuration={delayDuration}
+      {...props}
+    />
+  )
 }
 
-TooltipContent.displayName = 'TooltipContent';
+function Tooltip({
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Root>) {
+  return (
+    <TooltipProvider>
+      <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+    </TooltipProvider>
+  )
+}
+
+function TooltipTrigger({
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
+  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
+}
+
+function TooltipContent({
+  className,
+  sideOffset = 0,
+  children,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Content>) {
+  return (
+    <TooltipPrimitive.Portal>
+      <TooltipPrimitive.Content
+        data-slot="tooltip-content"
+        sideOffset={sideOffset}
+        className={cn(
+          "border border-border bg-popover text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 w-fit origin-(--radix-tooltip-content-transform-origin) rounded-md px-3 py-1.5 text-xs text-balance",
+          className
+        )}
+        {...props}
+      >
+        {children}
+        <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-popover fill-popover" />
+      </TooltipPrimitive.Content>
+    </TooltipPrimitive.Portal>
+  )
+}
+
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }

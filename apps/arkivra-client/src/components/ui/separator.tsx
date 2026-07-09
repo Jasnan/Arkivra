@@ -1,25 +1,28 @@
-import * as React from 'react';
-import { Separator as ChakraSeparator } from '@chakra-ui/react';
+"use client"
 
-type SeparatorProps = React.ComponentProps<typeof ChakraSeparator> & {
-  ref?: React.Ref<HTMLSpanElement>;
-  decorative?: boolean;
-};
+import * as React from "react"
+import * as SeparatorPrimitive from "@radix-ui/react-separator"
 
-export function Separator({
-  orientation = 'horizontal',
-  decorative: _decorative = true,
-  ref,
+import { cn } from "@/lib/utils"
+
+function Separator({
+  className,
+  orientation = "horizontal",
+  decorative = true,
   ...props
-}: SeparatorProps) {
+}: React.ComponentProps<typeof SeparatorPrimitive.Root>) {
   return (
-    <ChakraSeparator
-      ref={ref}
+    <SeparatorPrimitive.Root
+      data-slot="separator"
+      decorative={decorative}
       orientation={orientation}
-      borderColor="border.surface"
+      className={cn(
+        "bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px",
+        className
+      )}
       {...props}
     />
-  );
+  )
 }
 
-Separator.displayName = 'Separator';
+export { Separator }

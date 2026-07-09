@@ -23,6 +23,7 @@ import { createBackupServices } from './modules/admin/backups/backups.services.j
 import { createAdminAiServices } from './modules/admin/ai/ai.services.js';
 import { createOfficeDocumentConversionSettingsServices } from './modules/admin/maintenance/office-conversion-settings.js';
 import { createActivityServices } from './modules/activity/activity.services.js';
+import { createAuditServices } from './modules/audit/audit.services.js';
 import {
   createEmbeddingIndexServices,
   createEmbeddingIndexQueue,
@@ -56,6 +57,7 @@ export async function startApp() {
   const backupServices = createBackupServices({ config });
   const adminAiServices = createAdminAiServices({ db, config, embeddingIndexQueue });
   const activityServices = createActivityServices({ db });
+  const auditServices = createAuditServices({ db });
   const documentConverter =
     config.gotenberg.configured && config.gotenberg.url !== undefined
       ? createGotenbergDocumentConverter({ baseUrl: config.gotenberg.url })
@@ -162,6 +164,7 @@ export async function startApp() {
       resolveOfficeDocumentConversionRuntimeStatus,
       adminAiServices,
       embeddingIndexQueue,
+      auditServices,
     });
     const backupWorker = createBackupWorker({
       backupDirectory: backupServices.backupDirectory,

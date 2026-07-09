@@ -2,10 +2,13 @@ import type { Hono } from 'hono';
 import type { Database } from '../database/database.js';
 import type { ServerContext } from '../server/server.types.js';
 import type { FoldersServices, FolderServiceError } from './folders.services.js';
+import type { createAuditServices } from '../audit/audit.services.js';
 import {
   requireCanMutateVaultDocuments,
   requireCanReadVault,
 } from '../vaults/vaults.middleware.js';
+import { getAuditActorFromContext, getAuditRequestContext } from '../audit/audit.http.js';
+import { AUDIT_EVENT_TYPES } from '../audit/audit.types.js';
 import { createFoldersServices } from './folders.services.js';
 
 function parseNullableFolderId(value: unknown) {
@@ -159,10 +162,12 @@ export function registerFolderRoutes({
   app,
   db,
   services,
+  auditServices,
 }: {
   app: Hono<ServerContext>;
   db: Database;
   services?: FoldersServices;
+  auditServices?: ReturnType<typeof createAuditServices>;
 }) {
   const foldersServices = services ?? createFoldersServices({ db });
 
@@ -351,7 +356,7 @@ export function registerFolderRoutes({
 
   app.delete(
     '/api/vaults/:vaultId/folders/:folderId',
-    requireCanMutateVaultDocuments(),
+    requireCanMutateVaultDocuments({ auditServices }),
     async (context) => {
       const vaultId = context.get('vaultId');
       const userId = context.get('userId');
@@ -360,16 +365,51 @@ export function registerFolderRoutes({
         return context.json({ error: { code: 'vault.forbidden', message: 'Forbidden' } }, 403);
       }
 
+      const folderId = context.req.param('folderId');
+      const folder = await foldersServices.getFolder({ vaultId, folderId });
       const result = await foldersServices.softDeleteFolder({
         vaultId,
-        folderId: context.req.param('folderId'),
+        folderId,
         deletedBy: userId,
       });
 
       if (!result.success) {
+        await auditServices?.emitAuditEvent({
+          eventType: AUDIT_EVENT_TYPES.folderDeleteFailed,
+          eventCategory: 'document',
+          outcome: 'failure',
+          actor: getAuditActorFromContext(context),
+          vaultId,
+          target: { type: 'folder', id: folderId, displayName: folder?.name ?? null },
+          source: 'web',
+          requestContext: getAuditRequestContext(context),
+          metadata: {
+            folder_id: folderId,
+            folder_name: folder?.name ?? undefined,
+            deletion_type: 'soft',
+            reason: result.reason,
+          },
+        });
+
         const response = folderErrorResponse(result.reason);
         return context.json(response.body, response.status as any);
       }
+
+      await auditServices?.emitAuditEvent({
+        eventType: AUDIT_EVENT_TYPES.folderDeleted,
+        eventCategory: 'document',
+        outcome: 'success',
+        actor: getAuditActorFromContext(context),
+        vaultId,
+        target: { type: 'folder', id: folderId, displayName: folder?.name ?? null },
+        source: 'web',
+        requestContext: getAuditRequestContext(context),
+        metadata: {
+          folder_id: folderId,
+          folder_name: folder?.name ?? undefined,
+          deletion_type: 'soft',
+        },
+      });
 
       return context.body(null, 204);
     },

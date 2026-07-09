@@ -2,7 +2,6 @@ import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import type { Database } from '../database/database.js';
 import {
   activityEventsTable,
-  auditEventsTable,
   backgroundJobsTable,
   emailInvitationsTable,
   permissionRequestsTable,
@@ -100,7 +99,7 @@ export function createPermissionRequestServices({ db }: { db: Database }) {
             description: description && description.length > 0 ? description : null,
             createdBy: request.requestedBy,
           })
-          .returning({ id: vaultsTable.id });
+          .returning({ id: vaultsTable.id, name: vaultsTable.name });
 
         if (vault === undefined) {
           throw new Error('authorization.permission_request_apply_failed');
@@ -113,13 +112,14 @@ export function createPermissionRequestServices({ db }: { db: Database }) {
         });
 
         result.vaultId = vault.id;
+        result.vaultName = vault.name;
       } else if (request.type === 'vault.delete') {
         if (request.vaultId === null) {
           throw new Error('authorization.invalid_permission_request_payload');
         }
 
         const [existingVault] = await tx
-          .select({ id: vaultsTable.id })
+          .select({ id: vaultsTable.id, name: vaultsTable.name })
           .from(vaultsTable)
           .where(and(eq(vaultsTable.id, request.vaultId), isNull(vaultsTable.deletedAt)))
           .limit(1);
@@ -129,7 +129,6 @@ export function createPermissionRequestServices({ db }: { db: Database }) {
         }
 
         await tx.delete(activityEventsTable).where(eq(activityEventsTable.vaultId, request.vaultId));
-        await tx.delete(auditEventsTable).where(eq(auditEventsTable.vaultId, request.vaultId));
         await tx.delete(backgroundJobsTable).where(sql`${backgroundJobsTable.payload}->>'vaultId' = ${request.vaultId}`);
         await tx.execute(sql`
           delete from tags tag
@@ -159,6 +158,7 @@ export function createPermissionRequestServices({ db }: { db: Database }) {
         }
 
         result.vaultId = request.vaultId;
+        result.vaultName = existingVault.name;
       } else if (request.type === 'vault.owner_promote') {
         if (request.vaultId === null || request.targetUserId === null) {
           throw new Error('authorization.invalid_permission_request_payload');

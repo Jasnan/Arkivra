@@ -11,6 +11,13 @@ const SAFE_METADATA_BY_EVENT: Record<string, Set<string>> = {
   'document.downloaded': new Set(['file_name', 'access_method']),
   'document.access_denied': new Set(['action']),
   'document.delete_failed': new Set(['document_name', 'file_name', 'deletion_type', 'reason']),
+  'folder.deleted': new Set(['folder_name', 'folder_id', 'deletion_type']),
+  'folder.delete_failed': new Set(['folder_name', 'folder_id', 'deletion_type', 'reason']),
+  'vault.created': new Set(['vault_name', 'vault_id', 'creation_type', 'requested_by']),
+  'vault.create_requested': new Set(['vault_name', 'request_id', 'creation_type']),
+  'vault.create_failed': new Set(['vault_name', 'creation_type', 'reason']),
+  'vault.deleted': new Set(['vault_name', 'vault_id', 'deletion_type', 'requested_by']),
+  'vault.delete_failed': new Set(['vault_name', 'vault_id', 'deletion_type', 'reason']),
   'vault.member_added': new Set(['member_user_id', 'role', 'access_mode']),
   'vault.member_removed': new Set(['member_user_id', 'role', 'access_mode']),
   'vault.member_role_changed': new Set([

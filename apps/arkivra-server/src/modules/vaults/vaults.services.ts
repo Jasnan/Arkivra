@@ -4,7 +4,6 @@ import type { PermissionRequestType } from '../authorization/authorization.types
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import {
   activityEventsTable,
-  auditEventsTable,
   backgroundJobsTable,
   documentsTable,
   emailInvitationsTable,
@@ -201,7 +200,7 @@ export function createVaultsServices({ db }: { db: Database }) {
   async function hardDeleteVault({ vaultId }: { vaultId: string }) {
     return db.transaction(async (tx) => {
       const [existingVault] = await tx
-        .select({ id: vaultsTable.id })
+        .select({ id: vaultsTable.id, name: vaultsTable.name })
         .from(vaultsTable)
         .where(and(eq(vaultsTable.id, vaultId), isNull(vaultsTable.deletedAt)))
         .limit(1);
@@ -211,7 +210,6 @@ export function createVaultsServices({ db }: { db: Database }) {
       }
 
       await tx.delete(activityEventsTable).where(eq(activityEventsTable.vaultId, vaultId));
-      await tx.delete(auditEventsTable).where(eq(auditEventsTable.vaultId, vaultId));
       await tx.delete(backgroundJobsTable).where(sql`${backgroundJobsTable.payload}->>'vaultId' = ${vaultId}`);
       await tx.execute(sql`
         delete from tags tag
@@ -236,7 +234,7 @@ export function createVaultsServices({ db }: { db: Database }) {
         .where(and(eq(vaultsTable.id, vaultId), isNull(vaultsTable.deletedAt)))
         .returning({ id: vaultsTable.id });
 
-      return vault ?? null;
+      return vault === undefined ? null : { ...vault, name: existingVault.name };
     });
   }
 

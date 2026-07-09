@@ -376,7 +376,49 @@ export function registerAuthorizationRoutes({
           request_result: request.result,
         },
       });
-      if (request.type === 'vault.create' && typeof request.result?.vaultId === 'string') {
+      if (request.type === 'vault.delete' && typeof request.result?.vaultId === 'string') {
+        const vaultName = typeof request.result.vaultName === 'string'
+          ? request.result.vaultName
+          : null;
+
+        await auditServices?.emitAuditEvent({
+          eventType: AUDIT_EVENT_TYPES.vaultDeleted,
+          eventCategory: 'vault',
+          severity: 'critical',
+          outcome: 'success',
+          actor: getAuditActorFromContext(context),
+          vaultId: request.result.vaultId,
+          target: { type: 'vault', id: request.result.vaultId, displayName: vaultName },
+          source: 'web',
+          requestContext: getAuditRequestContext(context),
+          metadata: {
+            vault_id: request.result.vaultId,
+            vault_name: vaultName,
+            deletion_type: 'permanent',
+            requested_by: request.requestedBy,
+          },
+        });
+      } else if (request.type === 'vault.create' && typeof request.result?.vaultId === 'string') {
+        const vaultName = typeof request.result.vaultName === 'string'
+          ? request.result.vaultName
+          : null;
+
+        await auditServices?.emitAuditEvent({
+          eventType: AUDIT_EVENT_TYPES.vaultCreated,
+          eventCategory: 'vault',
+          outcome: 'success',
+          actor: getAuditActorFromContext(context),
+          vaultId: request.result.vaultId,
+          target: { type: 'vault', id: request.result.vaultId, displayName: vaultName },
+          source: 'web',
+          requestContext: getAuditRequestContext(context),
+          metadata: {
+            vault_id: request.result.vaultId,
+            vault_name: vaultName,
+            creation_type: 'approval_request',
+            requested_by: request.requestedBy,
+          },
+        });
         await activityServices?.emitActivityEvent({
           activityType: ACTIVITY_EVENT_TYPES.vaultApproved,
           entityType: 'vault',

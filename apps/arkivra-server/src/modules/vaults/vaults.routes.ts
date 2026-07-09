@@ -5,7 +5,8 @@ import type { VaultsServices } from './vaults.services.js';
 import type { createAuditServices } from '../audit/audit.services.js';
 import type { createActivityServices } from '../activity/activity.services.js';
 import { requireAuthentication } from '../auth/auth.middleware.js';
-import { getAuditActorFromContext } from '../audit/audit.http.js';
+import { getAuditActorFromContext, getAuditRequestContext } from '../audit/audit.http.js';
+import { AUDIT_EVENT_TYPES } from '../audit/audit.types.js';
 import { ACTIVITY_EVENT_TYPES } from '../activity/activity.types.js';
 import { createVaultsServices } from './vaults.services.js';
 import { requireCanManageVault, requireVaultAccess } from './vaults.middleware.js';
@@ -114,11 +115,41 @@ export function registerVaultRoutes({
         visibility: 'requester',
         metadata: { request_type: 'vault.create', vault_name: name },
       });
+      await auditServices?.emitAuditEvent({
+        eventType: AUDIT_EVENT_TYPES.vaultCreateRequested,
+        eventCategory: 'vault',
+        severity: 'notice',
+        outcome: 'success',
+        actor: getAuditActorFromContext(context),
+        target: { type: 'permission_request', id: request.id, displayName: name },
+        source: 'web',
+        requestContext: getAuditRequestContext(context),
+        metadata: {
+          vault_name: name,
+          request_id: request.id,
+          creation_type: 'approval_request',
+        },
+      });
 
       return context.json({ request }, 202);
     }
 
     const vault = await vaultsServices.createVault({ userId, name, description });
+    await auditServices?.emitAuditEvent({
+      eventType: AUDIT_EVENT_TYPES.vaultCreated,
+      eventCategory: 'vault',
+      outcome: 'success',
+      actor: getAuditActorFromContext(context),
+      vaultId: vault.id,
+      target: { type: 'vault', id: vault.id, displayName: vault.name },
+      source: 'web',
+      requestContext: getAuditRequestContext(context),
+      metadata: {
+        vault_id: vault.id,
+        vault_name: vault.name,
+        creation_type: 'direct',
+      },
+    });
     await activityServices?.emitActivityEvent({
       activityType: ACTIVITY_EVENT_TYPES.vaultCreated,
       entityType: 'vault',
@@ -302,6 +333,23 @@ export function registerVaultRoutes({
     });
 
     if (deletedVault === null) {
+      await auditServices?.emitAuditEvent({
+        eventType: AUDIT_EVENT_TYPES.vaultDeleteFailed,
+        eventCategory: 'vault',
+        severity: 'warning',
+        outcome: 'failure',
+        actor: getAuditActorFromContext(context),
+        vaultId,
+        target: { type: 'vault', id: vaultId },
+        source: 'web',
+        requestContext: getAuditRequestContext(context),
+        metadata: {
+          vault_id: vaultId,
+          deletion_type: 'permanent',
+          reason: 'not_found',
+        },
+      });
+
       return context.json(
         {
           error: {
@@ -312,6 +360,23 @@ export function registerVaultRoutes({
         404,
       );
     }
+
+    await auditServices?.emitAuditEvent({
+      eventType: AUDIT_EVENT_TYPES.vaultDeleted,
+      eventCategory: 'vault',
+      severity: 'critical',
+      outcome: 'success',
+      actor: getAuditActorFromContext(context),
+      vaultId,
+      target: { type: 'vault', id: vaultId, displayName: deletedVault.name },
+      source: 'web',
+      requestContext: getAuditRequestContext(context),
+      metadata: {
+        vault_id: vaultId,
+        vault_name: deletedVault.name,
+        deletion_type: 'permanent',
+      },
+    });
 
     return context.body(null, 204);
   });

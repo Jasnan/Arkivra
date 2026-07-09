@@ -1,11 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import { BookOpen, ExternalLink, Github, Globe, Info, Scale } from 'lucide-react';
+import { BookOpen, ExternalLink, Github, Globe, Scale } from 'lucide-react';
 
 import { BaseLayout } from '@/components/layouts/base-layout';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getHealth } from '@/lib/api';
 
 const repositoryUrl = 'https://github.com/Jasnan/Arkivra';
@@ -87,6 +86,18 @@ export default function AboutSettingsPage() {
               documents in vaults, searching across files, and using optional configured AI
               features.
             </p>
+            <p className="text-sm leading-6 text-muted-foreground">
+              Built and maintained by{' '}
+              <a
+                href={authorUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-foreground underline underline-offset-4"
+              >
+                Jasnan Thachaparamban
+              </a>
+              .
+            </p>
           </div>
         </header>
 
@@ -129,29 +140,6 @@ export default function AboutSettingsPage() {
               })}
             </div>
           </section>
-
-          <Card className="rounded-md">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Info className="size-4" />
-                Credits
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Arkivra is maintained by{' '}
-                <a
-                  href={authorUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-medium text-foreground underline underline-offset-4"
-                >
-                  Jasnan Thachaparamban
-                </a>
-                .
-              </p>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </BaseLayout>

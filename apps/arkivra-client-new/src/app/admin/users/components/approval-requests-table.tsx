@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { formatShortDate } from "@/lib/date-format"
 import type { PermissionRequest, PermissionRequestType } from "../admin-users.api"
 
 interface ApprovalRequestsTableProps {
@@ -45,18 +46,7 @@ function formatRole(value: unknown) {
   return "Member"
 }
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return "Unknown"
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "Unknown"
-
-  return new Intl.DateTimeFormat(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date)
-}
+const formatDate = formatShortDate
 
 function getRequestLabel(type: PermissionRequestType) {
   switch (type) {

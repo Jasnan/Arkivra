@@ -36,6 +36,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { formatShortDate } from "@/lib/date-format"
 import { cn } from "@/lib/utils"
 import { getDocumentFileIcon } from "./document-file-icons"
 import { VaultsViewToggle } from "./components/vaults-view-toggle"
@@ -87,18 +88,7 @@ function formatBytes(value: number) {
   return `${formatted} ${units[exponent]}`
 }
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return "Unknown"
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "Unknown"
-
-  return new Intl.DateTimeFormat(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date)
-}
+const formatDate = formatShortDate
 
 function getDeletedTime(document: DeletedDocumentSummary) {
   return document.deletedAt ? new Date(document.deletedAt).getTime() : 0

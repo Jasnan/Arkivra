@@ -24,6 +24,7 @@ import {
 import { searchAllDocuments, type SearchResultItem } from "@/app/search/search.api"
 import { getDocumentFileIcon } from "@/app/vaults/document-file-icons"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { formatShortDate } from "@/lib/date-format"
 import { cn } from "@/lib/utils"
 
 const DOCUMENT_SEARCH_DEBOUNCE_MS = 280
@@ -34,19 +35,6 @@ type DocumentSearchStatus = "idle" | "loading" | "success" | "error"
 const snippetTokenPattern = /(<mark>.*?<\/mark>)/g
 const markBoundaryPattern = /^<mark>|<\/mark>$/g
 const snippetWhitespacePattern = /\s+/g
-
-function formatDate(value: string | null | undefined) {
-  if (!value) return "Unknown"
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "Unknown"
-
-  return new Intl.DateTimeFormat(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date)
-}
 
 function tokenizeSnippet(value: string) {
   return value
@@ -341,7 +329,7 @@ export function CommandSearch({ open, onOpenChange, isAdmin }: CommandSearchProp
                           <ArrowRight className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
                         </div>
                         <div className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
-                          {result.vaultName} · Updated {formatDate(result.updatedAt)}
+                          {result.vaultName} · Updated {formatShortDate(result.updatedAt)}
                           {pageNumber !== null && pageNumber !== undefined ? ` · Page ${pageNumber}` : ""}
                         </div>
                         {snippet ? (

@@ -30,6 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { formatShortDate } from "@/lib/date-format"
 import { cn } from "@/lib/utils"
 import { useVaultRouteShell } from "@/app/vaults/vault-route-shell"
 import { DEFAULT_TAG_COLOR, TagFormDialog } from "../tags/components/tag-form-dialog"
@@ -136,18 +137,7 @@ function formatBytes(value: number) {
   return `${formatted} ${units[exponent]}`
 }
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return "Unknown"
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "Unknown"
-
-  return new Intl.DateTimeFormat(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date)
-}
+const formatDate = formatShortDate
 
 function itemName(item: FileBrowserItem) {
   return item.type === "folder" ? item.folder.name : item.document.name

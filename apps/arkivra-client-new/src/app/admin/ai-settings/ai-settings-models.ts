@@ -5,6 +5,7 @@ import type {
   AdminAiSettings,
   AdminEmbeddingIndexSummary,
 } from "./ai-settings.api"
+import { formatDate } from "@/lib/date-format"
 
 export interface EmbeddingModelOption {
   key: string
@@ -185,14 +186,5 @@ export function getIndexProgress(index: AdminEmbeddingIndexSummary) {
 }
 
 export function formatShortDateTime(value: string | null | undefined) {
-  if (!value) return "Unavailable"
-
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value))
-  } catch {
-    return value
-  }
+  return formatDate(value, { dateStyle: "medium", timeStyle: "short" }, value ? value : "Unavailable")
 }

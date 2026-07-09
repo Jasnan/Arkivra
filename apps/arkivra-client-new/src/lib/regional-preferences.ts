@@ -21,6 +21,7 @@ export const DEFAULT_REGIONAL_PREFERENCES: RegionalPreferences = {
 }
 
 const STORAGE_PREFIX = "arkivra:regional"
+const BOOTSTRAP_USER_KEY = `${STORAGE_PREFIX}:bootstrap-user`
 const LANGUAGES = new Set<PreferenceLanguage>(["en"])
 const DATE_FORMATS = new Set<PreferenceDateFormat>([
   "DD.MM.YYYY",
@@ -47,6 +48,30 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function getRegionalStorageKey(userKey: string) {
   return `${STORAGE_PREFIX}:${encodeURIComponent(userKey)}`
+}
+
+export function setRegionalBootstrapUserKey(userKey: string) {
+  const storage = getStorage()
+  if (!storage) return
+
+  storage.setItem(BOOTSTRAP_USER_KEY, userKey)
+}
+
+export function clearRegionalBootstrapUserKey() {
+  const storage = getStorage()
+  if (!storage) return
+
+  storage.removeItem(BOOTSTRAP_USER_KEY)
+}
+
+export function readCurrentRegionalPreferences() {
+  const storage = getStorage()
+  if (!storage) return DEFAULT_REGIONAL_PREFERENCES
+
+  const userKey = storage.getItem(BOOTSTRAP_USER_KEY)
+  if (!userKey) return DEFAULT_REGIONAL_PREFERENCES
+
+  return readRegionalPreferences(userKey)
 }
 
 export function normalizeRegionalPreferences(value: unknown): RegionalPreferences {
@@ -84,6 +109,7 @@ export function writeRegionalPreferences(userKey: string, preferences: RegionalP
 
   if (storage) {
     storage.setItem(getRegionalStorageKey(userKey), JSON.stringify(normalized))
+    setRegionalBootstrapUserKey(userKey)
   }
 
   return normalized

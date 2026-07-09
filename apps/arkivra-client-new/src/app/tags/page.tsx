@@ -24,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import { formatShortDate as formatPreferredShortDate } from "@/lib/date-format"
 import { cn } from "@/lib/utils"
 import {
   DEFAULT_TAG_COLOR,
@@ -50,16 +51,7 @@ function formatBytes(value: number) {
 }
 
 function formatShortDate(value?: string | null) {
-  if (!value) return "Unknown date"
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "Unknown date"
-
-  return new Intl.DateTimeFormat(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date)
+  return formatPreferredShortDate(value, "Unknown date")
 }
 
 function TagBadge({ tag, name, color }: { tag?: Tag; name?: string; color?: string | null }) {

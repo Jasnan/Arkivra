@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { formatDate } from "@/lib/date-format"
 import type { EmailInvitation } from "../admin-users.api"
 
 interface InvitationsTableProps {
@@ -25,16 +26,8 @@ interface InvitationsTableProps {
   onRevoke: (invitation: EmailInvitation) => void | Promise<void>
 }
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return "Never"
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "Unknown"
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date)
+function formatInvitationDate(value: string | null | undefined) {
+  return formatDate(value, { dateStyle: "medium", timeStyle: "short" }, value ? "Unknown" : "Never")
 }
 
 function getStatusVariant(status: EmailInvitation["status"]) {
@@ -119,8 +112,8 @@ export function InvitationsTable({
                       <TableCell className="max-w-[18rem] whitespace-normal text-muted-foreground">
                         {getPrivilegeText(invitation)}
                       </TableCell>
-                      <TableCell>{formatDate(invitation.expiresAt)}</TableCell>
-                      <TableCell>{formatDate(invitation.createdAt)}</TableCell>
+                      <TableCell>{formatInvitationDate(invitation.expiresAt)}</TableCell>
+                      <TableCell>{formatInvitationDate(invitation.createdAt)}</TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-2">
                           <Button

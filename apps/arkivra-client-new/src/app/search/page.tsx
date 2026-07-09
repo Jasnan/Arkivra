@@ -50,6 +50,7 @@ import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { formatShortDate } from "@/lib/date-format"
 import { cn } from "@/lib/utils"
 import { getDocumentFileIcon } from "../vaults/document-file-icons"
 import {
@@ -135,18 +136,7 @@ function formatBytes(value: number) {
   return `${formatted} ${units[exponent]}`
 }
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return "Unknown"
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "Unknown"
-
-  return new Intl.DateTimeFormat(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date)
-}
+const formatDate = formatShortDate
 
 function toInputDateValue(value: Date) {
   const year = value.getFullYear()

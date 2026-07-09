@@ -40,6 +40,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Progress } from '@/components/ui/progress';
+import { formatShortDate } from '@/lib/date-format';
 import { getMe } from '../ai-settings/ai-settings.api';
 import {
   createBackup,
@@ -89,18 +90,7 @@ function formatBytes(value: number) {
   return `${formatted} ${units[exponent]}`;
 }
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return 'Unknown';
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Unknown';
-
-  return new Intl.DateTimeFormat(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(date);
-}
+const formatDate = formatShortDate;
 
 function backupKindLabel(backup: BackupListItem) {
   return backup.format === 'encrypted_multipart' ? 'Encrypted multipart' : 'Legacy archive';

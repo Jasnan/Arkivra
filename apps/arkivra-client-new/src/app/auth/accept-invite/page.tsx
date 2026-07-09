@@ -30,6 +30,7 @@ import {
   getPlatformAccountInvitationDetails,
   type AcceptInvitationDetails,
 } from "@/app/admin/users/admin-users.api"
+import { formatDate as formatPreferredDate } from "@/lib/date-format"
 
 const acceptInviteSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -43,15 +44,7 @@ const acceptInviteSchema = z.object({
 type AcceptInviteFormValues = z.infer<typeof acceptInviteSchema>
 
 function formatDate(value: string | null | undefined) {
-  if (!value) return "No expiry"
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "Unknown expiry"
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date)
+  return formatPreferredDate(value, { dateStyle: "medium", timeStyle: "short" }, value ? "Unknown expiry" : "No expiry")
 }
 
 export default function AcceptInvitePage() {

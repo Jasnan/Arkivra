@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { fetchJson } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
+import { formatDate } from '@/lib/date-format';
 import { cn } from '@/lib/utils';
 
 interface MeResponse {
@@ -100,15 +101,7 @@ function getAccountTypeLabel(authMethods: MeResponse['authMethods'] | undefined)
 }
 
 function formatShortDateTime(value: string | Date | null | undefined, fallback = 'Not available') {
-  if (!value) return fallback;
-
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return fallback;
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date);
+  return formatDate(value, { dateStyle: 'medium', timeStyle: 'short' }, fallback);
 }
 
 function splitDisplayName(name: string) {

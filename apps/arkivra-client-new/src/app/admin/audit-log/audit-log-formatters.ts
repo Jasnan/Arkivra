@@ -1,4 +1,5 @@
 import type { AuditLogItem } from "./audit-log.api"
+import { formatDate } from "@/lib/date-format"
 
 export type AuditActivityCategory = "files" | "vaults" | "users" | "ai" | "security" | "system"
 
@@ -133,13 +134,7 @@ function addEntry(
 }
 
 export function formatAuditTimestamp(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "Unknown"
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date)
+  return formatDate(value, { dateStyle: "medium", timeStyle: "short" })
 }
 
 export function formatAuditEventTitle(event: Pick<AuditLogItem, "eventType" | "summary">) {

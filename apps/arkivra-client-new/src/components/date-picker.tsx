@@ -6,6 +6,7 @@ import { CalendarDays, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { formatShortDate } from "@/lib/date-format"
 import { cn } from "@/lib/utils"
 
 function parseDateValue(value?: string) {
@@ -28,11 +29,7 @@ function formatDateValue(value?: string) {
   const date = parseDateValue(value)
   if (!date) return null
 
-  return new Intl.DateTimeFormat(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date)
+  return formatShortDate(date)
 }
 
 export function DatePicker({

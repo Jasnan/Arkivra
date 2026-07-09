@@ -47,6 +47,7 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { formatDateTime } from "@/lib/date-format"
 import { cn } from "@/lib/utils"
 import { useOptionalVaultRouteShell } from "@/app/vaults/vault-route-shell"
 import { DEFAULT_TAG_COLOR, TagFormDialog } from "../tags/components/tag-form-dialog"
@@ -137,20 +138,7 @@ function formatBytes(value: number) {
   return `${formatted} ${units[exponent]}`
 }
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return "Unknown"
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "Unknown"
-
-  return new Intl.DateTimeFormat(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date)
-}
+const formatDate = formatDateTime
 
 function getVersionStatusLabel(version: DocumentVersionSummary) {
   if (version.deletedAt !== null) return "Deleted"

@@ -63,6 +63,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { formatShortDate } from "@/lib/date-format"
 import type { AdminUser, EmailInvitation, InviteUserInput } from "../admin-users.api"
 import { UserFormDialog } from "./user-form-dialog"
 
@@ -132,18 +133,7 @@ function getUserAuth(user: AdminUser) {
   return "Unknown"
 }
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return "Unknown"
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "Unknown"
-
-  return new Intl.DateTimeFormat(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date)
-}
+const formatDate = formatShortDate
 
 function getStatusColor(status: string) {
   switch (status) {

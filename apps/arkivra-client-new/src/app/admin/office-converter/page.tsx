@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
+import { formatDate } from "@/lib/date-format"
 import { getMe } from "../ai-settings/ai-settings.api"
 import {
   getAdminOfficeConverterStatus,
@@ -59,14 +60,7 @@ function getErrorMessage(error: unknown, fallback: string) {
 
 function formatOfficeConverterDate(value: string | null) {
   if (value === null) return "Not checked"
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "Not checked"
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date)
+  return formatDate(value, { dateStyle: "medium", timeStyle: "short" }, "Not checked")
 }
 
 function formatConverterProvider(provider: string | null) {

@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense } from 'react'
+import { Suspense, useEffect, useMemo } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { routes, type RouteConfig } from '@/config/routes'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
@@ -10,6 +10,11 @@ import {
   PublicAppearanceBoundary,
 } from '@/components/appearance-preferences-boundary'
 import { getAppearanceUserKey } from '@/lib/appearance-preferences'
+import {
+  getServerRegionalPreferences,
+  setRegionalBootstrapUserKey,
+  writeRegionalPreferences,
+} from '@/lib/regional-preferences'
 
 const DEFAULT_AUTHENTICATED_ROUTE = "/vaults"
 
@@ -35,6 +40,29 @@ function AuthLoadingState() {
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const location = useLocation()
   const { data: session, isPending } = authClient.useSession()
+  const regionalUserKey = useMemo(
+    () => session ? getAppearanceUserKey(session.user) : null,
+    [session],
+  )
+
+  useEffect(() => {
+    if (!regionalUserKey) return
+
+    let ignore = false
+    setRegionalBootstrapUserKey(regionalUserKey)
+
+    getServerRegionalPreferences()
+      .then((preferences) => {
+        if (!ignore) {
+          writeRegionalPreferences(regionalUserKey, preferences)
+        }
+      })
+      .catch(() => undefined)
+
+    return () => {
+      ignore = true
+    }
+  }, [regionalUserKey])
 
   if (isPending) {
     return <AuthLoadingState />
@@ -60,6 +88,29 @@ function PublicOnlyRoute({
 }) {
   const location = useLocation()
   const { data: session, isPending } = authClient.useSession()
+  const regionalUserKey = useMemo(
+    () => session ? getAppearanceUserKey(session.user) : null,
+    [session],
+  )
+
+  useEffect(() => {
+    if (!regionalUserKey) return
+
+    let ignore = false
+    setRegionalBootstrapUserKey(regionalUserKey)
+
+    getServerRegionalPreferences()
+      .then((preferences) => {
+        if (!ignore) {
+          writeRegionalPreferences(regionalUserKey, preferences)
+        }
+      })
+      .catch(() => undefined)
+
+    return () => {
+      ignore = true
+    }
+  }, [regionalUserKey])
 
   if (isPending) {
     return <AuthLoadingState />

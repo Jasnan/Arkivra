@@ -29,6 +29,7 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@/components/ui/toggle-group"
+import { formatDate } from "@/lib/date-format"
 
 export const description = "An interactive area chart"
 
@@ -248,8 +249,7 @@ export function ChartAreaInteractive() {
               tickMargin={8}
               minTickGap={32}
               tickFormatter={(value) => {
-                const date = new Date(value)
-                return date.toLocaleDateString("en-US", {
+                return formatDate(value, {
                   month: "short",
                   day: "numeric",
                 })
@@ -260,7 +260,7 @@ export function ChartAreaInteractive() {
               content={
                 <ChartTooltipContent
                   labelFormatter={(value) => {
-                    return new Date(value as string | number | Date).toLocaleDateString("en-US", {
+                    return formatDate(value as string | number | Date, {
                       month: "short",
                       day: "numeric",
                     })

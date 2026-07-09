@@ -9,6 +9,7 @@ import { BaseLayout } from '@/components/layouts/base-layout';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { useHeaderActions } from '@/contexts/header-actions-context';
+import { formatShortDate } from '@/lib/date-format';
 import { cn } from '@/lib/utils';
 import { CreateVaultDialog } from './components/create-vault-dialog';
 import {
@@ -40,22 +41,7 @@ function formatBytes(value: number) {
   return `${formatted} ${units[exponent]}`;
 }
 
-function formatVaultDate(value: string | null | undefined) {
-  if (!value) {
-    return 'Unknown';
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return 'Unknown';
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(date);
-}
+const formatVaultDate = formatShortDate;
 
 function getVaultDescription(value: string | null) {
   if (!value) {

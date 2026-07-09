@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { ApiError } from "@/lib/api"
 import { authClient } from "@/lib/auth-client"
+import { formatDate } from "@/lib/date-format"
 import { cn } from "@/lib/utils"
 import {
   changeAccountPassword,
@@ -113,15 +114,7 @@ function getTotpSecret(totpUri: string | null) {
 }
 
 function formatShortDateTime(value: string | Date | null | undefined, fallback = "Not available") {
-  if (!value) return fallback
-
-  const date = value instanceof Date ? value : new Date(value)
-  if (Number.isNaN(date.getTime())) return fallback
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date)
+  return formatDate(value, { dateStyle: "medium", timeStyle: "short" }, fallback)
 }
 
 function getSessionTimestamp(value: string | Date | null | undefined) {

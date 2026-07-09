@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/sidebar"
 import { authClient } from "@/lib/auth-client"
 import { clearAppearanceBootstrapUserKey } from "@/lib/appearance-preferences"
+import { clearRegionalBootstrapUserKey } from "@/lib/regional-preferences"
 import { useNavigate } from "react-router-dom"
 
 interface SessionUserMetadata {
@@ -88,6 +89,7 @@ export function NavUser({
 
   async function handleSignOut() {
     clearAppearanceBootstrapUserKey()
+    clearRegionalBootstrapUserKey()
     await authClient.signOut()
     navigate("/login", { replace: true })
   }

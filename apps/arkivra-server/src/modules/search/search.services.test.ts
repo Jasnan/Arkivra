@@ -96,7 +96,35 @@ describe('document search services', () => {
 
     expect(combinedQueryText).toContain('d.name ILIKE');
     expect(combinedQueryText).toContain('dv.original_name ILIKE');
+    expect(combinedQueryText).toContain('similarity(lower(d.name), lower(');
+    expect(combinedQueryText).toContain('lower(d.name) % lower(');
     expect(combinedQueryText).toContain('ORDER BY title_match DESC NULLS LAST');
+  });
+
+  it('uses the same simple text search config as the stored chunk tsvector', async () => {
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ results_count: 1 }] })
+      .mockResolvedValueOnce({ rows: [] });
+    const searchServices = createDocumentSearchServices({
+      db: { execute } as any,
+    });
+
+    await searchServices.searchDocuments({
+      vaultId: 'vlt_1',
+      query: 'kündigung expiry',
+      pageIndex: 0,
+      pageSize: 20,
+    });
+
+    const combinedQueryText = (execute.mock.calls as unknown as any[][])
+      .map((call) => flattenSqlChunks(call[0]?.queryChunks ?? []))
+      .join('\n');
+
+    expect(combinedQueryText).toContain("websearch_to_tsquery('simple'");
+    expect(combinedQueryText).toContain("ts_headline('simple'");
+    expect(combinedQueryText).not.toContain("websearch_to_tsquery('english'");
+    expect(combinedQueryText).not.toContain("ts_headline('english'");
   });
 
   it('returns one result per version in historical keyword mode', async () => {
@@ -385,6 +413,37 @@ describe('document search services', () => {
     expect(combinedQueryText).toContain('folder.id = d.folder_id');
     expect(combinedQueryText).toContain('folder.is_deleted = false');
     expect(combinedQueryText).toContain("lower(COALESCE(folder.name, '')) LIKE");
+    expect(combinedQueryText).toContain("lower(COALESCE(folder.name, '')) %");
+    expect(combinedQueryText).toContain('title_exact_match_count');
+    expect(combinedQueryText).toContain('title_fuzzy_match_count');
+  });
+
+  it('limits fuzzy matching to metadata sources for non-AI document search', async () => {
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ results_count: 1 }] })
+      .mockResolvedValueOnce({ rows: [] });
+    const searchServices = createDocumentSearchServices({
+      db: { execute } as any,
+    });
+
+    await searchServices.searchDocuments({
+      vaultId: 'vlt_1',
+      query: 'pasport',
+      pageIndex: 0,
+      pageSize: 20,
+    });
+
+    const combinedQueryText = (execute.mock.calls as unknown as any[][])
+      .map((call) => flattenSqlChunks(call[0]?.queryChunks ?? []))
+      .join('\n');
+
+    expect(combinedQueryText).toContain('similarity(lower(d.name), lower(');
+    expect(combinedQueryText).toContain('similarity(lower(dv.original_name), lower(');
+    expect(combinedQueryText).toContain('lower(d.name) % lower(');
+    expect(combinedQueryText).toContain('lower(dv.original_name) % lower(');
+    expect(combinedQueryText).not.toContain('lower(dc.content) %');
+    expect(combinedQueryText).not.toContain('similarity(lower(dc.content)');
   });
 
   it('diversifies duplicate table/page representations from the same source region by score first', async () => {

@@ -4,6 +4,8 @@ import type { SearchSortBy, SearchVersionMode } from './search.types.js';
 import {
   buildVectorLiteral,
   createEmptyResponse,
+  FUZZY_METADATA_MIN_SIMILARITY,
+  FUZZY_METADATA_TITLE_SCORE,
   getHybridSearchOrderSql,
   HYBRID_DOCUMENT_CANDIDATE_LIMIT,
   HYBRID_DOCUMENT_EXCERPT_LENGTH,
@@ -82,7 +84,7 @@ export function createSearchDocumentsWithHybrid({
 
     const searchResult = await db.execute<SearchRow>(sql`
       WITH search_query AS (
-        SELECT websearch_to_tsquery('english', ${trimmedQuery}) AS query
+        SELECT websearch_to_tsquery('simple', ${trimmedQuery}) AS query
       ),
       scoped_document_versions AS (
         SELECT
@@ -192,7 +194,7 @@ export function createSearchDocumentsWithHybrid({
           ranked_chunks.fulltext_match,
           ranked_chunks.substring_position,
           CASE
-            WHEN ranked_chunks.fulltext_match THEN ts_headline('english', dc.content, search_query.query, ${headlineOptions})
+            WHEN ranked_chunks.fulltext_match THEN ts_headline('simple', dc.content, search_query.query, ${headlineOptions})
             WHEN ranked_chunks.substring_position IS NOT NULL THEN
               concat(
                 CASE
@@ -279,30 +281,44 @@ export function createSearchDocumentsWithHybrid({
                   '</mark>'
                 )
               )
-            ELSE replace(
-              sd.original_name,
-              substring(
-                sd.original_name
-                FROM nullif(position(lower(${trimmedQuery}) in lower(sd.original_name)), 0)::int
-                FOR char_length(${trimmedQuery})
-              ),
-              concat(
-                '<mark>',
+            WHEN sd.original_name ILIKE ${ilikePattern}
+              THEN replace(
+                sd.original_name,
                 substring(
                   sd.original_name
                   FROM nullif(position(lower(${trimmedQuery}) in lower(sd.original_name)), 0)::int
                   FOR char_length(${trimmedQuery})
                 ),
-                '</mark>'
+                concat(
+                  '<mark>',
+                  substring(
+                    sd.original_name
+                    FROM nullif(position(lower(${trimmedQuery}) in lower(sd.original_name)), 0)::int
+                    FOR char_length(${trimmedQuery})
+                  ),
+                  '</mark>'
+                )
               )
-            )
+            ELSE sd.name
           END AS snippet,
-          1.2::float8 AS score,
+          CASE
+            WHEN sd.name ILIKE ${ilikePattern} OR sd.original_name ILIKE ${ilikePattern}
+              THEN 1.2
+            ELSE ${FUZZY_METADATA_TITLE_SCORE}
+          END::float8 AS score,
           'title'::text AS match_type,
           true AS title_match
         FROM scoped_document_versions AS sd
         WHERE sd.name ILIKE ${ilikePattern}
           OR sd.original_name ILIKE ${ilikePattern}
+          OR GREATEST(
+            similarity(lower(sd.name), lower(${trimmedQuery})),
+            similarity(lower(sd.original_name), lower(${trimmedQuery}))
+          ) >= ${FUZZY_METADATA_MIN_SIMILARITY}
+          AND (
+            lower(sd.name) % lower(${trimmedQuery})
+            OR lower(sd.original_name) % lower(${trimmedQuery})
+          )
       ),
       matched_sources AS (
         SELECT * FROM chunk_sources

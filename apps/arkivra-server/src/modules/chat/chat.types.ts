@@ -81,6 +81,12 @@ export type ChatRetrievalDiagnostics = {
     versionNumber: number;
     vaultId: string;
     score: number;
+    retrievalSource?: 'fts' | 'vector' | 'hybrid' | 'metadata';
+    ftsRank?: number | null;
+    vectorRank?: number | null;
+    rrfScore?: number | null;
+    metadataExactMatchCount?: number | null;
+    metadataFuzzyMatchCount?: number | null;
     decision: 'included' | 'discarded';
   }>;
 };

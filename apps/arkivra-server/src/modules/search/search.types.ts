@@ -82,6 +82,15 @@ export type CitationTextLocator = {
   endOffset: number;
 };
 
+export type CitationRetrievalDiagnostics = {
+  source: 'fts' | 'vector' | 'hybrid' | 'metadata';
+  ftsRank?: number | null;
+  vectorRank?: number | null;
+  rrfScore?: number | null;
+  metadataExactMatchCount?: number | null;
+  metadataFuzzyMatchCount?: number | null;
+};
+
 export type Citation = {
   chunkId: string;
   retrievalRepresentation?: string | null;
@@ -106,6 +115,7 @@ export type Citation = {
   imageAssetIds: string[];
   imageAssets?: CitationImageAsset[];
   textLocator?: CitationTextLocator;
+  retrievalDiagnostics?: CitationRetrievalDiagnostics;
   score: number;
   contextChunks?: CitationContextChunk[];
 };

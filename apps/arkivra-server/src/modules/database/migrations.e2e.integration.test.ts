@@ -137,6 +137,41 @@ describe.sequential('migrations smoke', () => {
     expect(rows).toHaveLength(1);
   });
 
+  test('baseline includes bounded fuzzy metadata search indexes', async () => {
+    if (pool === null) {
+      throw new Error('Migration smoke pool not initialised');
+    }
+
+    const { rows: extensionRows } = await pool.query<{ extname: string }>(
+      `
+        SELECT extname
+        FROM pg_extension
+        WHERE extname = 'pg_trgm'
+      `,
+    );
+    expect(extensionRows).toHaveLength(1);
+
+    const { rows: indexRows } = await pool.query<{ indexname: string }>(
+      `
+        SELECT indexname
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND indexname IN (
+            'documents_name_trgm_idx',
+            'document_versions_original_name_trgm_idx',
+            'vault_folders_name_trgm_idx'
+          )
+        ORDER BY indexname
+      `,
+    );
+
+    expect(indexRows.map((row) => row.indexname)).toEqual([
+      'document_versions_original_name_trgm_idx',
+      'documents_name_trgm_idx',
+      'vault_folders_name_trgm_idx',
+    ]);
+  });
+
   test('baseline includes the document_chunk_assets table with the expected shape', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');

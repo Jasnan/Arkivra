@@ -6,6 +6,7 @@ import {
   chatMessagesTable,
 } from '../database/schema/index.js';
 import { createChatServices } from './chat.services.js';
+import { hydratePersistedChatMessage } from './chat-message.utils.js';
 import type { ChatMessage } from './chat.types.js';
 
 type ChatConversationRow = typeof chatConversationsTable.$inferSelect;
@@ -399,6 +400,39 @@ describe('chat service conversation activity ordering', () => {
     expect(db.conversationUpdateHistory.at(-1)?.toISOString()).toBe('2026-04-01T12:00:00.001Z');
   });
 
+  test('persists submitted user messages with the server message id', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(date('2026-04-01T12:00:00.000Z'));
+
+    const db = new ChatMemoryDb({
+      conversations: [
+        createConversationRow({
+          id: 'cht_1',
+          updatedAt: date('2026-03-01T00:00:00.000Z'),
+        }),
+      ],
+      messages: [createMessageRow({ conversationId: 'cht_1' })],
+    });
+    const services = createServices(db);
+
+    const response = await services.createMessageStream({
+      userId: 'usr_1',
+      chatId: 'cht_1',
+      messages: [userMessage],
+      responseMode: 'text',
+      includeCitations: false,
+      model: 'ollama:llama3.2',
+    });
+
+    expect(response).toBeInstanceOf(Response);
+    const persistedUserRow = db.messages.find(
+      row => row.id !== 'msg_existing' && row.message.role === 'user',
+    );
+    expect(persistedUserRow).toBeDefined();
+    expect(persistedUserRow?.message.id).toBe(persistedUserRow?.id);
+    expect(persistedUserRow?.message.id).not.toBe(userMessage.id);
+  });
+
   test('completing the assistant response advances the parent activity timestamp again', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(date('2026-04-01T12:00:00.000Z'));
@@ -428,5 +462,21 @@ describe('chat service conversation activity ordering', () => {
       '2026-04-01T12:00:00.002Z',
     );
     expect(db.conversations[0]?.updatedAt.toISOString()).toBe('2026-04-01T12:00:00.002Z');
+  });
+});
+
+describe('chat message hydration', () => {
+  test('uses the database row id as the canonical message id', () => {
+    const hydrated = hydratePersistedChatMessage(createMessageRow({
+      id: 'msg_server_row',
+      message: {
+        id: 'client_reused_id',
+        role: 'user',
+        metadata: {},
+        parts: [{ type: 'text', text: 'Repeated question' }],
+      },
+    }));
+
+    expect(hydrated.id).toBe('msg_server_row');
   });
 });

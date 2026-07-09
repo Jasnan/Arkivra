@@ -429,7 +429,9 @@ export function createChatServices({
         }
       }
 
+      const userMessageId = generateId({ prefix: 'msg' });
       const userMessage = buildUserMessage({
+        id: userMessageId,
         message: submittedUserMessage,
         metadata: {
           intent,
@@ -445,6 +447,7 @@ export function createChatServices({
       const [userMessageRow] = await tx
         .insert(chatMessagesTable)
         .values({
+          id: userMessageId,
           conversationId,
           vaultId: scopeValues.vaultId,
           documentId: scopeValues.documentId,

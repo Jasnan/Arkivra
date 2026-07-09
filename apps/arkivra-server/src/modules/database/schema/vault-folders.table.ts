@@ -42,6 +42,7 @@ export const vaultFoldersTable = pgTable(
       table.isDeleted,
       table.name,
     ),
+    index('vault_folders_name_trgm_idx').using('gin', sql`lower(${table.name}) gin_trgm_ops`),
     index('vault_folders_parent_idx').on(table.parentId),
     index('vault_folders_deleted_idx').on(table.vaultId, table.isDeleted),
     uniqueIndex('vault_folders_active_sibling_name_unique')

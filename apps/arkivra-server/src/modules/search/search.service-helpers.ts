@@ -48,8 +48,12 @@ export const HYBRID_DOCUMENT_MIN_SEMANTIC_SIMILARITY = 0.45;
 export const HYBRID_CITATION_DEFAULT_CANDIDATE_LIMIT = 50;
 export const HYBRID_CITATION_MAX_CANDIDATE_LIMIT = 200;
 export const HYBRID_CITATION_MAX_TERMS = 24;
+export const FUZZY_METADATA_MIN_SIMILARITY = 0.28;
+export const FUZZY_METADATA_TITLE_SCORE = 0.45;
 export const HYBRID_TITLE_MATCH_BASE_SCORE = 0.03;
 export const HYBRID_TITLE_MATCH_TERM_SCORE = 0.004;
+export const HYBRID_TITLE_FUZZY_MATCH_BASE_SCORE = 0.018;
+export const HYBRID_TITLE_FUZZY_MATCH_TERM_SCORE = 0.0025;
 export const HYBRID_FOLDER_MATCH_TERM_WEIGHT = 2;
 export const HYBRID_TITLE_TERM_STOP_WORDS = new Set([
   'about',
@@ -116,6 +120,12 @@ export type HybridSearchRow = {
   image_provenance: unknown;
   text_locator: unknown;
   score: number | string | null;
+  retrieval_source?: string | null;
+  fts_rank?: number | null;
+  vec_rank?: number | null;
+  rrf_score?: number | string | null;
+  metadata_exact_match_count?: number | null;
+  metadata_fuzzy_match_count?: number | null;
 };
 
 export function parseTagsJson(value: string | null | undefined): SearchResultTag[] {
@@ -643,4 +653,36 @@ export function mergeImageAssetsWithProvenance({
       pageNumber: provenance?.pageNumber ?? asset.pageNumber ?? null,
     };
   });
+}
+
+export function parseCitationRetrievalDiagnostics(
+  row: Pick<
+    HybridSearchRow,
+    | 'retrieval_source'
+    | 'fts_rank'
+    | 'vec_rank'
+    | 'rrf_score'
+    | 'metadata_exact_match_count'
+    | 'metadata_fuzzy_match_count'
+  >,
+): Citation['retrievalDiagnostics'] {
+  const source = row.retrieval_source;
+  if (
+    source !== 'fts' &&
+    source !== 'vector' &&
+    source !== 'hybrid' &&
+    source !== 'metadata'
+  ) {
+    return undefined;
+  }
+
+  return {
+    source,
+    ftsRank: row.fts_rank ?? null,
+    vectorRank: row.vec_rank ?? null,
+    rrfScore:
+      row.rrf_score === null || row.rrf_score === undefined ? null : Number(row.rrf_score),
+    metadataExactMatchCount: row.metadata_exact_match_count ?? null,
+    metadataFuzzyMatchCount: row.metadata_fuzzy_match_count ?? null,
+  };
 }

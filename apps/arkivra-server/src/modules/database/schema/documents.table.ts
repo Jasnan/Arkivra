@@ -111,6 +111,7 @@ export const documentsTable = pgTable(
     index('documents_language_code_idx')
       .using('btree', sql`(${table.language}->>'code')`)
       .where(sql`${table.language} IS NOT NULL`),
+    index('documents_name_trgm_idx').using('gin', sql`lower(${table.name}) gin_trgm_ops`),
     index('documents_hash_idx').on(table.originalSha256Hash),
     index('documents_kek_version_idx').on(table.fileEncryptionKekVersion),
     index('documents_current_version_idx').on(table.currentVersionId),
@@ -226,6 +227,10 @@ export const documentVersionsTable = pgTable(
       table.uploadedAt,
     ),
     index('document_versions_vault_hash_idx').on(table.vaultId, table.originalSha256Hash),
+    index('document_versions_original_name_trgm_idx').using(
+      'gin',
+      sql`lower(${table.originalName}) gin_trgm_ops`,
+    ),
     index('document_versions_kek_version_idx').on(table.fileEncryptionKekVersion),
     index('document_versions_deleted_idx').on(table.deletedAt),
     check('document_versions_version_number_positive', sql`${table.versionNumber} > 0`),

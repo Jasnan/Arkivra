@@ -413,6 +413,18 @@ export function buildRetrievalDiagnostics({
       versionNumber: citation.versionNumber,
       vaultId: citation.vaultId,
       score: citation.score,
+      ...(citation.retrievalDiagnostics !== undefined
+        ? {
+            retrievalSource: citation.retrievalDiagnostics.source,
+            ftsRank: citation.retrievalDiagnostics.ftsRank ?? null,
+            vectorRank: citation.retrievalDiagnostics.vectorRank ?? null,
+            rrfScore: citation.retrievalDiagnostics.rrfScore ?? null,
+            metadataExactMatchCount:
+              citation.retrievalDiagnostics.metadataExactMatchCount ?? null,
+            metadataFuzzyMatchCount:
+              citation.retrievalDiagnostics.metadataFuzzyMatchCount ?? null,
+          }
+        : {}),
       decision: includedDocumentVersions.has(getCitationGroupKey(citation))
         ? 'included'
         : 'discarded',

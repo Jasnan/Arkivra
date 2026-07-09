@@ -24,7 +24,7 @@ export function hydratePersistedChatMessage(row: {
 }): ChatMessage {
   return {
     ...row.message,
-    id: row.message.id || row.id,
+    id: row.id,
     metadata: {
       ...row.message.metadata,
       conversationId: row.conversationId,
@@ -63,15 +63,18 @@ function withArkivraMetadata({
 }
 
 export function buildUserMessage({
+  id,
   message,
   metadata,
 }: {
+  id: string;
   message: ChatMessage;
   metadata: ChatMessageMetadata;
 }): ChatMessage {
   return withArkivraMetadata({
     message: {
       ...message,
+      id,
       role: 'user',
       parts: message.parts.filter(part => part.type === 'text' || part.type === 'file'),
     },

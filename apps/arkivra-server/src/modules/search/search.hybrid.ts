@@ -5,10 +5,13 @@ import {
   buildVectorLiteral,
   diversifyHybridSearchRows,
   extractHybridTitleTerms,
+  FUZZY_METADATA_MIN_SIMILARITY,
   HYBRID_CITATION_DEFAULT_CANDIDATE_LIMIT,
   HYBRID_CITATION_MAX_CANDIDATE_LIMIT,
   HYBRID_CITATION_MAX_TERMS,
   HYBRID_FOLDER_MATCH_TERM_WEIGHT,
+  HYBRID_TITLE_FUZZY_MATCH_BASE_SCORE,
+  HYBRID_TITLE_FUZZY_MATCH_TERM_SCORE,
   HYBRID_TITLE_MATCH_BASE_SCORE,
   HYBRID_TITLE_MATCH_TERM_SCORE,
   inferAssetType,
@@ -17,6 +20,7 @@ import {
   parseAssetSourceElementIds,
   parseBoundingBoxes,
   parseCitationPrecision,
+  parseCitationRetrievalDiagnostics,
   parseImageAssets,
   parseImageProvenance,
   parseStringArray,
@@ -110,7 +114,7 @@ async function searchHybrid({
       queryEmbedding === null
         ? await db.execute<HybridSearchRow>(sql`
             WITH search_query AS (
-              SELECT websearch_to_tsquery('english', ${trimmedQuery}) AS query
+              SELECT websearch_to_tsquery('simple', ${trimmedQuery}) AS query
             ),
             lexical_terms AS (
               SELECT term
@@ -124,7 +128,7 @@ async function searchHybrid({
             ),
             lexical_query AS (
               SELECT websearch_to_tsquery(
-                'english',
+                'simple',
                 COALESCE(string_agg(term, ' OR ' ORDER BY term ASC), '')
               ) AS query
               FROM lexical_terms
@@ -203,7 +207,13 @@ async function searchHybrid({
               COALESCE(assets.image_assets, '[]'::json) AS image_assets,
               COALESCE(dc.metadata->'imageProvenance', '[]'::jsonb) AS image_provenance,
               dc.metadata->'textLocator' AS text_locator,
-              (1.0 / (60 + fts_ranked.fts_rank))::float8 AS score
+              (1.0 / (60 + fts_ranked.fts_rank))::float8 AS score,
+              'fts'::text AS retrieval_source,
+              fts_ranked.fts_rank,
+              NULL::int AS vec_rank,
+              (1.0 / (60 + fts_ranked.fts_rank))::float8 AS rrf_score,
+              NULL::int AS metadata_exact_match_count,
+              NULL::int AS metadata_fuzzy_match_count
             FROM fts_ranked
             INNER JOIN document_chunks AS dc ON dc.id = fts_ranked.id
             INNER JOIN documents AS d ON d.id = dc.document_id
@@ -250,7 +260,7 @@ async function searchHybrid({
           `)
         : await db.execute<HybridSearchRow>(sql`
             WITH search_query AS (
-              SELECT websearch_to_tsquery('english', ${trimmedQuery}) AS query
+              SELECT websearch_to_tsquery('simple', ${trimmedQuery}) AS query
             ),
             lexical_terms AS (
               SELECT term
@@ -264,7 +274,7 @@ async function searchHybrid({
             ),
             lexical_query AS (
               SELECT websearch_to_tsquery(
-                'english',
+                'simple',
                 COALESCE(string_agg(term, ' OR ' ORDER BY term ASC), '')
               ) AS query
               FROM lexical_terms
@@ -340,6 +350,8 @@ async function searchHybrid({
             ranked AS (
               SELECT
                 COALESCE(fts_ranked.id, vec_ranked.id) AS id,
+                fts_ranked.fts_rank,
+                vec_ranked.vec_rank,
                 COALESCE(1.0 / (60 + fts_ranked.fts_rank), 0)
                 + COALESCE(1.0 / (60 + vec_ranked.vec_rank), 0) AS score
               FROM fts_ranked
@@ -377,7 +389,17 @@ async function searchHybrid({
               COALESCE(assets.image_assets, '[]'::json) AS image_assets,
               COALESCE(dc.metadata->'imageProvenance', '[]'::jsonb) AS image_provenance,
               dc.metadata->'textLocator' AS text_locator,
-              ranked.score::float8 AS score
+              ranked.score::float8 AS score,
+              CASE
+                WHEN ranked.fts_rank IS NOT NULL AND ranked.vec_rank IS NOT NULL THEN 'hybrid'
+                WHEN ranked.fts_rank IS NOT NULL THEN 'fts'
+                ELSE 'vector'
+              END::text AS retrieval_source,
+              ranked.fts_rank,
+              ranked.vec_rank,
+              ranked.score::float8 AS rrf_score,
+              NULL::int AS metadata_exact_match_count,
+              NULL::int AS metadata_fuzzy_match_count
             FROM ranked
             INNER JOIN document_chunks AS dc ON dc.id = ranked.id
             INNER JOIN documents AS d ON d.id = dc.document_id
@@ -424,7 +446,7 @@ async function searchHybrid({
           `);
 
     const titleTerms = extractHybridTitleTerms(trimmedQuery);
-    const titleMatchCountSql = () =>
+    const titleExactMatchCountSql = () =>
       sql.join(
         titleTerms.map(
           (term) =>
@@ -435,6 +457,29 @@ async function searchHybrid({
               END
               + CASE WHEN lower(COALESCE(folder.name, '')) LIKE ${`%${term}%`}
                 THEN ${HYBRID_FOLDER_MATCH_TERM_WEIGHT}
+                ELSE 0
+              END
+            `,
+        ),
+        sql` + `,
+      );
+    const titleFuzzyMatchCountSql = () =>
+      sql.join(
+        titleTerms.map(
+          (term) =>
+            sql`
+              CASE
+                WHEN (
+                  lower(d.name) % ${term}
+                  OR lower(dv.original_name) % ${term}
+                  OR lower(COALESCE(folder.name, '')) % ${term}
+                )
+                AND GREATEST(
+                  similarity(lower(d.name), ${term}),
+                  similarity(lower(dv.original_name), ${term}),
+                  similarity(lower(COALESCE(folder.name, '')), ${term})
+                ) >= ${FUZZY_METADATA_MIN_SIMILARITY}
+                  THEN 1
                 ELSE 0
               END
             `,
@@ -453,7 +498,8 @@ async function searchHybrid({
                   dc.document_version_id,
                   dc.vault_id,
                   dc.chunk_index,
-                  (${titleMatchCountSql()})::int AS title_match_count
+                  (${titleExactMatchCountSql()})::int AS title_exact_match_count,
+                  (${titleFuzzyMatchCountSql()})::int AS title_fuzzy_match_count
                 FROM document_chunks AS dc
                 INNER JOIN documents AS d ON d.id = dc.document_id
                 INNER JOIN document_versions AS dv
@@ -471,17 +517,22 @@ async function searchHybrid({
                   AND dv.processing_status = 'completed'
                   AND ${hybridVersionScopeSql}
                   AND (${documentId ?? null}::text IS NULL OR d.id = ${documentId ?? null})
-                  AND (${titleMatchCountSql()}) > 0
+                  AND (
+                    (${titleExactMatchCountSql()}) > 0
+                    OR (${titleFuzzyMatchCountSql()}) > 0
+                  )
               ),
               title_first_chunks AS (
                 SELECT DISTINCT ON (document_id, document_version_id)
                   chunk_id,
-                  title_match_count
+                  title_exact_match_count,
+                  title_fuzzy_match_count
                 FROM title_scored
                 ORDER BY
                   document_id,
                   document_version_id,
-                  title_match_count DESC,
+                  title_exact_match_count DESC,
+                  title_fuzzy_match_count DESC,
                   chunk_index ASC,
                   chunk_id ASC
               )
@@ -518,10 +569,22 @@ async function searchHybrid({
                 COALESCE(dc.metadata->'imageProvenance', '[]'::jsonb) AS image_provenance,
                 dc.metadata->'textLocator' AS text_locator,
                 (
-                  ${HYBRID_TITLE_MATCH_BASE_SCORE}::float8
-                  + title_first_chunks.title_match_count::float8
-                    * ${HYBRID_TITLE_MATCH_TERM_SCORE}::float8
-                )::float8 AS score
+                  CASE
+                    WHEN title_first_chunks.title_exact_match_count > 0
+                      THEN ${HYBRID_TITLE_MATCH_BASE_SCORE}::float8
+                        + title_first_chunks.title_exact_match_count::float8
+                          * ${HYBRID_TITLE_MATCH_TERM_SCORE}::float8
+                    ELSE ${HYBRID_TITLE_FUZZY_MATCH_BASE_SCORE}::float8
+                      + title_first_chunks.title_fuzzy_match_count::float8
+                        * ${HYBRID_TITLE_FUZZY_MATCH_TERM_SCORE}::float8
+                  END
+                )::float8 AS score,
+                'metadata'::text AS retrieval_source,
+                NULL::int AS fts_rank,
+                NULL::int AS vec_rank,
+                NULL::float8 AS rrf_score,
+                title_first_chunks.title_exact_match_count AS metadata_exact_match_count,
+                title_first_chunks.title_fuzzy_match_count AS metadata_fuzzy_match_count
               FROM title_first_chunks
               INNER JOIN document_chunks AS dc ON dc.id = title_first_chunks.chunk_id
               INNER JOIN documents AS d ON d.id = dc.document_id
@@ -585,6 +648,7 @@ async function searchHybrid({
         imageAssetIds,
         imageProvenance: parseImageProvenance(row.image_provenance),
       });
+      const retrievalDiagnostics = parseCitationRetrievalDiagnostics(row);
 
       return {
         chunkId: row.chunk_id,
@@ -613,6 +677,7 @@ async function searchHybrid({
         imageAssetIds,
         imageAssets,
         textLocator: parseTextLocator(row.text_locator),
+        ...(retrievalDiagnostics !== undefined ? { retrievalDiagnostics } : {}),
         score: typeof row.score === 'number' ? row.score : Number(row.score ?? 0),
       };
     });

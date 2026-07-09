@@ -4,6 +4,8 @@ import type { DocumentSearchMode, SearchSortBy, SearchVersionMode } from './sear
 import { createSearchDocumentsWithHybrid } from './search.documents-hybrid.js';
 import {
   createEmptyResponse,
+  FUZZY_METADATA_MIN_SIMILARITY,
+  FUZZY_METADATA_TITLE_SCORE,
   getBrowseOrderSql,
   getSearchOrderSql,
   mapSearchRow,
@@ -235,7 +237,7 @@ export function createSearchDocuments({
 
     const countResult = await db.execute<CountRow>(sql`
       WITH search_query AS (
-        SELECT websearch_to_tsquery('english', ${trimmedQuery}) AS query
+        SELECT websearch_to_tsquery('simple', ${trimmedQuery}) AS query
       ),
       matched_documents AS (
         SELECT DISTINCT document_id, document_version_id
@@ -281,6 +283,14 @@ export function createSearchDocuments({
             AND (
               d.name ILIKE ${ilikePattern}
               OR dv.original_name ILIKE ${ilikePattern}
+              OR GREATEST(
+                similarity(lower(d.name), lower(${trimmedQuery})),
+                similarity(lower(dv.original_name), lower(${trimmedQuery}))
+              ) >= ${FUZZY_METADATA_MIN_SIMILARITY}
+              AND (
+                lower(d.name) % lower(${trimmedQuery})
+                OR lower(dv.original_name) % lower(${trimmedQuery})
+              )
             )
         ) AS matched_sources
       )
@@ -306,7 +316,7 @@ export function createSearchDocuments({
 
     const searchResult = await db.execute<SearchRow>(sql`
       WITH search_query AS (
-        SELECT websearch_to_tsquery('english', ${trimmedQuery}) AS query
+        SELECT websearch_to_tsquery('simple', ${trimmedQuery}) AS query
       ),
       matched_sources AS (
         SELECT
@@ -320,7 +330,7 @@ export function createSearchDocuments({
           dc.tsv @@ search_query.query AS fulltext_match,
           nullif(position(lower(${trimmedQuery}) in lower(dc.content)), 0)::int AS substring_position,
           CASE
-            WHEN dc.tsv @@ search_query.query THEN ts_headline('english', dc.content, search_query.query, ${headlineOptions})
+            WHEN dc.tsv @@ search_query.query THEN ts_headline('simple', dc.content, search_query.query, ${headlineOptions})
             ELSE
               concat(
                 CASE
@@ -408,25 +418,31 @@ export function createSearchDocuments({
                   '</mark>'
                 )
               )
-            ELSE replace(
-              dv.original_name,
-              substring(
-                dv.original_name
-                FROM nullif(position(lower(${trimmedQuery}) in lower(dv.original_name)), 0)::int
-                FOR char_length(${trimmedQuery})
-              ),
-              concat(
-                '<mark>',
+            WHEN dv.original_name ILIKE ${ilikePattern}
+              THEN replace(
+                dv.original_name,
                 substring(
                   dv.original_name
                   FROM nullif(position(lower(${trimmedQuery}) in lower(dv.original_name)), 0)::int
                   FOR char_length(${trimmedQuery})
                 ),
-                '</mark>'
+                concat(
+                  '<mark>',
+                  substring(
+                    dv.original_name
+                    FROM nullif(position(lower(${trimmedQuery}) in lower(dv.original_name)), 0)::int
+                    FOR char_length(${trimmedQuery})
+                  ),
+                  '</mark>'
+                )
               )
-            )
+            ELSE d.name
           END AS snippet,
-          1.2::float8 AS score,
+          CASE
+            WHEN d.name ILIKE ${ilikePattern} OR dv.original_name ILIKE ${ilikePattern}
+              THEN 1.2
+            ELSE ${FUZZY_METADATA_TITLE_SCORE}
+          END::float8 AS score,
           'title'::text AS match_type
         FROM documents AS d
         INNER JOIN document_versions AS dv
@@ -440,6 +456,14 @@ export function createSearchDocuments({
           AND (
             d.name ILIKE ${ilikePattern}
             OR dv.original_name ILIKE ${ilikePattern}
+            OR GREATEST(
+              similarity(lower(d.name), lower(${trimmedQuery})),
+              similarity(lower(dv.original_name), lower(${trimmedQuery}))
+            ) >= ${FUZZY_METADATA_MIN_SIMILARITY}
+            AND (
+              lower(d.name) % lower(${trimmedQuery})
+              OR lower(dv.original_name) % lower(${trimmedQuery})
+            )
           )
       ),
       ranked_results AS (

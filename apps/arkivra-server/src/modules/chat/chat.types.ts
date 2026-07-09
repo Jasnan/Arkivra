@@ -1,5 +1,6 @@
 import type { UIMessage } from 'ai';
 import type { Citation } from '../search/search.types.js';
+import type { ChatContinuitySource, ChatRetrievalHistoryWindow } from './chat.retrieval-query.js';
 
 export type ChatContextSnapshot =
   | { type: 'global'; vaultIds: string[] }
@@ -67,6 +68,15 @@ export type ChatGenerationMetrics = {
 
 export type ChatRetrievalDiagnostics = {
   mode: 'hybrid' | 'fts';
+  originalQuery: string;
+  effectiveRetrievalQuery: string;
+  followUpDetected: boolean;
+  retrievalHistoryWindow: ChatRetrievalHistoryWindow;
+  continuitySources: ChatContinuitySource[];
+  ftsTermsBeforeFiltering: string[];
+  ftsTermsAfterFiltering: string[];
+  continuityCandidateCount: number;
+  boostedContinuityCandidateCount: number;
   requestedContextLimit: number;
   retrievalLimit: number;
   candidatePoolLimit: number;
@@ -87,6 +97,8 @@ export type ChatRetrievalDiagnostics = {
     rrfScore?: number | null;
     metadataExactMatchCount?: number | null;
     metadataFuzzyMatchCount?: number | null;
+    continuityReason?: ChatContinuitySource['reason'];
+    continuityBoosted?: boolean;
     decision: 'included' | 'discarded';
   }>;
 };

@@ -2,13 +2,10 @@
 
 This file gives coding agents and contributors durable project guidance. Follow a more specific `AGENTS.md` when working inside an app.
 
-# Migration Worktree Rules
-
-This checkout is for the shadcn client migration only.
+# Worktree Rules
 
 - Work only in this worktree.
-- Primary app: apps/arkivra-client-new.
-- Treat apps/arkivra-client as read-only reference unless explicitly asked.
+- Primary app: apps/arkivra-client.
 - Do not merge this branch into main.
 - Do not switch branches.
 - Run commands from this worktree root.

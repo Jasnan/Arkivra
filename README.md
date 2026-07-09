@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="apps/arkivra-client/src/assets/arkivra-project-logo.png" alt="Arkivra - open-source document management system" width="760">
+  <img src="apps/arkivra-client/public/og-image.png" alt="Arkivra - open-source document management system" width="760">
 </p>
 
 <p align="center">

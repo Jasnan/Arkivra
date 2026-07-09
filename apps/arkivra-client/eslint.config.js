@@ -1,24 +1,30 @@
-import antfu from '@antfu/eslint-config';
+import js from '@eslint/js'
+import globals from 'globals'
+import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
+import tseslint from 'typescript-eslint'
+import { globalIgnores } from 'eslint/config'
 
-export default antfu({
-  stylistic: false,
-  typescript: true,
-  react: true,
-  overrides: [
-    {
-      files: ['src/app/router.tsx', 'src/test/utils.tsx'],
-      rules: {
-        'react-refresh/only-export-components': 'off',
-      },
+export default tseslint.config([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      js.configs.recommended,
+      tseslint.configs.recommended,
+    ],
+    plugins: {
+      'react-hooks': reactHooks,
+      'react-refresh': reactRefresh,
     },
-  ],
-  rules: {
-    'no-console': 'warn',
-    'jsonc/sort-keys': 'off',
-    'perfectionist/sort-exports': 'off',
-    'perfectionist/sort-imports': 'off',
-    'perfectionist/sort-named-exports': 'off',
-    'perfectionist/sort-named-imports': 'off',
-    'react/prefer-namespace-import': 'off',
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.browser,
+    },
+    rules: {
+      'react-hooks/exhaustive-deps': 'warn',
+      'react-hooks/rules-of-hooks': 'error',
+      'react-refresh/only-export-components': 'off',
+    },
   },
-});
+])

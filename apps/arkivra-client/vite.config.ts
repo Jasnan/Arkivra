@@ -1,92 +1,66 @@
-import process from 'node:process';
-import { fileURLToPath, URL } from 'node:url';
-import { defineConfig, loadEnv } from 'vite';
-import react from '@vitejs/plugin-react';
-
-const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
-const browserMcpShim = fileURLToPath(new URL('./src/lib/ai-sdk-mcp-browser-shim.ts', import.meta.url));
+import path from "path"
+import process from "node:process"
+import tailwindcss from "@tailwindcss/vite"
+import react from "@vitejs/plugin-react"
+import { defineConfig, loadEnv } from "vite"
 
 function readPort(value: string | undefined, fallback: number) {
-  if (value === undefined || value.trim() === '') {
-    return fallback;
+  if (value === undefined || value.trim() === "") {
+    return fallback
   }
 
-  const port = Number.parseInt(value, 10);
-  return Number.isInteger(port) && port >= 1024 && port <= 65535 ? port : fallback;
+  const port = Number.parseInt(value, 10)
+  return Number.isInteger(port) && port >= 1024 && port <= 65535 ? port : fallback
 }
 
+const repoRoot = path.resolve(__dirname, "../..")
+const browserMcpShim = path.resolve(__dirname, "./src/lib/ai-sdk-mcp-browser-shim.ts")
+
+// https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = {
-    ...loadEnv(mode, repoRoot, ''),
+    ...loadEnv(mode, repoRoot, ""),
+    ...loadEnv(mode, __dirname, ""),
     ...process.env,
-  };
-  const apiPort = readPort(env.ARKIVRA_PORT, 1221);
-  const webPort = readPort(env.ARKIVRA_WEB_PORT, 5173);
+  }
+  const apiPort = readPort(env.ARKIVRA_PORT, 1221)
   const apiTarget =
-    env.VITE_ARKIVRA_API_BASE_URL ?? env.ARKIVRA_SERVER_BASE_URL ?? `http://localhost:${apiPort}`;
+    env.VITE_ARKIVRA_API_BASE_URL ?? env.ARKIVRA_SERVER_BASE_URL ?? `http://127.0.0.1:${apiPort}`
+  const webPort = readPort(env.ARKIVRA_WEB_PORT, 5173)
 
   return {
-    plugins: [react()],
+    plugins: [react(), tailwindcss()],
     resolve: {
-      alias: [
-        { find: '@ai-sdk/mcp/mcp-stdio', replacement: browserMcpShim },
-        { find: '@ai-sdk/mcp', replacement: browserMcpShim },
-        { find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
-      ],
+      alias: {
+        "@ai-sdk/mcp/mcp-stdio": browserMcpShim,
+        "@ai-sdk/mcp": browserMcpShim,
+        "@": path.resolve(__dirname, "./src"),
+      },
+    },
+    define: {
+      "import.meta.env.VITE_BASENAME": JSON.stringify(env.VITE_BASENAME || ""),
+      "process.env.DRAGGABLE_DEBUG": "false",
+    },
+    optimizeDeps: {
+      esbuildOptions: {
+        define: {
+          "process.env.DRAGGABLE_DEBUG": "false",
+        },
+      },
     },
     server: {
       port: webPort,
       strictPort: true,
       proxy: {
-        '/api': {
+        "/api": {
           target: apiTarget,
           changeOrigin: true,
         },
       },
     },
-    build: {
-      target: 'es2022',
-      rollupOptions: {
-        output: {
-          manualChunks(id) {
-            if (!id.includes('/node_modules/')) {
-              return undefined;
-            }
-
-            if (
-              id.includes('/pdfjs-dist/') ||
-              id.includes('/react-pdf/') ||
-              id.includes('/pdf-lib/')
-            ) {
-              return 'pdf';
-            }
-
-            if (
-              id.includes('/@assistant-ui/') ||
-              id.includes('/@ai-sdk/') ||
-              id.includes('/ai/')
-            ) {
-              return 'ai';
-            }
-
-            return 'vendor';
-          },
-        },
-      },
+    preview: {
+      port: readPort(env.ARKIVRA_WEB_PREVIEW_PORT, 4173),
+      strictPort: true,
     },
-    optimizeDeps: {
-      esbuildOptions: {
-        target: 'es2022',
-      },
-    },
-    test: {
-      environment: 'jsdom',
-      globals: true,
-      setupFiles: ['./src/test/setup.ts'],
-      css: true,
-      env: {
-        TZ: 'UTC',
-      },
-    },
-  };
-});
+  }
+})

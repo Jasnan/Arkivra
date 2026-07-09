@@ -1,6 +1,7 @@
 import type { Database } from '../database/database.js';
 import type { Citation, DocumentSearchServices } from '../search/search.types.js';
 import type { ChatContextAvailability, ChatRetrievalDiagnostics } from './chat.types.js';
+import type { ChatEffectiveRetrievalQuery } from './chat.retrieval-query.js';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import {
   chatConversationDocumentVersionsTable,
@@ -378,17 +379,23 @@ export async function searchHybridForManifest({
 
 export function buildRetrievalDiagnostics({
   mode,
+  retrievalQuery,
   retrievedCitations,
   expandedCitations,
   finalCitations,
+  continuityCandidateChunkIds = new Set<string>(),
+  boostedContinuityCandidateChunkIds = new Set<string>(),
   requestedContextLimit,
   retrievalLimit,
   candidatePoolLimit,
 }: {
   mode: 'hybrid' | 'fts';
+  retrievalQuery: ChatEffectiveRetrievalQuery;
   retrievedCitations: Citation[];
   expandedCitations: Citation[];
   finalCitations: Citation[];
+  continuityCandidateChunkIds?: Set<string>;
+  boostedContinuityCandidateChunkIds?: Set<string>;
   requestedContextLimit: number;
   retrievalLimit: number;
   candidatePoolLimit: number;
@@ -399,6 +406,15 @@ export function buildRetrievalDiagnostics({
 
   return {
     mode,
+    originalQuery: retrievalQuery.originalQuery,
+    effectiveRetrievalQuery: retrievalQuery.effectiveRetrievalQuery,
+    followUpDetected: retrievalQuery.followUpDetected,
+    retrievalHistoryWindow: retrievalQuery.retrievalHistoryWindow,
+    continuitySources: retrievalQuery.continuitySources,
+    ftsTermsBeforeFiltering: retrievalQuery.ftsTermsBeforeFiltering,
+    ftsTermsAfterFiltering: retrievalQuery.ftsTermsAfterFiltering,
+    continuityCandidateCount: continuityCandidateChunkIds.size,
+    boostedContinuityCandidateCount: boostedContinuityCandidateChunkIds.size,
     requestedContextLimit,
     retrievalLimit,
     candidatePoolLimit,
@@ -419,10 +435,14 @@ export function buildRetrievalDiagnostics({
             ftsRank: citation.retrievalDiagnostics.ftsRank ?? null,
             vectorRank: citation.retrievalDiagnostics.vectorRank ?? null,
             rrfScore: citation.retrievalDiagnostics.rrfScore ?? null,
-            metadataExactMatchCount:
-              citation.retrievalDiagnostics.metadataExactMatchCount ?? null,
-            metadataFuzzyMatchCount:
-              citation.retrievalDiagnostics.metadataFuzzyMatchCount ?? null,
+            metadataExactMatchCount: citation.retrievalDiagnostics.metadataExactMatchCount ?? null,
+            metadataFuzzyMatchCount: citation.retrievalDiagnostics.metadataFuzzyMatchCount ?? null,
+          }
+        : {}),
+      ...(continuityCandidateChunkIds.has(citation.chunkId)
+        ? {
+            continuityReason: 'previous_citation' as const,
+            continuityBoosted: boostedContinuityCandidateChunkIds.has(citation.chunkId),
           }
         : {}),
       decision: includedDocumentVersions.has(getCitationGroupKey(citation))

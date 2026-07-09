@@ -84,6 +84,11 @@ import {
   shouldMaterializeConversationManifest,
 } from './chat.manifest.js';
 import {
+  buildChatEffectiveRetrievalQuery,
+  getContinuityManifestRows,
+  mergeChatContinuityCitations,
+} from './chat.retrieval-query.js';
+import {
   buildAssistantMessage,
   buildUserMessage,
   getLatestUserMessage,
@@ -271,16 +276,14 @@ export function createChatServices({
   async function getModelOptions(): Promise<ChatModelOptions> {
     const settings = await resolveAiSettings();
     const availableModels = await listAvailableModels();
-    const modelValues = availableModels.map(model => model.value);
+    const modelValues = availableModels.map((model) => model.value);
     const configuredDefault = formatChatModelValue({
       provider: settings.provider,
       model: settings.model,
     });
 
     return {
-      defaultModel: modelValues.includes(configuredDefault)
-        ? configuredDefault
-        : '',
+      defaultModel: modelValues.includes(configuredDefault) ? configuredDefault : '',
       models: modelValues,
     };
   }
@@ -587,7 +590,9 @@ export function createChatServices({
 
     function nextConversationActivityTimestamp() {
       const now = new Date();
-      const timestamp = new Date(Math.max(now.getTime(), latestConversationActivityAt.getTime() + 1));
+      const timestamp = new Date(
+        Math.max(now.getTime(), latestConversationActivityAt.getTime() + 1),
+      );
       latestConversationActivityAt = timestamp;
 
       return timestamp;
@@ -609,7 +614,9 @@ export function createChatServices({
         let generatedFromRetrievedContext = false;
         const includeImages = responseMode === 'multimodal';
         const includeInlineCitations = includeCitations;
-        const citationLimit = includeCitations ? MAX_CONTEXT_CITATIONS : TEXT_ONLY_CONTEXT_CITATIONS;
+        const citationLimit = includeCitations
+          ? MAX_CONTEXT_CITATIONS
+          : TEXT_ONLY_CONTEXT_CITATIONS;
         const retrievalLimit = Math.min(50, Math.max(CHAT_RETRIEVAL_LIMIT, citationLimit));
 
         try {
@@ -625,7 +632,7 @@ export function createChatServices({
           const defaultSettings = await resolveAiSettings();
           const requestedModel = model?.trim();
           const availableModels = await listAvailableModels();
-          const availableModelValues = new Set(availableModels.map(item => item.value));
+          const availableModelValues = new Set(availableModels.map((item) => item.value));
           const configuredDefault = formatChatModelValue({
             provider: defaultSettings.provider,
             model: defaultSettings.model,
@@ -636,7 +643,7 @@ export function createChatServices({
                   value: requestedModel,
                   fallbackProvider: defaultSettings.provider,
                 })
-              : availableModels.find(item => item.value === configuredDefault);
+              : availableModels.find((item) => item.value === configuredDefault);
 
           if (effectiveSelection === undefined || effectiveSelection.model.length === 0) {
             throw new Error('No chat models are available from the configured chat providers.');
@@ -648,9 +655,10 @@ export function createChatServices({
             );
           }
 
-          const settings = effectiveSelection.provider === defaultSettings.provider
-            ? defaultSettings
-            : await resolveAiSettings({ provider: effectiveSelection.provider });
+          const settings =
+            effectiveSelection.provider === defaultSettings.provider
+              ? defaultSettings
+              : await resolveAiSettings({ provider: effectiveSelection.provider });
           const chatModel = createChatModel({ settings, model: effectiveSelection.model });
           assistantMetadata = {
             model: effectiveSelection.value,
@@ -714,10 +722,19 @@ export function createChatServices({
           }
 
           writeStatus(writer, 'retrieval');
+          const retrievalQuery = buildChatEffectiveRetrievalQuery({
+            latestUserMessage: content,
+            recentMessages: previousMessages,
+            manifest: manifestRows,
+          });
+          const effectiveRetrievalQuery =
+            retrievalQuery.effectiveRetrievalQuery.length > 0
+              ? retrievalQuery.effectiveRetrievalQuery
+              : content;
           const result = await searchHybridForManifest({
             searchServices,
             manifestRows,
-            query: content,
+            query: effectiveRetrievalQuery,
             limit: retrievalLimit,
             candidateLimit: CHAT_RETRIEVAL_CANDIDATE_POOL_LIMIT,
           });
@@ -725,19 +742,47 @@ export function createChatServices({
             manifestRows,
             citations: result.citations,
           });
+          const continuityManifestRows = retrievalQuery.followUpDetected
+            ? getContinuityManifestRows({
+                manifestRows,
+                continuitySources: retrievalQuery.continuitySources,
+              })
+            : [];
+          const continuityResult =
+            continuityManifestRows.length > 0
+              ? await searchHybridForManifest({
+                  searchServices,
+                  manifestRows: continuityManifestRows,
+                  query: effectiveRetrievalQuery,
+                  limit: 3,
+                  candidateLimit: 12,
+                })
+              : null;
+          const continuityCitations =
+            continuityResult === null
+              ? []
+              : filterCitationsToManifest({
+                  manifestRows,
+                  citations: continuityResult.citations,
+                });
+          const mergedRetrieval = mergeChatContinuityCitations({
+            retrievedCitations: scopedRetrievedCitations,
+            continuityCitations,
+          });
+          const retrievedCitationsForContext = mergedRetrieval.citations;
           const expandedCitations = await expandRetrievedCitationsForChat({
             db,
-            question: content,
-            citations: scopedRetrievedCitations,
+            question: effectiveRetrievalQuery,
+            citations: retrievedCitationsForContext,
           });
           const rankedCitations = rankCitationsForQuestion({
-            question: content,
+            question: effectiveRetrievalQuery,
             citations: expandedCitations,
           });
           const answerableRetrievalContext =
             !shouldRequireRetrievalConfidence(generationScope) ||
             hasAnswerableRetrievalContext({
-              question: content,
+              question: effectiveRetrievalQuery,
               citations: rankedCitations,
             });
           citations = answerableRetrievalContext
@@ -745,9 +790,12 @@ export function createChatServices({
             : [];
           retrievalDiagnostics = buildRetrievalDiagnostics({
             mode: result.mode,
-            retrievedCitations: scopedRetrievedCitations,
+            retrievalQuery,
+            retrievedCitations: retrievedCitationsForContext,
             expandedCitations,
             finalCitations: citations,
+            continuityCandidateChunkIds: mergedRetrieval.continuityCandidateChunkIds,
+            boostedContinuityCandidateChunkIds: mergedRetrieval.boostedContinuityCandidateChunkIds,
             requestedContextLimit: citationLimit,
             retrievalLimit,
             candidatePoolLimit: CHAT_RETRIEVAL_CANDIDATE_POOL_LIMIT,
@@ -785,7 +833,7 @@ export function createChatServices({
                     '',
                     "Use only the supplied vault context. Answer in the user's latest language unless they ask otherwise.",
                     '',
-                    'Answer directly and concisely. Prefer the user\'s intent over overly literal wording. Treat common document terms as equivalent when supported by context, e.g. surname/family name/last name, given name/first name, expiry/expiration, bill/invoice, passport/travel document.',
+                    "Answer directly and concisely. Prefer the user's intent over overly literal wording. Treat common document terms as equivalent when supported by context, e.g. surname/family name/last name, given name/first name, expiry/expiration, bill/invoice, passport/travel document.",
                     '',
                     'If the latest message clarifies an earlier question, answer the clarified question. Combine sources when useful. If sources disagree, mention the conflict. If the answer cannot be determined from the supplied context, say so plainly.',
                     '',
@@ -796,7 +844,7 @@ export function createChatServices({
                     '',
                     "Use only the supplied vault context. Answer in the user's latest language unless they ask otherwise.",
                     '',
-                    'Answer directly and concisely. Prefer the user\'s intent over overly literal wording. Treat common document terms as equivalent when supported by context, e.g. surname/family name/last name, given name/first name, expiry/expiration, bill/invoice, passport/travel document.',
+                    "Answer directly and concisely. Prefer the user's intent over overly literal wording. Treat common document terms as equivalent when supported by context, e.g. surname/family name/last name, given name/first name, expiry/expiration, bill/invoice, passport/travel document.",
                     '',
                     'If the latest message clarifies an earlier question, answer the clarified question. Combine sources when useful. If sources disagree, mention the conflict. If the answer cannot be determined from the supplied context, say so plainly.',
                     '',
@@ -868,23 +916,27 @@ export function createChatServices({
             generatedContent = '';
             throw new Error('The model stopped after a partial answer. Please try again.');
           }
-          if (generatedFromRetrievedContext && scopedRetrievedCitations.length > 0) {
+          if (generatedFromRetrievedContext && retrievedCitationsForContext.length > 0) {
             const answerExpandedCitations = await expandRetrievedCitationsForChat({
               db,
-              question: content,
+              question: effectiveRetrievalQuery,
               answerText: generatedContent,
-              citations: scopedRetrievedCitations,
+              citations: retrievedCitationsForContext,
             });
             const answerRankedCitations = rankCitationsForQuestion({
-              question: content,
+              question: effectiveRetrievalQuery,
               citations: answerExpandedCitations,
             });
             citations = normalizeCitationsForDisplay(answerRankedCitations.slice(0, citationLimit));
             retrievalDiagnostics = buildRetrievalDiagnostics({
               mode: result.mode,
-              retrievedCitations: scopedRetrievedCitations,
+              retrievalQuery,
+              retrievedCitations: retrievedCitationsForContext,
               expandedCitations: answerExpandedCitations,
               finalCitations: citations,
+              continuityCandidateChunkIds: mergedRetrieval.continuityCandidateChunkIds,
+              boostedContinuityCandidateChunkIds:
+                mergedRetrieval.boostedContinuityCandidateChunkIds,
               requestedContextLimit: citationLimit,
               retrievalLimit,
               candidatePoolLimit: CHAT_RETRIEVAL_CANDIDATE_POOL_LIMIT,

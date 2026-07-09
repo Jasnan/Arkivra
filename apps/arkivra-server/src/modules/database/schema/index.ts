@@ -30,6 +30,7 @@ export { tagsTable, documentTagsTable } from './tags.table.js';
 export { instanceSettingsTable } from './instance-settings.table.js';
 export {
   defaultUserAppearancePreferencesJson,
+  defaultUserRegionalPreferencesJson,
   userUiPreferencesTable,
 } from './user-ui-preferences.table.js';
 export {

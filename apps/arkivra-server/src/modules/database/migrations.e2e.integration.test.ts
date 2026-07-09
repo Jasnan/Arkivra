@@ -1202,7 +1202,7 @@ describe.sequential('migrations smoke', () => {
     );
   });
 
-  test('baseline stores UI appearance preferences as a single JSON column', async () => {
+  test('baseline stores UI preferences as appearance and regional JSON columns', async () => {
     if (pool === null) {
       throw new Error('Migration smoke pool not initialised');
     }
@@ -1220,6 +1220,7 @@ describe.sequential('migrations smoke', () => {
           AND table_name = 'user_ui_preferences'
           AND column_name IN (
             'appearance_preferences',
+            'regional_preferences',
             'accent_color',
             'date_format',
             'default_chat_answer_mode',
@@ -1241,6 +1242,9 @@ describe.sequential('migrations smoke', () => {
     expect(byName.appearance_preferences?.data_type).toBe('jsonb');
     expect(byName.appearance_preferences?.is_nullable).toBe('NO');
     expect(byName.appearance_preferences?.column_default).toContain('themeMode');
+    expect(byName.regional_preferences?.data_type).toBe('jsonb');
+    expect(byName.regional_preferences?.is_nullable).toBe('NO');
+    expect(byName.regional_preferences?.column_default).toContain('language');
 
     expect(byName.accent_color).toBeUndefined();
     expect(byName.date_format).toBeUndefined();

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Link, useLocation } from "react-router-dom"
+import { Link, matchRoutes, useLocation, type RouteObject } from "react-router-dom"
 
 import {
   Breadcrumb,
@@ -20,8 +20,12 @@ import {
   listVaults,
   type FolderBreadcrumb,
 } from "@/app/vaults/vaults.api"
-
-const BREADCRUMB_LABEL_MAX_LENGTH = 10
+import {
+  routes,
+  type BreadcrumbContext,
+  type BreadcrumbEntryConfig,
+  type RouteConfig,
+} from "@/config/routes"
 
 export interface BreadcrumbEntry {
   label: string
@@ -30,14 +34,6 @@ export interface BreadcrumbEntry {
 
 interface VaultBreadcrumbEntry extends BreadcrumbEntry {
   key: string
-}
-
-function truncateBreadcrumbLabel(label: string, maxLength = BREADCRUMB_LABEL_MAX_LENGTH) {
-  if (label.length <= maxLength) {
-    return label
-  }
-
-  return `${label.slice(0, maxLength - 3).trimEnd()}...`
 }
 
 function getVisibleBreadcrumbs<T>(breadcrumbs: T[]) {
@@ -54,62 +50,75 @@ function getVisibleBreadcrumbs<T>(breadcrumbs: T[]) {
   ]
 }
 
-function buildBreadcrumbs({
+function resolveBreadcrumbValue(
+  value: BreadcrumbEntryConfig["label"] | BreadcrumbEntryConfig["to"] | undefined,
+  context: BreadcrumbContext,
+) {
+  if (typeof value === "function") {
+    return value(context)
+  }
+
+  return value
+}
+
+function resolveConfiguredBreadcrumb(
+  item: BreadcrumbEntryConfig,
+  context: BreadcrumbContext,
+): BreadcrumbEntry {
+  return {
+    label: resolveBreadcrumbValue(item.label, context) ?? "Arkivra",
+    to: resolveBreadcrumbValue(item.to, context),
+  }
+}
+
+function pushBreadcrumb(entries: BreadcrumbEntry[], entry: BreadcrumbEntry) {
+  const previous = entries.at(-1)
+
+  if (previous?.label === entry.label && previous.to === entry.to) {
+    return
+  }
+
+  entries.push(entry)
+}
+
+function buildRouteBreadcrumbs({
+  documentName,
   pathname,
   vaultId,
   vaultName,
-  documentName,
 }: {
+  documentName?: string
   pathname: string
   vaultId?: string | null
   vaultName?: string
-  documentName?: string
 }): BreadcrumbEntry[] {
-  const parts = pathname.split("/").filter(Boolean)
-  const currentDocumentLabel = documentName ?? "Document"
-
-  if (parts.length === 0) return [{ label: "Vaults", to: "/vaults" }]
-  if (pathname === "/vaults") return [{ label: "Vaults" }]
-  if (pathname === "/trash") return [{ label: "Trash" }]
-  if (parts[0] === "trash" && parts[1]) return [{ label: "Trash", to: "/trash" }, { label: currentDocumentLabel }]
-  if (pathname === "/tags") return [{ label: "Tags" }]
-  if (pathname === "/search") return [{ label: "Search" }]
-
-  if (parts[0] === "settings") {
-    const settingsLabels: Record<string, string> = {
-      account: "Profile",
-      security: "Security",
-      appearance: "Appearance",
-      about: "About",
-    }
-    const sectionLabel = settingsLabels[parts[1] ?? ""]
-    return sectionLabel ? [{ label: "Settings", to: "/settings/account" }, { label: sectionLabel }] : [{ label: "Settings" }]
+  const matches = matchRoutes(routes as unknown as RouteObject[], pathname) ?? []
+  const context: BreadcrumbContext = {
+    documentName,
+    vaultId: vaultId ?? undefined,
+    vaultName,
   }
+  const entries: BreadcrumbEntry[] = []
 
-  if (parts[0] === "admin") {
-    const adminLabels: Record<string, string> = {
-      "ai-settings": "AI Settings",
-      "audit-log": "Audit Log",
-      "office-converter": "Office Converter",
-      users: "Users",
-    }
-    const sectionLabel = adminLabels[parts[1] ?? ""]
-    return sectionLabel ? [{ label: "Admin", to: "/admin/ai-settings" }, { label: sectionLabel }] : [{ label: "Admin" }]
-  }
+  matches.forEach((match) => {
+    const route = match.route as RouteConfig
+    const config = route.breadcrumb
+    if (!config) return
 
-  if (parts[0] === "vaults" && parts[1]) {
-    const activeVaultId = vaultId ?? parts[1]
-    const vaultLabel = vaultName ?? "Vault"
-    const base: BreadcrumbEntry[] = [
-      { label: "Vaults", to: "/vaults" },
-      { label: vaultLabel, to: `/vaults/${activeVaultId}` },
-    ]
+    config.parents?.forEach((parent) => {
+      pushBreadcrumb(entries, resolveConfiguredBreadcrumb(parent, context))
+    })
 
-    if (parts.length === 2) return base
-    if (parts[2]) return [...base, { label: currentDocumentLabel }]
+    const entry = resolveConfiguredBreadcrumb(config, context)
+    const isCurrentPath = match.pathname === pathname
+    pushBreadcrumb(entries, {
+      ...entry,
+      to: isCurrentPath ? undefined : entry.to ?? match.pathname,
+    })
+  })
 
-    return base
-  }
+  if (entries.length > 0) return entries
+  if (pathname === "/") return [{ label: "Vaults", to: "/vaults" }]
 
   return [{ label: "Arkivra" }]
 }
@@ -148,7 +157,12 @@ export function AppBreadcrumbs() {
   const search = location.search
   const parts = React.useMemo(() => pathname.split("/").filter(Boolean), [pathname])
   const vaultId = parts[0] === "vaults" ? parts[1] : undefined
-  const documentId = parts[0] === "vaults" || parts[0] === "trash" ? parts[2] ?? parts[1] : undefined
+  const isVaultDocumentRoute = parts[0] === "vaults"
+    && parts.length === 3
+    && parts[2] !== "settings"
+    && parts[2] !== "activity"
+  const isTrashDocumentRoute = parts[0] === "trash" && parts.length === 2
+  const documentId = isVaultDocumentRoute ? parts[2] : isTrashDocumentRoute ? parts[1] : undefined
   const folderId = React.useMemo(() => new URLSearchParams(search).get("folderId"), [search])
   const isVaultWorkspaceRoute = parts[0] === "vaults" && parts.length === 2
 
@@ -174,24 +188,47 @@ export function AppBreadcrumbs() {
             if (!ignore) {
               setFolderBreadcrumbs(folderResult.breadcrumbs)
             }
-          } else if (parts[2]) {
-            const documentResult = await getDocument({ vaultId, documentId: parts[2] })
+          } else if (isVaultDocumentRoute && documentId) {
+            const documentResult = await getDocument({ vaultId, documentId })
 
             if (!ignore) {
               setDocumentName(documentResult.document.name)
             }
+
+            if (documentResult.document.folderId) {
+              const folderResult = await listFolderItems({
+                vaultId,
+                folderId: documentResult.document.folderId,
+              })
+
+              if (!ignore) {
+                setFolderBreadcrumbs(folderResult.breadcrumbs)
+              }
+            } else if (!ignore) {
+              setFolderBreadcrumbs([])
+            }
+          } else if (!ignore) {
+            setDocumentName(undefined)
+            setFolderBreadcrumbs([])
           }
 
           return
         }
 
-        if (parts[0] === "trash" && parts[1]) {
+        if (isTrashDocumentRoute && documentId) {
           const deletedDocumentsResult = await listDeletedDocuments()
-          const deletedDocument = deletedDocumentsResult.documents.find((document) => document.id === parts[1])
+          const deletedDocument = deletedDocumentsResult.documents.find((document) => document.id === documentId)
 
           if (!ignore) {
             setDocumentName(deletedDocument?.name)
           }
+
+          return
+        }
+
+        if (!ignore) {
+          setDocumentName(undefined)
+          setFolderBreadcrumbs([])
         }
       } catch {
         if (!ignore) {
@@ -205,7 +242,7 @@ export function AppBreadcrumbs() {
     return () => {
       ignore = true
     }
-  }, [documentId, folderId, isVaultWorkspaceRoute, parts, vaultId])
+  }, [documentId, folderId, isTrashDocumentRoute, isVaultDocumentRoute, isVaultWorkspaceRoute, parts, vaultId])
 
   if (isVaultWorkspaceRoute) {
     const entries = buildVaultBreadcrumbs({
@@ -217,9 +254,25 @@ export function AppBreadcrumbs() {
     return <VaultRouteBreadcrumbs entries={entries} />
   }
 
+  if (isVaultDocumentRoute && vaultId) {
+    const entries = [
+      ...buildVaultBreadcrumbs({
+        vaultId,
+        vaultName,
+        breadcrumbs: folderBreadcrumbs,
+      }),
+      {
+        key: `document-${documentId ?? "current"}`,
+        label: documentName ?? "Document",
+      },
+    ]
+
+    return <VaultRouteBreadcrumbs entries={entries} />
+  }
+
   return (
     <DefaultBreadcrumbs
-      breadcrumbs={buildBreadcrumbs({
+      breadcrumbs={buildRouteBreadcrumbs({
         pathname,
         vaultId,
         vaultName,
@@ -252,8 +305,6 @@ function DefaultBreadcrumbs({ breadcrumbs }: { breadcrumbs: BreadcrumbEntry[] })
             )
           }
 
-          const label = truncateBreadcrumbLabel(item.label)
-
           return (
             <React.Fragment key={`${item.to ?? item.label}-${item.label}`}>
               {index > 0 ? <BreadcrumbSeparator className="text-muted-foreground" /> : null}
@@ -262,13 +313,13 @@ function DefaultBreadcrumbs({ breadcrumbs }: { breadcrumbs: BreadcrumbEntry[] })
                   <BreadcrumbLink asChild>
                     <Link to={item.to} className="min-w-0 font-medium text-inherit">
                       <span title={item.label} className="block truncate">
-                        {label}
+                        {item.label}
                       </span>
                     </Link>
                   </BreadcrumbLink>
                 ) : (
                   <BreadcrumbPage title={item.label} className="truncate">
-                    {label}
+                    {item.label}
                   </BreadcrumbPage>
                 )}
               </BreadcrumbItem>
@@ -303,8 +354,6 @@ function VaultRouteBreadcrumbs({ entries }: { entries: VaultBreadcrumbEntry[] })
             )
           }
 
-          const label = truncateBreadcrumbLabel(entry.label)
-
           return (
             <React.Fragment key={entry.key}>
               {index > 0 ? <BreadcrumbSeparator /> : null}
@@ -313,13 +362,13 @@ function VaultRouteBreadcrumbs({ entries }: { entries: VaultBreadcrumbEntry[] })
                   <BreadcrumbLink asChild>
                     <Link to={entry.to} className="min-w-0 font-medium text-inherit">
                       <span title={entry.label} className="block truncate">
-                        {label}
+                        {entry.label}
                       </span>
                     </Link>
                   </BreadcrumbLink>
                 ) : (
                   <BreadcrumbPage title={entry.label} className="min-w-0 truncate">
-                    <span className="block truncate">{label}</span>
+                    <span className="block truncate">{entry.label}</span>
                   </BreadcrumbPage>
                 )}
               </BreadcrumbItem>

@@ -6,6 +6,7 @@ import type {
 import { eq, sql } from 'drizzle-orm';
 import {
   defaultUserAppearancePreferencesJson,
+  defaultUserRegionalPreferencesJson,
   userUiPreferencesTable,
 } from '../database/schema/index.js';
 
@@ -14,6 +15,7 @@ type UserUiPreferencesRow = typeof userUiPreferencesTable.$inferSelect;
 function serializePreferences(row: UserUiPreferencesRow): UserUiPreferences {
   return {
     appearancePreferences: row.appearancePreferences,
+    regionalPreferences: row.regionalPreferences,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -36,6 +38,7 @@ export function createUserPreferencesServices({ db }: { db: Database }) {
       .values({
         userId,
         appearancePreferences: defaultUserAppearancePreferencesJson,
+        regionalPreferences: defaultUserRegionalPreferencesJson,
       })
       .onConflictDoNothing()
       .returning();

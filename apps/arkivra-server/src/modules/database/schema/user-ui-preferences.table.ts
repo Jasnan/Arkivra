@@ -15,6 +15,18 @@ export interface UserAppearancePreferencesJson {
   };
 }
 
+export interface UserRegionalPreferencesJson {
+  language: 'en';
+  dateFormat:
+    | 'DD.MM.YYYY'
+    | 'DD/MM/YYYY'
+    | 'DD-MM-YYYY'
+    | 'MM/DD/YYYY'
+    | 'YYYY-MM-DD'
+    | 'YYYY/MM/DD'
+    | null;
+}
+
 export const defaultUserAppearancePreferencesJson = {
   themeMode: 'system',
   selectedTheme: 'default',
@@ -28,6 +40,11 @@ export const defaultUserAppearancePreferencesJson = {
   },
 } as const satisfies UserAppearancePreferencesJson;
 
+export const defaultUserRegionalPreferencesJson = {
+  language: 'en',
+  dateFormat: null,
+} as const satisfies UserRegionalPreferencesJson;
+
 export const userUiPreferencesTable = pgTable('user_ui_preferences', {
   userId: text('user_id')
     .primaryKey()
@@ -38,4 +55,8 @@ export const userUiPreferencesTable = pgTable('user_ui_preferences', {
     .$type<UserAppearancePreferencesJson>()
     .notNull()
     .default(defaultUserAppearancePreferencesJson),
+  regionalPreferences: jsonb('regional_preferences')
+    .$type<UserRegionalPreferencesJson>()
+    .notNull()
+    .default(defaultUserRegionalPreferencesJson),
 });

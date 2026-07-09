@@ -13,10 +13,25 @@ export interface UserAppearancePreferences {
   };
 }
 
+export interface UserRegionalPreferences {
+  language: 'en';
+  dateFormat:
+    | 'DD.MM.YYYY'
+    | 'DD/MM/YYYY'
+    | 'DD-MM-YYYY'
+    | 'MM/DD/YYYY'
+    | 'YYYY-MM-DD'
+    | 'YYYY/MM/DD'
+    | null;
+}
+
 export interface UserUiPreferences {
   appearancePreferences: UserAppearancePreferences;
+  regionalPreferences: UserRegionalPreferences;
   createdAt: string;
   updatedAt: string;
 }
 
-export type UserUiPreferencesUpdate = Pick<UserUiPreferences, 'appearancePreferences'>;
+export type UserUiPreferencesUpdate = Partial<
+  Pick<UserUiPreferences, 'appearancePreferences' | 'regionalPreferences'>
+>;

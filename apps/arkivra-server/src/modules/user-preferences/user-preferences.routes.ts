@@ -24,11 +24,25 @@ const userAppearancePreferencesSchema = z
   })
   .strict();
 
-const userUiPreferencesUpdateSchema = z
+const userRegionalPreferencesSchema = z
   .object({
-    appearancePreferences: userAppearancePreferencesSchema,
+    language: z.literal('en'),
+    dateFormat: z
+      .enum(['DD.MM.YYYY', 'DD/MM/YYYY', 'DD-MM-YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD', 'YYYY/MM/DD'])
+      .nullable(),
   })
   .strict();
+
+const userUiPreferencesUpdateSchema = z
+  .object({
+    appearancePreferences: userAppearancePreferencesSchema.optional(),
+    regionalPreferences: userRegionalPreferencesSchema.optional(),
+  })
+  .strict()
+  .refine(
+    (value) => value.appearancePreferences !== undefined || value.regionalPreferences !== undefined,
+    { message: 'Provide at least one preference group.' },
+  );
 
 export function registerUserPreferencesRoutes({
   app,

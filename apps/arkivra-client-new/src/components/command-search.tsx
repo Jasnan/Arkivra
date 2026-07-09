@@ -13,11 +13,11 @@ import {
   User,
   Users,
   DatabaseBackup,
-  Palette,
   Info,
   ClipboardList,
   Bot,
   FileText,
+  SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react"
 
@@ -164,7 +164,7 @@ export function CommandSearch({ open, onOpenChange, isAdmin }: CommandSearchProp
     // Settings
     { title: "Profile", url: "/settings/account", group: "Settings", icon: User },
     { title: "Security", url: "/settings/security", group: "Settings", icon: ShieldCheck },
-    { title: "Appearance", url: "/settings/appearance", group: "Settings", icon: Palette },
+    { title: "Preferences", url: "/settings/preferences", group: "Settings", icon: SlidersHorizontal },
     { title: "About", url: "/settings/about", group: "Settings", icon: Info },
 
     ...(isAdmin

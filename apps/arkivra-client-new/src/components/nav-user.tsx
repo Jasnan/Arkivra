@@ -5,7 +5,7 @@ import {
   LogOut,
   CircleUser,
   Info,
-  Palette,
+  SlidersHorizontal,
   ShieldCheck,
 } from "lucide-react"
 import { Link } from "react-router-dom"
@@ -143,9 +143,9 @@ export function NavUser({
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild className="cursor-pointer">
-                <Link to="/settings/appearance">
-                  <Palette />
-                  Appearance
+                <Link to="/settings/preferences">
+                  <SlidersHorizontal />
+                  Preferences
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild className="cursor-pointer">

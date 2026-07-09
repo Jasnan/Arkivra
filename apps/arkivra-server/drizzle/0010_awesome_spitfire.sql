@@ -1,0 +1,1 @@
+ALTER TABLE "user_ui_preferences" ADD COLUMN "regional_preferences" jsonb DEFAULT '{"language":"en","dateFormat":null}'::jsonb NOT NULL;

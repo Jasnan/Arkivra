@@ -18,6 +18,10 @@ function createPreferences() {
         side: 'left',
       },
     },
+    regionalPreferences: {
+      language: 'en',
+      dateFormat: null,
+    },
     createdAt: '2026-05-15T00:00:00.000Z',
     updatedAt: '2026-05-15T00:00:00.000Z',
   } as const;
@@ -129,6 +133,50 @@ describe('user preferences routes', () => {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ appearancePreferences: { themeMode: 'brown' } }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(services.updatePreferences).not.toHaveBeenCalled();
+  });
+
+  test('updates validated regional preferences', async () => {
+    const { app, services } = createTestApp();
+
+    const response = await app.request('/api/me/preferences', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        regionalPreferences: {
+          language: 'en',
+          dateFormat: 'YYYY-MM-DD',
+        },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(services.updatePreferences).toHaveBeenCalledWith({
+      userId: 'usr_test',
+      preferences: {
+        regionalPreferences: {
+          language: 'en',
+          dateFormat: 'YYYY-MM-DD',
+        },
+      },
+    });
+  });
+
+  test('rejects unsupported regional languages', async () => {
+    const { app, services } = createTestApp();
+
+    const response = await app.request('/api/me/preferences', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        regionalPreferences: {
+          language: 'de',
+          dateFormat: null,
+        },
+      }),
     });
 
     expect(response.status).toBe(400);

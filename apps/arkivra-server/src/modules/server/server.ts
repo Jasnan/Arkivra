@@ -63,6 +63,9 @@ import type {
   ChatModelSelection,
   ChatProvider,
 } from '../chat/chat.core.js';
+import type { Context, MiddlewareHandler } from 'hono';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { resolveChatProviderApiKey } from '../chat/chat-ai-sdk.js';
 import { registerChatRoutes } from '../chat/chat.routes.js';
 import {
@@ -76,6 +79,46 @@ import { createAuditServices } from '../audit/audit.services.js';
 import { registerAuditRoutes } from '../audit/audit.routes.js';
 import { createActivityServices } from '../activity/activity.services.js';
 import { registerActivityRoutes } from '../activity/activity.routes.js';
+import { serveStatic } from '@hono/node-server/serve-static';
+import { notFoundResponse } from '../http/http.responses.js';
+
+const FRONTEND_DIST_ROOT = 'public';
+const FRONTEND_INDEX = 'index.html';
+
+function isApiPath(path: string) {
+  return path === '/api' || path.startsWith('/api/');
+}
+
+function frontendBuildAvailable() {
+  return existsSync(join(process.cwd(), FRONTEND_DIST_ROOT, FRONTEND_INDEX));
+}
+
+function shouldServeFrontendFallback(context: Context<ServerContext>) {
+  if (context.req.method !== 'GET' && context.req.method !== 'HEAD') {
+    return false;
+  }
+
+  const path = context.req.path;
+  if (isApiPath(path)) {
+    return false;
+  }
+
+  const lastSegment = path.split('/').pop() ?? '';
+  if (lastSegment.includes('.')) {
+    return false;
+  }
+
+  const accept = context.req.header('accept') ?? '';
+  return accept === '' || accept.includes('text/html') || accept.includes('*/*');
+}
+
+async function runStaticMiddleware(
+  middleware: MiddlewareHandler<ServerContext>,
+  context: Context<ServerContext>,
+) {
+  const response = await middleware(context, async () => {});
+  return response ?? context.notFound();
+}
 
 export function createServer({
   config,
@@ -105,6 +148,12 @@ export function createServer({
   documentConverter?: DocumentConverter;
 }) {
   const app = new Hono<ServerContext>({ strict: true });
+  const hasFrontendBuild = config.env === 'production' && frontendBuildAvailable();
+  const serveFrontendStatic = serveStatic<ServerContext>({ root: FRONTEND_DIST_ROOT });
+  const serveFrontendIndex = serveStatic<ServerContext>({
+    root: FRONTEND_DIST_ROOT,
+    path: FRONTEND_INDEX,
+  });
   const backupServices = createBackupServices({ config });
   const authzServices = authorizationServices ?? createAuthorizationServices({ db });
   const aiServices = adminAiServices ?? createAdminAiServices({ db, config });
@@ -413,14 +462,15 @@ export function createServer({
     });
   });
 
-  // Root path redirect
-  app.get('/', (c) => {
-    return c.json({
-      name: 'Arkivra',
-      version: config.version,
-      docs: '/api/health',
+  if (!hasFrontendBuild) {
+    app.get('/', (c) => {
+      return c.json({
+        name: 'Arkivra',
+        version: config.version,
+        docs: '/api/health',
+      });
     });
-  });
+  }
 
   app.get('/api/me', requireAuthentication(), async (c) => {
     const session = c.get('session');
@@ -456,6 +506,31 @@ export function createServer({
       authMethods: sensitiveActionServices.summarizeAuthMethods(accounts),
       twoFactor,
     });
+  });
+
+  if (hasFrontendBuild) {
+    app.use('*', async (context, next) => {
+      if (isApiPath(context.req.path)) {
+        return next();
+      }
+
+      return serveFrontendStatic(context, next);
+    });
+  }
+
+  app.notFound(async (context) => {
+    if (hasFrontendBuild && shouldServeFrontendFallback(context)) {
+      return runStaticMiddleware(serveFrontendIndex, context);
+    }
+
+    if (isApiPath(context.req.path)) {
+      return notFoundResponse(context, {
+        code: 'http.not_found',
+        message: 'Not found',
+      });
+    }
+
+    return context.notFound();
   });
 
   return { app };

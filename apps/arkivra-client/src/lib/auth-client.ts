@@ -3,7 +3,7 @@ import { createAuthClient } from "better-auth/react"
 
 function resolveBaseURL() {
   if (typeof window === "undefined") {
-    return import.meta.env.VITE_ARKIVRA_WEB_BASE_URL ?? "http://localhost:5173"
+    return import.meta.env.VITE_ARKIVRA_WEB_BASE_URL ?? "/"
   }
 
   return window.location.origin

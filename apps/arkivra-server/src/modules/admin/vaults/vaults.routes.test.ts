@@ -69,7 +69,7 @@ function createTestApp({
   return { app, services };
 }
 
-describe('admin vault routes integration', () => {
+describe('admin vault routes', () => {
   test('returns 401 when unauthenticated', async () => {
     const { app } = createTestApp({ isAuthenticated: false });
     const response = await app.request('/api/admin/vaults');

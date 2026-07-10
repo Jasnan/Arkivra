@@ -2,7 +2,10 @@
 	"name": "@arkivra/website",
 	"type": "module",
 	"version": "0.1.0",
-	"description": "Marketing website for Arkivra, an open-source self-hostable document management system.",
+	"private": true,
+	"description": "Arkivra public website for the open-source, self-hostable document management system.",
+	"author": "Jasnan Thachaparamban (https://jasnan.xyz)",
+	"license": "AGPL-3.0-or-later",
 	"engines": {
 		"node": ">=22.12.0",
 		"pnpm": ">=9"

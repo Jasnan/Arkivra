@@ -7,7 +7,7 @@ import {
   createTestApp,
 } from './documents.routes.test-helpers.js';
 
-describe('documents integration', () => {
+describe('documents routes', () => {
   test('returns 401 for unauthenticated document listing', async () => {
     const docServices = createMockDocumentsServices();
     const app = createTestApp({ docServices });
@@ -31,7 +31,7 @@ describe('documents integration', () => {
     expect(response.status).toBe(403);
   });
 
-  test('returns 403 for admin without explicit membership when listing documents', async () => {
+  test('allows admin without explicit membership to list documents', async () => {
     const docServices = createMockDocumentsServices();
     const vaultServices = createMockVaultsServices();
     (vaultServices as any).getVaultForUser = vi.fn(async () => ({
@@ -51,8 +51,14 @@ describe('documents integration', () => {
       headers: { 'x-test-user-id': 'usr_root' },
     });
 
-    expect(response.status).toBe(403);
-    expect(docServices.listDocuments).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(docServices.listDocuments).toHaveBeenCalledWith({
+      vaultId: 'vlt_1',
+      includeDeleted: false,
+      tagId: undefined,
+      sortBy: 'created_desc',
+      folderId: undefined,
+    });
   });
 
   test('returns 403 when member lacks documents.create permission', async () => {

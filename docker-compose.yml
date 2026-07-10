@@ -6,8 +6,6 @@ services:
       POSTGRES_USER: arkivra
       POSTGRES_PASSWORD: arkivra
       POSTGRES_DB: ${POSTGRES_DB_NAME:-arkivra}
-    ports:
-      - '${ARKIVRA_POSTGRES_PORT:-5432}:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -17,21 +15,21 @@ services:
       timeout: 5s
       retries: 5
 
-  arkivra-server:
-    image: arkivra-server:local
+  arkivra:
+    image: arkivra:local
     build:
       context: .
       dockerfile: ./apps/arkivra-server/Dockerfile
     restart: unless-stopped
     ports:
-      - '${ARKIVRA_PORT:-1221}:${ARKIVRA_PORT:-1221}'
+      - '${ARKIVRA_PORT:-3210}:${ARKIVRA_PORT:-3210}'
     environment:
       NODE_ENV: production
       ARKIVRA_PROCESS_ROLE: all
 
-      ARKIVRA_PORT: ${ARKIVRA_PORT:-1221}
+      ARKIVRA_PORT: ${ARKIVRA_PORT:-3210}
       ARKIVRA_HOSTNAME: '0.0.0.0'
-      ARKIVRA_PUBLIC_URL: ${ARKIVRA_PUBLIC_URL:-http://localhost:5173}
+      ARKIVRA_PUBLIC_URL: ${ARKIVRA_PUBLIC_URL:-http://localhost:3210}
 
       # Docker-internal DB URL. Do not use localhost or 127.0.0.1 here.
       ARKIVRA_DATABASE_URL: postgres://arkivra:arkivra@postgres:5432/${POSTGRES_DB_NAME:-arkivra}
@@ -82,33 +80,7 @@ services:
         condition: service_healthy
 
     healthcheck:
-      test: ['CMD-SHELL', 'curl -f "http://localhost:$${ARKIVRA_PORT:-1221}/api/health"']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  arkivra-client:
-    image: arkivra-client:local
-    build:
-      context: .
-      dockerfile: ./apps/arkivra-client/Dockerfile
-      target: development
-    restart: unless-stopped
-    ports:
-      - '${ARKIVRA_WEB_PORT:-5173}:${ARKIVRA_WEB_PORT:-5173}'
-    environment:
-      ARKIVRA_WEB_PORT: ${ARKIVRA_WEB_PORT:-5173}
-
-      # Container-to-container server URL.
-      ARKIVRA_SERVER_BASE_URL: http://arkivra-server:${ARKIVRA_PORT:-1221}
-
-    depends_on:
-      arkivra-server:
-        condition: service_healthy
-
-    healthcheck:
-      test:
-        ['CMD-SHELL', 'wget --spider -q "http://127.0.0.1:$${ARKIVRA_WEB_PORT:-5173}" || exit 1']
+      test: ['CMD-SHELL', 'curl -f "http://localhost:$${ARKIVRA_PORT:-3210}/api/health"']
       interval: 10s
       timeout: 5s
       retries: 5

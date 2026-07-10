@@ -150,7 +150,7 @@ function createTestApp({
   return app;
 }
 
-describe('search integration', () => {
+describe('search routes', () => {
   test('returns 401 for unauthenticated search', async () => {
     const searchServices = createMockSearchServices();
     const app = createTestApp({ searchServices });

@@ -3,7 +3,9 @@
   "type": "module",
   "version": "0.1.0",
   "private": true,
-  "description": "Documentation website for Arkivra",
+  "description": "Arkivra documentation site for self-hosting, configuration, document workflows, and operations.",
+  "author": "Jasnan Thachaparamban (https://jasnan.xyz)",
+  "license": "AGPL-3.0-or-later",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",

@@ -188,7 +188,7 @@ const mockAuthorizationServices = {
   setUserDisabled: vi.fn(),
 };
 
-describe('auth integration', () => {
+describe('auth routes', () => {
   test('delegates signup route to Better Auth handler', async () => {
     const { config } = parseConfig({ env: requiredEnv });
     const { auth, handler } = createMockAuth();

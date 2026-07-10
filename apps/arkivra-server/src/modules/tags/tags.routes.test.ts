@@ -143,7 +143,7 @@ function createTestApp({
   return app;
 }
 
-describe('tags integration', () => {
+describe('tags routes', () => {
   test('lists global tags for an authenticated user', async () => {
     const tagsServices = createMockTagsServices();
     const app = createTestApp({ tagsServices });

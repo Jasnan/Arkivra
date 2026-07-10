@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { createGeminiEmbeddingProvider } from './gemini-embedding.provider.js';
 
-describe('Gemini embedding provider', () => {
+describe('gemini embedding provider', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });

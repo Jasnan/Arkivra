@@ -96,7 +96,7 @@ function createTestApp({
   return { app, authorizationServices };
 }
 
-describe('admin users routes integration', () => {
+describe('admin users routes', () => {
   test('returns 401 when unauthenticated', async () => {
     const { app } = createTestApp({ isAuthenticated: false });
     const response = await app.request('/api/admin/users');

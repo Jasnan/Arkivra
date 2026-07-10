@@ -34,6 +34,29 @@ type DatabaseHandle = ReturnType<typeof setupDatabase>;
 
 const uniqueSuffix = `vault-hard-delete-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+const ids = {
+  user: `usr_${uniqueSuffix}`,
+  vault: `vlt_${uniqueSuffix}`,
+  folder: `fld_${uniqueSuffix}`,
+  document: `doc_${uniqueSuffix}`,
+  version: `dvr_${uniqueSuffix}`,
+  chunk: `chk_${uniqueSuffix}`,
+  asset: `cas_${uniqueSuffix}`,
+  tag: `tag_${uniqueSuffix}`,
+  upload: `upl_${uniqueSuffix}`,
+  providerConfig: `aip_${uniqueSuffix}`,
+  embeddingIndex: `eix_${uniqueSuffix}`,
+  embedding: `dce_${uniqueSuffix}`,
+  conversation: `cht_${uniqueSuffix}`,
+  message: `msg_${uniqueSuffix}`,
+  citation: `cmc_${uniqueSuffix}`,
+  permissionRequest: `perm_req_${uniqueSuffix}`,
+  invitation: `invite_${uniqueSuffix}`,
+  activity: `act_${uniqueSuffix}`,
+  audit: `aud_${uniqueSuffix}`,
+  job: `job_${uniqueSuffix}`,
+};
+
 describe.sequential('vault hard deletion services e2e', () => {
   let database: DatabaseHandle | null = null;
 
@@ -63,29 +86,6 @@ describe.sequential('vault hard deletion services e2e', () => {
       await database.pool.end();
     }
   });
-
-  const ids = {
-    user: `usr_${uniqueSuffix}`,
-    vault: `vlt_${uniqueSuffix}`,
-    folder: `fld_${uniqueSuffix}`,
-    document: `doc_${uniqueSuffix}`,
-    version: `dvr_${uniqueSuffix}`,
-    chunk: `chk_${uniqueSuffix}`,
-    asset: `cas_${uniqueSuffix}`,
-    tag: `tag_${uniqueSuffix}`,
-    upload: `upl_${uniqueSuffix}`,
-    providerConfig: `aip_${uniqueSuffix}`,
-    embeddingIndex: `eix_${uniqueSuffix}`,
-    embedding: `dce_${uniqueSuffix}`,
-    conversation: `cht_${uniqueSuffix}`,
-    message: `msg_${uniqueSuffix}`,
-    citation: `cmc_${uniqueSuffix}`,
-    permissionRequest: `perm_req_${uniqueSuffix}`,
-    invitation: `invite_${uniqueSuffix}`,
-    activity: `act_${uniqueSuffix}`,
-    audit: `aud_${uniqueSuffix}`,
-    job: `job_${uniqueSuffix}`,
-  };
 
   test('hard-deletes a populated vault without creating trash or orphaned vault rows', async () => {
     if (database === null) {

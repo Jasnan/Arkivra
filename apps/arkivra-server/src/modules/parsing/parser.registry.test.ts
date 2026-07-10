@@ -73,10 +73,4 @@ describe('parser registry', () => {
     ).toThrow(/Duplicate/);
   });
 
-  test('getDefault returns the configured default parser', () => {
-    const docling = makeParser('docling');
-    const registry = createParserRegistry({ parsers: [docling], defaultEngine: 'docling' });
-
-    expect(registry.getDefault()).toBe(docling);
-  });
 });

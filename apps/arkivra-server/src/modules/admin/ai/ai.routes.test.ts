@@ -129,7 +129,7 @@ function createTestApp({
   return { app, aiServices };
 }
 
-describe('admin ai routes integration', () => {
+describe('admin ai routes', () => {
   test('defaults ingestion AI settings to disabled when no instance settings row exists', async () => {
     const aiServices = createAdminAiServices({
       db: {

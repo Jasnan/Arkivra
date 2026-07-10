@@ -7,7 +7,7 @@ import {
   createTestApp,
 } from './documents.routes.test-helpers.js';
 
-describe('documents integration', () => {
+describe('documents routes', () => {
   test('returns 401 for unauthenticated document listing', async () => {
     const docServices = createMockDocumentsServices();
     const app = createTestApp({ docServices });

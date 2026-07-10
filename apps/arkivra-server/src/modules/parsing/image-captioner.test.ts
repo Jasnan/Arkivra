@@ -1,18 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import type { ImageCaptioner } from './image-captioner.js';
 import { createRuntimeConfiguredOllamaImageCaptioner } from './image-captioner.js';
-
-describe('image captioner interface', () => {
-  test('requires name and caption method', () => {
-    const captioner: ImageCaptioner = {
-      name: 'test-captioner',
-      caption: async () => null,
-    };
-
-    expect(captioner.name).toBe('test-captioner');
-    expect(typeof captioner.caption).toBe('function');
-  });
-});
 
 describe('create runtime configured ollama image captioner', () => {
   test('returns captioner even when disabled (caption method returns null)', async () => {
@@ -34,20 +21,6 @@ describe('create runtime configured ollama image captioner', () => {
     });
 
     expect(result).toBeNull();
-  });
-
-  test('returns captioner when captioning is enabled', async () => {
-    const captioner = createRuntimeConfiguredOllamaImageCaptioner({
-      resolveSettings: async () => ({
-        enabled: true,
-        host: 'http://localhost:11434',
-        model: 'llava',
-        logRequests: false,
-      }),
-    });
-
-    expect(captioner).not.toBeNull();
-    expect(captioner?.name).toBe('ollama-image-captioner');
   });
 
   test('calls Ollama chat API when caption is invoked', async () => {

@@ -109,7 +109,7 @@ function createTestApp({
   return app;
 }
 
-describe('vaults integration', () => {
+describe('vaults routes', () => {
   test('returns 401 for unauthenticated vault listing', async () => {
     const services = createMockVaultsServices();
     const app = createTestApp({ services });

@@ -173,7 +173,7 @@ function createTestApp({
   return app;
 }
 
-describe('folders integration', () => {
+describe('folders routes', () => {
   test('returns 401 for unauthenticated folder item listing', async () => {
     const folderServices = createMockFoldersServices();
     const app = createTestApp({ folderServices });

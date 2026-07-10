@@ -72,7 +72,7 @@ function createAuthenticatedApp({
   return app;
 }
 
-describe('backup routes integration', () => {
+describe('backup routes', () => {
   let backupDirectory = '';
   const partData = Buffer.from('part-data');
   const validArchiveFields = {

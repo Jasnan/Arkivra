@@ -19,7 +19,7 @@
     "test:all": "pnpm run test:fast && pnpm run test:e2e:all",
     "test:db": "pnpm run test:integration:db && pnpm run test:e2e:db",
     "test:fast": "pnpm run test:unit",
-    "test:integration:db": "vitest run \"src/**/*.integration.test.ts\" --exclude \"src/**/*.e2e.integration.test.ts\"",
+    "test:integration:db": "vitest run integration --exclude \"src/**/*.e2e.integration.test.ts\"",
     "test:unit": "vitest run --exclude \"src/**/*.integration.test.ts\" --exclude \"src/**/*.e2e.integration.test.ts\"",
     "test:e2e:backups": "vitest run src/modules/admin/backups/backups.e2e.integration.test.ts",
     "test:e2e:all": "pnpm run test:db && pnpm run test:e2e:docling",

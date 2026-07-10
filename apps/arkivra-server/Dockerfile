@@ -6,6 +6,7 @@ WORKDIR /app
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/arkivra-server/package.json ./apps/arkivra-server/
+COPY apps/arkivra-client/package.json ./apps/arkivra-client/
 RUN pnpm install --frozen-lockfile
 
 FROM base AS prod-deps
@@ -17,9 +18,12 @@ RUN pnpm install --prod --frozen-lockfile
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/arkivra-server/node_modules ./apps/arkivra-server/node_modules
+COPY --from=deps /app/apps/arkivra-client/node_modules ./apps/arkivra-client/node_modules
 COPY package.json pnpm-workspace.yaml tsconfig.json ./
 COPY apps/arkivra-server ./apps/arkivra-server
+COPY apps/arkivra-client ./apps/arkivra-client
 RUN pnpm --dir apps/arkivra-server build
+RUN pnpm --dir apps/arkivra-client build
 
 # Production
 FROM base AS production
@@ -31,6 +35,7 @@ COPY --from=prod-deps /app/apps/arkivra-server/node_modules ./apps/arkivra-serve
 COPY --from=build /app/apps/arkivra-server/dist ./apps/arkivra-server/dist
 COPY --from=build /app/apps/arkivra-server/drizzle ./apps/arkivra-server/drizzle
 COPY --from=build /app/apps/arkivra-server/package.json ./apps/arkivra-server/package.json
+COPY --from=build /app/apps/arkivra-client/dist ./apps/arkivra-server/public
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 
@@ -38,6 +43,6 @@ RUN mkdir -p /app/document-storage /app/upload-staging /app/backups
 
 WORKDIR /app/apps/arkivra-server
 
-EXPOSE 1221
+EXPOSE 3210
 
 CMD ["sh", "-c", "role=\"${ARKIVRA_PROCESS_ROLE:-all}\"; if [ \"$role\" = \"worker\" ]; then pnpm start; else pnpm db:migrate:prod && pnpm start; fi"]

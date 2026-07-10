@@ -9,8 +9,8 @@ describe('loadApiEnvFiles', () => {
     const root = mkdtempSync(join(tmpdir(), 'arkivra-env-'));
     const apiDir = join(root, 'apps', 'arkivra-server');
     mkdirSync(apiDir, { recursive: true });
-    writeFileSync(join(root, 'package.json'), '{"name":"@arkivra/root"}');
-    writeFileSync(join(apiDir, 'package.json'), '{"name":"@arkivra/api"}');
+    writeFileSync(join(root, 'package.json'), '{"name":"arkivra"}');
+    writeFileSync(join(apiDir, 'package.json'), '{"name":"@arkivra/server"}');
     writeFileSync(join(root, '.env'), [
       'GEMINI_API_KEY=root-key',
       'ARKIVRA_PORT=1221',

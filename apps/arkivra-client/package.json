@@ -1,9 +1,10 @@
 {
-  "name": "@arkivra/web",
+  "name": "@arkivra/client",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Arkivra web frontend",
+  "description": "Arkivra dashboard client for document, vault, search, admin, and chat workflows.",
+  "author": "Jasnan Thachaparamban (https://jasnan.xyz)",
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "dev": "vite",

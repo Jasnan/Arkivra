@@ -86,10 +86,10 @@ docker run --name arkivra-docling -d -p 5001:5001 -e DOCLING_SERVE_ENABLE_UI=1 q
 sed -i.bak 's#^ARKIVRA_DOCLING_URL=.*#ARKIVRA_DOCLING_URL=http://host.docker.internal:5001#' .env
 
 docker compose up -d
-curl http://localhost:5173/api/health
+curl http://localhost:3210/api/health
 ```
 
-Open the dashboard at http://localhost:5173. The API is also published at http://localhost:1221 for direct health checks.
+Open the dashboard at http://localhost:3210. The server container serves both the API and the dashboard in the Docker Compose stack.
 
 Document parsing needs a reachable Docling Serve endpoint. Arkivra does not include Docling in its default Docker Compose stack; set `ARKIVRA_DOCLING_URL` to a local, network, or hosted Docling service before starting the API and worker.
 

@@ -1,9 +1,10 @@
 {
-  "name": "@arkivra/api",
+  "name": "@arkivra/server",
   "type": "module",
   "version": "0.1.0",
   "private": true,
-  "description": "Arkivra API server",
+  "description": "Arkivra backend server, worker, migrations, and production static dashboard host.",
+  "author": "Jasnan Thachaparamban (https://jasnan.xyz)",
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "dev": "ARKIVRA_PROCESS_ROLE=all tsx watch src/index.ts",

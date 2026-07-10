@@ -10,8 +10,7 @@ The repository includes a Docker Compose stack for the current self-hosted path.
 `docker-compose.yml` starts:
 
 - `postgres`: PostgreSQL 16 with pgvector
-- `arkivra-server`: Arkivra API and background worker process from `apps/arkivra-server`
-- `arkivra-client`: dashboard container from `apps/arkivra-client`
+- `arkivra`: Arkivra API, dashboard static assets, and background worker process from `apps/arkivra-server`
 
 Docling is external and must be running before document ingestion can complete. Arkivra's Compose file does not define a Docling service. Point `ARKIVRA_DOCLING_URL` at a Docling Serve instance running locally, in a separate container, on another machine, or as a hosted service.
 
@@ -66,16 +65,15 @@ When Docling is published on the same host at port `5001`, use `http://host.dock
 ```bash
 docker compose up -d
 docker compose ps
-curl http://localhost:5173/api/health
+curl http://localhost:3210/api/health
 ```
 
-The dashboard is available at `http://localhost:5173`. The API is also published directly at `http://localhost:1221`.
+The dashboard and API are available from the server container at `http://localhost:3210`.
 
 If the API health check fails, inspect:
 
 ```bash
-docker compose logs arkivra-server
-docker compose logs arkivra-client
+docker compose logs arkivra
 docker compose logs postgres
 ```
 

@@ -9,8 +9,7 @@ Run:
 
 ```bash
 docker compose ps
-docker compose logs arkivra-server
-docker compose logs arkivra-client
+docker compose logs arkivra
 docker compose logs postgres
 ```
 
@@ -28,14 +27,14 @@ Check:
 - `ARKIVRA_PUBLIC_URL`
 - `BETTER_AUTH_URL`
 
-For local defaults, the dashboard origin is `http://localhost:5173` and the API origin is `http://localhost:1221`.
+For Docker Compose defaults, the dashboard and API share `http://localhost:3210`. In source development, the dashboard dev server defaults to `http://localhost:5173` and proxies API requests to `http://localhost:1221`.
 
 ## Uploads Do Not Process
 
 Check:
 
 ```bash
-docker compose logs arkivra-server
+docker compose logs arkivra
 curl http://localhost:5001/health
 ```
 
@@ -71,7 +70,7 @@ Without an active embedding index, Arkivra falls back to full-text search.
 Backups require the worker process and backup queue. Check:
 
 ```bash
-docker compose logs arkivra-server
+docker compose logs arkivra
 ```
 
 Also verify that `ARKIVRA_DATA_PATH` or the Compose `arkivra-data` volume is writable and `ARKIVRA_ENCRYPTION_KEYS` is configured.

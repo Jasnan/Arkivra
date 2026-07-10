@@ -1,8 +1,6 @@
 import { lazy } from 'react';
 import { Navigate } from 'react-router-dom';
 
-// Lazy load components for better performance
-const Landing = lazy(() => import('@/app/landing/page'));
 const Vaults = lazy(() => import('@/app/vaults/page'));
 const VaultRouteShell = lazy(() => import('@/app/vaults/vault-route-shell'));
 const VaultWorkspace = lazy(() => import('@/app/vaults/vault-workspace-page'));
@@ -93,13 +91,6 @@ export const routes: RouteConfig[] = [
     path: '/request-password-reset',
     element: <RequestPasswordReset />,
     public: true,
-  },
-
-  // Landing Page
-  {
-    path: '/landing',
-    element: <Landing />,
-    breadcrumb: { label: 'Landing' },
   },
 
   // Application Routes

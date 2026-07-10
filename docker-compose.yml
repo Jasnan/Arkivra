@@ -5,20 +5,20 @@ services:
     environment:
       POSTGRES_USER: arkivra
       POSTGRES_PASSWORD: arkivra
-      POSTGRES_DB: arkivra
+      POSTGRES_DB: ${POSTGRES_DB_NAME:-arkivra}
     ports:
       - '${ARKIVRA_POSTGRES_PORT:-5432}:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U arkivra -d arkivra']
+      test: ['CMD-SHELL', 'pg_isready -U arkivra -d "$${POSTGRES_DB:-arkivra}"']
       interval: 5s
       timeout: 5s
       retries: 5
 
   arkivra-server:
-    image: arkivra-server
+    image: arkivra-server:local
     build:
       context: .
       dockerfile: ./apps/arkivra-server/Dockerfile
@@ -28,27 +28,59 @@ services:
     environment:
       NODE_ENV: production
       ARKIVRA_PROCESS_ROLE: all
+
       ARKIVRA_PORT: ${ARKIVRA_PORT:-1221}
       ARKIVRA_HOSTNAME: '0.0.0.0'
-      ARKIVRA_PUBLIC_URL: ${ARKIVRA_PUBLIC_URL:-http://localhost:${ARKIVRA_WEB_PORT:-5173}}
-      ARKIVRA_DATABASE_URL: postgres://arkivra:arkivra@postgres:5432/arkivra
+      ARKIVRA_PUBLIC_URL: ${ARKIVRA_PUBLIC_URL:-http://localhost:5173}
+
+      # Docker-internal DB URL. Do not use localhost or 127.0.0.1 here.
+      ARKIVRA_DATABASE_URL: postgres://arkivra:arkivra@postgres:5432/${POSTGRES_DB_NAME:-arkivra}
+
+      # Container storage path.
       ARKIVRA_DATA_PATH: /app/data
-      ARKIVRA_DOCLING_URL: ${ARKIVRA_DOCLING_URL:?Set ARKIVRA_DOCLING_URL to a reachable Docling Serve endpoint}
-      ARKIVRA_AUTH_SECRET: ${ARKIVRA_AUTH_SECRET:?Set ARKIVRA_AUTH_SECRET to a strong stable secret}
+
+      # Auth / secrets from shell via arkivra-secrets.
+      ARKIVRA_AUTH_SECRET: ${ARKIVRA_AUTH_SECRET:?Run arkivra-secrets first}
+      ARKIVRA_ENCRYPTION_KEYS: ${ARKIVRA_ENCRYPTION_KEYS:?Run arkivra-secrets first}
+
+      # Optional OAuth / AI provider secrets from shell via arkivra-secrets.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+
+      # Auth / email config from .env.docker.
       ARKIVRA_AUTH_REGISTRATION_ENABLED: ${ARKIVRA_AUTH_REGISTRATION_ENABLED:-true}
       ARKIVRA_AUTH_EMAIL_VERIFICATION_REQUIRED: ${ARKIVRA_AUTH_EMAIL_VERIFICATION_REQUIRED:-false}
-      ARKIVRA_RESTORE_BOOTSTRAP_TOKEN: ${ARKIVRA_RESTORE_BOOTSTRAP_TOKEN:-}
-      ARKIVRA_ENCRYPTION_KEYS: ${ARKIVRA_ENCRYPTION_KEYS:?Set ARKIVRA_ENCRYPTION_KEYS to a generated key list}
       ARKIVRA_SMTP_URL: ${ARKIVRA_SMTP_URL:-}
       ARKIVRA_EMAIL_FROM: ${ARKIVRA_EMAIL_FROM:-noreply@localhost}
       ARKIVRA_EMAIL_FROM_NAME: ${ARKIVRA_EMAIL_FROM_NAME:-Arkivra}
+
+      # External services running on your Mac.
+      # Use host.docker.internal, not localhost or 127.0.0.1.
+      ARKIVRA_DOCLING_URL: ${ARKIVRA_DOCLING_URL:?Set ARKIVRA_DOCLING_URL}
+      ARKIVRA_DOCLING_VLM_PIPELINE: ${ARKIVRA_DOCLING_VLM_PIPELINE:-disabled}
+      ARKIVRA_DOCLING_VLM_MODEL: ${ARKIVRA_DOCLING_VLM_MODEL:-}
+
+      ARKIVRA_OLLAMA_HOST: ${ARKIVRA_OLLAMA_HOST:-http://host.docker.internal:11434}
+      ARKIVRA_OLLAMA_IMAGE_CAPTIONING_ENABLED: ${ARKIVRA_OLLAMA_IMAGE_CAPTIONING_ENABLED:-false}
+      ARKIVRA_OLLAMA_IMAGE_CAPTIONING_MODEL: ${ARKIVRA_OLLAMA_IMAGE_CAPTIONING_MODEL:-}
+
+      ARKIVRA_GOTENBERG_URL: ${ARKIVRA_GOTENBERG_URL:-}
+
+      ARKIVRA_RESTORE_BOOTSTRAP_TOKEN: ${ARKIVRA_RESTORE_BOOTSTRAP_TOKEN:-}
+
     volumes:
       - arkivra-data:/app/data
+
     extra_hosts:
       - 'host.docker.internal:host-gateway'
+
     depends_on:
       postgres:
         condition: service_healthy
+
     healthcheck:
       test: ['CMD-SHELL', 'curl -f "http://localhost:$${ARKIVRA_PORT:-1221}/api/health"']
       interval: 10s
@@ -56,6 +88,7 @@ services:
       retries: 5
 
   arkivra-client:
+    image: arkivra-client:local
     build:
       context: .
       dockerfile: ./apps/arkivra-client/Dockerfile
@@ -65,10 +98,14 @@ services:
       - '${ARKIVRA_WEB_PORT:-5173}:${ARKIVRA_WEB_PORT:-5173}'
     environment:
       ARKIVRA_WEB_PORT: ${ARKIVRA_WEB_PORT:-5173}
+
+      # Container-to-container server URL.
       ARKIVRA_SERVER_BASE_URL: http://arkivra-server:${ARKIVRA_PORT:-1221}
+
     depends_on:
       arkivra-server:
         condition: service_healthy
+
     healthcheck:
       test:
         ['CMD-SHELL', 'wget --spider -q "http://127.0.0.1:$${ARKIVRA_WEB_PORT:-5173}" || exit 1']

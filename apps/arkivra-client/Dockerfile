@@ -5,7 +5,7 @@ WORKDIR /app
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/arkivra-client/package.json ./apps/arkivra-client/
-RUN pnpm install --frozen-lockfile --filter @arkivra/web...
+RUN pnpm --dir apps/arkivra-client install --frozen-lockfile
 
 FROM deps AS development
 COPY package.json pnpm-workspace.yaml tsconfig.json ./

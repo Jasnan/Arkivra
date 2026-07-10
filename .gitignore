@@ -9,8 +9,11 @@ dist/
 
 # Environment
 .env
-.env.local
-.env.*.local
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
 
 # IDE
 .vscode/

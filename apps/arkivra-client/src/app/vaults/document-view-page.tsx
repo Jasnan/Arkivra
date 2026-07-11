@@ -3,16 +3,18 @@
 import { Fragment, useCallback, useEffect, useMemo, useState, type FormEvent, type MouseEvent } from "react"
 import {
   AlertCircle,
+  Blocks,
   CalendarDays,
   ClipboardCopy,
   Download,
   FileText,
-  FolderTree,
   Hash,
   Image as ImageIcon,
   Info,
   Loader2,
   MoreHorizontal,
+  PanelLeftClose,
+  PanelLeftOpen,
   Pencil,
   Printer,
   RefreshCw,
@@ -46,7 +48,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDateTime } from "@/lib/date-format"
 import { cn } from "@/lib/utils"
 import { useOptionalVaultRouteShell } from "@/app/vaults/vault-route-shell"
@@ -103,6 +105,37 @@ import {
 type PreviewKind = "pdf" | "image" | "text" | "pending" | "failed" | "unsupported"
 type DocumentTab = "preview" | "content" | "metadata" | "versions"
 type ContentTab = "text" | "chunks"
+
+function DocumentContentTabs({
+  value,
+  onValueChange,
+}: {
+  value: ContentTab
+  onValueChange: (value: ContentTab) => void
+}) {
+  return (
+    <Tabs
+      value={value}
+      onValueChange={(nextValue) => {
+        if (nextValue === "text" || nextValue === "chunks") {
+          onValueChange(nextValue)
+        }
+      }}
+      className="shrink-0 gap-0"
+    >
+      <TabsList aria-label="Document content view" className="h-10 rounded-lg bg-muted/70 p-1">
+        <TabsTrigger value="text" className="cursor-pointer gap-2 px-3">
+          <FileText className="size-4" />
+          Extracted text
+        </TabsTrigger>
+        <TabsTrigger value="chunks" className="cursor-pointer gap-2 px-3">
+          <Blocks className="size-4" />
+          Chunks
+        </TabsTrigger>
+      </TabsList>
+    </Tabs>
+  )
+}
 
 const imagePreviewExtensions = new Set(["gif", "jpeg", "jpg", "png", "webp"])
 const documentFileExtensionPattern = /\.[^/.]+$/
@@ -489,11 +522,13 @@ function MetadataItem({
       <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1">
         <div className="text-xs font-medium uppercase text-muted-foreground">{label}</div>
-        <div className="mt-1 min-w-0 text-sm font-medium">
-          {children ?? <span className="break-words">{value}</span>}
+        <div className="mt-1 flex min-w-0 items-center gap-1 text-sm font-medium">
+          <div className="min-w-0">
+            {children ?? <span className="break-words">{value}</span>}
+          </div>
+          {action ?? copyAction}
         </div>
       </div>
-      {action ?? copyAction}
     </div>
   )
 }
@@ -959,7 +994,7 @@ export default function DocumentViewPage() {
   const setEffectiveTreeDocuments = usesVaultRouteShell
     ? vaultRouteShell.setTreeDocuments
     : setStandaloneTreeDocuments
-  const standaloneVaultTreeToggleLabel = isStandaloneVaultTreeVisible ? "Hide file tree" : "Show file tree"
+  const standaloneVaultTreeToggleLabel = isStandaloneVaultTreeVisible ? "Hide tree" : "Show tree"
   const isCreateTagDialogDirty =
     createTagName.trim().length > 0 ||
     createTagDescription.trim().length > 0 ||
@@ -1732,25 +1767,8 @@ export default function DocumentViewPage() {
       ) : null}
 
       {tab === "content" && !isTrashDocumentRoute ? (
-        <div className="flex h-full min-h-0 flex-col gap-3 p-3">
-          <div className="flex shrink-0 rounded-md border p-1">
-            <Button
-              type="button"
-              size="sm"
-              variant={contentTab === "text" ? "secondary" : "ghost"}
-              onClick={() => setContentTab("text")}
-            >
-              Extracted text
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={contentTab === "chunks" ? "secondary" : "ghost"}
-              onClick={() => setContentTab("chunks")}
-            >
-              Chunks
-            </Button>
-          </div>
+        <div className="m-3 flex h-[calc(100%_-_1.5rem)] min-h-0 flex-col gap-3 overflow-hidden rounded-lg bg-background p-3">
+          <DocumentContentTabs value={contentTab} onValueChange={setContentTab} />
           {contentTab === "text" ? (
             <ScrollArea className="min-h-0 flex-1 bg-background">
               <pre className="whitespace-pre-wrap break-words font-mono text-sm leading-6">{extractedTextMessage}</pre>
@@ -1764,7 +1782,7 @@ export default function DocumentViewPage() {
       ) : null}
 
       {tab === "metadata" ? (
-        <ScrollArea className="h-full p-3">
+        <ScrollArea className="m-3 h-[calc(100%_-_1.5rem)] overflow-hidden rounded-lg bg-background p-4">
           <DocumentMetadataPanel
             document={document}
             currentName={currentName}
@@ -1788,7 +1806,7 @@ export default function DocumentViewPage() {
       ) : null}
 
       {tab === "versions" && !isTrashDocumentRoute ? (
-        <ScrollArea className="h-full p-3">
+        <ScrollArea className="m-3 h-[calc(100%_-_1.5rem)] overflow-hidden rounded-lg bg-background p-4">
           <section>
             <div>
               <h2 className="text-2xl font-semibold tracking-tight">Versions</h2>
@@ -1971,22 +1989,21 @@ export default function DocumentViewPage() {
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant={isStandaloneVaultTreeVisible ? "secondary" : "outline"}
-                        aria-label={standaloneVaultTreeToggleLabel}
-                        aria-pressed={isStandaloneVaultTreeVisible}
-                        className="gap-2"
-                        onClick={() => setIsStandaloneVaultTreeVisible(!isStandaloneVaultTreeVisible)}
-                      >
-                        <FolderTree className="size-4" />
-                        <span>File tree</span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{standaloneVaultTreeToggleLabel}</TooltipContent>
-                  </Tooltip>
+                  <Button
+                    type="button"
+                    variant={isStandaloneVaultTreeVisible ? "secondary" : "outline"}
+                    aria-label={standaloneVaultTreeToggleLabel}
+                    aria-pressed={isStandaloneVaultTreeVisible}
+                    className="gap-2"
+                    onClick={() => setIsStandaloneVaultTreeVisible(!isStandaloneVaultTreeVisible)}
+                  >
+                    {isStandaloneVaultTreeVisible ? (
+                      <PanelLeftClose className="size-4" />
+                    ) : (
+                      <PanelLeftOpen className="size-4" />
+                    )}
+                    <span>{standaloneVaultTreeToggleLabel}</span>
+                  </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button type="button" variant="outline" size="icon" aria-label={`Open actions for ${activeDocument.name}`}>
@@ -2124,25 +2141,8 @@ export default function DocumentViewPage() {
                 ) : null}
 
                 {tab === "content" && !isTrashDocumentRoute ? (
-                  <div className="flex h-full min-h-0 flex-col gap-3 p-3">
-                    <div className="flex shrink-0 rounded-md border p-1">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={contentTab === "text" ? "secondary" : "ghost"}
-                        onClick={() => setContentTab("text")}
-                      >
-                        Extracted text
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={contentTab === "chunks" ? "secondary" : "ghost"}
-                        onClick={() => setContentTab("chunks")}
-                      >
-                        Chunks
-                      </Button>
-                    </div>
+                  <div className="m-3 flex h-[calc(100%_-_1.5rem)] min-h-0 flex-col gap-3 overflow-hidden rounded-lg bg-background p-3">
+                    <DocumentContentTabs value={contentTab} onValueChange={setContentTab} />
                     {contentTab === "text" ? (
                       <ScrollArea className="min-h-0 flex-1 bg-background">
                         <pre className="whitespace-pre-wrap break-words font-mono text-sm leading-6">{extractedTextMessage}</pre>
@@ -2156,7 +2156,7 @@ export default function DocumentViewPage() {
                 ) : null}
 
                 {tab === "metadata" ? (
-                  <ScrollArea className="h-full p-3">
+                  <ScrollArea className="m-3 h-[calc(100%_-_1.5rem)] overflow-hidden rounded-lg bg-background p-4">
                     <DocumentMetadataPanel
                       document={document}
                       currentName={currentName}
@@ -2180,7 +2180,7 @@ export default function DocumentViewPage() {
                 ) : null}
 
                 {tab === "versions" && !isTrashDocumentRoute ? (
-                  <ScrollArea className="h-full p-3">
+                  <ScrollArea className="m-3 h-[calc(100%_-_1.5rem)] overflow-hidden rounded-lg bg-background p-4">
                     <section>
                       <div>
                         <h2 className="text-2xl font-semibold tracking-tight">Versions</h2>

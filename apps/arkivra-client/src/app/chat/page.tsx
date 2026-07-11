@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useAui, useAuiState } from "@assistant-ui/react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 
@@ -11,6 +11,15 @@ import { ChatRuntimeProvider } from "@/app/chat/components/runtime/chat-runtime-
 import { restoreChatThreadFromUrl } from "@/app/chat/components/runtime/chat-url-thread-restore"
 import { BaseConfigProvider } from "@/app/chat/lib/base/config-provider"
 import { defaultBaseConfig } from "@/app/chat/lib/base/defaults"
+import { getChatModelOptions } from "@/app/chat/lib/chat-model-options"
+import { fetchJson } from "@/lib/api"
+
+type ChatAvailability = "loading" | "available" | "disabled" | "needs-setup" | "access-denied"
+
+interface ChatMeResponse {
+  aiFeaturesEnabled: boolean
+  canUseAI?: boolean
+}
 
 function getChatPath(chatId?: string) {
   return chatId ? `/chat/${encodeURIComponent(chatId)}` : "/chat"
@@ -104,21 +113,56 @@ function ChatUrlSync() {
 }
 
 export default function ChatPage() {
+  const [chatAvailability, setChatAvailability] = useState<ChatAvailability>("loading")
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let ignore = false
+
+    async function loadChatAvailability() {
+      try {
+        const me = await fetchJson<ChatMeResponse>("/api/me", { signal: controller.signal })
+
+        if (!me.aiFeaturesEnabled) {
+          if (!ignore) setChatAvailability("disabled")
+          return
+        }
+
+        if (me.canUseAI === false) {
+          if (!ignore) setChatAvailability("access-denied")
+          return
+        }
+
+        const result = await getChatModelOptions()
+        if (!ignore) {
+          setChatAvailability(result.options.models.length > 0 ? "available" : "needs-setup")
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return
+        if (!ignore) setChatAvailability("needs-setup")
+      }
+    }
+
+    void loadChatAvailability()
+    return () => {
+      ignore = true
+      controller.abort()
+    }
+  }, [])
+
   return (
     <BaseLayout
       hideHeaderSearch
       contentClassName="overflow-hidden [&>div]:flex-1 [&>div>div]:flex-1"
     >
-      <div className="flex min-h-0 flex-1 overflow-hidden px-4 lg:px-6">
-        <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-background">
-          <BaseConfigProvider value={defaultBaseConfig}>
-            <ChatRuntimeProvider>
-              <ChatUrlSync />
-              <Base />
-              <ChatCitationViewerDialog />
-            </ChatRuntimeProvider>
-          </BaseConfigProvider>
-        </div>
+      <div className="-my-4 flex min-h-0 flex-1 overflow-hidden md:-my-6">
+        <BaseConfigProvider value={defaultBaseConfig}>
+          <ChatRuntimeProvider>
+            <ChatUrlSync />
+            <Base chatAvailability={chatAvailability} />
+            <ChatCitationViewerDialog />
+          </ChatRuntimeProvider>
+        </BaseConfigProvider>
       </div>
     </BaseLayout>
   )

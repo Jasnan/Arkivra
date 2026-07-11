@@ -14,12 +14,11 @@ import {
   type SetStateAction,
 } from "react"
 import { Outlet, useNavigate, useOutletContext, useParams } from "react-router-dom"
-import { FolderTree, Loader2 } from "lucide-react"
+import { Loader2, PanelLeftClose, PanelLeftOpen } from "lucide-react"
 
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { VaultSidebarTree, VAULT_TREE_ROOT_VALUE, type BrowserDropTarget } from "./components/vault-sidebar-tree"
 import { useVaultTreeVisibility } from "./use-vault-tree-visibility"
 import {
@@ -196,24 +195,23 @@ export default function VaultRouteShell() {
   const headerContentKey =
     headerConfig?.contentKey ??
     (headerConfig && typeof headerConfig.title === "string" ? headerConfig.title : "vault-route-header-content")
-  const vaultTreeToggleLabel = isVaultTreeVisible ? "Hide file tree" : "Show file tree"
+  const vaultTreeToggleLabel = isVaultTreeVisible ? "Hide tree" : "Show tree"
   const vaultTreeToggleButton = (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button"
-          variant={isVaultTreeVisible ? "secondary" : "outline"}
-          aria-label={vaultTreeToggleLabel}
-          aria-pressed={isVaultTreeVisible}
-          className="gap-2"
-          onClick={() => setIsVaultTreeVisible(!isVaultTreeVisible)}
-        >
-          <FolderTree className="size-4" />
-          <span>File tree</span>
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{vaultTreeToggleLabel}</TooltipContent>
-    </Tooltip>
+    <Button
+      type="button"
+      variant={isVaultTreeVisible ? "secondary" : "outline"}
+      aria-label={vaultTreeToggleLabel}
+      aria-pressed={isVaultTreeVisible}
+      className="gap-2"
+      onClick={() => setIsVaultTreeVisible(!isVaultTreeVisible)}
+    >
+      {isVaultTreeVisible ? (
+        <PanelLeftClose className="size-4" />
+      ) : (
+        <PanelLeftOpen className="size-4" />
+      )}
+      <span>{vaultTreeToggleLabel}</span>
+    </Button>
   )
 
   return (

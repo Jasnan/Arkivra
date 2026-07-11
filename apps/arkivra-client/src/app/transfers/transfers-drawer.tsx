@@ -210,9 +210,12 @@ export function TransfersDrawer({ open, onOpenChange }: { open: boolean; onOpenC
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full gap-0 p-0 sm:max-w-xl">
+      <SheetContent
+        className="w-full gap-0 p-0 sm:max-w-xl"
+        closeButtonClassName="top-5 right-4 flex size-8 items-center justify-center rounded-md hover:bg-accent"
+      >
         <SheetHeader className="border-b px-6 py-4">
-          <div className="flex min-w-0 items-center justify-between gap-3 pr-8">
+          <div className="flex min-w-0 items-center justify-between gap-3 pr-10">
             <div className="min-w-0">
               <SheetTitle>Transfers</SheetTitle>
               <SheetDescription>Monitor uploads for this browser tab.</SheetDescription>
@@ -237,7 +240,7 @@ export function TransfersDrawer({ open, onOpenChange }: { open: boolean; onOpenC
           </div>
         </SheetHeader>
         <ScrollArea className="min-h-0 flex-1">
-          <div className="px-6 py-5">
+          <div className={hasRows ? "px-6 py-5" : "flex h-full min-h-0 px-6 py-5"}>
             {hasRows ? (
               <div className="space-y-6">
                 <TransferSection title="In progress" items={sections.inProgress} />
@@ -245,10 +248,14 @@ export function TransfersDrawer({ open, onOpenChange }: { open: boolean; onOpenC
                 <TransferSection title="Failure" items={sections.failure} />
               </div>
             ) : (
-              <div className="flex min-h-[22rem] flex-col items-center justify-center rounded-md border p-8 text-center">
-                <ArrowDownUp className="size-8 text-muted-foreground" />
+              <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center p-8 text-center">
+                <div className="flex size-14 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                  <ArrowDownUp className="size-7" />
+                </div>
                 <h2 className="mt-4 text-lg font-semibold">No transfers yet</h2>
-                <p className="mt-2 max-w-sm text-sm text-muted-foreground">Uploads will appear here while they are queued, running, or recently completed.</p>
+                <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+                  Uploads from this browser tab will appear here when they are queued, in progress, or completed.
+                </p>
               </div>
             )}
           </div>

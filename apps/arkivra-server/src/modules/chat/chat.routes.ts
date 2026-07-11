@@ -1,4 +1,5 @@
 import type { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import type { Database } from '../database/database.js';
 import type { ServerContext } from '../server/server.types.js';
 import type { VaultsServices } from '../vaults/vaults.services.js';
@@ -20,7 +21,10 @@ import {
   resolveUsableContext,
   routeError,
   SOURCE_DOCUMENT_DELETED_CONTEXT,
+  validateSubmittedChatMessages,
 } from './chat.route-helpers.js';
+import { MAX_CHAT_REQUEST_BYTES } from './chat.constants.js';
+import { areChatScopesEquivalent } from './chat.core.js';
 import type { ChatContextSnapshot, ChatMessage } from './chat.types.js';
 import {
   createChatResumableStreamId,
@@ -93,6 +97,18 @@ export function registerChatRoutes({
 }) {
   const vaultsServices = vaultServices ?? createVaultsServices({ db });
 
+  app.use(
+    '/api/chats/messages/stream',
+    bodyLimit({
+      maxSize: MAX_CHAT_REQUEST_BYTES,
+      onError: context => context.json({
+        error: {
+          code: 'chat.payload_too_large',
+          message: `Chat requests must be at most ${MAX_CHAT_REQUEST_BYTES} bytes`,
+        },
+      }, 413),
+    }),
+  );
   app.use('/api/chats', requireAuthentication());
 
   app.get('/api/chats', async (context) => {
@@ -182,6 +198,14 @@ export function registerChatRoutes({
     }
 
     const body = (await context.req.json().catch(() => null)) as Record<string, unknown> | null;
+    const messageValidation = validateSubmittedChatMessages(body?.messages);
+    if (!messageValidation.ok) {
+      return routeError(context, {
+        status: 400,
+        code: 'chat.invalid_content',
+        message: messageValidation.message,
+      });
+    }
     const rawChatId = typeof body?.chatId === 'string'
       ? body.chatId
       : typeof body?.id === 'string' && body.id.startsWith('cht_')
@@ -292,7 +316,20 @@ export function registerChatRoutes({
             return routeError(context, resolvedSubmittedContext);
           }
 
-          submittedScope = resolvedSubmittedContext.scope;
+          if (conversation.messages.length > 0) {
+            if (!areChatScopesEquivalent(
+              resolvedSubmittedContext.scope,
+              conversation.contextSnapshot,
+            )) {
+              return routeError(context, {
+                status: 409,
+                code: 'chat.context_locked',
+                message: 'Conversation context cannot be changed after the first message',
+              });
+            }
+          } else {
+            submittedScope = resolvedSubmittedContext.scope;
+          }
         }
       }
 

@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   ChevronRight,
   ExternalLink,
-  Hash,
   Info,
   Languages,
   Layers3,
@@ -1733,9 +1732,9 @@ function AiStateHero({
 
   return (
     <Card className={content.className}>
-      <CardContent className="space-y-6 p-5 lg:p-6">
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,26rem)] lg:items-center">
-          <div className="grid gap-4 md:grid-cols-[8rem_1fr] md:items-center">
+      <CardContent className="space-y-5 p-5">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div className="grid gap-4 sm:grid-cols-[5rem_1fr] sm:items-center">
             <HeroVisual state={state} compact={isEnabled} />
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
@@ -1768,7 +1767,7 @@ function AiStateHero({
               </div>
             </div>
           </div>
-          <div className="flex items-center justify-start border-t pt-4 lg:min-h-32 lg:justify-end lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+          <div className="flex items-center justify-start border-t pt-3 lg:justify-end lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
             <Button variant="ghost" className="gap-3 px-0 lg:px-3" onClick={onToggleProviderDetails}>
               <HealthDot healthy={healthyProviderCount > 0} />
               {providerSummary}
@@ -1781,7 +1780,6 @@ function AiStateHero({
             expandedProvider={expandedProvider}
             providers={providers}
             onExpandedProviderChange={onExpandedProviderChange}
-            onToggleDetails={onToggleProviderDetails}
           />
         ) : null}
       </CardContent>
@@ -1942,7 +1940,7 @@ function CapabilitiesSection({
         <CardTitle>{isEnabled ? "AI Services" : "AI Capabilities"}</CardTitle>
         <CardDescription>
           {blocked
-            ? "These features require an embedding model to be selected."
+            ? "AI features remain unavailable until setup is complete."
             : isEnabled
               ? "Configure AI services for this instance."
               : "Enable AI to make these services available."}
@@ -1955,7 +1953,7 @@ function CapabilitiesSection({
           icon={<Search className="size-5" />}
           status={
             blocked
-              ? "Unavailable"
+              ? "Setup required"
               : semanticHealthText
                 ? embeddingModelUnavailable
                   ? "Needs configuration"
@@ -1967,7 +1965,7 @@ function CapabilitiesSection({
           statusTone={blocked ? "inactive" : semanticHealthText ? "warning" : "enabled"}
           footer={
             blocked
-              ? "Requires an embedding model"
+              ? "Complete AI setup to use this feature"
               : semanticHealthText
                 ? semanticHealthText
                 : isEnabled
@@ -2015,7 +2013,7 @@ function CapabilitiesSection({
           icon={<MessageSquare className="size-5" />}
           status={
             blocked
-              ? "Unavailable"
+              ? "Setup required"
               : isEnabled
                 ? chatHealthText
                   ? chatNeedsDefaultModel
@@ -2029,7 +2027,7 @@ function CapabilitiesSection({
           statusTone={blocked ? "inactive" : chatHealthText || !isChatConfigValid ? "warning" : "enabled"}
           footer={
             blocked
-              ? "Requires an embedding model"
+              ? "Complete AI setup to use this feature"
               : isEnabled
                 ? (chatHealthText ??
                   (isChatConfigValid ? `${chatModelCount.toLocaleString()} models available` : "Select a default chat model."))
@@ -2073,7 +2071,7 @@ function CapabilitiesSection({
           icon={<Languages className="size-5" />}
           status={
             blocked
-              ? "Unavailable"
+              ? "Setup required"
               : isEnabled
                 ? translationHealthText
                   ? translationNeedsDefaultModel
@@ -2087,7 +2085,7 @@ function CapabilitiesSection({
           statusTone={blocked ? "inactive" : translationHealthText || !isTranslationConfigValid ? "warning" : "enabled"}
           footer={
             blocked
-              ? "Requires an embedding model"
+              ? "Complete AI setup to use this feature"
               : isEnabled
                 ? (translationHealthText ??
                   (isTranslationConfigValid
@@ -2155,7 +2153,7 @@ function AiServiceCard({
   return (
     <div
       className={cn(
-        "flex min-h-68 flex-col justify-between gap-4 rounded-md border p-4",
+        "flex min-h-52 flex-col justify-between gap-4 rounded-md border p-4",
         previewOnly ? "bg-muted/40 opacity-80" : "bg-card",
       )}
     >
@@ -2214,18 +2212,16 @@ function ModelSummary({
 function ProviderDetailsPanel({
   expandedProvider,
   onExpandedProviderChange,
-  onToggleDetails,
   providers,
 }: {
   providers: ProviderSummary[]
   expandedProvider: AdminAiProviderKind | null
-  onToggleDetails: () => void
   onExpandedProviderChange: (provider: AdminAiProviderKind | null) => void
 }) {
   const healthyCount = providers.filter((provider) => provider.isHealthy).length
 
   return (
-    <div className="space-y-4 rounded-md border bg-card p-4 text-card-foreground shadow-xs sm:p-5">
+    <div className="space-y-4 border-t pt-5 text-card-foreground">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <div className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted/40 text-muted-foreground">
@@ -2238,10 +2234,6 @@ function ProviderDetailsPanel({
             </p>
           </div>
         </div>
-        <Button size="sm" variant="outline" onClick={onToggleDetails}>
-          Hide providers
-          <ChevronRight className="size-4 rotate-90" />
-        </Button>
       </div>
       <div className="flex flex-col justify-between gap-2 border-t pt-4 text-sm text-muted-foreground sm:flex-row">
         <div className="flex items-center gap-2">
@@ -2262,7 +2254,7 @@ function ProviderDetailsPanel({
           />
         ))}
       </div>
-      <div className="flex flex-col gap-3 rounded-md border bg-background p-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-md bg-muted/40 p-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Info className="size-4 shrink-0" />
           <span>Providers are configured via environment variables and cannot be modified here.</span>
@@ -2411,7 +2403,7 @@ function ChatModelsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden p-0 sm:max-w-6xl">
+      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden p-0 sm:max-w-3xl">
         <DialogHeader className="border-b px-6 py-5">
           <DialogTitle className="flex items-center gap-2">
             <MessageSquare className="size-5" />
@@ -2557,20 +2549,16 @@ function EmbeddingModelDialog({
       ),
     [embeddingModelOptions, providerFilter, searchQuery, selectedEmbeddingModelKey, visibilityFilter],
   )
-  const currentModelSummary = selectedEmbeddingModel
-    ? `${selectedEmbeddingModel.model} - ${formatDimensions(selectedEmbeddingModel.dimensions)}`
-    : "No embedding model selected"
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden p-0 sm:max-w-6xl">
+      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden p-0 sm:max-w-2xl">
         <DialogHeader className="border-b px-6 py-5">
           <DialogTitle className="flex items-center gap-2">
             <Layers3 className="size-5" />
-            Configure embedding model
+            Select an embedding model
           </DialogTitle>
           <DialogDescription>
-            Choose the model used to generate embeddings for semantic search. Only one model can be active.
+            This model is the retrieval engine behind AI features, helping Arkivra find relevant content across your documents.
           </DialogDescription>
         </DialogHeader>
         <EmbeddingModelSelectionBody
@@ -2591,24 +2579,13 @@ function EmbeddingModelDialog({
           filteredCount={filteredOptions.length}
           hasOptions={embeddingModelOptions.length > 0}
           options={filteredOptions}
-          title="Available Models"
+          title="Available models"
           selectedEmbeddingModel={selectedEmbeddingModel}
           selectedEmbeddingModelChanged={selectedEmbeddingModelChanged}
           selectedEmbeddingModelKey={selectedEmbeddingModelKey}
           onSelectedModelKeyChange={onSelectedModelKeyChange}
         />
-        <DialogFooter className="items-center border-t px-6 py-4 sm:justify-between">
-          <div className="text-sm text-muted-foreground">
-            Current model:{" "}
-            {selectedEmbeddingModel ? (
-              <>
-                <span className="font-medium text-foreground">{selectedEmbeddingModel.model}</span>{" "}
-                ({formatDimensions(selectedEmbeddingModel.dimensions)})
-              </>
-            ) : (
-              currentModelSummary
-            )}
-          </div>
+        <DialogFooter className="items-center border-t px-6 py-4 sm:justify-end">
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
@@ -2625,8 +2602,8 @@ function EmbeddingModelDialog({
               {isSaving
                 ? "Saving..."
                 : hasConfiguredSearchEngine
-                  ? "Save and rebuild index"
-                  : "Save embedding model"}
+                  ? "Save and rebuild search index"
+                  : "Save selection"}
             </Button>
           </div>
         </DialogFooter>
@@ -2659,37 +2636,39 @@ function EmbeddingModelSelectionBody({
   onSelectedModelKeyChange: (key: string) => void
 }) {
   return (
-    <div className="max-h-[calc(100vh-13rem)] overflow-y-auto px-6 py-5">
-      <div className="space-y-6">
-        <EmbeddingModelFilters {...filterProps} />
-        <div className="grid gap-5 lg:grid-cols-[1.35fr_1fr]">
-          <EmbeddingDialogPanel title={`${title} (${filteredCount.toLocaleString()})`}>
-            <EmbeddingModelSearch
-              searchQuery={filterProps.searchQuery}
-              onSearchQueryChange={filterProps.onSearchQueryChange}
-            />
-            {!hasOptions ? (
-              <EmptyState message={emptyMessage} />
-            ) : filteredCount === 0 ? (
-              <EmptyState message="No models match the current filters." />
-            ) : (
-              <ScrollableList enabled={filteredCount > 5} className="max-h-[20.25rem]">
-                <EmbeddingModelTable
-                  options={options}
-                  selectedEmbeddingModelKey={selectedEmbeddingModelKey}
-                  onSelectedModelKeyChange={onSelectedModelKeyChange}
-                />
-              </ScrollableList>
-            )}
-          </EmbeddingDialogPanel>
-          <EmbeddingDialogPanel title="Selected Model">
+    <div className="max-h-[calc(100vh-13rem)] overflow-y-auto px-6 py-3">
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-base font-semibold">{title} ({filteredCount.toLocaleString()})</div>
+          {selectedEmbeddingModel ? (
             <SelectedEmbeddingModelSummary
               option={selectedEmbeddingModel}
               selectedModelChanged={selectedEmbeddingModelChanged}
             />
-            <InfoNotice>Changing the embedding model requires re-indexing your documents to maintain search quality.</InfoNotice>
-          </EmbeddingDialogPanel>
+          ) : null}
         </div>
+        <div className="grid gap-3 md:grid-cols-[14rem_18rem]">
+          <EmbeddingModelFilters {...filterProps} compact showVisibilityFilter={false} />
+          <div className="space-y-1.5 [&_input]:h-10">
+            <Label htmlFor="embedding-model-search">Search</Label>
+            <EmbeddingModelSearch
+              searchQuery={filterProps.searchQuery}
+              onSearchQueryChange={filterProps.onSearchQueryChange}
+            />
+          </div>
+        </div>
+        {!hasOptions ? (
+          <EmptyState message={emptyMessage} />
+        ) : filteredCount === 0 ? (
+          <EmptyState message="No models match the current filters." />
+        ) : (
+          <EmbeddingModelTable
+            options={options}
+            selectedEmbeddingModelKey={selectedEmbeddingModelKey}
+            onSelectedModelKeyChange={onSelectedModelKeyChange}
+          />
+        )}
+        <InfoNotice>Changing this model rebuilds the semantic search index for your documents.</InfoNotice>
       </div>
     </div>
   )
@@ -2825,22 +2804,24 @@ interface ModelFiltersProps {
 }
 
 function EmbeddingModelFilters({
+  compact = false,
   onProviderFilterChange,
   onVisibilityFilterChange,
   providerFilter,
   providerOptions,
   visibilityFilter,
+  showVisibilityFilter = true,
   visibilityItems = [
     ["all", "All models"],
     ["selected", "Selected model"],
   ],
-}: ModelFiltersProps & { visibilityItems?: Array<[string, string]> }) {
+}: ModelFiltersProps & { compact?: boolean; showVisibilityFilter?: boolean; visibilityItems?: Array<[string, string]> }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <div className="space-y-2">
+    <div className={cn("grid gap-4", showVisibilityFilter && "md:grid-cols-2")}>
+      <div className={cn(compact ? "space-y-1.5" : "space-y-2")}>
         <Label>Provider</Label>
         <Select value={providerFilter} onValueChange={onProviderFilterChange}>
-          <SelectTrigger className="h-12 w-full">
+          <SelectTrigger className={cn("w-full", compact ? "h-10" : "h-12")}>
             <SelectValue placeholder="All Providers" />
           </SelectTrigger>
           <SelectContent>
@@ -2853,21 +2834,23 @@ function EmbeddingModelFilters({
           </SelectContent>
         </Select>
       </div>
-      <div className="space-y-2">
-        <Label>Show</Label>
-        <Select value={visibilityFilter} onValueChange={onVisibilityFilterChange}>
-          <SelectTrigger className="h-12 w-full">
-            <SelectValue placeholder="All models" />
-          </SelectTrigger>
-          <SelectContent>
-            {visibilityItems.map(([value, label]) => (
-              <SelectItem key={value} value={value}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {showVisibilityFilter ? (
+        <div className="space-y-2">
+          <Label>Show</Label>
+          <Select value={visibilityFilter} onValueChange={onVisibilityFilterChange}>
+            <SelectTrigger className="h-12 w-full">
+              <SelectValue placeholder="All models" />
+            </SelectTrigger>
+            <SelectContent>
+              {visibilityItems.map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -3008,14 +2991,14 @@ function EmbeddingModelTable({
 }) {
   return (
     <RadioGroup value={selectedEmbeddingModelKey} onValueChange={onSelectedModelKeyChange}>
-      <div className="overflow-hidden rounded-md border bg-card">
+      <div className="max-h-[18rem] overflow-y-auto rounded-md border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-12" />
-              <TableHead>Model</TableHead>
-              <TableHead className="hidden w-44 md:table-cell">Provider</TableHead>
-              <TableHead className="hidden w-36 lg:table-cell">Dimensions</TableHead>
+              <TableHead className="sticky top-0 z-10 w-12 bg-background" />
+              <TableHead className="sticky top-0 z-10 bg-background">Model</TableHead>
+              <TableHead className="sticky top-0 z-10 hidden w-44 bg-background md:table-cell">Provider</TableHead>
+              <TableHead className="sticky top-0 z-10 hidden w-36 bg-background lg:table-cell">Dimensions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -3075,38 +3058,15 @@ function SelectedEmbeddingModelSummary({
   option: EmbeddingModelOption | null
   selectedModelChanged: boolean
 }) {
-  if (option === null) return <EmptyState message="No embedding model selected." />
+  if (option === null) return null
 
   return (
-    <div className="rounded-md border bg-card p-5">
-      <div className="mb-6 flex min-w-0 flex-wrap items-center gap-2">
-        <div className="break-words text-xl font-semibold">{option.model}</div>
-        {selectedModelChanged ? <Badge>Selected</Badge> : null}
-      </div>
-      <div className="grid gap-5 sm:grid-cols-2">
-        <SelectedEmbeddingMetric
-          icon={<Package className="size-5" />}
-          label="Provider"
-          value={option.providerLabel}
-        />
-        <SelectedEmbeddingMetric
-          icon={<Hash className="size-5" />}
-          label="Dimensions"
-          value={formatDimensionValue(option.dimensions)}
-        />
-      </div>
-    </div>
-  )
-}
-
-function SelectedEmbeddingMetric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
-  return (
-    <div className="flex min-w-0 gap-3">
-      <span className="mt-0.5 text-muted-foreground">{icon}</span>
-      <div className="min-w-0">
-        <div className="text-sm text-muted-foreground">{label}</div>
-        <div className="truncate text-sm font-semibold">{value}</div>
-      </div>
+    <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 text-sm">
+      <span className="max-w-64 truncate font-medium">{option.model}</span>
+      <span className="text-muted-foreground">{option.providerLabel}</span>
+      <Badge variant={selectedModelChanged ? "default" : "secondary"}>
+        {selectedModelChanged ? "Selected" : formatDimensionValue(option.dimensions)}
+      </Badge>
     </div>
   )
 }
@@ -3333,17 +3293,17 @@ function HeroVisual({ compact = false, state }: { state: AiSetupState; compact?:
     <div
       className={cn(
         "flex items-center justify-center rounded-md border",
-        compact ? "h-28" : "h-40",
+        compact ? "h-16" : "h-20",
         content,
       )}
       aria-hidden="true"
     >
       {state === "needs_configuration" ? (
-        <TriangleAlert className={compact ? "size-11" : "size-16"} />
+        <TriangleAlert className={compact ? "size-7" : "size-9"} />
       ) : state === "no_providers" ? (
-        <Package className={compact ? "size-11" : "size-16"} />
+        <Package className={compact ? "size-7" : "size-9"} />
       ) : (
-        <CheckCircle2 className={compact ? "size-12" : "size-16"} />
+        <CheckCircle2 className={compact ? "size-8" : "size-9"} />
       )}
     </div>
   )

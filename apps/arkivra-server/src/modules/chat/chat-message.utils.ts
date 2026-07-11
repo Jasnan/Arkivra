@@ -6,6 +6,7 @@ import type {
   ChatStreamStatus,
 } from './chat.types.js';
 import type { Citation } from '../search/search.types.js';
+import { MAX_CHAT_HISTORY_MESSAGE_TEXT_LENGTH } from './chat.constants.js';
 
 export function toIso(value: Date | string) {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
@@ -76,7 +77,9 @@ export function buildUserMessage({
       ...message,
       id,
       role: 'user',
-      parts: message.parts.filter(part => part.type === 'text' || part.type === 'file'),
+      // Document/image context is resolved server-side. Never persist client-provided file URLs
+      // where a later turn could forward them to an AI provider as trusted message history.
+      parts: message.parts.filter(part => part.type === 'text'),
     },
     metadata,
   });
@@ -143,9 +146,10 @@ export function getLatestUserMessage(messages: ChatMessage[]) {
 }
 
 export function omitMessageId(message: ChatMessage): Omit<ChatMessage, 'id'> {
+  const text = getMessageText(message).slice(0, MAX_CHAT_HISTORY_MESSAGE_TEXT_LENGTH);
+
   return {
     role: message.role,
-    ...(message.metadata !== undefined ? { metadata: message.metadata } : {}),
-    parts: message.parts,
+    parts: text.length > 0 ? [{ type: 'text', text }] : [],
   };
 }

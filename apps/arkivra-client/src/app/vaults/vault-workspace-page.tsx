@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent, type InputHTMLAttributes, type MouseEvent, type ReactNode } from "react"
 import {
+  ArrowDownUp,
   Check,
   ChevronRight,
   Folder,
@@ -1131,7 +1132,12 @@ function ContentList({
   onToggleItem: (item: FileBrowserItem, checked: boolean) => void
 }) {
   return (
-    <div className="overflow-hidden border-b bg-background">
+    <div
+      className={cn(
+        "overflow-hidden border-b bg-background",
+        items.length === 0 && "flex h-full min-h-0 flex-col"
+      )}
+    >
       <div className="hidden grid-cols-[auto_minmax(0,1fr)_7rem_7.5rem_minmax(12rem,18rem)] gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground md:grid lg:px-4">
         <Checkbox
           aria-label="Select all items"
@@ -1148,7 +1154,7 @@ function ContentList({
           Loading contents...
         </div>
       ) : items.length === 0 && emptyContent ? (
-        <div>{emptyContent}</div>
+        <div className="flex min-h-0 flex-1">{emptyContent}</div>
       ) : null}
       {items.length > 0 ? (
         <div
@@ -2039,12 +2045,12 @@ export default function VaultWorkspacePage() {
   const workspaceTitle = currentFolder?.name ?? vault?.name ?? "Vault"
   const workspaceSubtitle = loadingItems
     ? "Loading contents..."
-    : `${folderCount} folder${folderCount === 1 ? "" : "s"} · ${documentCount} document${documentCount === 1 ? "" : "s"} · ${formatBytes(totalDocumentSize)}`
+    : `${folderCount} folder${folderCount === 1 ? "" : "s"} · ${documentCount} document${documentCount === 1 ? "" : "s"}${documentCount > 0 ? ` · ${formatBytes(totalDocumentSize)}` : ""}`
   const emptyFolderContent = (
     <div
       className={cn(
-        "flex min-h-full flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 p-8 text-center transition-colors",
-        view === "list" && "min-h-64 rounded-none border-x-0 border-b-0",
+        "flex h-full min-h-0 w-full flex-1 flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 p-8 text-center transition-colors",
+        view === "list" && "rounded-none border-x-0 border-b-0",
         isEmptyUploadDropActive && "border-primary bg-primary/5 ring-2 ring-primary/20"
       )}
     >
@@ -2056,14 +2062,34 @@ export default function VaultWorkspacePage() {
       </h2>
       <p className="mt-2 max-w-md text-sm text-muted-foreground">
         {isEmptyUploadDropActive
-          ? "Uploads will be added to Transfers."
-          : "Drag files here or upload them. You can track their progress in Transfers."}
+          ? (
+              <>
+                Uploads will be added to{' '}
+                <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                  <ArrowDownUp className="size-3.5" aria-hidden="true" />
+                  Transfers
+                </span>
+                .
+              </>
+            )
+          : (
+              <>
+                Drag files or folders here, or use the upload options. Track progress in{' '}
+                <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                  <ArrowDownUp className="size-3.5" aria-hidden="true" />
+                  Transfers
+                </span>
+                .
+              </>
+            )}
       </p>
       <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-        <Button type="button" variant="outline" onClick={openUploadFiles}>
-          <Upload className="size-4" />
-          Upload files
-        </Button>
+        <VaultUploadMenu
+          variant="outline"
+          disabled={!vaultId}
+          onUploadFiles={openUploadFiles}
+          onUploadFolder={openUploadDirectory}
+        />
       </div>
     </div>
   )
@@ -2270,7 +2296,7 @@ export default function VaultWorkspacePage() {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" onContextMenu={handleBackgroundContextMenu}>
               <div
                 className={cn(
-                  "min-h-0 flex-1 overflow-auto",
+                  "flex min-h-0 flex-1 flex-col overflow-auto",
                   view === "list" && !treeError && !errorMessage
                     ? "p-0"
                     : "p-3"

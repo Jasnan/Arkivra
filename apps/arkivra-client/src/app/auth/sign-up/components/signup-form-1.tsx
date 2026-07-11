@@ -23,7 +23,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form"
-import { Checkbox } from "@/components/ui/checkbox"
 import { authClient } from "@/lib/auth-client"
 
 const signupFormSchema = z.object({
@@ -32,7 +31,6 @@ const signupFormSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   confirmPassword: z.string().min(8, "Please confirm your password"),
-  terms: z.boolean().refine(val => val === true, "You must agree to the terms"),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -57,7 +55,6 @@ export function SignupForm1({
       email: "",
       password: "",
       confirmPassword: "",
-      terms: false,
     },
   })
 
@@ -185,24 +182,6 @@ export function SignupForm1({
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={form.control}
-                    name="terms"
-                    render={({ field }) => (
-                      <FormItem className="flex items-start space-x-2">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                            className="mt-0.5"
-                          />
-                        </FormControl>
-                        <FormLabel className="text-sm">
-                          I agree to the terms of service and privacy policy
-                        </FormLabel>
-                      </FormItem>
-                    )}
-                  />
                   {errorMessage ? (
                     <p className="text-destructive text-sm">{errorMessage}</p>
                   ) : null}
@@ -256,10 +235,6 @@ export function SignupForm1({
           </Form>
         </CardContent>
       </Card>
-      <div className="text-muted-foreground *:[a]:hover:text-primary text-center text-xs text-balance *:[a]:underline *:[a]:underline-offset-4">
-        By clicking continue, you agree to our <a href="#">Terms of Service</a>{" "}
-        and <a href="#">Privacy Policy</a>.
-      </div>
     </div>
   )
 }

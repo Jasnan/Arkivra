@@ -6,6 +6,10 @@ import type { ServerContext } from '../server/server.types.js';
 import type { VaultsServices } from '../vaults/vaults.services.js';
 import type { VaultAccess } from '../vaults/vaults.types.js';
 import type { ChatScopeInput } from './chat.services.js';
+import {
+  MAX_CHAT_MESSAGES_PER_REQUEST,
+  MAX_CHAT_MESSAGE_TEXT_LENGTH,
+} from './chat.constants.js';
 import type {
   ChatContextAvailability,
   ChatContextDocumentRef,
@@ -24,6 +28,7 @@ export type ChatRouteErrorCode =
   | 'chat.invalid_intent'
   | 'chat.invalid_model'
   | 'chat.invalid_response_mode'
+  | 'chat.context_locked'
   | 'chat.context_unavailable'
   | 'chat.model_options_unavailable'
   | 'chat.not_found'
@@ -119,6 +124,41 @@ export function parseMessages(value: unknown): ChatMessage[] {
       (item.role === 'system' || item.role === 'user' || item.role === 'assistant') &&
       Array.isArray(item.parts),
   );
+}
+
+export function validateSubmittedChatMessages(value: unknown) {
+  if (!Array.isArray(value) || value.length === 0) {
+    return { ok: false as const, message: 'messages must include a non-empty user text message' };
+  }
+
+  if (value.length > MAX_CHAT_MESSAGES_PER_REQUEST) {
+    return {
+      ok: false as const,
+      message: `messages must contain at most ${MAX_CHAT_MESSAGES_PER_REQUEST} items`,
+    };
+  }
+
+  for (const item of value) {
+    if (!isRecord(item) || (item.role !== 'user' && item.role !== 'assistant')) {
+      return { ok: false as const, message: 'messages may only contain user and assistant roles' };
+    }
+    if (!Array.isArray(item.parts)) {
+      return { ok: false as const, message: 'each message must contain a parts array' };
+    }
+
+    const textLength = item.parts.reduce((total, part) => {
+      if (!isRecord(part) || part.type !== 'text' || typeof part.text !== 'string') return total;
+      return total + part.text.length;
+    }, 0);
+    if (textLength > MAX_CHAT_MESSAGE_TEXT_LENGTH) {
+      return {
+        ok: false as const,
+        message: `message text must be at most ${MAX_CHAT_MESSAGE_TEXT_LENGTH} characters`,
+      };
+    }
+  }
+
+  return { ok: true as const };
 }
 
 export function getLatestUserMessageContent(messages: ChatMessage[]) {

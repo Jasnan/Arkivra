@@ -5,6 +5,61 @@ import { generateId } from '../database/schema/helpers.js';
 import { MAX_CONTEXT_CHUNK_SNIPPET_LENGTH } from './chat.constants.js';
 import { truncate } from './chat.core.js';
 import { normalizeCitationsForDisplay } from './chat.citation-ranking.js';
+import { getCitationGroupKey } from './chat.citation-utils.js';
+
+const INLINE_CITATION_MARKER_PATTERN = /\[(\d+)\](?!\()|【(\d+)】/g;
+
+export function sanitizeInlineCitationMarkers(content: string, citationCount: number) {
+  return content.replace(INLINE_CITATION_MARKER_PATTERN, (marker, square, lenticular) => {
+    const index = Number(square ?? lenticular);
+    return Number.isInteger(index) && index >= 1 && index <= citationCount ? marker : '';
+  });
+}
+
+export function createInlineCitationMarkerSanitizer(citationCount: number) {
+  let pending = '';
+
+  return {
+    push(delta: string) {
+      const combined = pending + delta;
+      pending = '';
+      const standardStart = combined.lastIndexOf('[');
+      const lenticularStart = combined.lastIndexOf('【');
+      const possibleStart = Math.max(standardStart, lenticularStart);
+
+      if (possibleStart >= 0) {
+        const suffix = combined.slice(possibleStart);
+        if (/^(?:\[|【)\d*$/.test(suffix) || /^\[\d+\]$/.test(suffix)) {
+          pending = suffix;
+          return sanitizeInlineCitationMarkers(combined.slice(0, possibleStart), citationCount);
+        }
+      }
+
+      return sanitizeInlineCitationMarkers(combined, citationCount);
+    },
+    flush() {
+      const output = sanitizeInlineCitationMarkers(pending, citationCount);
+      pending = '';
+      return output;
+    },
+  };
+}
+
+export function alignCitationsToPromptOrder({
+  promptCitations,
+  refinedCitations,
+}: {
+  promptCitations: Citation[];
+  refinedCitations: Citation[];
+}) {
+  const refinedBySource = new Map(
+    refinedCitations.map(citation => [getCitationGroupKey(citation), citation]),
+  );
+
+  return promptCitations.map(
+    citation => refinedBySource.get(getCitationGroupKey(citation)) ?? citation,
+  );
+}
 
 export function buildChatMessageCitationRows({
   conversationId,

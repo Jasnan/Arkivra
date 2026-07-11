@@ -17,7 +17,7 @@ import {
   streamText,
 } from 'ai';
 import type { LanguageModel } from 'ai';
-import { and, asc, desc, eq, exists, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, exists, notExists, sql } from 'drizzle-orm';
 import {
   chatConversationDocumentVersionsTable,
   chatConversationsTable,
@@ -266,14 +266,32 @@ export function createChatServices({
     return conversation === undefined ? null : toConversation(conversation);
   }
 
-  async function deleteConversation({ userId, chatId }: { userId: string; chatId: string }) {
+  async function deleteConversation({
+    userId,
+    chatId,
+    onlyIfEmpty = false,
+  }: {
+    userId: string;
+    chatId: string;
+    onlyIfEmpty?: boolean;
+  }) {
     const [row] = await db
       .update(chatConversationsTable)
       .set({
         deletedAt: sql`now()`,
         updatedAt: sql`now()`,
       })
-      .where(getConversationOwnershipConditions({ userId, chatId }))
+      .where(and(
+        getConversationOwnershipConditions({ userId, chatId }),
+        onlyIfEmpty
+          ? notExists(
+              db
+                .select({ id: chatMessagesTable.id })
+                .from(chatMessagesTable)
+                .where(eq(chatMessagesTable.conversationId, chatConversationsTable.id)),
+            )
+          : undefined,
+      ))
       .returning();
 
     return row !== undefined;

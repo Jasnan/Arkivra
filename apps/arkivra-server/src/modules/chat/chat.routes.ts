@@ -538,12 +538,17 @@ export function registerChatRoutes({
       });
     }
 
+    const onlyIfEmpty = context.req.query('discardIfEmpty') === 'true';
     const deleted = await services.deleteConversation({
       userId,
       chatId: context.req.param('chatId'),
+      ...(onlyIfEmpty ? { onlyIfEmpty: true } : {}),
     });
 
     if (!deleted) {
+      if (onlyIfEmpty) {
+        return new Response(null, { status: 204 });
+      }
       return routeError(context, {
         status: 404,
         code: 'chat.not_found',

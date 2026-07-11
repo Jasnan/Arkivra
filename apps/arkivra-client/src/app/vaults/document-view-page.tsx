@@ -30,6 +30,7 @@ import { toast } from "sonner"
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 
 import { BaseLayout } from "@/components/layouts/base-layout"
+import { createDocumentChatDraft } from "@/app/chat/lib/chat-draft"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -1270,21 +1271,28 @@ export default function DocumentViewPage() {
   const documentReturnContext = getDocumentReturnContext(location.state)
   const documentReturnPath = documentReturnContext?.path ?? (isTrashDocumentRoute ? "/trash" : vaultReturnPath)
   const documentReturnLabel = documentReturnContext ? `Back to ${documentReturnContext.label}` : null
-  const handleChatAboutDocument = useCallback(() => {
-    if (!activeDocument || !vaultId || isTrashDocumentRoute) return
+  const [isCreatingChatDraft, setIsCreatingChatDraft] = useState(false)
+  const handleChatAboutDocument = useCallback(async () => {
+    if (!activeDocument || !vaultId || isTrashDocumentRoute || isCreatingChatDraft) return
 
-    navigate("/chat", {
-      state: {
-        chatDocument: {
-          vaultId,
-          documentId,
-          name: activeDocument.name,
-          vaultName: vault?.name,
-          mimeType: activeDocument.mimeType,
-        },
-      },
-    })
-  }, [activeDocument, documentId, isTrashDocumentRoute, navigate, vault?.name, vaultId])
+    setIsCreatingChatDraft(true)
+    try {
+      const chatId = await createDocumentChatDraft({
+        vaultId,
+        documentId,
+        name: activeDocument.name,
+        vaultName: vault?.name,
+        mimeType: activeDocument.mimeType,
+      })
+
+      navigate(`/chat/${encodeURIComponent(chatId)}`, {
+        state: { ephemeralChatId: chatId },
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not start document chat.")
+      setIsCreatingChatDraft(false)
+    }
+  }, [activeDocument, documentId, isCreatingChatDraft, isTrashDocumentRoute, navigate, vault?.name, vaultId])
   const currentName = renameValue ?? document?.name ?? ""
   const currentLanguage = languageValue ?? document?.language?.code ?? "unknown"
   const hasNameChanged = document ? currentName.trim() !== document.name : false
@@ -1717,9 +1725,9 @@ export default function DocumentViewPage() {
                 <RefreshCw className="size-4" />
                 Versions
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={handleChatAboutDocument}>
+              <DropdownMenuItem disabled={isCreatingChatDraft} onSelect={() => void handleChatAboutDocument()}>
                 <MessageSquare className="size-4" />
-                Chat about document
+                {isCreatingChatDraft ? "Starting chat..." : "Chat about document"}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
@@ -2090,9 +2098,9 @@ export default function DocumentViewPage() {
                         </DropdownMenuItem>
                       ) : null}
                       {!isTrashDocumentRoute ? (
-                        <DropdownMenuItem onSelect={handleChatAboutDocument}>
+                        <DropdownMenuItem disabled={isCreatingChatDraft} onSelect={() => void handleChatAboutDocument()}>
                           <MessageSquare className="size-4" />
-                          Chat about document
+                          {isCreatingChatDraft ? "Starting chat..." : "Chat about document"}
                         </DropdownMenuItem>
                       ) : null}
                       <DropdownMenuSeparator />

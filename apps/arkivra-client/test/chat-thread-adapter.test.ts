@@ -40,6 +40,45 @@ describe("Arkivra chat thread adapter", () => {
       "2026-02-01T00:00:00.000Z",
     ])
   })
+
+  test("prepends the active empty document-chat draft", async () => {
+    const fetchMock = vi.fn(async (input: string) => {
+      if (input === "/api/chats/cht_draft") {
+        return new Response(JSON.stringify({
+          conversation: {
+            id: "cht_draft",
+            title: "New chat",
+            contextSnapshot: { type: "document", vaultId: "vlt_1", documentId: "doc_1" },
+            messages: [],
+            createdAt: "2026-04-01T00:00:00.000Z",
+            updatedAt: "2026-04-01T00:00:00.000Z",
+          },
+        }), {
+          headers: { "content-type": "application/json" },
+          status: 200,
+        })
+      }
+
+      return new Response(JSON.stringify({
+        conversations: [
+          {
+            id: "cht_existing",
+            title: "Existing chat",
+            createdAt: "2026-05-01T00:00:00.000Z",
+            updatedAt: "2026-05-01T00:00:00.000Z",
+          },
+        ],
+      }), {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      })
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    const result = await createArkivraThreadListAdapter({ ephemeralChatId: "cht_draft" }).list()
+
+    expect(result.threads.map(thread => thread.remoteId)).toEqual(["cht_draft", "cht_existing"])
+  })
 })
 
 describe("Arkivra chat URL restore", () => {

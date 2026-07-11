@@ -1,4 +1,3 @@
-import { BrowserRouter as Router } from 'react-router-dom'
 import { ThemeProvider } from '@/components/theme-provider'
 import { SidebarConfigProvider } from '@/contexts/sidebar-context'
 import { AppRouter } from '@/components/router/app-router'
@@ -6,9 +5,6 @@ import { useEffect } from 'react'
 import { initGTM } from '@/utils/analytics'
 import { Toaster } from '@/components/ui/sonner'
 import { HeaderActionsProvider } from '@/contexts/header-actions-context'
-
-// Get basename from environment (for deployment) or use empty string for development
-const basename = import.meta.env.VITE_BASENAME || ''
 
 function App() {
   // Initialize GTM on app load
@@ -21,9 +17,7 @@ function App() {
       <ThemeProvider defaultTheme="system">
         <SidebarConfigProvider>
           <HeaderActionsProvider>
-            <Router basename={basename}>
-              <AppRouter />
-            </Router>
+            <AppRouter />
           </HeaderActionsProvider>
           <Toaster />
         </SidebarConfigProvider>

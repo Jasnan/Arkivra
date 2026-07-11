@@ -758,6 +758,25 @@ describe('chat routes', () => {
     expect(services.deleteConversation).toHaveBeenCalledWith({ userId: 'usr_1', chatId: 'cht_1' });
   });
 
+  test('only discards an abandoned draft when it has no messages', async () => {
+    const services = createMockChatServices({
+      deleteConversation: vi.fn(async () => false),
+    });
+    const { app } = createTestApp({ services });
+
+    const response = await app.request('/api/chats/cht_1?discardIfEmpty=true', {
+      method: 'DELETE',
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+
+    expect(response.status).toBe(204);
+    expect(services.deleteConversation).toHaveBeenCalledWith({
+      userId: 'usr_1',
+      chatId: 'cht_1',
+      onlyIfEmpty: true,
+    });
+  });
+
   test('rejects explicit document version fields when creating a conversation from a stream', async () => {
     const services = createMockChatServices();
     const { app } = createTestApp({ services });

@@ -1,20 +1,34 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useAui, useAuiState } from "@assistant-ui/react"
-import { useLocation, useNavigate, useParams } from "react-router-dom"
+import { useBlocker, useLocation, useNavigate, useParams } from "react-router-dom"
 
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { ChatCitationViewerDialog } from "@/app/chat/components/chat-citation-viewer-dialog"
-import { addDocumentContextAttachment } from "@/app/chat/components/chat-context-picker"
 import { Base } from "@/app/chat/components/examples/base"
 import { ChatRuntimeProvider } from "@/app/chat/components/runtime/chat-runtime-provider"
 import { restoreChatThreadFromUrl } from "@/app/chat/components/runtime/chat-url-thread-restore"
 import { BaseConfigProvider } from "@/app/chat/lib/base/config-provider"
 import { defaultBaseConfig } from "@/app/chat/lib/base/defaults"
 import { getChatModelOptions } from "@/app/chat/lib/chat-model-options"
+import { discardChatDraftIfEmpty } from "@/app/chat/lib/chat-draft"
+import { shouldConfirmChatDiscard } from "@/app/chat/lib/chat-discard-guard"
+import {
+  draftContextFromAttachments,
+  hasDraftContext,
+  type ComposerContextAttachment,
+} from "@/app/chat/lib/chat-context-model"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { fetchJson } from "@/lib/api"
-import { type DraftChatDocument } from "@/app/chat/lib/chat-context-model"
 
 type ChatAvailability = "loading" | "available" | "disabled" | "needs-setup" | "access-denied"
 
@@ -32,65 +46,115 @@ function normalizeChatId(chatId: string | undefined) {
   return normalized ? normalized : undefined
 }
 
-function getChatDocumentLaunch(state: unknown): DraftChatDocument | null {
+function getEphemeralChatId(state: unknown) {
   if (!state || typeof state !== "object" || Array.isArray(state)) return null
-
-  const candidate = (state as { chatDocument?: unknown }).chatDocument
-  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return null
-
-  const document = candidate as Record<string, unknown>
-  if (typeof document.vaultId !== "string" || typeof document.documentId !== "string") return null
-
-  return {
-    vaultId: document.vaultId,
-    documentId: document.documentId,
-    ...(typeof document.name === "string" ? { name: document.name } : {}),
-    ...(typeof document.vaultName === "string" ? { vaultName: document.vaultName } : {}),
-    ...(typeof document.mimeType === "string" ? { mimeType: document.mimeType } : {}),
-  }
+  const chatId = (state as { ephemeralChatId?: unknown }).ephemeralChatId
+  return typeof chatId === "string" && chatId.trim().length > 0 ? chatId : null
 }
 
-function ChatDocumentLaunch() {
+const pendingDraftCleanup = new Map<string, ReturnType<typeof setTimeout>>()
+
+function EphemeralChatDraftCleanup() {
   const location = useLocation()
-  const navigate = useNavigate()
-  const aui = useAui()
-  const threadId = useAuiState((state) => state.threadListItem.id)
-  const launchDocument = useMemo(() => getChatDocumentLaunch(location.state), [location.state])
-  const handledLaunchKeyRef = useRef<string | null>(null)
-  const pendingAttachmentRef = useRef<{
-    previousThreadId: string
-    document: DraftChatDocument
-  } | null>(null)
+  const ephemeralChatId = getEphemeralChatId(location.state)
 
   useEffect(() => {
-    if (!launchDocument) return
+    if (!ephemeralChatId) return
 
-    const launchKey = `${launchDocument.vaultId}:${launchDocument.documentId}`
-    if (handledLaunchKeyRef.current === launchKey) return
-    handledLaunchKeyRef.current = launchKey
-    pendingAttachmentRef.current = {
-      previousThreadId: threadId,
-      document: launchDocument,
+    const pendingCleanup = pendingDraftCleanup.get(ephemeralChatId)
+    if (pendingCleanup) {
+      clearTimeout(pendingCleanup)
+      pendingDraftCleanup.delete(ephemeralChatId)
     }
-    aui.threads().switchToNewThread()
-  }, [aui, launchDocument, threadId])
 
-  useEffect(() => {
-    const pendingAttachment = pendingAttachmentRef.current
-    if (!pendingAttachment || pendingAttachment.previousThreadId === threadId) return
-
-    pendingAttachmentRef.current = null
-    void addDocumentContextAttachment(aui, pendingAttachment.document)
-      .then(() => {
-        navigate("/chat", { replace: true })
-      })
-      .catch((error: unknown) => {
-        handledLaunchKeyRef.current = null
-        console.error("[Arkivra chat] failed to attach launched document", error)
-      })
-  }, [aui, navigate, threadId])
+    return () => {
+      const timeout = setTimeout(() => {
+        pendingDraftCleanup.delete(ephemeralChatId)
+        void discardChatDraftIfEmpty(ephemeralChatId).catch((error: unknown) => {
+          console.warn("[Arkivra chat] failed to discard empty chat draft", error)
+        })
+      }, 0)
+      pendingDraftCleanup.set(ephemeralChatId, timeout)
+    }
+  }, [ephemeralChatId])
 
   return null
+}
+
+function ChatDiscardGuard() {
+  const { chatId: chatIdParam } = useParams()
+  const chatId = normalizeChatId(chatIdParam)
+  const attachments = useAuiState(
+    (state) => state.composer.attachments as readonly ComposerContextAttachment[],
+  )
+  const hasConversation = useAuiState((state) => state.thread.messages.length > 0)
+  const isThreadLoading = useAuiState((state) => state.thread.isLoading)
+  const hasNonGlobalContext = hasDraftContext(draftContextFromAttachments(attachments))
+  const blocker = useBlocker(({ currentLocation, nextLocation }) =>
+    shouldConfirmChatDiscard({
+      hasConversation: hasConversation || isThreadLoading,
+      hasNonGlobalContext,
+      hasChatId: Boolean(chatId),
+      currentPathname: currentLocation.pathname,
+      nextPathname: nextLocation.pathname,
+    }),
+  )
+
+  useEffect(() => {
+    if (hasConversation || isThreadLoading || (!hasNonGlobalContext && !chatId)) return
+
+    function warnBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault()
+      event.returnValue = ""
+    }
+
+    window.addEventListener("beforeunload", warnBeforeUnload)
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload)
+  }, [chatId, hasConversation, hasNonGlobalContext, isThreadLoading])
+
+  function keepChat() {
+    if (blocker.state === "blocked") blocker.reset()
+  }
+
+  async function discardChat() {
+    if (blocker.state !== "blocked") return
+
+    if (chatId) {
+      try {
+        await discardChatDraftIfEmpty(chatId)
+      } catch (error) {
+        console.warn("[Arkivra chat] failed to discard empty chat draft", error)
+      }
+    }
+
+    blocker.proceed()
+  }
+
+  return (
+    <Dialog
+      open={blocker.state === "blocked"}
+      onOpenChange={(open) => {
+        if (!open) keepChat()
+      }}
+    >
+      <DialogContent showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>Discard this chat?</DialogTitle>
+          <DialogDescription>
+            This chat has no messages yet. Leaving now will discard it.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={keepChat}>
+            Keep editing
+          </Button>
+          <Button type="button" variant="destructive" onClick={() => void discardChat()}>
+            Discard chat
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 function getPersistedChatId({
@@ -109,7 +173,7 @@ function ChatUrlSync() {
   const { chatId: chatIdParam } = useParams()
   const chatId = normalizeChatId(chatIdParam)
   const location = useLocation()
-  const hasDocumentLaunch = getChatDocumentLaunch(location.state) !== null
+  const isEphemeralDraft = getEphemeralChatId(location.state) === chatId
   const navigate = useNavigate()
   const aui = useAui()
   const threadId = useAuiState((state) => state.threadListItem.id)
@@ -120,8 +184,6 @@ function ChatUrlSync() {
   const pendingUrlChatIdRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
-    if (hasDocumentLaunch) return
-
     if (!chatId) {
       lastAppliedUrlChatIdRef.current = undefined
       pendingUrlChatIdRef.current = undefined
@@ -134,13 +196,17 @@ function ChatUrlSync() {
     if (persistedChatId === chatId) return
 
     pendingUrlChatIdRef.current = chatId
-    void restoreChatThreadFromUrl({
-      chatId,
-      threads: aui.threads(),
-      onReloadError: (error) => {
-        console.warn("[Arkivra chat] failed to refresh chat thread list after URL restore", error)
-      },
-    })
+    const restoreTask = isEphemeralDraft
+      ? Promise.resolve(aui.threads().switchToThread(chatId))
+      : restoreChatThreadFromUrl({
+          chatId,
+          threads: aui.threads(),
+          onReloadError: (error) => {
+            console.warn("[Arkivra chat] failed to refresh chat thread list after URL restore", error)
+          },
+        })
+
+    void restoreTask
       .catch(() => {
         if (pendingUrlChatIdRef.current === chatId) {
           pendingUrlChatIdRef.current = undefined
@@ -148,10 +214,10 @@ function ChatUrlSync() {
 
         navigate(getChatPath(), { replace: true })
       })
-  }, [aui, chatId, hasDocumentLaunch, navigate, persistedChatId])
+  }, [aui, chatId, isEphemeralDraft, navigate, persistedChatId])
 
   useEffect(() => {
-    if (hasDocumentLaunch) return
+    if (pendingUrlChatIdRef.current && pendingUrlChatIdRef.current !== persistedChatId) return
 
     if (persistedChatId) {
       if (pendingUrlChatIdRef.current === persistedChatId) {
@@ -175,12 +241,14 @@ function ChatUrlSync() {
         navigate(getChatPath(), { replace: true })
       }
     }
-  }, [chatId, hasDocumentLaunch, location.pathname, navigate, persistedChatId])
+  }, [chatId, location.pathname, navigate, persistedChatId])
 
   return null
 }
 
 export default function ChatPage() {
+  const location = useLocation()
+  const ephemeralChatId = getEphemeralChatId(location.state)
   const [chatAvailability, setChatAvailability] = useState<ChatAvailability>("loading")
 
   useEffect(() => {
@@ -225,10 +293,11 @@ export default function ChatPage() {
     >
       <div className="-my-4 flex min-h-0 flex-1 overflow-hidden md:-my-6">
         <BaseConfigProvider value={defaultBaseConfig}>
-          <ChatRuntimeProvider>
+          <ChatRuntimeProvider ephemeralChatId={ephemeralChatId}>
             <ChatUrlSync />
+            <EphemeralChatDraftCleanup />
+            <ChatDiscardGuard />
             <Base chatAvailability={chatAvailability} />
-            <ChatDocumentLaunch />
             <ChatCitationViewerDialog />
           </ChatRuntimeProvider>
         </BaseConfigProvider>

@@ -31,38 +31,39 @@ export const navigationItems = [
 export const values = [
 	{
 		icon: GitFork,
-		title: "Open Source",
+		title: "Open source",
 		description:
-			"Fully open source under AGPL-3.0. Inspect the code, contribute improvements, and deploy with confidence",
+			"Arkivra is released under AGPL-3.0. Review the code or adapt it to your setup.",
 	},
 	{
 		icon: Server,
-		title: "Self-Hostable",
+		title: "Self-hostable",
 		description:
-			"Deploy with Docker and run Arkivra on your own servers or private infrastructure.",
+			"Deploy with Docker on a home server or any Docker-capable host you manage.",
 	},
 	{
 		icon: ShieldCheck,
-		title: "Privacy choices",
+		title: "Flexible AI setup",
 		description:
-			"Keep AI local, connect supported cloud providers, or disable it entirely. You decide where your documents are processed.",
+			"Use an AI endpoint you operate or connect a supported cloud provider. AI can also remain disabled.",
 	},
 	{
 		icon: LockKeyhole,
-		title: "Document Encryption",
+		title: "Encrypted file storage",
 		description:
-			"Original files and extracted assets are encrypted at rest, with security controlled by your own deployment.",
+			"Uploaded originals and stored extracted asset files are encrypted at rest using keys configured for your deployment.",
 	},
 	{
 		icon: ClipboardList,
-		title: "Audit & Activity",
+		title: "Activity and audit",
 		description:
-			"Track user activity, access events, and document changes with detailed audit logs.",
+			"Activity and audit logs record document actions. They also cover access, permission and administrative events.",
 	},
 	{
 		icon: RotateCcw,
-		title: "Backups & Recovery",
-		description: "Create full instance backups for easy recovery or migration.",
+		title: "Encrypted backups",
+		description:
+			"Create encrypted backup sets containing PostgreSQL and document storage for Arkivra's restore workflow.",
 	},
 ];
 
@@ -70,19 +71,19 @@ export const documentPillars = [
 	{
 		title: "Organize",
 		description:
-			"Create vaults, folders, tags, and collections that match how your documents are stored in real life.",
+			"Use vaults to separate different areas of life. Add folders, tags and metadata for more structure.",
 		visual: "organize",
 	},
 	{
 		title: "Search",
 		description:
-			"Find documents quickly with full-text search, filters, metadata, and optional semantic search.",
+			"Search extracted text instead of relying on file names. Use filters to narrow larger result sets.",
 		visual: "search",
 	},
 	{
 		title: "Understand",
 		description:
-			"Use optional AI to ask questions, summarize files, translate documents, and retrieve the information buried inside your archive.",
+			"When AI is enabled, search by meaning and ask questions across individual documents or entire vaults.",
 		visual: "understand",
 	},
 ] as const;
@@ -92,24 +93,24 @@ export const documentFeatures = [
 		icon: Folder,
 		title: "Vault organization",
 		description:
-			"Group documents into vaults that match how your records belong together.",
+			"Separate personal and household records into dedicated vaults.",
 	},
 	{
 		icon: Tag,
 		title: "Tags & metadata",
-		description: "Keep documents easier to filter, recognize, and find later.",
+		description:
+			"Add context for filtering and group related records without changing the folder structure.",
 	},
 	{
 		icon: History,
 		title: "Version history",
 		description:
-			"Keep older versions available when documents change over time.",
+			"Upload a replacement while keeping earlier versions available for review or restore.",
 	},
 	{
 		icon: Users,
 		title: "Access control",
-		description:
-			"Manage who can view, upload, and organize documents in each vault.",
+		description: "Control which accounts can view or update each vault.",
 	},
 ];
 
@@ -117,17 +118,20 @@ export const retrievalFeatures = [
 	{
 		icon: Search,
 		title: "Full-text search",
-		description: "Search document content, not just file names.",
+		description:
+			"Find exact words and phrases in text extracted during document processing.",
 	},
 	{
 		icon: FileText,
 		title: "Scanned documents",
-		description: "Extract searchable text from scanned PDFs and images.",
+		description:
+			"Turn supported scanned PDFs and images into content you can search.",
 	},
 	{
 		icon: SlidersHorizontal,
 		title: "Filters & metadata",
-		description: "Narrow results by vault, tag, metadata, or processing state.",
+		description:
+			"Narrow results by vault, tag, metadata, or processing state to reach the right record faster.",
 	},
 ];
 
@@ -135,43 +139,46 @@ export const optionalAiFeatures = [
 	{
 		icon: Brain,
 		title: "Semantic search",
-		description: "Find related information by meaning.",
+		description:
+			"Find passages with related meaning even when they use different wording.",
 	},
 	{
 		icon: MessageCircle,
 		title: "Chat with documents",
-		description: "Ask questions across selected documents or entire vaults.",
+		description:
+			"Ask questions across selected documents, individual vaults, or all records you can access.",
 	},
 	{
 		icon: Languages,
 		title: "Document translation",
-		description: "Translate documents when translation is enabled.",
+		description:
+			"Translate supported PDFs between English and German using the configured model.",
 	},
 ];
 
 export const aiFlexibilityNote =
-	"Bring your own AI setup: connect local models or supported cloud providers when AI fits your setup.";
+	"Use an endpoint you operate or a supported cloud provider. The selected provider determines where model requests are processed.";
 
 export const faqItems = [
 	{
-		question: "Do I need AI to use Arkivra?",
+		question: "Does Arkivra require AI?",
 		answer:
-			"No. Arkivra works without AI. Upload documents, organize vaults, search content, manage versions, restore files, and create backups without connecting any AI provider.",
+			"No. You can upload and organize files, search extracted content, manage versions, recover deleted items, and create backups without connecting an AI provider.",
 	},
 	{
 		question: "What does optional AI mean?",
 		answer:
-			"AI features are disabled by default. If you want AI-assisted features such as semantic search, chat, or translation, you can connect local models or supported cloud providers using your own configuration.",
+			"An administrator must configure a supported provider, choose the models, and enable AI before anyone can use semantic search, document chat, or PDF translation. The core document workflow remains available without it.",
 	},
 	{
-		question: "Do my documents leave my computer?",
+		question: "Where does Arkivra process documents?",
 		answer:
-			"Arkivra is self-hosted, so documents stay within the infrastructure you choose to run it on. Core document management and full-text search do not require any AI provider. If you configure remote AI providers, remote storage, or off-site backups, the content required for those features may be sent to those services according to your configuration.",
+			"You choose where Arkivra and its required Docling processing endpoint run. Core document management and full-text search do not use an AI provider. Content may leave that environment if you configure remote processing, AI, storage, or backup services.",
 	},
 	{
 		question: "What happens when I use a remote AI provider?",
 		answer:
-			"Arkivra only sends the content required for the AI feature being used. Depending on configuration, this may include document text for indexing or document context for chat and other AI-assisted workflows.",
+			"Arkivra sends the content needed for the feature you use. That can include query text and document chunks for semantic search, document context and conversation history for chat, or selected text and page images for translation. The provider may process or retain that data under its own policies.",
 	},
 	{
 		question: "What is semantic search?",
@@ -181,7 +188,7 @@ export const faqItems = [
 	{
 		question: "Can Arkivra search scanned PDFs and documents?",
 		answer:
-			"Yes. Arkivra can extract searchable text from many scanned PDFs and images. Results depend on scan quality and the configured document processing pipeline.",
+			"Yes. Arkivra can extract searchable text from supported scanned PDFs and images. The result depends on scan quality and how the document processing pipeline is configured.",
 	},
 	{
 		question: "What license is Arkivra released under?",

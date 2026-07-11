@@ -6,13 +6,14 @@ import { documentPillars } from "@/data/landing";
 
 <section class="relative py-16 sm:py-24">
 	<div class="absolute inset-0 bg-gradient-to-r from-primary/8 via-transparent to-secondary/20"></div>
-	<DotPattern class="opacity-75" size="md" fade="circle" />
+	<DotPattern opacity="opacity-30" size="md" fade="circle" />
 
 	<div class="container relative mx-auto px-4 sm:px-6 lg:px-8">
 		<div class="mx-auto max-w-3xl text-center">
-			<h2 class="text-4xl font-bold tracking-tight text-balance sm:text-5xl">More than a folder of files.</h2>
+			<h2 class="text-4xl font-bold tracking-tight text-balance sm:text-5xl">Keep your archive useful as it grows.</h2>
 			<p class="mx-auto mt-5 max-w-2xl text-xl leading-8 text-muted-foreground text-pretty">
-				Arkivra helps you turn scattered documents into a structured, searchable archive you can actually use.
+				Arkivra gives every record a clear place and makes extracted content searchable. Optional AI adds semantic retrieval
+				and document chat without replacing the core workflow.
 			</p>
 		</div>
 
@@ -22,7 +23,7 @@ import { documentPillars } from "@/data/landing";
 					<div class="card overflow-hidden py-0 shadow-xs">
 						<div class="card-content flex h-full flex-col p-0">
 							<div class="relative flex h-52 items-center justify-center overflow-hidden border-b bg-background/50 p-6">
-								<DotPattern class="opacity-75" size="sm" fade="ellipse" />
+								<DotPattern opacity="opacity-40" size="sm" fade="ellipse" />
 								<div class="relative flex h-full w-full items-center">
 									<PillarPreview visual={pillar.visual} />
 								</div>

@@ -7,26 +7,26 @@ import { githubUrl, selfHostingGuideUrl } from "@/data/landing";
 import { ArrowRight } from "@lucide/astro";
 ---
 
-<section id="hero" class="relative overflow-hidden pt-16 pb-16 sm:pt-20 lg:pb-24">
+	<section id="hero" class="relative overflow-hidden pt-16 pb-16 sm:pt-20 lg:pb-24">
 	<div class="absolute inset-0">
-		<DotPattern class="opacity-100" size="md" fade="ellipse" />
+		<DotPattern opacity="opacity-40" size="md" fade="ellipse" />
 	</div>
 
 	<div class="container relative mx-auto px-4 sm:px-6 lg:px-8">
 		<div class="grid items-center gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:gap-12">
 			<div class="mx-auto max-w-2xl text-center lg:mx-0 lg:text-left">
 				<div class="mb-6 flex flex-wrap justify-center gap-2 lg:justify-start">
-					<Badge variant="outline" class="border-foreground/40 px-4 py-2">Open-source</Badge>
+					<Badge variant="outline" class="border-foreground/40 px-4 py-2">Open source</Badge>
 					<Badge variant="secondary" class="px-4 py-2">Self-hostable</Badge>
 				</div>
 
 				<h1 class="mb-6 text-4xl font-bold tracking-tight text-balance sm:text-6xl lg:text-7xl">
-					Your documents, finally under control.
+					Keep your documents organized and searchable.
 				</h1>
 
 				<p class="mb-10 text-lg text-muted-foreground text-pretty sm:text-xl">
-					Store, organize, search, and understand your personal records, scanned files, and work documents in one
-					private self-hosted vault.
+					Arkivra is an open-source document management system built for self-hosting. Organize personal records and scanned
+					documents in structured vaults. Search their contents or enable optional AI tools when needed.
 				</p>
 
 				<div class="flex flex-col gap-4 sm:flex-row sm:justify-center lg:justify-start">

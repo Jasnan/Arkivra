@@ -1,7 +1,7 @@
 import type { Context } from 'hono';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNotNull } from 'drizzle-orm';
 import type { Database } from '../database/database.js';
-import { documentsTable } from '../database/schema/index.js';
+import { documentsTable, vaultFoldersTable, vaultsTable } from '../database/schema/index.js';
 import type { ServerContext } from '../server/server.types.js';
 import type { VaultsServices } from '../vaults/vaults.services.js';
 import type { VaultAccess } from '../vaults/vaults.types.js';
@@ -13,6 +13,7 @@ import {
 import type {
   ChatContextAvailability,
   ChatContextDocumentRef,
+  ChatContextFolderRef,
   ChatContextSnapshot,
   ChatContextVaultRef,
   ChatIntent,
@@ -35,13 +36,19 @@ export type ChatRouteErrorCode =
 
 export type ChatContextResolution =
   | { ok: true; scope: ChatScopeInput }
-  | { ok: false; status: 400 | 401 | 403 | 404; code: ChatRouteErrorCode; message: string };
+  | {
+      ok: false;
+      status: 400 | 401 | 403 | 404;
+      code: ChatRouteErrorCode;
+      message: string;
+      unavailableType?: 'vault' | 'folder' | 'document';
+    };
 
-export const SOURCE_DOCUMENT_DELETED_CONTEXT: ChatContextAvailability = {
-  status: 'source_document_deleted',
+export const SOURCE_UNAVAILABLE_CONTEXT: ChatContextAvailability = {
+  status: 'source_unavailable',
   readOnly: true,
-  message:
-    'One or more sources in the current chat context were deleted. Change the attached context to continue.',
+  message: 'One or more attachments are unavailable. Remove or replace them to continue.',
+  unavailableTypes: [],
 };
 
 export function routeError(
@@ -60,7 +67,7 @@ export function isDeletedSourceResolution(resolved: ChatContextResolution) {
     !resolved.ok &&
     resolved.status === 404 &&
     resolved.code === 'chat.not_found' &&
-    resolved.message === 'Document not found'
+    resolved.unavailableType !== undefined
   );
 }
 
@@ -250,6 +257,31 @@ export function dedupeDocumentRefs(
   return deduped;
 }
 
+export function dedupeFolderRefs(
+  folders: ChatContextFolderRef[],
+  selectedVaultIds = new Set<string>(),
+) {
+  const seen = new Set<string>();
+  const deduped: ChatContextFolderRef[] = [];
+
+  for (const folder of folders) {
+    const vaultId = folder.vaultId.trim();
+    const folderId = folder.folderId.trim();
+    const key = `${vaultId}:${folderId}`;
+    if (!vaultId || !folderId || selectedVaultIds.has(vaultId) || seen.has(key)) continue;
+    seen.add(key);
+    deduped.push({
+      vaultId,
+      folderId,
+      ...(folder.name ? { name: folder.name } : {}),
+      ...(folder.vaultName ? { vaultName: folder.vaultName } : {}),
+      ...(folder.path ? { path: folder.path } : {}),
+    });
+  }
+
+  return deduped;
+}
+
 export function parseVaultRefs(value: unknown) {
   if (!Array.isArray(value)) {
     return [];
@@ -293,6 +325,20 @@ export function parseDocumentRefs(value: unknown) {
       };
     }),
   );
+}
+
+export function parseFolderRefs(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return dedupeFolderRefs(value.map((item) => {
+    if (!isRecord(item)) return { vaultId: '', folderId: '' };
+    return {
+      vaultId: typeof item.vaultId === 'string' ? item.vaultId.trim() : '',
+      folderId: typeof item.folderId === 'string' ? item.folderId.trim() : '',
+      name: parseOptionalString(item.name),
+      vaultName: parseOptionalString(item.vaultName),
+      path: parseOptionalString(item.path),
+    };
+  }));
 }
 
 export function canReadVault(vault: VaultAccess) {
@@ -340,12 +386,19 @@ export function parseRequestedContext(body: Record<string, unknown>): ChatContex
   const rawVaultIdRefs = parseStringArray(rawContext.vaultIds).map((vaultId) => ({ vaultId }));
   const vaults = dedupeVaultRefs([...rawVaultRefs, ...rawVaultIdRefs]);
   const selectedVaultIds = new Set(vaults.map((vault) => vault.vaultId));
+  const rawFolderRefs = parseFolderRefs(rawContext.folders);
   const rawDocumentRefs = parseDocumentRefs(rawContext.documents);
 
-  if (rawContext.type === 'selection' || rawVaultRefs.length > 0 || rawDocumentRefs.length > 0) {
+  if (
+    rawContext.type === 'selection' ||
+    rawVaultRefs.length > 0 ||
+    rawFolderRefs.length > 0 ||
+    rawDocumentRefs.length > 0
+  ) {
     return {
       type: 'selection',
       vaults,
+      folders: dedupeFolderRefs(rawFolderRefs, selectedVaultIds),
       documents: dedupeDocumentRefs(rawDocumentRefs, selectedVaultIds),
     };
   }
@@ -384,18 +437,122 @@ export async function getDocumentContext({
   documentId: string;
 }) {
   const [document] = await db
-    .select({ id: documentsTable.id, name: documentsTable.name })
+    .select({ id: documentsTable.id, name: documentsTable.name, folderId: documentsTable.folderId })
     .from(documentsTable)
     .where(
       and(
         eq(documentsTable.id, documentId),
         eq(documentsTable.vaultId, vaultId),
         eq(documentsTable.isDeleted, false),
+        eq(documentsTable.processingStatus, 'completed'),
+        isNotNull(documentsTable.currentVersionId),
       ),
     )
     .limit(1);
 
   return document ?? null;
+}
+
+export async function getFolderContext({
+  db,
+  vaultId,
+  folderId,
+}: {
+  db: Database;
+  vaultId: string;
+  folderId: string;
+}) {
+  const [folder] = await db
+    .select({
+      id: vaultFoldersTable.id,
+      name: vaultFoldersTable.name,
+      parentId: vaultFoldersTable.parentId,
+    })
+    .from(vaultFoldersTable)
+    .where(and(
+      eq(vaultFoldersTable.id, folderId),
+      eq(vaultFoldersTable.vaultId, vaultId),
+      eq(vaultFoldersTable.isDeleted, false),
+    ))
+    .limit(1);
+  return folder ?? null;
+}
+
+async function sourceStillExists({
+  db,
+  type,
+  vaultId,
+  sourceId,
+}: {
+  db: Database;
+  type: 'vault' | 'folder' | 'document';
+  vaultId: string;
+  sourceId?: string;
+}) {
+  if (type === 'vault') {
+    const [row] = await db.select({ id: vaultsTable.id }).from(vaultsTable)
+      .where(eq(vaultsTable.id, vaultId)).limit(1);
+    return row !== undefined;
+  }
+  if (type === 'folder') {
+    const [row] = await db.select({ id: vaultFoldersTable.id }).from(vaultFoldersTable)
+      .where(and(eq(vaultFoldersTable.vaultId, vaultId), eq(vaultFoldersTable.id, sourceId ?? '')))
+      .limit(1);
+    return row !== undefined;
+  }
+  const [row] = await db.select({ id: documentsTable.id }).from(documentsTable)
+    .where(and(eq(documentsTable.vaultId, vaultId), eq(documentsTable.id, sourceId ?? '')))
+    .limit(1);
+  return row !== undefined;
+}
+
+async function unavailableOrForbiddenVault(db: Database, vaultId: string): Promise<ChatContextResolution> {
+  return await sourceStillExists({ db, type: 'vault', vaultId })
+    ? { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' }
+    : {
+        ok: false,
+        status: 404,
+        code: 'chat.not_found',
+        message: 'Vault not found',
+        unavailableType: 'vault',
+      };
+}
+
+type ActiveFolderRow = { id: string; name: string; parentId: string | null };
+
+async function loadActiveFolderGraph(db: Database, vaultId: string) {
+  const rows = await db
+    .select({ id: vaultFoldersTable.id, name: vaultFoldersTable.name, parentId: vaultFoldersTable.parentId })
+    .from(vaultFoldersTable)
+    .where(and(eq(vaultFoldersTable.vaultId, vaultId), eq(vaultFoldersTable.isDeleted, false)));
+  return new Map(rows.map((row) => [row.id, row]));
+}
+
+function getFolderPath(folderId: string, folders: Map<string, ActiveFolderRow>) {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  let current = folders.get(folderId);
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id);
+    names.unshift(current.name);
+    current = current.parentId ? folders.get(current.parentId) : undefined;
+  }
+  return names.join('/');
+}
+
+function isFolderCovered(
+  folderId: string | null,
+  selectedFolderIds: Set<string>,
+  folders: Map<string, ActiveFolderRow>,
+) {
+  const seen = new Set<string>();
+  let currentId = folderId;
+  while (currentId && !seen.has(currentId)) {
+    if (selectedFolderIds.has(currentId)) return true;
+    seen.add(currentId);
+    currentId = folders.get(currentId)?.parentId ?? null;
+  }
+  return false;
 }
 
 export async function resolveCreatableContext({
@@ -444,7 +601,9 @@ export async function resolveCreatableContext({
 
   if (requestedContext.type === 'selection') {
     const vaults: ChatContextVaultRef[] = [];
-    const documents: ChatContextDocumentRef[] = [];
+    const folders: ChatContextFolderRef[] = [];
+    const documents: Array<ChatContextDocumentRef & { folderId: string | null }> = [];
+    const folderGraphs = new Map<string, Map<string, ActiveFolderRow>>();
 
     for (const requestedVault of dedupeVaultRefs(requestedContext.vaults)) {
       const vault = await vaultServices.getVaultForUser({
@@ -453,7 +612,7 @@ export async function resolveCreatableContext({
       });
 
       if (vault === null) {
-        return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };
+        return unavailableOrForbiddenVault(db, requestedVault.vaultId);
       }
 
       if (!canReadVault(vault)) {
@@ -470,6 +629,50 @@ export async function resolveCreatableContext({
 
     const selectedVaultIds = new Set(vaults.map((vault) => vault.vaultId));
 
+    for (const requestedFolder of dedupeFolderRefs(requestedContext.folders ?? [], selectedVaultIds)) {
+      const vault = await vaultServices.getVaultForUser({ vaultId: requestedFolder.vaultId, userId });
+      if (vault === null) {
+        return unavailableOrForbiddenVault(db, requestedFolder.vaultId);
+      }
+      if (!canReadVault(vault)) {
+        return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };
+      }
+      const graph = folderGraphs.get(vault.id) ?? await loadActiveFolderGraph(db, vault.id);
+      folderGraphs.set(vault.id, graph);
+      const folder = graph.get(requestedFolder.folderId);
+      if (!folder) {
+        return {
+          ok: false,
+          status: 404,
+          code: 'chat.not_found',
+          message: 'Folder not found',
+          unavailableType: 'folder',
+        };
+      }
+      folders.push({
+        vaultId: vault.id,
+        folderId: folder.id,
+        name: folder.name,
+        vaultName: vault.name,
+        path: getFolderPath(folder.id, graph),
+      });
+    }
+
+    const normalizedFolders = folders.filter((folder) => {
+      const graph = folderGraphs.get(folder.vaultId);
+      if (!graph) return true;
+      const selectedIds = new Set(folders
+        .filter((candidate) => candidate.vaultId === folder.vaultId && candidate.folderId !== folder.folderId)
+        .map((candidate) => candidate.folderId));
+      return !isFolderCovered(graph.get(folder.folderId)?.parentId ?? null, selectedIds, graph);
+    });
+    const selectedFolderIdsByVault = new Map<string, Set<string>>();
+    for (const folder of normalizedFolders) {
+      const ids = selectedFolderIdsByVault.get(folder.vaultId) ?? new Set<string>();
+      ids.add(folder.folderId);
+      selectedFolderIdsByVault.set(folder.vaultId, ids);
+    }
+
     for (const requestedDocument of dedupeDocumentRefs(
       requestedContext.documents,
       selectedVaultIds,
@@ -480,7 +683,7 @@ export async function resolveCreatableContext({
       });
 
       if (vault === null) {
-        return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };
+        return unavailableOrForbiddenVault(db, requestedDocument.vaultId);
       }
 
       if (!canReadVault(vault)) {
@@ -499,7 +702,13 @@ export async function resolveCreatableContext({
       });
 
       if (document === null) {
-        return { ok: false, status: 404, code: 'chat.not_found', message: 'Document not found' };
+        return {
+          ok: false,
+          status: 404,
+          code: 'chat.not_found',
+          message: 'Document not found',
+          unavailableType: 'document',
+        };
       }
 
       documents.push({
@@ -507,11 +716,20 @@ export async function resolveCreatableContext({
         documentId: document.id,
         name: document.name,
         vaultName: vault.name,
+        folderId: document.folderId,
         ...(requestedDocument.path ? { path: requestedDocument.path } : {}),
       });
     }
 
-    if (vaults.length === 0 && documents.length === 0) {
+    const normalizedDocuments = documents
+      .filter((document) => !isFolderCovered(
+        document.folderId,
+        selectedFolderIdsByVault.get(document.vaultId) ?? new Set<string>(),
+        folderGraphs.get(document.vaultId) ?? new Map(),
+      ))
+      .map(({ folderId: _folderId, ...document }) => document);
+
+    if (vaults.length === 0 && normalizedFolders.length === 0 && normalizedDocuments.length === 0) {
       return {
         ok: false,
         status: 400,
@@ -520,7 +738,10 @@ export async function resolveCreatableContext({
       };
     }
 
-    return { ok: true, scope: { type: 'selection', vaults, documents } };
+    return {
+      ok: true,
+      scope: { type: 'selection', vaults, folders: normalizedFolders, documents: normalizedDocuments },
+    };
   }
 
   if (requestedContext.vaultId.length === 0) {
@@ -530,7 +751,7 @@ export async function resolveCreatableContext({
   const vault = await vaultServices.getVaultForUser({ vaultId: requestedContext.vaultId, userId });
 
   if (vault === null) {
-    return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };
+    return unavailableOrForbiddenVault(db, requestedContext.vaultId);
   }
 
   if (requestedContext.type === 'vault') {
@@ -579,7 +800,13 @@ export async function resolveCreatableContext({
           documentName: document.name,
         },
       }
-    : { ok: false, status: 404, code: 'chat.not_found', message: 'Document not found' };
+    : {
+        ok: false,
+        status: 404,
+        code: 'chat.not_found',
+        message: 'Document not found',
+        unavailableType: 'document',
+      };
 }
 
 export async function resolveUsableContext({
@@ -611,7 +838,8 @@ export async function resolveUsableContext({
   if (snapshot.type === 'global') {
     for (const vaultId of snapshot.vaultIds) {
       const vault = await vaultServices.getVaultForUser({ vaultId, userId });
-      if (vault === null || !canReadVault(vault)) {
+      if (vault === null) return unavailableOrForbiddenVault(db, vaultId);
+      if (!canReadVault(vault)) {
         return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };
       }
     }
@@ -627,7 +855,11 @@ export async function resolveUsableContext({
   }
 
   if (snapshot.type === 'selection') {
-    if (snapshot.vaults.length === 0 && snapshot.documents.length === 0) {
+    if (
+      snapshot.vaults.length === 0 &&
+      (snapshot.folders?.length ?? 0) === 0 &&
+      snapshot.documents.length === 0
+    ) {
       return {
         ok: false,
         status: 403,
@@ -638,7 +870,8 @@ export async function resolveUsableContext({
 
     for (const vaultRef of dedupeVaultRefs(snapshot.vaults)) {
       const vault = await vaultServices.getVaultForUser({ vaultId: vaultRef.vaultId, userId });
-      if (vault === null || !canReadVault(vault)) {
+      if (vault === null) return unavailableOrForbiddenVault(db, vaultRef.vaultId);
+      if (!canReadVault(vault)) {
         return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };
       }
     }
@@ -647,9 +880,32 @@ export async function resolveUsableContext({
       dedupeVaultRefs(snapshot.vaults).map((vault) => vault.vaultId),
     );
 
+    for (const folderRef of dedupeFolderRefs(snapshot.folders ?? [], selectedVaultIds)) {
+      const vault = await vaultServices.getVaultForUser({ vaultId: folderRef.vaultId, userId });
+      if (vault === null) return unavailableOrForbiddenVault(db, folderRef.vaultId);
+      if (!canReadVault(vault)) {
+        return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };
+      }
+      const folder = await getFolderContext({
+        db,
+        vaultId: folderRef.vaultId,
+        folderId: folderRef.folderId,
+      });
+      if (folder === null) {
+        return {
+          ok: false,
+          status: 404,
+          code: 'chat.not_found',
+          message: 'Folder not found',
+          unavailableType: 'folder',
+        };
+      }
+    }
+
     for (const documentRef of dedupeDocumentRefs(snapshot.documents, selectedVaultIds)) {
       const vault = await vaultServices.getVaultForUser({ vaultId: documentRef.vaultId, userId });
-      if (vault === null || !canReadVault(vault)) {
+      if (vault === null) return unavailableOrForbiddenVault(db, documentRef.vaultId);
+      if (!canReadVault(vault)) {
         return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };
       }
 
@@ -660,7 +916,13 @@ export async function resolveUsableContext({
       });
 
       if (document === null) {
-        return { ok: false, status: 404, code: 'chat.not_found', message: 'Document not found' };
+        return {
+          ok: false,
+          status: 404,
+          code: 'chat.not_found',
+          message: 'Document not found',
+          unavailableType: 'document',
+        };
       }
     }
 
@@ -670,7 +932,7 @@ export async function resolveUsableContext({
   const vault = await vaultServices.getVaultForUser({ vaultId: snapshot.vaultId, userId });
 
   if (vault === null) {
-    return { ok: false, status: 403, code: 'vault.forbidden', message: 'Forbidden' };
+    return unavailableOrForbiddenVault(db, snapshot.vaultId);
   }
 
   if (snapshot.type === 'vault') {
@@ -700,5 +962,11 @@ export async function resolveUsableContext({
   });
   return document !== null
     ? { ok: true, scope: snapshot }
-    : { ok: false, status: 404, code: 'chat.not_found', message: 'Document not found' };
+    : {
+        ok: false,
+        status: 404,
+        code: 'chat.not_found',
+        message: 'Document not found',
+        unavailableType: 'document',
+      };
 }

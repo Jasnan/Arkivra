@@ -125,6 +125,35 @@ function streamBody(overrides: Record<string, unknown> = {}) {
 }
 
 describe('chat routes', () => {
+  test('requires AI access for the attachment browser', async () => {
+    const { app } = createTestApp();
+    const response = await app.request('/api/chats/context-options', {
+      headers: { 'x-test-user-id': 'usr_1', 'x-test-can-use-ai': 'false' },
+    });
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'authorization.use_ai_required' },
+    });
+  });
+
+  test('does not return vaults the user cannot read from the attachment browser', async () => {
+    const vaultServices = {
+      ...createMockVaultsServices(),
+      listUserVaults: vi.fn(async () => [{
+        id: 'vlt_hidden',
+        name: 'Hidden',
+        role: null,
+        isAdmin: false,
+      }]),
+    } as unknown as VaultsServices;
+    const { app } = createTestApp({ vaultServices });
+    const response = await app.request('/api/chats/context-options', {
+      headers: { 'x-test-user-id': 'usr_1' },
+    });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ vaults: [] });
+  });
+
   test('summarizes selected vault context without requiring user text', async () => {
     const services = createMockChatServices();
     const { app } = createTestApp({ services });
@@ -192,7 +221,7 @@ describe('chat routes', () => {
     await expect(response.json()).resolves.toEqual({
       error: {
         code: 'chat.invalid_content',
-        message: 'Select a document or vault before sending summarize without text',
+        message: 'Select a vault, folder, or file before sending summarize without text',
       },
     });
     expect(services.createMessageStream).not.toHaveBeenCalled();
@@ -280,7 +309,7 @@ describe('chat routes', () => {
     await expect(response.json()).resolves.toEqual({
       error: {
         code: 'chat.invalid_context',
-        message: 'Select at least two documents or vaults to compare',
+        message: 'Select at least two attachments to compare',
       },
     });
     expect(services.createMessageStream).not.toHaveBeenCalled();
@@ -510,6 +539,7 @@ describe('chat routes', () => {
         scope: {
           type: 'selection',
           vaults: [],
+          folders: [],
           documents: [expect.objectContaining({
             vaultId: 'vlt_1',
             documentId: 'doc_selected',
@@ -773,9 +803,9 @@ describe('chat routes', () => {
         id: 'cht_1',
         messages: [{ parts: [{ type: 'text', text: 'Can we continue?' }] }],
         contextAvailability: {
-          status: 'source_document_deleted',
+          status: 'source_unavailable',
           readOnly: true,
-          message: expect.stringContaining('Change the attached context to continue'),
+          message: expect.stringContaining('Remove or replace'),
         },
       },
     });
@@ -786,10 +816,11 @@ describe('chat routes', () => {
       getConversation: vi.fn(async () =>
         createConversation({
           contextAvailability: {
-            status: 'source_document_deleted' as const,
+            status: 'source_unavailable' as const,
             readOnly: true as const,
             message:
-              'One or more sources in the current chat context were deleted. Change the attached context to continue.',
+              'One or more attachments are unavailable. Remove or replace them to continue.',
+            unavailableTypes: ['document'] as const,
           },
         }),
       ),
@@ -807,7 +838,7 @@ describe('chat routes', () => {
       error: {
         code: 'chat.context_unavailable',
         message:
-          'One or more sources in the current chat context were deleted. Change the attached context to continue.',
+          'One or more attachments are unavailable. Remove or replace them to continue.',
       },
     });
     expect(services.createMessageStream).not.toHaveBeenCalled();
@@ -826,10 +857,11 @@ describe('chat routes', () => {
             documentName: 'Deleted source.pdf',
           },
           contextAvailability: {
-            status: 'source_document_deleted' as const,
+            status: 'source_unavailable' as const,
             readOnly: true as const,
             message:
-              'One or more sources in the current chat context were deleted. Change the attached context to continue.',
+              'One or more attachments are unavailable. Remove or replace them to continue.',
+            unavailableTypes: ['document'] as const,
           },
         }),
       ),
@@ -878,10 +910,11 @@ describe('chat routes', () => {
       getConversation: vi.fn(async () =>
         createConversation({
           contextAvailability: {
-            status: 'source_document_deleted' as const,
+            status: 'source_unavailable' as const,
             readOnly: true as const,
             message:
-              'One or more sources in the current chat context were deleted. Change the attached context to continue.',
+              'One or more attachments are unavailable. Remove or replace them to continue.',
+            unavailableTypes: ['document'] as const,
           },
         }),
       ),

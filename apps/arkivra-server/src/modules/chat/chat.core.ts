@@ -3,6 +3,7 @@ import type { chatConversationsTable } from '../database/schema/index.js';
 import type {
   ChatConversation,
   ChatContextDocumentRef,
+  ChatContextFolderRef,
   ChatContextSnapshot,
   ChatContextVaultRef,
   ChatIntent,
@@ -123,7 +124,7 @@ export type ChatModelOptions = {
 
 type ChatConversationRow = typeof chatConversationsTable.$inferSelect;
 export type ChatScopeInput = ChatContextSnapshot;
-export type ChatManifestIncludedBy = 'vault' | 'document' | 'selection';
+export type ChatManifestIncludedBy = 'vault' | 'folder' | 'document' | 'selection';
 
 export type ChatManifestRow = {
   vaultId: string;
@@ -241,6 +242,14 @@ export function areChatScopesEquivalent(left: ChatScopeInput, right: ChatScopeIn
     const rightVaults = sortedUnique(normalizeVaultRefs(right.vaults).map(item => item.vaultId));
     const leftSelected = new Set(leftVaults);
     const rightSelected = new Set(rightVaults);
+    const leftFolders = sortedUnique(
+      normalizeFolderRefs(left.folders ?? [], leftSelected)
+        .map(item => `${item.vaultId}:${item.folderId}`),
+    );
+    const rightFolders = sortedUnique(
+      normalizeFolderRefs(right.folders ?? [], rightSelected)
+        .map(item => `${item.vaultId}:${item.folderId}`),
+    );
     const leftDocuments = sortedUnique(
       normalizeDocumentRefs(left.documents, leftSelected)
         .map(item => `${item.vaultId}:${item.documentId}`),
@@ -251,6 +260,7 @@ export function areChatScopesEquivalent(left: ChatScopeInput, right: ChatScopeIn
     );
 
     return JSON.stringify(leftVaults) === JSON.stringify(rightVaults)
+      && JSON.stringify(leftFolders) === JSON.stringify(rightFolders)
       && JSON.stringify(leftDocuments) === JSON.stringify(rightDocuments);
   }
 
@@ -276,6 +286,41 @@ export function normalizeVaultRefs(vaults: ChatContextVaultRef[]) {
     normalized.push({
       vaultId,
       ...(normalizeOptionalLabel(vault.name) ? { name: normalizeOptionalLabel(vault.name) } : {}),
+    });
+  }
+
+  return normalized;
+}
+
+export function normalizeFolderRefs(
+  folders: ChatContextFolderRef[],
+  selectedVaultIds = new Set<string>(),
+) {
+  const seen = new Set<string>();
+  const normalized: ChatContextFolderRef[] = [];
+
+  for (const folder of folders) {
+    const vaultId = folder.vaultId.trim();
+    const folderId = folder.folderId.trim();
+    const key = `${vaultId}:${folderId}`;
+    if (
+      vaultId.length === 0 ||
+      folderId.length === 0 ||
+      selectedVaultIds.has(vaultId) ||
+      seen.has(key)
+    ) {
+      continue;
+    }
+
+    seen.add(key);
+    normalized.push({
+      vaultId,
+      folderId,
+      ...(normalizeOptionalLabel(folder.name) ? { name: normalizeOptionalLabel(folder.name) } : {}),
+      ...(normalizeOptionalLabel(folder.vaultName)
+        ? { vaultName: normalizeOptionalLabel(folder.vaultName) }
+        : {}),
+      ...(normalizeOptionalLabel(folder.path) ? { path: normalizeOptionalLabel(folder.path) } : {}),
     });
   }
 
@@ -348,6 +393,7 @@ export function normalizeConversationContextSnapshot(row: ChatConversationRow): 
     return {
       type: 'selection',
       vaults,
+      folders: normalizeFolderRefs(row.contextSnapshot.folders ?? [], selectedVaultIds),
       documents: normalizeDocumentRefs(row.contextSnapshot.documents, selectedVaultIds),
     };
   }

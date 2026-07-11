@@ -34,6 +34,7 @@ import { useBaseConfig } from "@/app/chat/lib/base/config-provider";
 import {
   draftContextFromAttachments,
   draftContextFromSnapshot,
+  hasUnavailableDraftContext,
   type ComposerContextAttachment,
 } from "@/app/chat/lib/chat-context-model";
 import { Switch } from "@/components/ui/switch";
@@ -375,8 +376,11 @@ const Composer: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
     const context = draftContextFromAttachments(
       state.composer.attachments as readonly ComposerContextAttachment[],
     );
-    return context.vaults.length + context.documents.length;
+    return context.vaults.length + context.folders.length + context.documents.length;
   });
+  const hasUnavailableAttachments = useAuiState((state) => hasUnavailableDraftContext(
+    draftContextFromAttachments(state.composer.attachments as readonly ComposerContextAttachment[]),
+  ));
   const isCompareSelectionIncomplete = activeIntent === "compare" && compareTargetCount < 2;
   function setComposerIntent(intent: ComposerChatIntent | undefined) {
     const composer = aui.composer();
@@ -436,7 +440,7 @@ const Composer: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
                 </span>
                 {isCompareSelectionIncomplete && (
                   <span className="text-muted-foreground ms-2 text-xs">
-                    Select at least two documents or vaults
+                    Select at least two attachments
                   </span>
                 )}
               </div>
@@ -452,7 +456,12 @@ const Composer: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
               }}
               className="aui-composer-input placeholder:text-muted-foreground/80 max-h-32 min-h-10 w-full resize-none bg-transparent px-2.5 py-1 text-base outline-none"
             />
-            <ComposerAction sendDisabled={isCompareSelectionIncomplete} />
+            <ComposerAction
+              sendDisabled={isCompareSelectionIncomplete || hasUnavailableAttachments}
+              sendDisabledReason={hasUnavailableAttachments
+                ? "Remove unavailable attachments to continue"
+                : undefined}
+            />
           </fieldset>
         </ComposerPrimitive.AttachmentDropzone>
 
@@ -466,7 +475,10 @@ const Composer: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
   );
 };
 
-const ComposerAction: FC<{ sendDisabled?: boolean }> = ({ sendDisabled = false }) => {
+const ComposerAction: FC<{ sendDisabled?: boolean; sendDisabledReason?: string }> = ({
+  sendDisabled = false,
+  sendDisabledReason,
+}) => {
   return (
     <div className="aui-composer-action-wrapper relative flex items-center justify-between">
       <div className="flex items-center gap-1">
@@ -509,7 +521,7 @@ const ComposerAction: FC<{ sendDisabled?: boolean }> = ({ sendDisabled = false }
         <AuiIf condition={(s) => !s.thread.isRunning}>
           <ComposerPrimitive.Send asChild>
             <TooltipIconButton
-              tooltip={sendDisabled ? "Select at least two documents or vaults" : "Send message"}
+              tooltip={sendDisabled ? sendDisabledReason ?? "Select at least two attachments" : "Send message"}
               side="bottom"
               type="button"
               variant="default"

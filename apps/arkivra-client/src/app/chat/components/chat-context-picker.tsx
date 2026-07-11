@@ -1,679 +1,353 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
-import { FileTextIcon, PaperclipIcon, SearchIcon, VaultIcon } from "lucide-react"
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { FileTextIcon, FolderIcon, PaperclipIcon, SearchIcon, VaultIcon } from "lucide-react"
 import { useAui, useAuiState } from "@assistant-ui/react"
+import { useVirtualizer } from "@tanstack/react-virtual"
 
-import { searchAllDocuments, type SearchResultItem } from "@/app/search/search.api"
-import { listVaults, type VaultSummary } from "@/app/vaults/vaults.api"
 import {
-  addDocumentsToDraftContext,
-  addVaultsToDraftContext,
   createEmptyDraftContext,
   documentContextAttachmentId,
   documentKey,
   draftContextFromAttachments,
   draftContextFromSnapshot,
-  draftContextKey,
+  folderContextAttachmentId,
+  folderKey,
   getDraftContextSummary,
-  hydrateDraftContextLabels,
   normalizeDraftContext,
-  searchResultToDraftDocument,
+  UNAVAILABLE_CONTEXT_CONTENT_TYPE,
   vaultContextAttachmentId,
+  type ComposerContextAttachment,
   type DraftChatContext,
   type DraftChatDocument,
+  type DraftChatFolder,
   type DraftChatVault,
 } from "@/app/chat/lib/chat-context-model"
 import { TooltipIconButton } from "@/app/chat/components/assistant-ui/tooltip-icon-button"
 import { useLiveThreadContextSnapshot } from "@/app/chat/components/runtime/chat-live-thread-context"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { fetchJson } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
-type ComposerAttachment = {
-  id?: string
-  name?: string
-  contentType?: string
+type ContextOptionFolder = { id: string; parentId: string | null; name: string; path: string }
+type ContextOptionDocument = { id: string; folderId: string | null; name: string; mimeType: string; path: string }
+type ContextOptionVault = { id: string; name: string; description: string | null; folders: ContextOptionFolder[]; documents: ContextOptionDocument[] }
+type ContextOptionsResponse = { vaults: ContextOptionVault[] }
+type PickerVirtualRow =
+  | { kind: "unavailable-header"; key: string }
+  | { kind: "unavailable"; key: string; ref: DraftChatVault | DraftChatFolder | DraftChatDocument }
+  | { kind: "vault"; key: string; vault: ContextOptionVault }
+  | { kind: "folder"; key: string; vault: ContextOptionVault; folder: ContextOptionFolder }
+  | { kind: "document"; key: string; vault: ContextOptionVault; document: ContextOptionDocument }
+
+function isDocumentRef(ref: DraftChatVault | DraftChatFolder | DraftChatDocument): ref is DraftChatDocument {
+  return "documentId" in ref
 }
 
-async function addVaultAttachment(aui: ReturnType<typeof useAui>, vault: DraftChatVault) {
-  await aui.composer().addAttachment({
-    id: vaultContextAttachmentId(vault.vaultId),
-    type: "document",
-    name: vault.name ?? "Vault",
-    contentType: "application/vnd.arkivra.vault-context",
-    content: [
-      {
-        type: "text",
-        text: `Arkivra vault context\nvaultId: ${vault.vaultId}\nname: ${vault.name ?? ""}`,
-      },
-    ],
-  })
+function isFolderRef(ref: DraftChatVault | DraftChatFolder | DraftChatDocument): ref is DraftChatFolder {
+  return !isDocumentRef(ref) && "folderId" in ref
 }
 
-export async function addDocumentContextAttachment(
-  aui: ReturnType<typeof useAui>,
-  document: DraftChatDocument,
-) {
-  await aui.composer().addAttachment({
-    id: documentContextAttachmentId(document),
-    type: "document",
-    name: document.name ?? "Document",
-    contentType: document.mimeType ?? "application/vnd.arkivra.document-context",
-    content: [
-      {
-        type: "text",
-        text: [
-          "Arkivra document context",
-          `vaultId: ${document.vaultId}`,
-          `documentId: ${document.documentId}`,
-          `name: ${document.name ?? ""}`,
-          `vaultName: ${document.vaultName ?? ""}`,
-        ].join("\n"),
-      },
-    ],
-  })
-}
-
-async function addContextAttachments(aui: ReturnType<typeof useAui>, current: DraftChatContext, next: DraftChatContext) {
-  const normalizedNext = normalizeDraftContext(next)
-  const currentKey = draftContextKey(current)
-  const nextKey = draftContextKey(normalizedNext)
-
-  if (currentKey === nextKey) return
-
-  await aui.composer().clearAttachments()
-
-  for (const vault of normalizedNext.vaults) {
-    await addVaultAttachment(aui, vault)
+function ancestorsFor(folderId: string | null, folders: Map<string, ContextOptionFolder>) {
+  const result: string[] = []
+  const seen = new Set<string>()
+  let current = folderId ? folders.get(folderId) : undefined
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id)
+    result.unshift(current.id)
+    current = current.parentId ? folders.get(current.parentId) : undefined
   }
+  return result
+}
 
-  for (const document of normalizedNext.documents) {
-    await addDocumentContextAttachment(aui, document)
+function hydrateContext(context: DraftChatContext, options: ContextOptionVault[]): DraftChatContext {
+  const vaultsById = new Map(options.map((vault) => [vault.id, vault]))
+  return normalizeDraftContext({
+    vaults: context.vaults.map((ref) => {
+      const vault = vaultsById.get(ref.vaultId)
+      return vault
+        ? { vaultId: vault.id, name: vault.name, availability: "available" }
+        : { ...ref, availability: "unavailable" }
+    }),
+    folders: context.folders.map((ref) => {
+      const vault = vaultsById.get(ref.vaultId)
+      const folder = vault?.folders.find((item) => item.id === ref.folderId)
+      if (!vault || !folder) return { ...ref, availability: "unavailable" }
+      const folders = new Map(vault.folders.map((item) => [item.id, item]))
+      return {
+        vaultId: vault.id,
+        folderId: folder.id,
+        parentId: folder.parentId,
+        ancestorIds: ancestorsFor(folder.parentId, folders),
+        name: folder.name,
+        vaultName: vault.name,
+        path: folder.path,
+        availability: "available",
+      }
+    }),
+    documents: context.documents.map((ref) => {
+      const vault = vaultsById.get(ref.vaultId)
+      const document = vault?.documents.find((item) => item.id === ref.documentId)
+      if (!vault || !document) return { ...ref, availability: "unavailable" }
+      const folders = new Map(vault.folders.map((item) => [item.id, item]))
+      return {
+        vaultId: vault.id,
+        documentId: document.id,
+        folderId: document.folderId,
+        ancestorFolderIds: ancestorsFor(document.folderId, folders),
+        name: document.name,
+        vaultName: vault.name,
+        path: document.path,
+        mimeType: document.mimeType,
+        availability: "available",
+      }
+    }),
+  })
+}
+
+function contextRenderKey(context: DraftChatContext) {
+  const value = normalizeDraftContext(context)
+  return [...value.vaults, ...value.folders, ...value.documents]
+    .map((ref) => `${"vaultId" in ref ? ref.vaultId : ""}:${"folderId" in ref ? ref.folderId : ""}:${"documentId" in ref ? ref.documentId : ""}:${ref.name ?? ""}:${ref.availability ?? ""}`)
+    .join("|")
+}
+
+async function replaceAttachments(aui: ReturnType<typeof useAui>, context: DraftChatContext) {
+  const value = normalizeDraftContext(context)
+  await aui.composer().clearAttachments()
+  for (const vault of value.vaults) {
+    const unavailable = vault.availability === "unavailable"
+    await aui.composer().addAttachment({
+      id: vaultContextAttachmentId(vault.vaultId), type: "document",
+      name: unavailable ? `Deleted vault: ${vault.name ?? "Vault"}` : vault.name ?? "Vault",
+      contentType: unavailable ? UNAVAILABLE_CONTEXT_CONTENT_TYPE : "application/vnd.arkivra.vault-context",
+      content: [{ type: "text", text: `Arkivra vault context\nvaultId: ${vault.vaultId}\nname: ${vault.name ?? ""}` }],
+    })
+  }
+  for (const folder of value.folders) {
+    const unavailable = folder.availability === "unavailable"
+    await aui.composer().addAttachment({
+      id: folderContextAttachmentId(folder), type: "document",
+      name: unavailable ? `Deleted folder: ${folder.name ?? "Folder"}` : folder.name ?? "Folder",
+      contentType: unavailable ? UNAVAILABLE_CONTEXT_CONTENT_TYPE : "application/vnd.arkivra.folder-context",
+      content: [{ type: "text", text: `Arkivra folder context\nvaultId: ${folder.vaultId}\nfolderId: ${folder.folderId}\nname: ${folder.name ?? ""}` }],
+    })
+  }
+  for (const document of value.documents) {
+    const unavailable = document.availability === "unavailable"
+    await aui.composer().addAttachment({
+      id: documentContextAttachmentId(document), type: "document",
+      name: unavailable ? `Deleted file: ${document.name ?? "File"}` : document.name ?? "File",
+      contentType: unavailable ? UNAVAILABLE_CONTEXT_CONTENT_TYPE : document.mimeType ?? "application/vnd.arkivra.document-context",
+      content: [{ type: "text", text: `Arkivra document context\nvaultId: ${document.vaultId}\ndocumentId: ${document.documentId}\nname: ${document.name ?? ""}` }],
+    })
   }
 }
 
 export function ChatContextPicker() {
   const aui = useAui()
-  const hydratedThreadContextKeyRef = useRef<string | null>(null)
-  const isComposerContextAuthoritativeRef = useRef(false)
-  const isApplyingContextAttachmentsRef = useRef(false)
-  const previousComposerContextKeyRef = useRef("")
-  const previousThreadKeyRef = useRef("")
-  const wasThreadRunningRef = useRef(false)
   const threadId = useAuiState((state) => state.threadListItem.id)
-  const threadRemoteId = useAuiState((state) => state.threadListItem.remoteId)
-  const isThreadRunning = useAuiState((state) => state.thread.isRunning)
-  const attachments = useAuiState((state) => state.composer.attachments as readonly ComposerAttachment[])
-  const threadContextSnapshot = useAuiState((state) => state.threadListItem.custom?.contextSnapshot)
-  const liveThreadContextSnapshot = useLiveThreadContextSnapshot({
-    threadId,
-    remoteId: threadRemoteId,
-  })
-  const [vaults, setVaults] = useState<VaultSummary[]>([])
-  const [vaultsError, setVaultsError] = useState<string | null>(null)
-  const [isLoadingVaults, setIsLoadingVaults] = useState(false)
-  const [vaultDialogOpen, setVaultDialogOpen] = useState(false)
-  const [documentDialogOpen, setDocumentDialogOpen] = useState(false)
-  const [isComposerContextAuthoritative, setIsComposerContextAuthoritative] = useState(false)
+  const remoteId = useAuiState((state) => state.threadListItem.remoteId)
+  const isRunning = useAuiState((state) => state.thread.isRunning)
+  const attachments = useAuiState((state) => state.composer.attachments as readonly ComposerContextAttachment[])
+  const storedSnapshot = useAuiState((state) => state.threadListItem.custom?.contextSnapshot)
+  const liveSnapshot = useLiveThreadContextSnapshot({ threadId, remoteId })
+  const [open, setOpen] = useState(false)
+  const [options, setOptions] = useState<ContextOptionVault[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const applyingRef = useRef(false)
+  const userEditedRef = useRef(false)
+  const threadKeyRef = useRef("")
+  const lastRenderKeyRef = useRef("")
+  const currentThreadKey = `${threadId}:${remoteId ?? ""}`
+  const threadChanged = threadKeyRef.current !== currentThreadKey
+  if (threadChanged) {
+    threadKeyRef.current = currentThreadKey
+    userEditedRef.current = false
+    lastRenderKeyRef.current = ""
+  }
   const composerContext = useMemo(() => draftContextFromAttachments(attachments), [attachments])
-  const threadContext = useMemo(
-    () => draftContextFromSnapshot(liveThreadContextSnapshot ?? threadContextSnapshot),
-    [liveThreadContextSnapshot, threadContextSnapshot],
-  )
-  const composerContextKey = useMemo(() => draftContextKey(composerContext), [composerContext])
-  const threadContextKey = useMemo(() => draftContextKey(threadContext), [threadContext])
-  const threadKey = `${threadId}:${threadRemoteId ?? ""}`
-  const activeContext = useMemo(() => {
-    const normalizedComposerContext = normalizeDraftContext(composerContext)
-    if (isComposerContextAuthoritative) return normalizedComposerContext
-
-    return normalizedComposerContext.vaults.length > 0 || normalizedComposerContext.documents.length > 0
-      ? normalizedComposerContext
+  const threadContext = useMemo(() => draftContextFromSnapshot(liveSnapshot ?? storedSnapshot), [liveSnapshot, storedSnapshot])
+  const activeContext = threadChanged
+    ? threadContext
+    : hasAny(composerContext) || userEditedRef.current
+      ? composerContext
       : threadContext
-  }, [composerContext, isComposerContextAuthoritative, threadContext])
-  const attachedContext = useMemo(() => hydrateDraftContextLabels({ context: activeContext, vaults }), [activeContext, vaults])
-  const summary = getDraftContextSummary(attachedContext)
+  const hydratedContext = useMemo(
+    () => loading || error ? activeContext : hydrateContext(activeContext, options),
+    [activeContext, error, loading, options],
+  )
+  const summary = getDraftContextSummary(hydratedContext)
 
   useEffect(() => {
     let ignore = false
-    setIsLoadingVaults(true)
-    listVaults()
-      .then((result) => {
-        if (ignore) return
-        setVaults(result.vaults)
-        setVaultsError(null)
-      })
-      .catch((error) => {
-        if (ignore) return
-        setVaultsError(error instanceof Error ? error.message : "Unable to load vaults.")
-      })
-      .finally(() => {
-        if (!ignore) setIsLoadingVaults(false)
-      })
-
-    return () => {
-      ignore = true
-    }
+    setLoading(true)
+    fetchJson<ContextOptionsResponse>("/api/chats/context-options")
+      .then((response) => { if (!ignore) { setOptions(response.vaults); setError(null) } })
+      .catch((cause) => { if (!ignore) setError(cause instanceof Error ? cause.message : "Unable to load attachments.") })
+      .finally(() => { if (!ignore) setLoading(false) })
+    return () => { ignore = true }
   }, [])
 
   useEffect(() => {
-    if (previousThreadKeyRef.current === threadKey) return
-
-    previousThreadKeyRef.current = threadKey
-    hydratedThreadContextKeyRef.current = null
-    previousComposerContextKeyRef.current = composerContextKey
-    isComposerContextAuthoritativeRef.current = false
-    setIsComposerContextAuthoritative(false)
-  }, [composerContextKey, threadKey])
-
-  useEffect(() => {
-    if (isThreadRunning) {
-      wasThreadRunningRef.current = true
-      isComposerContextAuthoritativeRef.current = false
-      setIsComposerContextAuthoritative(false)
-      return
-    }
-
-    if (!wasThreadRunningRef.current) return
-    wasThreadRunningRef.current = false
-    hydratedThreadContextKeyRef.current = null
-  }, [isThreadRunning])
+    if (isRunning || applyingRef.current || loading) return
+    const key = contextRenderKey(hydratedContext)
+    if (!key || key === lastRenderKeyRef.current) return
+    lastRenderKeyRef.current = key
+    applyingRef.current = true
+    void replaceAttachments(aui, hydratedContext).finally(() => { applyingRef.current = false })
+  }, [aui, hydratedContext, isRunning, loading])
 
   useEffect(() => {
-    const previousComposerContextKey = previousComposerContextKeyRef.current
-    previousComposerContextKeyRef.current = composerContextKey
+    if (applyingRef.current || isRunning) return
+    if (attachments.length === 0 && lastRenderKeyRef.current) userEditedRef.current = true
+  }, [attachments.length, isRunning])
 
-    if (previousComposerContextKey === composerContextKey) return
-    if (isApplyingContextAttachmentsRef.current) return
-    if (isThreadRunning) return
-
-    if (previousComposerContextKey.length > 0 && composerContextKey.length === 0) {
-      isComposerContextAuthoritativeRef.current = true
-      setIsComposerContextAuthoritative(true)
-    }
-  }, [composerContextKey, isThreadRunning])
-
-  useEffect(() => {
-    if (threadContextKey.length === 0) {
-      hydratedThreadContextKeyRef.current = null
-      return
-    }
-
-    if (
-      isThreadRunning ||
-      isComposerContextAuthoritativeRef.current ||
-      isComposerContextAuthoritative ||
-      composerContextKey.length > 0 ||
-      hydratedThreadContextKeyRef.current === threadContextKey
-    ) {
-      return
-    }
-
-    hydratedThreadContextKeyRef.current = threadContextKey
-    isApplyingContextAttachmentsRef.current = true
-    void addContextAttachments(aui, createEmptyDraftContext(), threadContext).finally(() => {
-      isApplyingContextAttachmentsRef.current = false
-      previousComposerContextKeyRef.current = threadContextKey
-    })
-  }, [aui, composerContextKey, isComposerContextAuthoritative, isThreadRunning, threadContext, threadContextKey])
-
-  const applyVaults = async (selectedVaults: DraftChatVault[]) => {
-    const nextContext = addVaultsToDraftContext(attachedContext, selectedVaults)
-    isComposerContextAuthoritativeRef.current = true
-    setIsComposerContextAuthoritative(true)
-    isApplyingContextAttachmentsRef.current = true
-    try {
-      await addContextAttachments(aui, attachedContext, nextContext)
-    } finally {
-      isApplyingContextAttachmentsRef.current = false
-    }
+  const apply = async (context: DraftChatContext) => {
+    userEditedRef.current = true
+    const hydrated = hydrateContext(context, options)
+    lastRenderKeyRef.current = contextRenderKey(hydrated)
+    applyingRef.current = true
+    try { await replaceAttachments(aui, hydrated) } finally { applyingRef.current = false }
   }
 
-  const applyDocuments = async (selectedDocuments: DraftChatDocument[]) => {
-    const nextContext = addDocumentsToDraftContext(attachedContext, selectedDocuments)
-    isComposerContextAuthoritativeRef.current = true
-    setIsComposerContextAuthoritative(true)
-    isApplyingContextAttachmentsRef.current = true
-    try {
-      await addContextAttachments(aui, attachedContext, nextContext)
-    } finally {
-      isApplyingContextAttachmentsRef.current = false
-    }
-  }
-
-  return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <TooltipIconButton
-            tooltip={summary.hasContext ? summary.label : "Select chat context"}
-            side="bottom"
-            variant="ghost"
-            size="icon"
-            className="aui-composer-add-attachment hover:bg-muted-foreground/15 dark:border-muted-foreground/15 dark:hover:bg-muted-foreground/30 size-7 rounded-full p-1 text-xs font-semibold"
-            aria-label="Select chat context"
-          >
-            <PaperclipIcon className="aui-attachment-add-icon size-4.5 stroke-[1.5px]" />
-          </TooltipIconButton>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuItem onSelect={() => setVaultDialogOpen(true)}>
-            <VaultIcon className="size-4" />
-            Add vaults
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => setDocumentDialogOpen(true)}>
-            <FileTextIcon className="size-4" />
-            Add files
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <VaultSelectionDialog
-        open={vaultDialogOpen}
-        context={attachedContext}
-        vaults={vaults}
-        isLoading={isLoadingVaults}
-        error={vaultsError}
-        onOpenChange={setVaultDialogOpen}
-        onConfirm={applyVaults}
-      />
-      <DocumentSelectionDialog
-        open={documentDialogOpen}
-        context={attachedContext}
-        vaults={vaults}
-        isLoadingVaults={isLoadingVaults}
-        vaultsError={vaultsError}
-        onOpenChange={setDocumentDialogOpen}
-        onConfirm={applyDocuments}
-      />
-    </>
-  )
-}
-
-function VaultSelectionDialog({
-  open,
-  context,
-  vaults,
-  isLoading,
-  error,
-  onOpenChange,
-  onConfirm,
-}: {
-  open: boolean
-  context: DraftChatContext
-  vaults: VaultSummary[]
-  isLoading: boolean
-  error: string | null
-  onOpenChange: (open: boolean) => void
-  onConfirm: (vaults: DraftChatVault[]) => void | Promise<void>
-}) {
-  const [query, setQuery] = useState("")
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
-  const filteredVaults = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase()
-    if (!normalizedQuery) return vaults
-    return vaults.filter(
-      (vault) =>
-        vault.name.toLowerCase().includes(normalizedQuery) ||
-        vault.description?.toLowerCase().includes(normalizedQuery),
-    )
-  }, [query, vaults])
-
-  useEffect(() => {
-    if (!open) return
-    setSelectedIds(new Set(context.vaults.map((vault) => vault.vaultId)))
-    setQuery("")
-  }, [context.vaults, open])
-
-  const confirm = async () => {
-    await onConfirm(
-      vaults
-        .filter((vault) => selectedIds.has(vault.id))
-        .map((vault) => ({ vaultId: vault.id, name: vault.name })),
-    )
-    onOpenChange(false)
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-0 sm:max-w-2xl">
-        <PickerHeader icon={<VaultIcon className="size-5" />} title="Add Vaults" description="Select vaults to narrow this chat to their documents." />
-        <div className="space-y-3 px-6 py-5">
-          <SearchField value={query} placeholder="Search vaults" onChange={setQuery} />
-          <PickerList>
-            {isLoading ? (
-              <PickerEmpty>Loading vaults...</PickerEmpty>
-            ) : error ? (
-              <PickerEmpty>{error}</PickerEmpty>
-            ) : filteredVaults.length === 0 ? (
-              <PickerEmpty>No vaults found.</PickerEmpty>
-            ) : (
-              filteredVaults.map((vault) => (
-                <SelectionRow
-                  key={vault.id}
-                  checked={selectedIds.has(vault.id)}
-                  icon={<VaultIcon className="size-4" />}
-                  title={vault.name}
-                  description={vault.description?.trim() || "No description added."}
-                  onToggle={() =>
-                    setSelectedIds((current) => {
-                      const next = new Set(current)
-                      if (next.has(vault.id)) next.delete(vault.id)
-                      else next.add(vault.id)
-                      return next
-                    })
-                  }
-                />
-              ))
-            )}
-          </PickerList>
-        </div>
-        <PickerFooter selectedLabel={`${selectedIds.size} selected`} onCancel={() => onOpenChange(false)} onConfirm={confirm} />
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function DocumentSelectionDialog({
-  open,
-  context,
-  vaults,
-  isLoadingVaults,
-  vaultsError,
-  onOpenChange,
-  onConfirm,
-}: {
-  open: boolean
-  context: DraftChatContext
-  vaults: VaultSummary[]
-  isLoadingVaults: boolean
-  vaultsError: string | null
-  onOpenChange: (open: boolean) => void
-  onConfirm: (documents: DraftChatDocument[]) => void | Promise<void>
-}) {
-  const [query, setQuery] = useState("")
-  const [filterVaultIds, setFilterVaultIds] = useState<Set<string>>(() => new Set())
-  const [documents, setDocuments] = useState<SearchResultItem[]>([])
-  const [selectedDocuments, setSelectedDocuments] = useState<Map<string, DraftChatDocument>>(() => new Map())
-  const [isLoadingDocuments, setIsLoadingDocuments] = useState(false)
-  const [documentsError, setDocumentsError] = useState<string | null>(null)
-  const normalizedContext = useMemo(() => normalizeDraftContext(context), [context])
-  const selectedVaultIds = useMemo(() => new Set(normalizedContext.vaults.map((vault) => vault.vaultId)), [normalizedContext.vaults])
-  const selectedFilterVaultIds = useMemo(
-    () => (filterVaultIds.size > 0 ? Array.from(filterVaultIds) : undefined),
-    [filterVaultIds],
-  )
-  const effectiveVaultIdsKey = selectedFilterVaultIds?.join(",") ?? "all"
-
-  useEffect(() => {
-    if (!open) return
-    setQuery("")
-    setFilterVaultIds(new Set())
-    setSelectedDocuments(new Map(normalizedContext.documents.map((document) => [documentKey(document), document])))
-  }, [normalizedContext.documents, open])
-
-  useEffect(() => {
-    if (!open || vaults.length === 0) {
-      setDocuments([])
-      return
-    }
-
-    let ignore = false
-    setIsLoadingDocuments(true)
-    searchAllDocuments({
-      query,
-      pageIndex: 0,
-      pageSize: 100,
-      vaultIds: selectedFilterVaultIds,
-      sortBy: "name_asc",
-    })
-      .then((result) => {
-        if (ignore) return
-        setDocuments(result.results)
-        setDocumentsError(null)
-      })
-      .catch((error) => {
-        if (ignore) return
-        setDocumentsError(error instanceof Error ? error.message : "Unable to load documents.")
-      })
-      .finally(() => {
-        if (!ignore) setIsLoadingDocuments(false)
-      })
-
-    return () => {
-      ignore = true
-    }
-  }, [effectiveVaultIdsKey, open, query, selectedFilterVaultIds, vaults.length])
-
-  const filteredVaultLabel = filterVaultIds.size === 0 ? "All vaults" : `${filterVaultIds.size} vaults`
-  const confirm = async () => {
-    await onConfirm(Array.from(selectedDocuments.values()))
-    onOpenChange(false)
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-0 sm:max-w-3xl">
-        <PickerHeader icon={<FileTextIcon className="size-5" />} title="Add Files" description="Select individual documents from your accessible vaults." />
-        <div className="space-y-3 px-6 py-5">
-          <div className="grid gap-2 sm:grid-cols-[1fr_14rem]">
-            <SearchField value={query} placeholder="Search files" onChange={setQuery} />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" className="justify-start">
-                  <VaultIcon className="size-4" />
-                  <span className="truncate">{filteredVaultLabel}</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="max-h-80 w-64 overflow-y-auto">
-                <DropdownMenuItem
-                  onSelect={(event) => {
-                    event.preventDefault()
-                    setFilterVaultIds(new Set())
-                  }}
-                >
-                  All vaults
-                </DropdownMenuItem>
-                {vaults.map((vault) => (
-                  <DropdownMenuItem
-                    key={vault.id}
-                    onSelect={(event) => {
-                      event.preventDefault()
-                      setFilterVaultIds((current) => {
-                        const next = new Set(current)
-                        if (next.has(vault.id)) next.delete(vault.id)
-                        else next.add(vault.id)
-                        return next
-                      })
-                    }}
-                  >
-                    <Checkbox checked={filterVaultIds.has(vault.id)} tabIndex={-1} />
-                    <span className="truncate">{vault.name}</span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <PickerList className="h-96">
-            {isLoadingVaults ? (
-              <PickerEmpty>Loading vaults...</PickerEmpty>
-            ) : vaultsError ? (
-              <PickerEmpty>{vaultsError}</PickerEmpty>
-            ) : vaults.length === 0 ? (
-              <PickerEmpty>No vaults available.</PickerEmpty>
-            ) : isLoadingDocuments ? (
-              <PickerEmpty>Loading files...</PickerEmpty>
-            ) : documentsError ? (
-              <PickerEmpty>{documentsError}</PickerEmpty>
-            ) : documents.length === 0 ? (
-              <PickerEmpty>No files found.</PickerEmpty>
-            ) : (
-              documents.map((document) => {
-                const key = documentKey(document)
-                const disabled = selectedVaultIds.has(document.vaultId)
-                const checked = selectedDocuments.has(key) || disabled
-                return (
-                  <SelectionRow
-                    key={key}
-                    checked={checked}
-                    disabled={disabled}
-                    icon={<FileTextIcon className="size-4" />}
-                    title={document.name}
-                    description={disabled ? `Already included via ${document.vaultName}` : document.vaultName}
-                    onToggle={() => {
-                      if (disabled) return
-                      setSelectedDocuments((current) => {
-                        const next = new Map(current)
-                        if (next.has(key)) next.delete(key)
-                        else next.set(key, searchResultToDraftDocument(document))
-                        return next
-                      })
-                    }}
-                  />
-                )
-              })
-            )}
-          </PickerList>
-        </div>
-        <PickerFooter selectedLabel={`${selectedDocuments.size} selected`} onCancel={() => onOpenChange(false)} onConfirm={confirm} />
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function PickerHeader({ icon, title, description }: { icon: ReactNode; title: string; description: string }) {
-  return (
-    <DialogHeader className="border-b px-6 py-5">
-      <div className="flex items-center gap-3">
-        <div className="flex size-10 items-center justify-center rounded-lg bg-muted text-muted-foreground">{icon}</div>
-        <div className="min-w-0">
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </div>
-      </div>
-    </DialogHeader>
-  )
-}
-
-function SearchField({ value, placeholder, onChange }: { value: string; placeholder: string; onChange: (value: string) => void }) {
-  return (
-    <div className="relative">
-      <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-      <Input value={value} placeholder={placeholder} className="pl-9" onChange={(event) => onChange(event.target.value)} />
-    </div>
-  )
-}
-
-function PickerList({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <ScrollArea className={cn("h-80 rounded-lg border bg-background", className)}>
-      <div className="space-y-1 p-2">{children}</div>
-    </ScrollArea>
-  )
-}
-
-function PickerEmpty({ children }: { children: ReactNode }) {
-  return <div className="flex min-h-48 items-center justify-center px-6 text-center text-sm text-muted-foreground">{children}</div>
-}
-
-function SelectionRow({
-  checked,
-  disabled,
-  icon,
-  title,
-  description,
-  onToggle,
-}: {
-  checked: boolean
-  disabled?: boolean
-  icon: ReactNode
-  title: string
-  description?: string
-  onToggle: () => void
-}) {
-  const handleToggle = () => {
-    if (!disabled) onToggle()
-  }
-
-  const handleCheckboxClick = (event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    handleToggle()
-  }
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (disabled) return
-    if (event.key !== "Enter" && event.key !== " ") return
-
-    event.preventDefault()
-    handleToggle()
-  }
-
-  return (
-    <div
-      role="button"
-      tabIndex={disabled ? -1 : 0}
-      aria-disabled={disabled}
-      className={cn(
-        "flex min-h-14 w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors",
-        checked && "bg-primary/10",
-        !disabled && "hover:bg-muted",
-        disabled && "cursor-not-allowed opacity-60",
-      )}
-      onClick={handleToggle}
-      onKeyDown={handleKeyDown}
+  return <>
+    <TooltipIconButton
+      tooltip={summary.hasContext ? summary.label : "Select chat context"}
+      side="bottom" variant="ghost" size="icon" aria-label="Select chat context"
+      className="aui-composer-add-attachment hover:bg-muted-foreground/15 size-7 rounded-full p-1"
+      onClick={() => setOpen(true)}
     >
-      <Checkbox
-        checked={checked}
-        disabled={disabled}
-        tabIndex={-1}
-        onClick={handleCheckboxClick}
-      />
-      <div className="text-muted-foreground">{icon}</div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium">{title}</div>
-        {description ? <div className="truncate text-xs text-muted-foreground">{description}</div> : null}
-      </div>
-    </div>
-  )
+      <PaperclipIcon className="size-4.5 stroke-[1.5px]" />
+    </TooltipIconButton>
+    <UnifiedContextDialog open={open} context={hydratedContext} options={options} loading={loading} error={error} onOpenChange={setOpen} onConfirm={apply} />
+  </>
 }
 
-function PickerFooter({
-  selectedLabel,
-  onCancel,
-  onConfirm,
-}: {
-  selectedLabel: string
-  onCancel: () => void
-  onConfirm: () => void | Promise<void>
+function hasAny(context: DraftChatContext) { return context.vaults.length + context.folders.length + context.documents.length > 0 }
+
+function UnifiedContextDialog({ open, context, options, loading, error, onOpenChange, onConfirm }: {
+  open: boolean; context: DraftChatContext; options: ContextOptionVault[]; loading: boolean; error: string | null
+  onOpenChange: (open: boolean) => void; onConfirm: (context: DraftChatContext) => Promise<void>
 }) {
-  return (
-    <DialogFooter className="items-center justify-between border-t px-6 py-4 sm:flex-row">
-      <div className="text-sm text-muted-foreground">{selectedLabel}</div>
-      <div className="flex gap-2">
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="button" onClick={onConfirm}>
-          Add
-        </Button>
-      </div>
-    </DialogFooter>
+  const [query, setQuery] = useState("")
+  const [selected, setSelected] = useState<DraftChatContext>(createEmptyDraftContext())
+  useEffect(() => { if (open) { setSelected(context); setQuery("") } }, [context, open])
+  const normalized = useMemo(() => normalizeDraftContext(selected), [selected])
+  const deferredQuery = useDeferredValue(query)
+  const needle = deferredQuery.trim().toLocaleLowerCase()
+  const unavailable = useMemo(
+    () => [...normalized.vaults, ...normalized.folders, ...normalized.documents]
+      .filter((ref) => ref.availability === "unavailable"),
+    [normalized],
   )
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
+  const rows = useMemo(() => {
+    const next: PickerVirtualRow[] = []
+    if (unavailable.length > 0) {
+      next.push({ kind: "unavailable-header", key: "unavailable-header" })
+      for (const ref of unavailable) {
+        const key = isDocumentRef(ref) ? documentKey(ref) : isFolderRef(ref) ? folderKey(ref) : ref.vaultId
+        next.push({ kind: "unavailable", key: `unavailable:${key}`, ref })
+      }
+    }
+    for (const vault of options) {
+      const vaultMatches = !needle || `${vault.name} ${vault.description ?? ""}`.toLocaleLowerCase().includes(needle)
+      const visibleFolders = vault.folders.filter((folder) => !needle || `${folder.name} ${folder.path}`.toLocaleLowerCase().includes(needle))
+      const visibleDocuments = vault.documents.filter((document) => !needle || `${document.name} ${document.path}`.toLocaleLowerCase().includes(needle))
+      if (!vaultMatches && visibleFolders.length === 0 && visibleDocuments.length === 0) continue
+      next.push({ kind: "vault", key: `vault:${vault.id}`, vault })
+      if (normalized.vaults.some((ref) => ref.vaultId === vault.id)) continue
+      for (const folder of visibleFolders) next.push({ kind: "folder", key: `folder:${vault.id}:${folder.id}`, vault, folder })
+      for (const document of visibleDocuments) next.push({ kind: "document", key: `document:${vault.id}:${document.id}`, vault, document })
+    }
+    return next
+  }, [needle, normalized.vaults, options, unavailable])
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollElement,
+    initialRect: { width: 0, height: 448 },
+    estimateSize: (index) => rows[index]?.kind === "unavailable-header" ? 34 : 58,
+    getItemKey: (index) => rows[index]?.key ?? index,
+    overscan: 12,
+  })
+  useLayoutEffect(() => {
+    if (!open || loading || rows.length === 0 || !scrollElement) return
+    rowVirtualizer.measure()
+  }, [loading, open, rowVirtualizer, rows.length, scrollElement])
+  useEffect(() => { scrollElement?.scrollTo({ top: 0 }) }, [needle, scrollElement])
+
+  const toggleVault = (vault: ContextOptionVault) => setSelected((current) => {
+    const exists = current.vaults.some((ref) => ref.vaultId === vault.id)
+    return normalizeDraftContext({ ...current, vaults: exists ? current.vaults.filter((ref) => ref.vaultId !== vault.id) : [...current.vaults, { vaultId: vault.id, name: vault.name, availability: "available" }] })
+  })
+  const toggleFolder = (vault: ContextOptionVault, folder: ContextOptionFolder) => setSelected((current) => {
+    const folders = new Map(vault.folders.map((item) => [item.id, item]))
+    const exists = current.folders.some((ref) => folderKey(ref) === `${vault.id}:${folder.id}`)
+    const ref: DraftChatFolder = { vaultId: vault.id, folderId: folder.id, parentId: folder.parentId, ancestorIds: ancestorsFor(folder.parentId, folders), name: folder.name, vaultName: vault.name, path: folder.path, availability: "available" }
+    return normalizeDraftContext({ ...current, folders: exists ? current.folders.filter((item) => folderKey(item) !== folderKey(ref)) : [...current.folders, ref] })
+  })
+  const toggleDocument = (vault: ContextOptionVault, document: ContextOptionDocument) => setSelected((current) => {
+    const folders = new Map(vault.folders.map((item) => [item.id, item]))
+    const exists = current.documents.some((ref) => documentKey(ref) === `${vault.id}:${document.id}`)
+    const ref: DraftChatDocument = { vaultId: vault.id, documentId: document.id, folderId: document.folderId, ancestorFolderIds: ancestorsFor(document.folderId, folders), name: document.name, vaultName: vault.name, path: document.path, mimeType: document.mimeType, availability: "available" }
+    return normalizeDraftContext({ ...current, documents: exists ? current.documents.filter((item) => documentKey(item) !== documentKey(ref)) : [...current.documents, ref] })
+  })
+  const removeUnavailable = (target: DraftChatVault | DraftChatFolder | DraftChatDocument) => setSelected((current) => normalizeDraftContext({
+    vaults: !isFolderRef(target) && !isDocumentRef(target) ? current.vaults.filter((ref) => ref.vaultId !== target.vaultId) : current.vaults,
+    folders: isFolderRef(target) ? current.folders.filter((ref) => folderKey(ref) !== folderKey(target)) : current.folders,
+    documents: isDocumentRef(target) ? current.documents.filter((ref) => documentKey(ref) !== documentKey(target)) : current.documents,
+  }))
+
+  return <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="p-0 sm:max-w-3xl">
+      <DialogHeader className="px-6 pt-6">
+        <DialogTitle>Attach context</DialogTitle>
+        <DialogDescription>Select vaults, folders, or files. Broader selections automatically replace covered items.</DialogDescription>
+      </DialogHeader>
+      <div className="space-y-3 px-6">
+        <div className="relative"><SearchIcon className="text-muted-foreground absolute left-3 top-2.5 size-4" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search vaults, folders, and files" className="pl-9" /></div>
+        <div ref={setScrollElement} className="h-[28rem] overflow-auto rounded-md border">
+          {loading ? <Empty>Loading attachments…</Empty> : error ? <Empty>{error}</Empty> : options.length === 0 ? <Empty>No readable vaults with chat access.</Empty> : rows.length === 0 ? <Empty>No matching attachments.</Empty> : <div className="relative w-full" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const row = rows[virtualRow.index]
+              if (!row) return null
+              return <div key={row.key} className="absolute left-0 top-0 w-full px-2" style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}>
+                {row.kind === "unavailable-header" ? <p className="px-2 pt-2 text-xs font-medium text-destructive">Unavailable attachments — remove them to continue</p> : row.kind === "unavailable" ? <PickerRow checked icon={iconFor(row.ref)} title={row.ref.name ?? "Deleted attachment"} description="Deleted" destructive onClick={() => removeUnavailable(row.ref)} /> : row.kind === "vault" ? <PickerRow checked={normalized.vaults.some((ref) => ref.vaultId === row.vault.id)} icon={<VaultIcon className="size-4" />} title={row.vault.name} description={`${row.vault.documents.length} available ${row.vault.documents.length === 1 ? "file" : "files"}`} disabled={row.vault.documents.length === 0} onClick={() => toggleVault(row.vault)} /> : row.kind === "folder" ? (() => {
+                  const checked = normalized.folders.some((ref) => folderKey(ref) === `${row.vault.id}:${row.folder.id}`)
+                  const eligibleCount = row.vault.documents.filter((document) => document.folderId === row.folder.id || document.path.startsWith(`${row.folder.path}/`)).length
+                  return <PickerRow checked={checked} icon={<FolderIcon className="size-4" />} title={row.folder.name} description={row.folder.path} indent={Math.min(row.folder.path.split("/").length, 5)} disabled={eligibleCount === 0} onClick={() => toggleFolder(row.vault, row.folder)} />
+                })() : (() => {
+                  const covered = normalized.folders.some((folder) => folder.vaultId === row.vault.id && (folder.folderId === row.document.folderId || row.document.path.startsWith(`${folder.path}/`)))
+                  const checked = covered || normalized.documents.some((ref) => documentKey(ref) === `${row.vault.id}:${row.document.id}`)
+                  return <PickerRow checked={checked} icon={<FileTextIcon className="size-4" />} title={row.document.name} description={covered ? "Covered by selected folder" : row.document.path} indent={Math.min(row.document.path.split("/").length, 6)} disabled={covered} onClick={() => toggleDocument(row.vault, row.document)} />
+                })()}
+              </div>
+            })}
+          </div>}
+        </div>
+      </div>
+      <DialogFooter className="border-t px-6 py-4 sm:justify-between">
+        <span className="text-muted-foreground text-sm">{getDraftContextSummary(normalized).label}</span>
+        <div className="flex gap-2"><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button onClick={async () => { await onConfirm(normalized); onOpenChange(false) }}>Apply</Button></div>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 }
+
+function iconFor(ref: DraftChatVault | DraftChatFolder | DraftChatDocument) {
+  if (isDocumentRef(ref)) return <FileTextIcon className="size-4" />
+  if (isFolderRef(ref)) return <FolderIcon className="size-4" />
+  return <VaultIcon className="size-4" />
+}
+
+function PickerRow({ checked, icon, title, description, indent = 0, disabled = false, destructive = false, onClick }: { checked: boolean; icon: React.ReactNode; title: string; description: string; indent?: number; disabled?: boolean; destructive?: boolean; onClick: () => void }) {
+  return <button type="button" disabled={disabled} onClick={onClick} style={{ paddingInlineStart: `${0.5 + indent * 0.75}rem` }} className={cn("hover:bg-muted flex w-full items-center gap-3 rounded-md px-2 py-2 text-left disabled:cursor-not-allowed disabled:opacity-45", destructive && "text-destructive")}>
+    <Checkbox checked={checked} tabIndex={-1} className="border-foreground/45 dark:border-foreground/65" /><span className="shrink-0">{icon}</span><span className="min-w-0"><span className="block truncate text-sm font-medium">{title}</span><span className="text-muted-foreground block truncate text-xs">{description}</span></span>
+  </button>
+}
+function Empty({ children }: { children: React.ReactNode }) { return <div className="text-muted-foreground flex h-40 items-center justify-center p-6 text-center text-sm">{children}</div> }

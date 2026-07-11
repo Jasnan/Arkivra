@@ -67,6 +67,7 @@ function snapshotKey(snapshot: unknown) {
     vaultIds?: unknown
     vaults?: unknown
     documents?: unknown
+    folders?: unknown
     vaultId?: unknown
     documentId?: unknown
   }
@@ -85,6 +86,19 @@ function snapshotKey(snapshot: unknown) {
             const ref = vault as { vaultId?: unknown; name?: unknown }
             return typeof ref.vaultId === "string"
               ? [{ vaultId: ref.vaultId, ...(typeof ref.name === "string" ? { name: ref.name } : {}) }]
+              : []
+          })
+        : [],
+      folders: Array.isArray(value.folders)
+        ? value.folders.flatMap((folder) => {
+            if (folder === null || typeof folder !== "object" || Array.isArray(folder)) return []
+            const ref = folder as { vaultId?: unknown; folderId?: unknown; name?: unknown }
+            return typeof ref.vaultId === "string" && typeof ref.folderId === "string"
+              ? [{
+                  vaultId: ref.vaultId,
+                  folderId: ref.folderId,
+                  ...(typeof ref.name === "string" ? { name: ref.name } : {}),
+                }]
               : []
           })
         : [],
@@ -111,6 +125,7 @@ function snapshotKey(snapshot: unknown) {
   if (value.type === "document" && typeof value.vaultId === "string" && typeof value.documentId === "string") {
     return draftContextKey({
       vaults: [],
+      folders: [],
       documents: [{ vaultId: value.vaultId, documentId: value.documentId }],
     })
   }

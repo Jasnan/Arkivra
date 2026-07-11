@@ -1,7 +1,7 @@
 "use client";
 
 import { type PropsWithChildren, useEffect, useState, type FC } from "react";
-import { XIcon, PlusIcon, FileText } from "lucide-react";
+import { XIcon, PlusIcon, FileText, FolderIcon, VaultIcon, TriangleAlertIcon } from "lucide-react";
 import {
   AttachmentPrimitive,
   ComposerPrimitive,
@@ -108,6 +108,18 @@ const AttachmentPreviewDialog: FC<PropsWithChildren> = ({ children }) => {
 
 const AttachmentThumb: FC = () => {
   const src = useAttachmentSrc();
+  const { contentType, name } = useAuiState(useShallow((state) => ({
+    contentType: state.attachment.contentType,
+    name: state.attachment.name,
+  })));
+  const FallbackIcon = contentType === "application/vnd.arkivra.unavailable-context"
+    ? TriangleAlertIcon
+    : contentType === "application/vnd.arkivra.vault-context"
+      ? VaultIcon
+      : contentType === "application/vnd.arkivra.folder-context"
+        ? FolderIcon
+        : FileText;
+  const unavailable = contentType === "application/vnd.arkivra.unavailable-context";
 
   return (
     <Avatar className="aui-attachment-tile-avatar h-full w-full rounded-none">
@@ -116,8 +128,8 @@ const AttachmentThumb: FC = () => {
         alt="Attachment preview"
         className="aui-attachment-tile-image object-cover"
       />
-      <AvatarFallback>
-        <FileText className="aui-attachment-tile-fallback-icon text-muted-foreground size-8" />
+      <AvatarFallback title={name} className={cn(unavailable && "bg-destructive/10 text-destructive")}>
+        <FallbackIcon className="aui-attachment-tile-fallback-icon size-8" />
       </AvatarFallback>
     </Avatar>
   );

@@ -1908,7 +1908,7 @@ describe('chat service helpers', () => {
         unavailableCount: 0,
       }),
     ).toMatchObject({
-      status: 'source_document_deleted',
+      status: 'source_unavailable',
       readOnly: true,
     });
   });

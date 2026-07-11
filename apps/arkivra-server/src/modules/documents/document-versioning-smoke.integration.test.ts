@@ -349,8 +349,9 @@ describe.sequential('document versioning smoke regression', () => {
 
     const oldChat = await chatServices.getConversation({ userId, chatId: chat1Id });
     expect(oldChat?.contextAvailability).toMatchObject({
-      status: 'source_document_deleted',
+      status: 'source_unavailable',
       readOnly: true,
+      unavailableTypes: ['document'],
     });
     const refsAfterPurge = await db
       .select()

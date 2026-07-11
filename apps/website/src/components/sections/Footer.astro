@@ -3,7 +3,7 @@ import GitHubMark from "@/components/icons/GitHubMark.astro";
 import Logo from "@/components/icons/Logo.astro";
 import Button from "@/components/ui/Button.astro";
 import { footerLinks, githubUrl } from "@/data/landing";
-import { Heart, Mail, Rss } from "@lucide/astro";
+import { Heart, Mail } from "@lucide/astro";
 
 type Props = {
 	homeHref?: string;
@@ -18,7 +18,6 @@ const resolveFooterHref = (href: string) =>
 const socialLinks = [
 	{ name: "GitHub", href: githubUrl, icon: GitHubMark },
 	{ name: "Email", href: "mailto:contact@arkivra.app", icon: Mail },
-	{ name: "RSS", href: "/rss.xml", icon: Rss },
 ];
 
 const year = new Date().getFullYear();

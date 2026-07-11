@@ -46,6 +46,7 @@ import {
   normalizeConversationContextSnapshot,
   parseChatModelSelection,
   sanitizeFollowUpExamples,
+  shouldResolveIntentFollowUp,
   toConversation,
   truncate,
 } from './chat.core.js';
@@ -707,7 +708,7 @@ export function createChatServices({
             messageMetadata: assistantMetadata,
           });
 
-          if (isGlobalScope(generationScope) && intent) {
+          if (shouldResolveIntentFollowUp(generationScope, intent)) {
             writeStatus(writer, 'generation');
             const resolution = await resolveIntentFollowUp({
               model: chatModel,
@@ -858,6 +859,7 @@ export function createChatServices({
               ? buildGlobalAnswerSystemPrompt({
                   intent,
                   includeInlineCitations,
+                  hasExplicitSelection: generationScope.type === 'selection',
                 })
               : includeInlineCitations
                 ? [

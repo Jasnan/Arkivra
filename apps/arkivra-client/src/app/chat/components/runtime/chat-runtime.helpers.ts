@@ -26,6 +26,18 @@ type ArkivraChatMetadata = {
 
 export type ArkivraChatMessage = UIMessage<ArkivraChatMetadata>
 
+export type ArkivraChatIntent = "search" | "summarize" | "compare" | "extract"
+
+export function getChatIntentFromRequestMetadata(metadata: unknown): ArkivraChatIntent | undefined {
+  if (metadata === null || typeof metadata !== "object" || Array.isArray(metadata)) return undefined
+  const custom = (metadata as { custom?: unknown }).custom
+  if (custom === null || typeof custom !== "object" || Array.isArray(custom)) return undefined
+  const intent = (custom as { intent?: unknown }).intent
+  return intent === "search" || intent === "summarize" || intent === "compare" || intent === "extract"
+    ? intent
+    : undefined
+}
+
 function parseContextTextPart(text: string) {
   const lines = text.split(/\r?\n/)
   const header = lines[0]?.trim()
@@ -196,6 +208,7 @@ export function createArkivraChatTransport({
     prepareSendMessagesRequest: async (options) => {
       const chatId = await getChatId?.()
       const contextSnapshot = getContextSnapshot?.()
+      const intent = getChatIntentFromRequestMetadata(options.requestMetadata)
       const messages = Array.isArray(options.messages) ? options.messages : []
       const latestMessage = messages.at(-1)
       const latestMessageContextSnapshot = latestMessage?.metadata?.custom?.contextSnapshot
@@ -221,6 +234,7 @@ export function createArkivraChatTransport({
           trigger: options.trigger,
           messageId: options.messageId,
           metadata: options.requestMetadata,
+          ...(intent ? { intent } : {}),
           ...(contextSnapshot !== undefined ? { contextSnapshot } : {}),
         },
       }

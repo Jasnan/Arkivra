@@ -213,6 +213,13 @@ export function isGlobalScope(scope: ChatScopeInput) {
   return scope.type === 'global' || scope.type === 'selection';
 }
 
+export function shouldResolveIntentFollowUp(
+  scope: ChatScopeInput,
+  intent: ChatIntent | undefined,
+): intent is ChatIntent {
+  return scope.type === 'global' && intent !== undefined;
+}
+
 function sortedUnique(values: string[]) {
   return [...new Set(values)].sort();
 }
@@ -359,13 +366,33 @@ export function buildGlobalIntentSystemPrompt(intent: ChatIntent) {
 export function buildGlobalAnswerSystemPrompt({
   intent,
   includeInlineCitations,
+  hasExplicitSelection = false,
 }: {
   intent?: ChatIntent;
   includeInlineCitations: boolean;
+  hasExplicitSelection?: boolean;
 }) {
+  const intentPrompt = hasExplicitSelection && intent === 'compare'
+    ? [
+        'User intent: compare the selected documents or vaults.',
+        'The user has already selected at least two comparison targets in the supplied context.',
+        'Compare those selected targets directly, using their source names to distinguish them.',
+        'Honor any additional comparison focus in the latest message.',
+        'Do not ask which documents or vaults to compare.',
+      ].join('\n')
+    : hasExplicitSelection && intent === 'summarize'
+      ? [
+          'User intent: summarize the selected documents or vaults.',
+          'The user has already selected the target context.',
+          'Summarize that selected context directly and honor any additional focus in the latest message.',
+          'Do not ask what should be summarized.',
+        ].join('\n')
+      : intent
+        ? GLOBAL_CHAT_INTENT_PROMPTS[intent]
+        : null;
   const parts = [
     GLOBAL_CHAT_BASE_SYSTEM_PROMPT,
-    intent ? GLOBAL_CHAT_INTENT_PROMPTS[intent] : null,
+    intentPrompt,
     includeInlineCitations
       ? 'Support grounded claims with the inline source markers requested by the user prompt.'
       : 'Answer in plain markdown without source markers.',

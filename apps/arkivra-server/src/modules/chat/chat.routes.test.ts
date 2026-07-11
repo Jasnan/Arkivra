@@ -125,6 +125,167 @@ function streamBody(overrides: Record<string, unknown> = {}) {
 }
 
 describe('chat routes', () => {
+  test('summarizes selected vault context without requiring user text', async () => {
+    const services = createMockChatServices();
+    const { app } = createTestApp({ services });
+    const emptyUserMessage = {
+      id: 'msg_empty_summary',
+      role: 'user' as const,
+      parts: [],
+    };
+
+    const response = await app.request('/api/chats/messages/stream', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
+      body: streamBody({
+        contextSnapshot: { type: 'vault', vaultId: 'vlt_1' },
+        intent: 'summarize',
+        messages: [emptyUserMessage],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(services.createMessageStream).toHaveBeenCalledWith({
+      userId: 'usr_1',
+      scope: { type: 'vault', vaultId: 'vlt_1', vaultName: 'Finance' },
+      messages: [{
+        ...emptyUserMessage,
+        parts: [{ type: 'text', text: 'Summarize the selected context.' }],
+      }],
+      intent: 'summarize',
+      responseMode: 'text',
+      includeCitations: true,
+      model: 'ollama:llama3.2',
+    });
+  });
+
+  test('rejects an empty summarize request without selected context', async () => {
+    const services = createMockChatServices();
+    const vaultServices = {
+      ...createMockVaultsServices(),
+      listUserVaults: vi.fn(async () => [{
+        id: 'vlt_1',
+        name: 'Finance',
+        description: null,
+        fileCount: 1,
+        totalSize: 1,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        deletedAt: null,
+        role: 'owner',
+        isAdmin: false,
+        isMember: true,
+      }]),
+    } as unknown as VaultsServices;
+    const { app } = createTestApp({ services, vaultServices });
+    const response = await app.request('/api/chats/messages/stream', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
+      body: streamBody({
+        contextSnapshot: { type: 'global', vaultIds: ['vlt_1'] },
+        intent: 'summarize',
+        messages: [{ id: 'msg_empty_summary', role: 'user', parts: [] }],
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: 'chat.invalid_content',
+        message: 'Select a document or vault before sending summarize without text',
+      },
+    });
+    expect(services.createMessageStream).not.toHaveBeenCalled();
+  });
+
+  test('compares two selected documents without requiring user text', async () => {
+    const services = createMockChatServices();
+    const { app } = createTestApp({
+      services,
+      db: createMockDb([
+        { id: 'doc_1', name: 'January.pdf' },
+        { id: 'doc_2', name: 'February.pdf' },
+      ]),
+    });
+    const emptyUserMessage = { id: 'msg_empty_compare', role: 'user' as const, parts: [] };
+    const contextSnapshot = {
+      type: 'selection' as const,
+      vaults: [],
+      documents: [
+        { vaultId: 'vlt_1', documentId: 'doc_1' },
+        { vaultId: 'vlt_1', documentId: 'doc_2' },
+      ],
+    };
+
+    const response = await app.request('/api/chats/messages/stream', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
+      body: streamBody({
+        contextSnapshot,
+        intent: 'compare',
+        messages: [emptyUserMessage],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(services.createMessageStream).toHaveBeenCalledWith(expect.objectContaining({
+      intent: 'compare',
+      scope: expect.objectContaining({ type: 'selection' }),
+      messages: [{
+        ...emptyUserMessage,
+        parts: [{ type: 'text', text: 'Compare the selected context.' }],
+      }],
+    }));
+  });
+
+  test('accepts compare instructions when at least two targets are selected', async () => {
+    const services = createMockChatServices();
+    const { app } = createTestApp({ services });
+    const response = await app.request('/api/chats/messages/stream', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
+      body: streamBody({
+        contextSnapshot: {
+          type: 'selection',
+          vaults: [
+            { vaultId: 'vlt_1' },
+            { vaultId: 'vlt_2' },
+          ],
+          documents: [],
+        },
+        intent: 'compare',
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(services.createMessageStream).toHaveBeenCalledWith(expect.objectContaining({
+      intent: 'compare',
+      messages: [USER_MESSAGE],
+    }));
+  });
+
+  test('rejects compare when fewer than two targets are selected even with instructions', async () => {
+    const services = createMockChatServices();
+    const { app } = createTestApp({ services });
+    const response = await app.request('/api/chats/messages/stream', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
+      body: streamBody({
+        contextSnapshot: { type: 'document', vaultId: 'vlt_1', documentId: 'doc_1' },
+        intent: 'compare',
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: 'chat.invalid_context',
+        message: 'Select at least two documents or vaults to compare',
+      },
+    });
+    expect(services.createMessageStream).not.toHaveBeenCalled();
+  });
+
   test('rejects first-message streams without the platform Use AI privilege', async () => {
     const { app, services } = createTestApp();
 

@@ -55,6 +55,10 @@ import {
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 import {
+  getChatModelOptions,
+  invalidateChatModelOptionsCache,
+} from "@/app/chat/lib/chat-model-options"
+import {
   checkAiModelAvailability,
   getAdminAiSettings,
   getAdminAiStatus,
@@ -1233,6 +1237,10 @@ export default function AdminAiSettingsPage() {
     setIsSaving(true)
     try {
       const result = await updateAdminAiSettings(normalized)
+      invalidateChatModelOptionsCache()
+      void getChatModelOptions().catch(() => {
+        // Chat will retry its background refresh the next time it mounts.
+      })
       const shouldKeepSavedEmbeddingDraft =
         hasCompleteEmbeddingSelection(normalized.embedding) &&
         !hasCompleteEmbeddingSelection(result.settings.embedding)

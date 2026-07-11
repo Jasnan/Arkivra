@@ -6,6 +6,7 @@ import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import {
   chatConversationDocumentVersionsTable,
   chatConversationsTable,
+  vaultFoldersTable,
 } from '../database/schema/index.js';
 import { AVAILABLE_CHAT_CONTEXT } from './chat.constants.js';
 import type {
@@ -16,7 +17,7 @@ import type {
   ManifestAvailabilityRow,
   ManifestInsertRow,
 } from './chat.core.js';
-import { normalizeDocumentRefs, normalizeVaultRefs } from './chat.core.js';
+import { normalizeDocumentRefs, normalizeFolderRefs, normalizeVaultRefs } from './chat.core.js';
 import { getCitationGroupKey } from './chat.citation-utils.js';
 
 export function getScopeValues(scope: ChatScopeInput) {
@@ -102,12 +103,13 @@ export function getFrozenManifestContextAvailability({
 }): ChatContextAvailability {
   return totalCount === 0 || unavailableCount > 0
     ? {
-        status: 'source_document_deleted',
+        status: 'source_unavailable',
         readOnly: true,
         message:
           totalCount === 0
             ? 'No source document versions are available in the current chat context. Change the attached context to continue.'
-            : 'One or more sources in the current chat context were deleted. Change the attached context to continue.',
+            : 'One or more attachments are unavailable. Remove or replace them to continue.',
+        unavailableTypes: ['document'],
       }
     : AVAILABLE_CHAT_CONTEXT;
 }
@@ -147,18 +149,8 @@ export async function resolveConversationContextAvailability({
 
   const result = await db.execute<ManifestAvailabilityRow>(sql`
     WITH source_refs AS (
-      SELECT
-        vault_id,
-        document_id,
-        document_version_id
+      SELECT vault_id, document_id, document_version_id
       FROM chat_conversation_document_versions
-      WHERE conversation_id = ${conversationId}
-      UNION ALL
-      SELECT
-        vault_id,
-        document_id,
-        document_version_id
-      FROM chat_message_citations
       WHERE conversation_id = ${conversationId}
     )
     SELECT
@@ -293,6 +285,54 @@ export async function materializeConversationManifest({
       vaultIds: selectedVaultIds,
       includedBy: 'vault',
     });
+
+    const folderRefs = normalizeFolderRefs(scope.folders ?? [], new Set(selectedVaultIds));
+    for (const folderRef of folderRefs) {
+      const folderRows = await db
+        .select({ id: vaultFoldersTable.id, parentId: vaultFoldersTable.parentId })
+        .from(vaultFoldersTable)
+        .where(and(
+          eq(vaultFoldersTable.vaultId, folderRef.vaultId),
+          eq(vaultFoldersTable.isDeleted, false),
+        ));
+      const childrenByParent = new Map<string, string[]>();
+      for (const row of folderRows) {
+        if (row.parentId === null) continue;
+        const children = childrenByParent.get(row.parentId) ?? [];
+        children.push(row.id);
+        childrenByParent.set(row.parentId, children);
+      }
+      const subtreeIds: string[] = [];
+      const stack = [folderRef.folderId];
+      const seen = new Set<string>();
+      while (stack.length > 0) {
+        const folderId = stack.pop()!;
+        if (seen.has(folderId)) continue;
+        seen.add(folderId);
+        subtreeIds.push(folderId);
+        stack.push(...(childrenByParent.get(folderId) ?? []));
+      }
+      const subtreeIdList = sql.join(subtreeIds.map((folderId) => sql`${folderId}`), sql`, `);
+      await db.execute<ManifestInsertRow>(sql`
+        INSERT INTO chat_conversation_document_versions (
+          conversation_id, vault_id, document_id, document_version_id, included_by
+        )
+        SELECT ${conversationId}, d.vault_id, d.id, dv.id, 'folder'
+        FROM documents AS d
+        INNER JOIN document_versions AS dv
+          ON dv.id = d.current_version_id
+          AND dv.document_id = d.id
+          AND dv.vault_id = d.vault_id
+        WHERE d.vault_id = ${folderRef.vaultId}
+          AND d.folder_id IN (${subtreeIdList})
+          AND d.is_deleted = false
+          AND d.processing_status = 'completed'
+          AND d.current_version_id IS NOT NULL
+          AND dv.deleted_at IS NULL
+          AND dv.processing_status = 'completed'
+        ON CONFLICT DO NOTHING
+      `);
+    }
 
     const selectedVaultIdSet = new Set(selectedVaultIds);
     const documentRefs = normalizeDocumentRefs(scope.documents, selectedVaultIdSet);

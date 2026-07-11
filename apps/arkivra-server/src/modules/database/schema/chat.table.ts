@@ -65,7 +65,7 @@ export const chatMessagesTable = pgTable(
   ],
 );
 
-export type ChatConversationDocumentVersionIncludedBy = 'vault' | 'document' | 'selection';
+export type ChatConversationDocumentVersionIncludedBy = 'vault' | 'folder' | 'document' | 'selection';
 
 export const chatConversationDocumentVersionsTable = pgTable(
   'chat_conversation_document_versions',

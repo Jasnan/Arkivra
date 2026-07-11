@@ -20,7 +20,7 @@ import {
   resolveCreatableContext,
   resolveUsableContext,
   routeError,
-  SOURCE_DOCUMENT_DELETED_CONTEXT,
+  SOURCE_UNAVAILABLE_CONTEXT,
   validateSubmittedChatMessages,
 } from './chat.route-helpers.js';
 import { MAX_CHAT_REQUEST_BYTES } from './chat.constants.js';
@@ -30,6 +30,7 @@ import {
   createResumableChatResponse,
   createResumeChatResponse,
 } from './chat.resumable-streams.js';
+import { listChatContextOptions } from './chat.context-options.js';
 
 function getSubmittedUserMessageContextSnapshot(messages: ChatMessage[]): ChatContextSnapshot | null {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -62,6 +63,7 @@ function hasRequestContextInput(body: Record<string, unknown>) {
     typeof body.documentId === 'string' ||
     Array.isArray(body.vaultIds) ||
     Array.isArray(body.vaults) ||
+    Array.isArray(body.folders) ||
     Array.isArray(body.documents)
   );
 }
@@ -85,7 +87,9 @@ function getRequestedContextInput({
 
 function getSelectedContextTargetCount(scope: ChatContextSnapshot) {
   if (scope.type === 'vault' || scope.type === 'document') return 1;
-  if (scope.type === 'selection') return scope.vaults.length + scope.documents.length;
+  if (scope.type === 'selection') {
+    return scope.vaults.length + (scope.folders?.length ?? 0) + scope.documents.length;
+  }
   return 0;
 }
 
@@ -129,7 +133,7 @@ function prepareSubmittedMessages({
     return {
       ok: false as const,
       code: 'chat.invalid_context' as const,
-      message: 'Select at least two documents or vaults to compare',
+      message: 'Select at least two attachments to compare',
     };
   }
 
@@ -152,7 +156,7 @@ function prepareSubmittedMessages({
   return {
     ok: false as const,
     code: 'chat.invalid_content' as const,
-    message: 'Select a document or vault before sending summarize without text',
+    message: 'Select a vault, folder, or file before sending summarize without text',
   };
 }
 
@@ -216,6 +220,22 @@ export function registerChatRoutes({
         message: error instanceof Error ? error.message : 'Could not load chat model options.',
       });
     }
+  });
+
+  app.get('/api/chats/context-options', async (context) => {
+    const userId = getUserId(context);
+    if (userId === null) {
+      return routeError(context, { status: 401, code: 'auth.unauthorized', message: 'Unauthorized' });
+    }
+    if (!context.get('canUseAI')) {
+      return routeError(context, {
+        status: 403,
+        code: 'authorization.use_ai_required',
+        message: 'Use AI privilege required',
+      });
+    }
+
+    return context.json(await listChatContextOptions({ db, userId, vaultServices: vaultsServices }));
   });
 
   app.post('/api/chats', async (context) => {
@@ -615,7 +635,10 @@ export function registerChatRoutes({
         return context.json({
           conversation: {
             ...conversation,
-            contextAvailability: SOURCE_DOCUMENT_DELETED_CONTEXT,
+            contextAvailability: {
+              ...SOURCE_UNAVAILABLE_CONTEXT,
+              unavailableTypes: resolved.unavailableType ? [resolved.unavailableType] : [],
+            },
           },
         });
       }

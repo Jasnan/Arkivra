@@ -12,11 +12,24 @@ export type ChatContextSnapshot =
       vaultName?: string;
       documentName?: string;
     }
-  | { type: 'selection'; vaults: ChatContextVaultRef[]; documents: ChatContextDocumentRef[] };
+  | {
+      type: 'selection';
+      vaults: ChatContextVaultRef[];
+      folders?: ChatContextFolderRef[];
+      documents: ChatContextDocumentRef[];
+    };
 
 export type ChatContextVaultRef = {
   vaultId: string;
   name?: string;
+};
+
+export type ChatContextFolderRef = {
+  vaultId: string;
+  folderId: string;
+  name?: string;
+  vaultName?: string;
+  path?: string;
 };
 
 export type ChatContextDocumentRef = {
@@ -31,7 +44,12 @@ export type ChatContextDocumentRef = {
 
 export type ChatContextAvailability =
   | { status: 'available'; readOnly: false }
-  | { status: 'source_document_deleted'; readOnly: true; message: string };
+  | {
+      status: 'source_unavailable';
+      readOnly: true;
+      message: string;
+      unavailableTypes: Array<'vault' | 'folder' | 'document'>;
+    };
 
 export type ChatConversation = {
   id: string;

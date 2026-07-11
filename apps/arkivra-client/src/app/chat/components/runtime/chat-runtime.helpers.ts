@@ -11,6 +11,7 @@ import type {
 } from "@/app/chat/lib/chat-context-model"
 import {
   DOCUMENT_CONTEXT_ATTACHMENT_PREFIX,
+  FOLDER_CONTEXT_ATTACHMENT_PREFIX,
   VAULT_CONTEXT_ATTACHMENT_PREFIX,
   normalizeDraftContext,
   snapshotFromDraftContext,
@@ -111,14 +112,25 @@ function parseContextAttachmentId(attachment: NonNullable<AppendMessage["attachm
     }
   }
 
+  if (attachment.id?.startsWith(FOLDER_CONTEXT_ATTACHMENT_PREFIX)) {
+    const rawKey = attachment.id.slice(FOLDER_CONTEXT_ATTACHMENT_PREFIX.length)
+    const separatorIndex = rawKey.indexOf(":")
+    if (separatorIndex === -1) return null
+    return {
+      type: "folder" as const,
+      folder: {
+        vaultId: rawKey.slice(0, separatorIndex),
+        folderId: rawKey.slice(separatorIndex + 1),
+        name: attachment.name,
+      },
+    }
+  }
+
   return null
 }
 
 function getContextFromMessage(message: AppendMessage): DraftChatContext {
-  const context = normalizeDraftContext({
-    vaults: [],
-    documents: [],
-  })
+  const context = normalizeDraftContext({ vaults: [], folders: [], documents: [] })
 
   const parsedContextItems = [
     ...(message.attachments ?? []).flatMap((attachment) => [
@@ -135,6 +147,8 @@ function getContextFromMessage(message: AppendMessage): DraftChatContext {
   for (const parsed of parsedContextItems) {
     if (parsed?.type === "vault") {
       context.vaults.push(parsed.vault)
+    } else if (parsed?.type === "folder") {
+      context.folders.push(parsed.folder)
     } else if (parsed?.type === "document") {
       context.documents.push(parsed.document)
     }

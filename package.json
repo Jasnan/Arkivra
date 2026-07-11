@@ -14,6 +14,8 @@
     "dev:all": "pnpm --dir apps/arkivra-server dev",
     "dev:web": "pnpm --dir apps/arkivra-client dev",
     "dev:docs": "pnpm --dir apps/arkivra-docs dev",
+    "deploy:website": "wrangler deploy --config apps/website/wrangler.jsonc",
+    "deploy:docs": "wrangler deploy --config apps/arkivra-docs/wrangler.jsonc",
     "build:web": "pnpm --dir apps/arkivra-client build",
     "build": "pnpm --dir apps/arkivra-server build && pnpm --dir apps/arkivra-client build && pnpm --dir apps/website build && pnpm --dir apps/arkivra-docs build",
     "commitmsg:check": "node scripts/validate-commit-message.mjs",
@@ -45,7 +47,8 @@
   "devDependencies": {
     "prettier": "^3.6.2",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "wrangler": "4.110.0"
   },
   "pnpm": {
     "overrides": {

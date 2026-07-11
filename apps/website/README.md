@@ -8,9 +8,10 @@ Fresh Astro marketing site for Arkivra.
 - `pnpm --dir apps/website build`
 - `pnpm --dir apps/website check`
 
-## Cloudflare Pages
+## Cloudflare Workers
 
 - Build from the repository root with `pnpm --dir apps/website build`.
-- Publish `apps/website/dist`.
+- Deploy from the repository root with `pnpm run deploy:website`.
+- In Workers Builds, use those commands as the build and deploy commands respectively.
 - Set `PUBLIC_SITE_URL=https://arkivra.app/` for production builds.
 - Keep Cloudflare Web Analytics disabled unless the public privacy policy is updated to describe that collection.

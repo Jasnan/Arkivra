@@ -38,6 +38,7 @@ import {
   buildGlobalAnswerSystemPrompt,
   buildGlobalIntentSystemPrompt,
   buildGuidedFollowUpUserPrompt,
+  areChatScopesEquivalent,
   formatChatModelValue,
   formatFollowUpAssistantMessage,
   intentResolutionSchema,
@@ -337,39 +338,40 @@ export function createChatServices({
         }
 
         conversationRow = lockedConversation;
-        scope = normalizeConversationContextSnapshot(lockedConversation);
+        const storedScope = normalizeConversationContextSnapshot(lockedConversation);
+        scope = newConversationScope ?? storedScope;
         previousMessageRows = await tx
           .select()
           .from(chatMessagesTable)
           .where(eq(chatMessagesTable.conversationId, chatId))
           .orderBy(asc(chatMessagesTable.createdAt), asc(chatMessagesTable.id));
 
-        // A non-empty conversation is already bound to its frozen manifest. The route rejects a
-        // conflicting client snapshot; this service-level condition keeps future callers and
-        // concurrent first-message requests from replacing that authorization scope.
-        if (previousMessageRows.length === 0) {
-          const scopeChanged = newConversationScope !== undefined;
-          if (scopeChanged) {
-            scope = newConversationScope;
-            forceManifestRefresh = true;
-            await tx
-              .delete(chatConversationDocumentVersionsTable)
-              .where(eq(chatConversationDocumentVersionsTable.conversationId, conversationRow.id));
-          }
+        const scopeSubmitted = newConversationScope !== undefined;
+        const scopeChanged = scopeSubmitted && !areChatScopesEquivalent(scope, storedScope);
+        if (scopeChanged) {
+          forceManifestRefresh = true;
+          await tx
+            .delete(chatConversationDocumentVersionsTable)
+            .where(eq(chatConversationDocumentVersionsTable.conversationId, conversationRow.id));
+        }
+
+        const shouldSetInitialTitle =
+          previousMessageRows.length === 0 && conversationRow.title.trim() === 'New chat';
+        if (scopeSubmitted || shouldSetInitialTitle) {
           const scopeValues = getScopeValues(scope);
           const [updatedConversation] = await tx
             .update(chatConversationsTable)
             .set({
-              ...(scopeChanged
+              ...(scopeSubmitted
                 ? {
                     vaultId: scopeValues.vaultId,
                     documentId: scopeValues.documentId,
                     scope: scopeValues.scope,
                     contextSnapshot: scope,
-                    contextFrozenAt: null,
+                    ...(scopeChanged ? { contextFrozenAt: null } : {}),
                   }
                 : {}),
-              ...(conversationRow.title.trim() === 'New chat'
+              ...(shouldSetInitialTitle
                 ? { title: truncate(content, 96) }
                 : {}),
               updatedAt: now,
@@ -445,6 +447,10 @@ export function createChatServices({
         id: userMessageId,
         message: submittedUserMessage,
         metadata: {
+          custom: {
+            ...submittedUserMessage.metadata?.custom,
+            contextSnapshot: scope,
+          },
           intent,
           conversationId,
           vaultId: scopeValues.vaultId,

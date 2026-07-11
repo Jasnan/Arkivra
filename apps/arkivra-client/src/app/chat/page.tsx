@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useAui, useAuiState } from "@assistant-ui/react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { ChatCitationViewerDialog } from "@/app/chat/components/chat-citation-viewer-dialog"
+import { addDocumentContextAttachment } from "@/app/chat/components/chat-context-picker"
 import { Base } from "@/app/chat/components/examples/base"
 import { ChatRuntimeProvider } from "@/app/chat/components/runtime/chat-runtime-provider"
 import { restoreChatThreadFromUrl } from "@/app/chat/components/runtime/chat-url-thread-restore"
@@ -13,6 +14,7 @@ import { BaseConfigProvider } from "@/app/chat/lib/base/config-provider"
 import { defaultBaseConfig } from "@/app/chat/lib/base/defaults"
 import { getChatModelOptions } from "@/app/chat/lib/chat-model-options"
 import { fetchJson } from "@/lib/api"
+import { type DraftChatDocument } from "@/app/chat/lib/chat-context-model"
 
 type ChatAvailability = "loading" | "available" | "disabled" | "needs-setup" | "access-denied"
 
@@ -28,6 +30,67 @@ function getChatPath(chatId?: string) {
 function normalizeChatId(chatId: string | undefined) {
   const normalized = chatId?.trim()
   return normalized ? normalized : undefined
+}
+
+function getChatDocumentLaunch(state: unknown): DraftChatDocument | null {
+  if (!state || typeof state !== "object" || Array.isArray(state)) return null
+
+  const candidate = (state as { chatDocument?: unknown }).chatDocument
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return null
+
+  const document = candidate as Record<string, unknown>
+  if (typeof document.vaultId !== "string" || typeof document.documentId !== "string") return null
+
+  return {
+    vaultId: document.vaultId,
+    documentId: document.documentId,
+    ...(typeof document.name === "string" ? { name: document.name } : {}),
+    ...(typeof document.vaultName === "string" ? { vaultName: document.vaultName } : {}),
+    ...(typeof document.mimeType === "string" ? { mimeType: document.mimeType } : {}),
+  }
+}
+
+function ChatDocumentLaunch() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const aui = useAui()
+  const threadId = useAuiState((state) => state.threadListItem.id)
+  const launchDocument = useMemo(() => getChatDocumentLaunch(location.state), [location.state])
+  const handledLaunchKeyRef = useRef<string | null>(null)
+  const pendingAttachmentRef = useRef<{
+    previousThreadId: string
+    document: DraftChatDocument
+  } | null>(null)
+
+  useEffect(() => {
+    if (!launchDocument) return
+
+    const launchKey = `${launchDocument.vaultId}:${launchDocument.documentId}`
+    if (handledLaunchKeyRef.current === launchKey) return
+    handledLaunchKeyRef.current = launchKey
+    pendingAttachmentRef.current = {
+      previousThreadId: threadId,
+      document: launchDocument,
+    }
+    aui.threads().switchToNewThread()
+  }, [aui, launchDocument, threadId])
+
+  useEffect(() => {
+    const pendingAttachment = pendingAttachmentRef.current
+    if (!pendingAttachment || pendingAttachment.previousThreadId === threadId) return
+
+    pendingAttachmentRef.current = null
+    void addDocumentContextAttachment(aui, pendingAttachment.document)
+      .then(() => {
+        navigate("/chat", { replace: true })
+      })
+      .catch((error: unknown) => {
+        handledLaunchKeyRef.current = null
+        console.error("[Arkivra chat] failed to attach launched document", error)
+      })
+  }, [aui, navigate, threadId])
+
+  return null
 }
 
 function getPersistedChatId({
@@ -46,6 +109,7 @@ function ChatUrlSync() {
   const { chatId: chatIdParam } = useParams()
   const chatId = normalizeChatId(chatIdParam)
   const location = useLocation()
+  const hasDocumentLaunch = getChatDocumentLaunch(location.state) !== null
   const navigate = useNavigate()
   const aui = useAui()
   const threadId = useAuiState((state) => state.threadListItem.id)
@@ -56,6 +120,8 @@ function ChatUrlSync() {
   const pendingUrlChatIdRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
+    if (hasDocumentLaunch) return
+
     if (!chatId) {
       lastAppliedUrlChatIdRef.current = undefined
       pendingUrlChatIdRef.current = undefined
@@ -82,9 +148,11 @@ function ChatUrlSync() {
 
         navigate(getChatPath(), { replace: true })
       })
-  }, [aui, chatId, navigate, persistedChatId])
+  }, [aui, chatId, hasDocumentLaunch, navigate, persistedChatId])
 
   useEffect(() => {
+    if (hasDocumentLaunch) return
+
     if (persistedChatId) {
       if (pendingUrlChatIdRef.current === persistedChatId) {
         pendingUrlChatIdRef.current = undefined
@@ -107,7 +175,7 @@ function ChatUrlSync() {
         navigate(getChatPath(), { replace: true })
       }
     }
-  }, [chatId, location.pathname, navigate, persistedChatId])
+  }, [chatId, hasDocumentLaunch, location.pathname, navigate, persistedChatId])
 
   return null
 }
@@ -160,6 +228,7 @@ export default function ChatPage() {
           <ChatRuntimeProvider>
             <ChatUrlSync />
             <Base chatAvailability={chatAvailability} />
+            <ChatDocumentLaunch />
             <ChatCitationViewerDialog />
           </ChatRuntimeProvider>
         </BaseConfigProvider>

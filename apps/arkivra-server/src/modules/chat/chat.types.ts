@@ -106,6 +106,10 @@ export type ChatRetrievalDiagnostics = {
 export type ChatStreamStatus = 'retrieval' | 'generation' | 'saving';
 
 export type ChatMessageMetadata = {
+  custom?: {
+    contextSnapshot?: ChatContextSnapshot;
+    [key: string]: unknown;
+  };
   intent?: ChatIntent;
   model?: string;
   quickReplies?: string[];

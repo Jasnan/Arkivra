@@ -24,7 +24,6 @@ import {
   validateSubmittedChatMessages,
 } from './chat.route-helpers.js';
 import { MAX_CHAT_REQUEST_BYTES } from './chat.constants.js';
-import { areChatScopesEquivalent } from './chat.core.js';
 import type { ChatContextSnapshot, ChatMessage } from './chat.types.js';
 import {
   createChatResumableStreamId,
@@ -316,20 +315,7 @@ export function registerChatRoutes({
             return routeError(context, resolvedSubmittedContext);
           }
 
-          if (conversation.messages.length > 0) {
-            if (!areChatScopesEquivalent(
-              resolvedSubmittedContext.scope,
-              conversation.contextSnapshot,
-            )) {
-              return routeError(context, {
-                status: 409,
-                code: 'chat.context_locked',
-                message: 'Conversation context cannot be changed after the first message',
-              });
-            }
-          } else {
-            submittedScope = resolvedSubmittedContext.scope;
-          }
+          submittedScope = resolvedSubmittedContext.scope;
         }
       }
 

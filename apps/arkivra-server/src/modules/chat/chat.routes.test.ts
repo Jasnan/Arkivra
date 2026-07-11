@@ -301,7 +301,7 @@ describe('chat routes', () => {
     });
   });
 
-  test('rejects attached document context that changes a locked conversation scope', async () => {
+  test('accepts attached document context that changes a conversation scope for the new turn', async () => {
     const services = createMockChatServices({
       getConversation: vi.fn(async () =>
         createConversation({
@@ -343,17 +343,23 @@ describe('chat routes', () => {
       }),
     });
 
-    expect(response.status).toBe(409);
-    await expect(response.json()).resolves.toEqual({
-      error: {
-        code: 'chat.context_locked',
-        message: 'Conversation context cannot be changed after the first message',
-      },
-    });
-    expect(services.createMessageStream).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(services.createMessageStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: {
+          type: 'selection',
+          vaults: [],
+          documents: [expect.objectContaining({
+            vaultId: 'vlt_1',
+            documentId: 'doc_selected',
+            name: 'Selected.pdf',
+          })],
+        },
+      }),
+    );
   });
 
-  test('rejects global rescoping of a locked conversation from the request body', async () => {
+  test('accepts global rescoping of a conversation from the request body', async () => {
     const services = createMockChatServices({
       getConversation: vi.fn(async () =>
         createConversation({
@@ -396,17 +402,15 @@ describe('chat routes', () => {
       }),
     });
 
-    expect(response.status).toBe(409);
-    await expect(response.json()).resolves.toEqual({
-      error: {
-        code: 'chat.context_locked',
-        message: 'Conversation context cannot be changed after the first message',
-      },
-    });
-    expect(services.createMessageStream).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(services.createMessageStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: { type: 'global', vaultIds: ['vlt_1'] },
+      }),
+    );
   });
 
-  test('does not replace locked attachment context when a later request asks for global scope', async () => {
+  test('uses explicit new-turn context instead of context from an earlier user message', async () => {
     const services = createMockChatServices({
       getConversation: vi.fn(async () =>
         createConversation({
@@ -470,14 +474,12 @@ describe('chat routes', () => {
       }),
     });
 
-    expect(response.status).toBe(409);
-    await expect(response.json()).resolves.toEqual({
-      error: {
-        code: 'chat.context_locked',
-        message: 'Conversation context cannot be changed after the first message',
-      },
-    });
-    expect(services.createMessageStream).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(services.createMessageStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: { type: 'global', vaultIds: ['vlt_1'] },
+      }),
+    );
   });
 
   test('passes assistant-ui citation preference through stream config', async () => {
@@ -583,7 +585,7 @@ describe('chat routes', () => {
     });
   });
 
-  test('opens deleted-source conversations as read-only history', async () => {
+  test('opens deleted-source conversations with guidance to change context', async () => {
     const services = createMockChatServices({
       getConversation: vi.fn(async () =>
         createConversation({
@@ -612,7 +614,7 @@ describe('chat routes', () => {
         contextAvailability: {
           status: 'source_document_deleted',
           readOnly: true,
-          message: expect.stringContaining('read-only history'),
+          message: expect.stringContaining('Change the attached context to continue'),
         },
       },
     });
@@ -626,7 +628,7 @@ describe('chat routes', () => {
             status: 'source_document_deleted' as const,
             readOnly: true as const,
             message:
-              'One or more source documents were deleted. This conversation is available as read-only history.',
+              'One or more sources in the current chat context were deleted. Change the attached context to continue.',
           },
         }),
       ),
@@ -644,13 +646,13 @@ describe('chat routes', () => {
       error: {
         code: 'chat.context_unavailable',
         message:
-          'One or more source documents were deleted. This conversation is available as read-only history.',
+          'One or more sources in the current chat context were deleted. Change the attached context to continue.',
       },
     });
     expect(services.createMessageStream).not.toHaveBeenCalled();
   });
 
-  test('does not allow a read-only conversation to bypass its lock with new context', async () => {
+  test('allows a conversation with a deleted prior source to continue with new valid context', async () => {
     const services = createMockChatServices({
       getConversation: vi.fn(async () =>
         createConversation({
@@ -666,7 +668,7 @@ describe('chat routes', () => {
             status: 'source_document_deleted' as const,
             readOnly: true as const,
             message:
-              'One or more source documents were deleted. This conversation is available as read-only history.',
+              'One or more sources in the current chat context were deleted. Change the attached context to continue.',
           },
         }),
       ),
@@ -699,14 +701,15 @@ describe('chat routes', () => {
       }),
     });
 
-    expect(response.status).toBe(409);
-    await expect(response.json()).resolves.toEqual({
-      error: {
-        code: 'chat.context_locked',
-        message: 'Conversation context cannot be changed after the first message',
-      },
-    });
-    expect(services.createMessageStream).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(services.createMessageStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: expect.objectContaining({
+          type: 'selection',
+          documents: [expect.objectContaining({ documentId: 'doc_selected' })],
+        }),
+      }),
+    );
   });
 
   test('checks vault access before unavailable-source stream rejection', async () => {
@@ -717,7 +720,7 @@ describe('chat routes', () => {
             status: 'source_document_deleted' as const,
             readOnly: true as const,
             message:
-              'One or more source documents were deleted. This conversation is available as read-only history.',
+              'One or more sources in the current chat context were deleted. Change the attached context to continue.',
           },
         }),
       ),
@@ -839,7 +842,7 @@ describe('chat routes', () => {
     expect(services.createMessageStream).not.toHaveBeenCalled();
   });
 
-  test('accepts a submitted context that matches the locked server snapshot without rescoping', async () => {
+  test('passes a submitted context that matches the current server snapshot to the turn', async () => {
     const services = createMockChatServices();
     const { app } = createTestApp({ services });
     const response = await app.request('/api/chats/messages/stream', {
@@ -849,6 +852,27 @@ describe('chat routes', () => {
         chatId: 'cht_1',
         contextSnapshot: { type: 'document', vaultId: 'vlt_1', documentId: 'doc_1' },
       }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(services.createMessageStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: expect.objectContaining({
+          type: 'document',
+          vaultId: 'vlt_1',
+          documentId: 'doc_1',
+        }),
+      }),
+    );
+  });
+
+  test('inherits the conversation context when the new turn submits no context', async () => {
+    const services = createMockChatServices();
+    const { app } = createTestApp({ services });
+    const response = await app.request('/api/chats/messages/stream', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-user-id': 'usr_1' },
+      body: streamBody({ chatId: 'cht_1' }),
     });
 
     expect(response.status).toBe(200);

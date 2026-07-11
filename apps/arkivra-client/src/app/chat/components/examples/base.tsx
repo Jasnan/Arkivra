@@ -30,6 +30,7 @@ import {
   toModelSelectorOptions,
 } from "@/app/chat/lib/chat-model-options";
 import { useBaseConfig } from "@/app/chat/lib/base/config-provider";
+import { draftContextFromSnapshot } from "@/app/chat/lib/chat-context-model";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
@@ -76,6 +77,7 @@ import {
   SlashIcon,
   SquareIcon,
   TriangleAlertIcon,
+  VaultIcon,
   WrenchIcon,
 } from "lucide-react";
 import { useEffect, useId, useMemo, useState, type FC } from "react";
@@ -281,10 +283,9 @@ const ThreadScrollToBottom: FC = () => {
     <ThreadPrimitive.ScrollToBottom asChild>
       <TooltipIconButton
         tooltip="Scroll to bottom"
-        variant="outline"
-        className="aui-thread-scroll-to-bottom dark:border-border dark:bg-background dark:hover:bg-accent absolute -top-12 z-10 self-center rounded-full p-4 disabled:invisible"
+        className="aui-thread-scroll-to-bottom absolute -top-14 z-30 size-10 self-center rounded-full border bg-background p-0 text-foreground shadow-md hover:bg-accent hover:text-accent-foreground disabled:invisible"
       >
-        <ArrowDownIcon />
+        <ArrowDownIcon className="size-4" />
       </TooltipIconButton>
     </ThreadPrimitive.ScrollToBottom>
   );
@@ -603,7 +604,9 @@ const UserMessage: FC = () => {
       data-role="user"
       className="fade-in slide-in-from-bottom-1 animate-in mx-auto grid w-full max-w-(--thread-max-width) auto-rows-auto grid-cols-[minmax(72px,1fr)_auto] content-start gap-y-2 px-2 duration-150 [&:where(>*)]:col-start-2"
     >
-      <UserMessageAttachments />
+      <UserMessageAttachments>
+        <UserMessageContextAttachments />
+      </UserMessageAttachments>
 
       <div className="aui-user-message-content-wrapper relative col-start-2 min-w-0">
         <div className="aui-user-message-content peer bg-muted text-foreground rounded-xl px-4 py-2 wrap-break-word empty:hidden">
@@ -622,6 +625,51 @@ const UserMessage: FC = () => {
         className="col-span-full col-start-1 row-start-3 -mr-1 justify-end"
       />
     </MessagePrimitive.Root>
+  );
+};
+
+const UserMessageContextAttachments: FC = () => {
+  const contextSnapshot = useAuiState((state) => {
+    const metadata = state.message.metadata as
+      | { custom?: { contextSnapshot?: unknown } }
+      | undefined;
+    return metadata?.custom?.contextSnapshot;
+  });
+  const context = useMemo(
+    () => draftContextFromSnapshot(contextSnapshot),
+    [contextSnapshot],
+  );
+  const isGlobalContext =
+    contextSnapshot !== null &&
+    typeof contextSnapshot === "object" &&
+    !Array.isArray(contextSnapshot) &&
+    (contextSnapshot as { type?: unknown }).type === "global";
+
+  if (isGlobalContext) return null;
+
+  return (
+    <>
+      {context.vaults.map((vault) => (
+        <div
+          key={`vault:${vault.vaultId}`}
+          className="flex h-14 max-w-52 items-center gap-2 rounded-md border bg-background px-3 text-sm shadow-sm"
+          title={vault.name ?? "Vault"}
+        >
+          <VaultIcon className="size-5 shrink-0 text-muted-foreground" />
+          <span className="truncate font-medium">{vault.name ?? "Vault"}</span>
+        </div>
+      ))}
+      {context.documents.map((document) => (
+        <div
+          key={`document:${document.vaultId}:${document.documentId}`}
+          className="flex h-14 max-w-52 items-center gap-2 rounded-md border bg-background px-3 text-sm shadow-sm"
+          title={document.name ?? "Document"}
+        >
+          <FileTextIcon className="size-5 shrink-0 text-muted-foreground" />
+          <span className="truncate font-medium">{document.name ?? "Document"}</span>
+        </div>
+      ))}
+    </>
   );
 };
 

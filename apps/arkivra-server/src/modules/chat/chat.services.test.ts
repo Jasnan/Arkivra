@@ -201,6 +201,79 @@ describe('chat service helpers', () => {
     expect(aligned.map(item => item.snippet)).toEqual(['Refined first.', 'Refined second.']);
   });
 
+  test('keeps refined citations from the same document aligned one-to-one', () => {
+    const second = {
+      ...citation,
+      chunkId: 'chk_2',
+      pageStart: 4,
+      pageEnd: 4,
+      sourceElementIds: ['el_chunk_3'],
+      snippet: 'Original second.',
+    };
+    const aligned = alignCitationsToPromptOrder({
+      promptCitations: [citation, second],
+      refinedCitations: [
+        { ...second, snippet: 'Refined second.' },
+        { ...citation, snippet: 'Refined first.' },
+      ],
+    });
+
+    expect(aligned.map(item => item.chunkId)).toEqual(['chk_1', 'chk_2']);
+    expect(aligned.map(item => item.snippet)).toEqual(['Refined first.', 'Refined second.']);
+  });
+
+  test('matches changed refined chunks by provenance without reusing them', () => {
+    const second = {
+      ...citation,
+      chunkId: 'chk_2',
+      pageStart: 4,
+      pageEnd: 4,
+      sourceElementIds: ['el_chunk_3'],
+      snippet: 'Original second.',
+    };
+    const aligned = alignCitationsToPromptOrder({
+      promptCitations: [citation, second],
+      refinedCitations: [
+        {
+          ...second,
+          chunkId: 'chk_refined_2',
+          sourceElementIds: ['el_chunk_3', 'el_chunk_4'],
+          snippet: 'Refined second.',
+        },
+        {
+          ...citation,
+          chunkId: 'chk_refined_1',
+          sourceElementIds: ['el_chunk_2'],
+          snippet: 'Refined first.',
+        },
+      ],
+    });
+
+    expect(aligned.map(item => item.chunkId)).toEqual(['chk_refined_1', 'chk_refined_2']);
+    expect(new Set(aligned.map(item => item.chunkId)).size).toBe(2);
+  });
+
+  test('falls back to the original prompt citation instead of reusing a refined citation', () => {
+    const second = {
+      ...citation,
+      chunkId: 'chk_2',
+      pageStart: 4,
+      pageEnd: 4,
+      sourceElementIds: ['el_chunk_3'],
+      snippet: 'Original second.',
+    };
+    const aligned = alignCitationsToPromptOrder({
+      promptCitations: [citation, second],
+      refinedCitations: [{ ...citation, snippet: 'Refined first.' }],
+    });
+
+    expect(aligned.map(item => item.chunkId)).toEqual(['chk_1', 'chk_2']);
+    expect(aligned.map(item => item.snippet)).toEqual([
+      'Refined first.',
+      'Original second.',
+    ]);
+  });
+
   test('compares locked chat scopes by server identifiers rather than labels or ordering', () => {
     expect(areChatScopesEquivalent(
       { type: 'global', vaultIds: ['vlt_2', 'vlt_1'] },

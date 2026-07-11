@@ -28,7 +28,6 @@ export type ChatRouteErrorCode =
   | 'chat.invalid_intent'
   | 'chat.invalid_model'
   | 'chat.invalid_response_mode'
-  | 'chat.context_locked'
   | 'chat.context_unavailable'
   | 'chat.model_options_unavailable'
   | 'chat.not_found'
@@ -42,7 +41,7 @@ export const SOURCE_DOCUMENT_DELETED_CONTEXT: ChatContextAvailability = {
   status: 'source_document_deleted',
   readOnly: true,
   message:
-    'One or more source documents were deleted. This conversation is available as read-only history.',
+    'One or more sources in the current chat context were deleted. Change the attached context to continue.',
 };
 
 export function routeError(

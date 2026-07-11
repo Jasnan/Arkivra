@@ -677,7 +677,7 @@ export default function AdminAiSettingsPage() {
 
   const translationModelOptions = useMemo<TranslationModelOption[]>(() => {
     const geminiOptions = availableGeminiChatModels
-      .filter((model) => hasModelCapability(model, "chat"))
+      .filter((model) => hasModelCapability(model, "chat") && hasModelCapability(model, "vision"))
       .map((model) => ({
         key: formatChatModelValue({ provider: "gemini", model: model.model }),
         provider: "gemini" as const,
@@ -691,7 +691,7 @@ export default function AdminAiSettingsPage() {
           aiDraft.translation.provider === "gemini" && aiDraft.translation.model === model.model,
       }))
     const ollamaOptions = availableOllamaModels
-      .filter((model) => hasModelCapability(model, "chat"))
+      .filter((model) => hasModelCapability(model, "chat") && hasModelCapability(model, "vision"))
       .map((model) => ({
         key: formatChatModelValue({ provider: "ollama", model: model.model }),
         provider: "ollama" as const,
@@ -818,8 +818,8 @@ export default function AdminAiSettingsPage() {
     effectiveTranslationOption !== null &&
     ((effectiveTranslationOption.provider === "gemini" && isGeminiProviderHealthy) ||
       (effectiveTranslationOption.provider === "ollama" && isConfiguredTranslationModelAvailable))
-  const isTranslationModelEligible =
-    effectiveTranslationModel.length > 0 && (effectiveTranslationOption?.capabilities.includes("chat") ?? false)
+  const isTranslationModelMultimodal =
+    effectiveTranslationModel.length > 0 && (effectiveTranslationOption?.capabilities.includes("vision") ?? false)
 
   const activeIndex = statusState.data?.status.embedding.activeIndex ?? null
   const preparingIndex =
@@ -1519,7 +1519,7 @@ export default function AdminAiSettingsPage() {
                   indexProgress={indexProgress}
                   isChatConfigValid={isChatConfigValid}
                   isSaving={isSaving}
-                  isTranslationConfigValid={isTranslationConfigValid && isTranslationModelEligible}
+                  isTranslationConfigValid={isTranslationConfigValid && isTranslationModelMultimodal}
                   searchEngineModel={selectedSearchEngine?.model ?? ""}
                   searchEngineProvider={selectedSearchEngine?.provider ?? savedAiSettings.embedding.provider}
                   semanticProgressStatus={semanticProgressStatus}
@@ -2722,7 +2722,7 @@ function TranslationModelDialog({
             Configure translation model
           </DialogTitle>
           <DialogDescription>
-            Translation is experimental. Choose the completion-capable model used for document translation.
+            Choose the multimodal model used for document translation. Only one translation model can be active.
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-[calc(100vh-13rem)] overflow-y-auto px-6 py-3">
@@ -2771,8 +2771,7 @@ function TranslationModelDialog({
               />
             )}
             <InfoNotice>
-              For debugging, completion-only models are included. Models without advertised vision support may fail
-              when processing rendered document pages.
+              Translation uses a multimodal model so Arkivra can process rendered pages and selected visual regions.
             </InfoNotice>
           </div>
         </div>
@@ -3069,7 +3068,6 @@ function TranslationModelTable({
           <TableBody>
             {options.map((option) => {
               const isSelected = option.key === selectedTranslationModelKey
-              const supportsVision = option.capabilities.includes("vision")
 
               return (
                 <TableRow
@@ -3092,7 +3090,7 @@ function TranslationModelTable({
                         {isSelected ? <Badge className="shrink-0">Selected</Badge> : null}
                       </div>
                       <div className="truncate text-xs text-muted-foreground md:hidden">
-                        {option.providerLabel} - {supportsVision ? "Multimodal" : "Completion only"}
+                        {option.providerLabel} - Multimodal
                       </div>
                     </div>
                   </TableCell>
@@ -3100,7 +3098,7 @@ function TranslationModelTable({
                     {option.providerLabel}
                   </TableCell>
                   <TableCell className="hidden py-4 text-muted-foreground lg:table-cell">
-                    {supportsVision ? "Multimodal" : "Completion only"}
+                    Multimodal
                   </TableCell>
                 </TableRow>
               )

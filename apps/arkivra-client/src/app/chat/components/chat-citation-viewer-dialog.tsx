@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { ExternalLink, FileText, Loader2, RotateCcw, XIcon, ZoomIn, ZoomOut } from "lucide-react"
+import { Link, useLocation } from "react-router-dom"
 
 import {
   type CitationBoundingBox,
@@ -13,7 +14,6 @@ import {
 } from "@/app/chat/components/assistant-ui/citations"
 import {
   getDocument,
-  getDocumentDownloadUrl,
   getDocumentFileText,
   getDocumentInlineFileUrl,
   getDocumentPagePreviewUrl,
@@ -244,14 +244,16 @@ function CitationPageImagePreview({
   activePage,
   pageBoxes,
   imageUrl,
-  downloadUrl,
+  sourceUrl,
+  sourceReturnTo,
   title,
 }: {
   citation: ChatCitation
   activePage: number | null
   pageBoxes: CitationBoundingBox[]
   imageUrl: string
-  downloadUrl?: string | null
+  sourceUrl?: string
+  sourceReturnTo: string
   title: string
 }) {
   const [imageLoaded, setImageLoaded] = useState(false)
@@ -305,13 +307,17 @@ function CitationPageImagePreview({
             </TooltipTrigger>
             <TooltipContent>Reset</TooltipContent>
           </Tooltip>
-          {downloadUrl ? (
+          {sourceUrl ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button asChild type="button" size="icon" variant="outline">
-                  <a href={downloadUrl} aria-label="Open source">
+                  <Link
+                    to={sourceUrl}
+                    state={{ documentReturnTo: sourceReturnTo, documentReturnLabel: "chat" }}
+                    aria-label="Open source"
+                  >
                     <ExternalLink className="size-4" />
-                  </a>
+                  </Link>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Open source</TooltipContent>
@@ -371,6 +377,7 @@ function CitationPageImagePreview({
 }
 
 export function ChatCitationViewerDialog() {
+  const location = useLocation()
   const [viewerState, setViewerState] = useState<CitationViewerState | null>(null)
   const [document, setDocument] = useState<DocumentDetail | null>(null)
   const [loading, setLoading] = useState(false)
@@ -390,10 +397,6 @@ export function ChatCitationViewerDialog() {
     citation?.vaultId && citation.documentId && activePage !== null
       ? getDocumentPagePreviewUrl({ vaultId: citation.vaultId, documentId: citation.documentId, pageNumber: activePage })
       : null
-  const downloadUrl =
-    citation?.vaultId && citation.documentId
-      ? getDocumentDownloadUrl({ vaultId: citation.vaultId, documentId: citation.documentId })
-      : null
   const activePreviewUrl =
     citation === null || textPreviewKind !== null
       ? null
@@ -401,6 +404,7 @@ export function ChatCitationViewerDialog() {
         ? inlineFileUrl
         : pagePreviewUrl
   const isImagePreview = Boolean(citation && activePreviewUrl)
+  const sourceReturnTo = `${location.pathname}${location.search}`
 
   useEffect(() => {
     function handleOpenCitation(event: Event) {
@@ -457,7 +461,7 @@ export function ChatCitationViewerDialog() {
         }
       }}
     >
-      <DialogContent showCloseButton={!isImagePreview} className="flex max-h-svh flex-col overflow-hidden sm:max-w-3xl">
+      <DialogContent showCloseButton={!isImagePreview} className="sm:max-w-5xl">
         {isImagePreview ? null : (
           <DialogHeader className="shrink-0">
             <DialogTitle className="min-w-0 truncate">{label}</DialogTitle>
@@ -483,13 +487,14 @@ export function ChatCitationViewerDialog() {
               <CitationTextPreview citation={citation} document={document} previewKind={textPreviewKind} />
             </div>
           ) : citation && activePreviewUrl ? (
-            <div className="h-96 overflow-hidden">
+            <div className="h-[min(48rem,calc(100svh-8rem))] overflow-hidden">
               <CitationPageImagePreview
                 citation={citation}
                 activePage={activePage}
                 pageBoxes={pageBoxes}
                 imageUrl={activePreviewUrl}
-                downloadUrl={downloadUrl}
+                sourceUrl={href}
+                sourceReturnTo={sourceReturnTo}
                 title={label}
               />
             </div>
@@ -503,10 +508,13 @@ export function ChatCitationViewerDialog() {
                 </p>
                 {href ? (
                   <Button asChild className="mt-4">
-                    <a href={href}>
+                    <Link
+                      to={href}
+                      state={{ documentReturnTo: sourceReturnTo, documentReturnLabel: "chat" }}
+                    >
                       <ExternalLink className="size-4" />
                       Open document
-                    </a>
+                    </Link>
                   </Button>
                 ) : null}
               </div>

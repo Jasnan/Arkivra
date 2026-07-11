@@ -5,7 +5,7 @@ import { generateId } from '../database/schema/helpers.js';
 import { MAX_CONTEXT_CHUNK_SNIPPET_LENGTH } from './chat.constants.js';
 import { truncate } from './chat.core.js';
 import { normalizeCitationsForDisplay } from './chat.citation-ranking.js';
-import { getCitationGroupKey } from './chat.citation-utils.js';
+import { getCitationGroupKey, getCitationPageBounds } from './chat.citation-utils.js';
 
 const INLINE_CITATION_MARKER_PATTERN = /\[(\d+)\](?!\()|【(\d+)】/g;
 
@@ -52,12 +52,96 @@ export function alignCitationsToPromptOrder({
   promptCitations: Citation[];
   refinedCitations: Citation[];
 }) {
-  const refinedBySource = new Map(
-    refinedCitations.map(citation => [getCitationGroupKey(citation), citation]),
-  );
+  const aligned: Array<Citation | undefined> = Array.from({ length: promptCitations.length });
+  const usedRefinedIndexes = new Set<number>();
+
+  for (const [promptIndex, promptCitation] of promptCitations.entries()) {
+    const refinedIndex = refinedCitations.findIndex(
+      (refinedCitation, index) =>
+        !usedRefinedIndexes.has(index) &&
+        getCitationGroupKey(refinedCitation) === getCitationGroupKey(promptCitation) &&
+        refinedCitation.chunkId === promptCitation.chunkId,
+    );
+
+    if (refinedIndex >= 0) {
+      aligned[promptIndex] = refinedCitations[refinedIndex];
+      usedRefinedIndexes.add(refinedIndex);
+    }
+  }
+
+  for (const [promptIndex, promptCitation] of promptCitations.entries()) {
+    if (aligned[promptIndex] !== undefined) {
+      continue;
+    }
+
+    const promptSourceElementIds = new Set(promptCitation.sourceElementIds ?? []);
+    const promptPageBounds = getCitationPageBounds(promptCitation);
+    let bestMatch:
+      | {
+          index: number;
+          sourceElementOverlap: number;
+          exactPageBounds: boolean;
+          pageOverlap: number;
+        }
+      | undefined;
+
+    for (const [refinedIndex, refinedCitation] of refinedCitations.entries()) {
+      if (
+        usedRefinedIndexes.has(refinedIndex) ||
+        getCitationGroupKey(refinedCitation) !== getCitationGroupKey(promptCitation)
+      ) {
+        continue;
+      }
+
+      const sourceElementOverlap = (refinedCitation.sourceElementIds ?? []).filter(
+        sourceElementId => promptSourceElementIds.has(sourceElementId),
+      ).length;
+      const refinedPageBounds = getCitationPageBounds(refinedCitation);
+      const exactPageBounds =
+        promptPageBounds !== null &&
+        refinedPageBounds !== null &&
+        promptPageBounds.start === refinedPageBounds.start &&
+        promptPageBounds.end === refinedPageBounds.end;
+      const pageOverlap =
+        promptPageBounds !== null && refinedPageBounds !== null
+          ? Math.max(
+              0,
+              Math.min(promptPageBounds.end, refinedPageBounds.end) -
+                Math.max(promptPageBounds.start, refinedPageBounds.start) +
+                1,
+            )
+          : 0;
+
+      if (sourceElementOverlap === 0 && pageOverlap === 0) {
+        continue;
+      }
+
+      if (
+        bestMatch === undefined ||
+        sourceElementOverlap > bestMatch.sourceElementOverlap ||
+        (sourceElementOverlap === bestMatch.sourceElementOverlap &&
+          Number(exactPageBounds) > Number(bestMatch.exactPageBounds)) ||
+        (sourceElementOverlap === bestMatch.sourceElementOverlap &&
+          exactPageBounds === bestMatch.exactPageBounds &&
+          pageOverlap > bestMatch.pageOverlap)
+      ) {
+        bestMatch = {
+          index: refinedIndex,
+          sourceElementOverlap,
+          exactPageBounds,
+          pageOverlap,
+        };
+      }
+    }
+
+    if (bestMatch !== undefined) {
+      aligned[promptIndex] = refinedCitations[bestMatch.index];
+      usedRefinedIndexes.add(bestMatch.index);
+    }
+  }
 
   return promptCitations.map(
-    citation => refinedBySource.get(getCitationGroupKey(citation)) ?? citation,
+    (citation, index) => aligned[index] ?? citation,
   );
 }
 

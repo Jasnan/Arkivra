@@ -67,7 +67,10 @@ async function addVaultAttachment(aui: ReturnType<typeof useAui>, vault: DraftCh
   })
 }
 
-async function addDocumentAttachment(aui: ReturnType<typeof useAui>, document: DraftChatDocument) {
+export async function addDocumentContextAttachment(
+  aui: ReturnType<typeof useAui>,
+  document: DraftChatDocument,
+) {
   await aui.composer().addAttachment({
     id: documentContextAttachmentId(document),
     type: "document",
@@ -102,7 +105,7 @@ async function addContextAttachments(aui: ReturnType<typeof useAui>, current: Dr
   }
 
   for (const document of normalizedNext.documents) {
-    await addDocumentAttachment(aui, document)
+    await addDocumentContextAttachment(aui, document)
   }
 }
 

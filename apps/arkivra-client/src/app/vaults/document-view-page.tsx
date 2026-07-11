@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState, type FormEvent, type MouseEvent } from "react"
 import {
   AlertCircle,
+  ArrowLeft,
   Blocks,
   CalendarDays,
   ClipboardCopy,
@@ -12,6 +13,7 @@ import {
   Image as ImageIcon,
   Info,
   Loader2,
+  MessageSquare,
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
@@ -105,6 +107,32 @@ import {
 type PreviewKind = "pdf" | "image" | "text" | "pending" | "failed" | "unsupported"
 type DocumentTab = "preview" | "content" | "metadata" | "versions"
 type ContentTab = "text" | "chunks"
+
+type DocumentReturnContext = {
+  path: string
+  label: "chat" | "search results"
+}
+
+function getDocumentReturnContext(state: unknown): DocumentReturnContext | null {
+  if (!state || typeof state !== "object" || Array.isArray(state)) return null
+
+  const candidate = state as {
+    documentReturnTo?: unknown
+    documentReturnLabel?: unknown
+  }
+  const path = typeof candidate.documentReturnTo === "string" ? candidate.documentReturnTo : ""
+  const label = candidate.documentReturnLabel
+
+  if (label === "chat" && (path === "/chat" || path.startsWith("/chat/"))) {
+    return { path, label }
+  }
+
+  if (label === "search results" && (path === "/search" || path.startsWith("/search?"))) {
+    return { path, label }
+  }
+
+  return null
+}
 
 function DocumentContentTabs({
   value,
@@ -1239,7 +1267,24 @@ export default function DocumentViewPage() {
   const vaultReturnPath = activeDocument?.folderId
     ? `/vaults/${vaultId}?folderId=${activeDocument.folderId}`
     : `/vaults/${vaultId}`
-  const documentReturnPath = isTrashDocumentRoute ? "/trash" : vaultReturnPath
+  const documentReturnContext = getDocumentReturnContext(location.state)
+  const documentReturnPath = documentReturnContext?.path ?? (isTrashDocumentRoute ? "/trash" : vaultReturnPath)
+  const documentReturnLabel = documentReturnContext ? `Back to ${documentReturnContext.label}` : null
+  const handleChatAboutDocument = useCallback(() => {
+    if (!activeDocument || !vaultId || isTrashDocumentRoute) return
+
+    navigate("/chat", {
+      state: {
+        chatDocument: {
+          vaultId,
+          documentId,
+          name: activeDocument.name,
+          vaultName: vault?.name,
+          mimeType: activeDocument.mimeType,
+        },
+      },
+    })
+  }, [activeDocument, documentId, isTrashDocumentRoute, navigate, vault?.name, vaultId])
   const currentName = renameValue ?? document?.name ?? ""
   const currentLanguage = languageValue ?? document?.language?.code ?? "unknown"
   const hasNameChanged = document ? currentName.trim() !== document.name : false
@@ -1672,6 +1717,10 @@ export default function DocumentViewPage() {
                 <RefreshCw className="size-4" />
                 Versions
               </DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleChatAboutDocument}>
+                <MessageSquare className="size-4" />
+                Chat about document
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <a href={currentDownloadUrl}>
@@ -1694,9 +1743,16 @@ export default function DocumentViewPage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button type="button" variant="outline" size="icon" aria-label="Close document detail" onClick={() => navigate(documentReturnPath)}>
-            <X className="size-4" />
-          </Button>
+          {documentReturnLabel ? (
+            <Button type="button" variant="outline" className="gap-2" onClick={() => navigate(documentReturnPath)}>
+              <ArrowLeft className="size-4" />
+              {documentReturnLabel}
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" size="icon" aria-label="Close document detail" onClick={() => navigate(documentReturnPath)}>
+              <X className="size-4" />
+            </Button>
+          )}
         </>
       ),
     })
@@ -1708,8 +1764,10 @@ export default function DocumentViewPage() {
     document,
     documentId,
     documentHeaderTags,
+    documentReturnLabel,
     documentReturnPath,
     errorMessage,
+    handleChatAboutDocument,
     handlePrintDocument,
     isDeleteDocumentPending,
     loadingDocument,
@@ -2031,6 +2089,12 @@ export default function DocumentViewPage() {
                           Versions
                         </DropdownMenuItem>
                       ) : null}
+                      {!isTrashDocumentRoute ? (
+                        <DropdownMenuItem onSelect={handleChatAboutDocument}>
+                          <MessageSquare className="size-4" />
+                          Chat about document
+                        </DropdownMenuItem>
+                      ) : null}
                       <DropdownMenuSeparator />
                       {!isTrashDocumentRoute ? (
                         <DropdownMenuItem asChild>
@@ -2067,9 +2131,16 @@ export default function DocumentViewPage() {
                       )}
                     </DropdownMenuContent>
                   </DropdownMenu>
-                  <Button type="button" variant="outline" size="icon" aria-label="Close document detail" onClick={() => navigate(documentReturnPath)}>
-                    <X className="size-4" />
-                  </Button>
+                  {documentReturnLabel ? (
+                    <Button type="button" variant="outline" className="gap-2" onClick={() => navigate(documentReturnPath)}>
+                      <ArrowLeft className="size-4" />
+                      {documentReturnLabel}
+                    </Button>
+                  ) : (
+                    <Button type="button" variant="outline" size="icon" aria-label="Close document detail" onClick={() => navigate(documentReturnPath)}>
+                      <X className="size-4" />
+                    </Button>
+                  )}
                 </div>
               </header>
 

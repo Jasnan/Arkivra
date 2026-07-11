@@ -106,8 +106,8 @@ export function getFrozenManifestContextAvailability({
         readOnly: true,
         message:
           totalCount === 0
-            ? 'No source document versions are available. This conversation is available as read-only history.'
-            : 'One or more source documents were deleted. This conversation is available as read-only history.',
+            ? 'No source document versions are available in the current chat context. Change the attached context to continue.'
+            : 'One or more sources in the current chat context were deleted. Change the attached context to continue.',
       }
     : AVAILABLE_CHAT_CONTEXT;
 }

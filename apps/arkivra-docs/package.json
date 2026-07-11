@@ -9,13 +9,21 @@
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
-    "build": "astro build",
+    "build": "astro check && astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "check": "astro check",
+    "lint": "astro check",
+    "test": "pnpm run test:fast",
+    "test:fast": "pnpm run check"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.41.3",
     "astro": "^7.0.2",
     "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.9",
+    "typescript": "^5.9.3"
   }
 }

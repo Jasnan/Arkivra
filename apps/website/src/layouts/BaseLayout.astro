@@ -10,6 +10,10 @@ const {
 	title = "Arkivra - Open-source document management",
 	description = "Open-source, self-hostable document management for organized records, full-text search, and optional AI-assisted tools.",
 } = Astro.props;
+
+const siteUrl = Astro.site ?? new URL("https://arkivra.app/");
+const pageUrl = new URL(Astro.url.pathname, siteUrl).href;
+const socialImageUrl = new URL("og-image.png", siteUrl).href;
 ---
 
 <!doctype html>
@@ -21,18 +25,22 @@ const {
 		<title>{title}</title>
 		<meta name="title" content={title} />
 		<meta name="description" content={description} />
+		<link rel="canonical" href={pageUrl} />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<meta property="og:type" content="website" />
 		<meta property="og:site_name" content="Arkivra" />
+		<meta property="og:url" content={pageUrl} />
 		<meta property="og:title" content={title} />
 		<meta property="og:description" content={description} />
-		<meta property="og:image" content="/og-image.png" />
-		<meta property="og:image:alt" content="Arkivra document management preview" />
+		<meta property="og:image" content={socialImageUrl} />
+		<meta property="og:image:width" content="1774" />
+		<meta property="og:image:height" content="887" />
+		<meta property="og:image:alt" content="Arkivra — organize, search, understand" />
 		<meta name="twitter:card" content="summary_large_image" />
 		<meta name="twitter:title" content={title} />
 		<meta name="twitter:description" content={description} />
-		<meta name="twitter:image" content="/og-image.png" />
-		<meta name="twitter:image:alt" content="Arkivra document management preview" />
+		<meta name="twitter:image" content={socialImageUrl} />
+		<meta name="twitter:image:alt" content="Arkivra — organize, search, understand" />
 		<script is:inline>
 			const storedTheme = localStorage.getItem("arkivra-theme");
 			const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;

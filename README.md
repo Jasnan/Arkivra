@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="apps/arkivra-client/public/og-image.png" alt="Arkivra - open-source document management system" width="760">
+  <img src="apps/arkivra-client/src/assets/arkivra-project-logo.png" alt="Arkivra — open-source document management" width="760">
 </p>
 
 <p align="center">
@@ -7,142 +7,108 @@
   <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
   <a href="https://docs.arkivra.app">Documentation</a>
   <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
-  <a href="https://docs.arkivra.app/self-hosting/using-docker-compose/">Self-hosting</a>
-  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
-  <a href="#what-you-can-do-with-arkivra">Features</a>
-  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
-  <a href="#try-it-locally">Try it locally</a>
+  <a href="https://docs.arkivra.app/getting-started/quick-start/">Quick start</a>
 </p>
-
----
 
 ## What is Arkivra?
 
-Arkivra helps you keep your documents organized, searchable, and easy to find.
+Arkivra is an open-source document management system for keeping documents organized, searchable, and under your control.
 
-It is an open-source document management system for organizing files in vaults, searching their contents, and staying in control of where your documents live.
+It started from a simple need: I wanted a practical place to manage documents without making AI the center of the product. I wanted vaults to separate different areas of life or work, folders and tags to keep things organized, reliable search to find information later, and the option to use AI only when it genuinely adds value.
 
-Use it as a straightforward place to manage documents. When it fits your workflow, you can enable AI features such as document chat, translation, and AI-assisted search.
+You can use Arkivra as a straightforward document management system for organizing files into vaults, searching their contents, and deciding where your documents live. When it fits your workflow, **you can optionally enable AI features such as document chat, translation, and AI-assisted search** by connecting to local Ollama models or a supported cloud AI provider.
 
----
+Today, Arkivra is the document management system I wanted for myself. My hope is that it is equally useful for individuals, families, homelab enthusiasts, and small teams looking for a practical way to manage documents without unnecessary complexity.
 
-## Why Arkivra?
+<p align="center">
+  <a href="https://arkivra.app">
+    <picture>
+      <source srcset="apps/arkivra-client/src/assets/vaults_screenshot_grid_light.png" media="(prefers-color-scheme: light)">
+      <source srcset="apps/arkivra-client/src/assets/vaults_screenshot_grid_dark.png" media="(prefers-color-scheme: dark)">
+      <img src="apps/arkivra-client/src/assets/vaults_screenshot_grid_light.png" alt="Arkivra vaults dashboard">
+    </picture>
+  </a>
+</p>
 
-Arkivra started from a simple need: I wanted a place to keep documents organized, searchable, and under my control, without making AI the center of the product.
+## Features
 
-I wanted vaults for separating different areas of life or work, folders and tags for adding structure, reliable search for finding things later, and the option to use AI only when it genuinely helps.
+### Document management
 
-Today, Arkivra is the document management system I wanted for myself. My hope is that it will also be useful to individuals, families, homelab enthusiasts, and small teams looking for a practical way to manage documents without unnecessary complexity.
+- **Vaults and folders:** Separate document collections and build a folder structure inside each vault.
+- **Tags and metadata:** Add context to documents and filter the library when browsing or searching.
+- **Document previews:** View supported files and inspect extracted content from the dashboard.
+- **Version history:** Keep immutable versions and restore older content without erasing the history.
+- **Trash and recovery:** Restore deleted documents or remove them permanently.
 
----
+### Search and retrieval
 
-## What you can do with Arkivra
+- **Content extraction:** Use Docling to extract text from supported documents and scanned files.
+- **Full-text search:** Search filenames and extracted text with PostgreSQL. No AI model is needed.
+- **Filters:** Narrow results by vault, tag, or modification date.
+- **Background indexing:** Process uploads without blocking the main document workflow.
 
-### Organize Documents
+### Optional AI tools
 
-- Vaults for grouping documents however you prefer
-- Tags, filters, and metadata management
-- Document version history and restore workflows
-- Trash and recovery support
-- Vault members, roles, and permission management
+- **Semantic search:** Find documents by meaning when the exact words do not match.
+- **Document chat:** Ask questions across selected documents, folders, or vaults. Open citations to check the source.
+- **PDF translation:** Translate selected text or rendered PDF content between English and German.
+- **Provider choice:** Use a local Ollama-compatible endpoint or connect Google Gemini.
 
-### Find Information Faster
+### Self-hosting and administration
 
-- Full-text search across your documents
-- Document previews and metadata browsing
-- Optional search by meaning, not just exact words
+- **Docker Compose:** Build and run Arkivra with PostgreSQL on your own server.
+- **Access control:** Use vault roles and platform privileges to control access to each collection.
+- **Authentication:** Use email and password, TOTP, or optional Google and GitHub OAuth.
+- **Backups:** Create encrypted backup sets that contain the database dump and stored document files.
+- **Activity and audit:** Review user-facing activity and security-focused administrative records.
+- **Optional office previews:** Connect Gotenberg for supported Office and OpenDocument files.
 
-### Optional AI Features
+## Self-hosting
 
-- Chat with selected documents or vaults
-- Experimental document translation
-- Choose local or cloud AI providers when you enable AI features
-- Use AI when it helps, or leave it disabled entirely
+Arkivra is designed to run on infrastructure you manage. The documentation covers prerequisites, Docker Compose, document processing, configuration, and production considerations.
 
-### Stay in Control
+Follow the [quick-start guide](https://docs.arkivra.app/getting-started/quick-start/) to try Arkivra. For a complete deployment walkthrough, see [self-hosting with Docker Compose](https://docs.arkivra.app/self-hosting/using-docker-compose/).
 
-- Open source and self-hostable
-- Uploaded files and stored extracted assets are encrypted at rest
-- Sign in with email/password, OAuth, or two-factor authentication
-- Choose where Arkivra runs and which optional integrations you enable
+## Storage and privacy
 
----
+| Stored data                                     | Encrypted by Arkivra |
+| ----------------------------------------------- | -------------------- |
+| Uploaded originals and retained version sources | Yes                  |
+| Stored extracted asset files                    | Yes                  |
+| Arkivra backup archives                         | Yes                  |
+| PostgreSQL rows and derived data                | No                   |
 
-## Try it locally
+PostgreSQL holds extracted text and metadata. Chat history and embeddings also live there. The same applies to audit records and job state. Arkivra does not add application-layer encryption to these rows.
 
-```bash
-git clone https://github.com/Jasnan/Arkivra.git
-cd Arkivra
+Remote processors and AI providers receive the document content needed for the feature you use. Review the [privacy and security guide](https://docs.arkivra.app/operations/privacy-and-security/) before using Arkivra with sensitive documents.
 
-cp .env.example .env
+## Project status
 
-# Generate the required file encryption key
-printf 'ARKIVRA_ENCRYPTION_KEYS=1:%s\n' "$(openssl rand -hex 32)" >> .env
+Arkivra is still evolving and has not yet reached a stable 1.0 release. The core document management features are stable for everyday use, and AI features such as semantic search are also considered stable. Document chat is usable but still being refined, while translation remains experimental. As development continues, some interfaces and configuration options may change. For production deployments or instances containing important documents, test upgrades before applying them.
 
-# Start Docling separately. For Docker Desktop or Linux Docker Engine:
-docker run --name arkivra-docling -d -p 5001:5001 -e DOCLING_SERVE_ENABLE_UI=1 quay.io/docling-project/docling-serve-cpu
-
-# Point Arkivra's containers at that external Docling endpoint:
-sed -i.bak 's#^ARKIVRA_DOCLING_URL=.*#ARKIVRA_DOCLING_URL=http://host.docker.internal:5001#' .env
-
-docker compose up -d
-curl http://localhost:3210/api/health
-```
-
-Open the dashboard at http://localhost:3210. The server container serves both the API and the dashboard in the Docker Compose stack.
-
-Document parsing needs a reachable Docling Serve endpoint. Arkivra does not include Docling in its default Docker Compose stack; set `ARKIVRA_DOCLING_URL` to a local, network, or hosted Docling service before starting the API and worker.
-
-You can upload, organize, preview, restore, and search documents without configuring any AI provider.
-
----
-
-## Project Status
-
-Arkivra is under active development and not yet at a stable 1.0 release.
-
-The core document workflow is usable today. Deployment, documentation, operational tooling, and AI-assisted features are still improving as the project grows.
-
-Feedback, bug reports, and contributions are always welcome.
-
----
+Bug reports, focused pull requests, and practical feedback are welcome through the [GitHub repository](https://github.com/Jasnan/Arkivra).
 
 ## Development
 
-Arkivra is a pnpm monorepo with separate API, worker, dashboard, website, and docs apps.
+Arkivra is a pnpm monorepo with four application packages:
 
-For local development setup, commands, tests, and operational notes, see the [documentation](https://docs.arkivra.app).
+| Path                  | Purpose                                                            |
+| --------------------- | ------------------------------------------------------------------ |
+| `apps/arkivra-server` | API, workers, database schema, storage, search, and administration |
+| `apps/arkivra-client` | React dashboard                                                    |
+| `apps/arkivra-docs`   | Documentation site built with Astro and Starlight                  |
+| `apps/website`        | Project website built with Astro                                   |
 
----
-
-## Security
-
-Arkivra requires file encryption keys and encrypts uploaded files and stored extracted assets at rest.
-
-The project is designed to give you control over your documents, infrastructure, and optional integrations.
-
-For deployment guidance, encryption details, backups, and security considerations, see the [documentation](https://docs.arkivra.app).
-
----
+The [documentation](https://docs.arkivra.app) covers source setup and operational guidance.
 
 ## Inspiration
 
-Arkivra draws inspiration from projects that make document management practical, approachable, and enjoyable to use.
-
-That includes projects like [Paperless-ngx](https://paperless-ngx.com/), [Papra](https://papra.app/), and [Filen](https://filen.io/), alongside the broader self-hosted and local-first ecosystem.
-
----
+Arkivra draws inspiration from the open-source document management and self-hosting ecosystem. This includes [Paperless-ngx](https://paperless-ngx.com/), [Papra](https://papra.app/), and [Filen](https://filen.io/).
 
 ## License
 
-Arkivra is licensed under the [AGPL-3.0](LICENSE).
+Arkivra is licensed under the [AGPL-3.0 License](LICENSE).
 
----
+## Maintainer
 
-## About the Project
-
-Arkivra is an open-source project created and maintained by [Jasnan Thachaparamban](https://jasnan.xyz).
-
-It began as a personal project and continues to grow through curiosity, experimentation, and feedback from friends who have tested early versions.
-
-If Arkivra looks useful, consider giving it a star, trying it out, reporting issues, or sharing ideas. Every piece of feedback helps shape where the project goes next.
+Arkivra was created and is maintained by [Jasnan Thachaparamban](https://jasnan.xyz).

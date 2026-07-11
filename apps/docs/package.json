@@ -13,8 +13,9 @@
     "astro": "astro",
     "lint": "eslint .",
     "lint:fix": "eslint --fix .",
+    "lint:links": "node scripts/check-links.mjs",
     "check": "astro check",
-    "test": "pnpm run check",
+    "test": "pnpm run check && pnpm run build && pnpm run lint:links",
     "test:fast": "pnpm run check"
   },
   "dependencies": {

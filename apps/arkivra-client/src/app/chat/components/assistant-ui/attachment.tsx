@@ -187,12 +187,13 @@ const AttachmentRemove: FC = () => {
   );
 };
 
-export const UserMessageAttachments: FC = () => {
+export const UserMessageAttachments: FC<PropsWithChildren> = ({ children }) => {
   return (
-    <div className="aui-user-message-attachments-end col-span-full col-start-1 row-start-1 flex w-full flex-row justify-end gap-2">
+    <div className="aui-user-message-attachments-end col-span-full col-start-1 row-start-1 flex w-full flex-row flex-wrap justify-end gap-2">
       <MessagePrimitive.Attachments>
         {() => <AttachmentUI />}
       </MessagePrimitive.Attachments>
+      {children}
     </div>
   );
 };

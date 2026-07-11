@@ -7,13 +7,12 @@ import {
   CheckCircle2,
   ChevronRight,
   ExternalLink,
-  Hash,
   Info,
   Languages,
   Layers3,
   MessageSquare,
   Package,
-  Play,
+  Power,
   RefreshCw,
   Search,
   Settings,
@@ -45,6 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Switch } from "@/components/ui/switch"
 import {
   Table,
   TableBody,
@@ -1733,47 +1733,43 @@ function AiStateHero({
 
   return (
     <Card className={content.className}>
-      <CardContent className="space-y-6 p-5 lg:p-6">
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,26rem)] lg:items-center">
-          <div className="grid gap-4 md:grid-cols-[8rem_1fr] md:items-center">
-            <HeroVisual state={state} compact={isEnabled} />
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-2xl font-semibold">{content.title}</h2>
-                <Badge variant={content.badgeVariant}>{content.badge}</Badge>
-              </div>
-              <p className="max-w-2xl text-sm text-muted-foreground">{content.description}</p>
-              <div className="flex flex-wrap gap-2">
-                {state === "needs_configuration" && searchEngineCount > 0 ? (
-                  <Button size="sm" onClick={onChooseSearchEngine}>
-                    <Search className="size-4" />
-                    Choose embedding model
-                  </Button>
-                ) : null}
-                {state === "needs_configuration" && searchEngineCount === 0 ? (
-                  <p className="text-sm font-medium text-muted-foreground">No embedding models available</p>
-                ) : null}
-                {state === "ready" ? (
-                  <Button size="sm" disabled={isSaving} onClick={onEnableAi}>
-                    <Play className="size-4" />
-                    {isSaving ? "Enabling..." : "Enable AI"}
-                  </Button>
-                ) : null}
-                {state === "enabled" ? (
-                  <Button size="sm" variant="outline" disabled={isSaving} onClick={onDisableAi}>
-                    <Settings className="size-4" />
-                    {isSaving ? "Saving..." : "Disable AI"}
-                  </Button>
-                ) : null}
-              </div>
+      <CardContent className="space-y-5 p-5">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <HeroStatusIcon state={state} />
+              <h2 className="text-2xl font-semibold">{content.title}</h2>
+              <Badge variant={content.badgeVariant}>{content.badge}</Badge>
             </div>
+            <p className="max-w-2xl text-sm text-muted-foreground">{content.description}</p>
           </div>
-          <div className="flex items-center justify-start border-t pt-4 lg:min-h-32 lg:justify-end lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+          <div className="flex flex-wrap items-center justify-start gap-2 border-t pt-3 lg:justify-end lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
             <Button variant="ghost" className="gap-3 px-0 lg:px-3" onClick={onToggleProviderDetails}>
               <HealthDot healthy={healthyProviderCount > 0} />
               {providerSummary}
               <ChevronRight className={cn("size-4 transition-transform", showProviderDetails && "rotate-90")} />
             </Button>
+            {state === "needs_configuration" && searchEngineCount > 0 ? (
+              <Button size="sm" onClick={onChooseSearchEngine}>
+                <Search className="size-4" />
+                Choose embedding model
+              </Button>
+            ) : null}
+            {state === "needs_configuration" && searchEngineCount === 0 ? (
+              <span className="text-sm font-medium text-muted-foreground">No embedding models available</span>
+            ) : null}
+            {state === "ready" ? (
+              <Button size="sm" disabled={isSaving} onClick={onEnableAi}>
+                <Power className="size-4" />
+                {isSaving ? "Enabling..." : "Enable AI"}
+              </Button>
+            ) : null}
+            {isEnabled ? (
+              <Button size="sm" variant="outline" disabled={isSaving} onClick={onDisableAi}>
+                <Power className="size-4" />
+                {isSaving ? "Disabling..." : "Disable AI"}
+              </Button>
+            ) : null}
           </div>
         </div>
         {showProviderDetails ? (
@@ -1781,7 +1777,6 @@ function AiStateHero({
             expandedProvider={expandedProvider}
             providers={providers}
             onExpandedProviderChange={onExpandedProviderChange}
-            onToggleDetails={onToggleProviderDetails}
           />
         ) : null}
       </CardContent>
@@ -1942,7 +1937,7 @@ function CapabilitiesSection({
         <CardTitle>{isEnabled ? "AI Services" : "AI Capabilities"}</CardTitle>
         <CardDescription>
           {blocked
-            ? "These features require an embedding model to be selected."
+            ? "AI features remain unavailable until setup is complete."
             : isEnabled
               ? "Configure AI services for this instance."
               : "Enable AI to make these services available."}
@@ -1951,23 +1946,23 @@ function CapabilitiesSection({
       <CardContent className="grid gap-3 lg:grid-cols-3">
         <AiServiceCard
           title="AI Search"
-          description="Find documents by meaning, not keywords."
+          description="Configure the embedding model used for semantic search and document indexing."
           icon={<Search className="size-5" />}
           status={
             blocked
-              ? "Unavailable"
+              ? "AI setup required"
               : semanticHealthText
                 ? embeddingModelUnavailable
-                  ? "Needs configuration"
+                  ? "Needs setup"
                   : "Unavailable"
                 : isEnabled
-                  ? "Enabled"
+                  ? "Ready"
                   : undefined
           }
           statusTone={blocked ? "inactive" : semanticHealthText ? "warning" : "enabled"}
           footer={
             blocked
-              ? "Requires an embedding model"
+              ? "Complete AI setup to use this feature"
               : semanticHealthText
                 ? semanticHealthText
                 : isEnabled
@@ -2011,28 +2006,28 @@ function CapabilitiesSection({
 
         <AiServiceCard
           title="AI Chat"
-          description="Ask questions about your documents."
+          description="Control which chat models users can access and set the default for new conversations."
           icon={<MessageSquare className="size-5" />}
           status={
             blocked
-              ? "Unavailable"
+              ? "AI setup required"
               : isEnabled
                 ? chatHealthText
                   ? chatNeedsDefaultModel
-                    ? "Needs configuration"
+                    ? "Needs setup"
                     : "Unavailable"
                   : isChatConfigValid
-                    ? "Available"
-                    : "Needs configuration"
+                    ? "Ready"
+                    : "Needs setup"
                 : undefined
           }
           statusTone={blocked ? "inactive" : chatHealthText || !isChatConfigValid ? "warning" : "enabled"}
           footer={
             blocked
-              ? "Requires an embedding model"
+              ? "Complete AI setup to use this feature"
               : isEnabled
                 ? (chatHealthText ??
-                  (isChatConfigValid ? `${chatModelCount.toLocaleString()} models available` : "Select a default chat model."))
+                  (isChatConfigValid ? "Default model configured" : "Select a default chat model."))
                 : "Will become available after AI is enabled."
           }
           previewOnly={previewOnly}
@@ -2044,7 +2039,8 @@ function CapabilitiesSection({
                 disabled={chatModelCount === 0 || isSaving}
                 onClick={onConfigureChatModels}
               >
-                Configure models
+                <Settings className="size-4" />
+                Configure
               </Button>
             ) : null
           }
@@ -2056,7 +2052,7 @@ function CapabilitiesSection({
               provider=""
               detail={
                 isChatConfigValid
-                  ? "Uses the configured embedding model."
+                  ? "Used by default for new conversations."
                   : chatHealthIssue?.id === "default-chat-model-unavailable"
                     ? "Choose another default chat model."
                     : chatHealthText
@@ -2069,29 +2065,29 @@ function CapabilitiesSection({
 
         <AiServiceCard
           title="Translation"
-          description="Translate documents to multiple languages."
+          description="Document translation is experimental. Configure the multimodal model used by this feature."
           icon={<Languages className="size-5" />}
           status={
             blocked
-              ? "Unavailable"
+              ? "AI setup required"
               : isEnabled
                 ? translationHealthText
                   ? translationNeedsDefaultModel
-                    ? "Needs configuration"
+                    ? "Needs setup"
                     : "Unavailable"
                   : isTranslationConfigValid
-                    ? "Available"
-                    : "Needs configuration"
+                    ? "Ready"
+                    : "Needs setup"
                 : undefined
           }
           statusTone={blocked ? "inactive" : translationHealthText || !isTranslationConfigValid ? "warning" : "enabled"}
           footer={
             blocked
-              ? "Requires an embedding model"
+              ? "Complete AI setup to use this feature"
               : isEnabled
                 ? (translationHealthText ??
                   (isTranslationConfigValid
-                    ? `${translationModelCount.toLocaleString()} models available`
+                    ? "Default model configured"
                     : "Select a default translation model."))
                 : "Will become available after AI is enabled."
           }
@@ -2104,7 +2100,8 @@ function CapabilitiesSection({
                 disabled={translationModelCount === 0 || isSaving}
                 onClick={onConfigureTranslation}
               >
-                Configure model
+                <Settings className="size-4" />
+                Configure
               </Button>
             ) : null
           }
@@ -2116,12 +2113,12 @@ function CapabilitiesSection({
               provider=""
               detail={
                 isTranslationConfigValid
-                  ? "Vision / multimodal"
+                  ? "Used when users translate documents."
                   : translationHealthIssue?.id === "default-translation-model-unavailable"
                     ? "Choose another default translation model."
                     : translationHealthText
                     ? "Choose a default translation model."
-                    : "Select a default translation model."
+                    : "Select the model used for document translation."
               }
             />
           ) : null}
@@ -2155,18 +2152,29 @@ function AiServiceCard({
   return (
     <div
       className={cn(
-        "flex min-h-68 flex-col justify-between gap-4 rounded-md border p-4",
-        previewOnly ? "bg-muted/40 opacity-80" : "bg-card",
+        "flex min-h-52 flex-col justify-between gap-4 rounded-md border p-4",
+        previewOnly
+          ? "bg-muted/40 opacity-80"
+          : statusTone === "enabled"
+            ? "border-primary/25 bg-primary/5"
+            : statusTone === "warning"
+              ? "bg-muted/30"
+              : "bg-card",
       )}
     >
       <div className="space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-md border bg-muted/40 text-muted-foreground">
-              {icon}
-            </div>
-            <div className="font-semibold">{title}</div>
+        <div className="grid grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-3">
+          <div
+            className={cn(
+              "flex size-11 items-center justify-center rounded-md border [&_svg]:size-5",
+              statusTone === "enabled" && !previewOnly
+                ? "border-primary/20 bg-primary/10 text-primary"
+                : "bg-muted/40 text-muted-foreground",
+            )}
+          >
+            {icon}
           </div>
+          <div className="truncate text-base font-semibold leading-none">{title}</div>
           {status ? <StatusBadge tone={statusTone}>{status}</StatusBadge> : null}
         </div>
         <p className="text-sm text-muted-foreground">{description}</p>
@@ -2176,6 +2184,8 @@ function AiServiceCard({
         <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
           {statusTone === "enabled" && !previewOnly ? (
             <CheckCircle2 className="size-4 text-primary" />
+          ) : statusTone === "warning" && !previewOnly ? (
+            <TriangleAlert className="size-4" />
           ) : (
             <Info className="size-4" />
           )}
@@ -2214,18 +2224,16 @@ function ModelSummary({
 function ProviderDetailsPanel({
   expandedProvider,
   onExpandedProviderChange,
-  onToggleDetails,
   providers,
 }: {
   providers: ProviderSummary[]
   expandedProvider: AdminAiProviderKind | null
-  onToggleDetails: () => void
   onExpandedProviderChange: (provider: AdminAiProviderKind | null) => void
 }) {
   const healthyCount = providers.filter((provider) => provider.isHealthy).length
 
   return (
-    <div className="space-y-4 rounded-md border bg-card p-4 text-card-foreground shadow-xs sm:p-5">
+    <div className="space-y-4 border-t pt-5 text-card-foreground">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <div className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted/40 text-muted-foreground">
@@ -2238,10 +2246,6 @@ function ProviderDetailsPanel({
             </p>
           </div>
         </div>
-        <Button size="sm" variant="outline" onClick={onToggleDetails}>
-          Hide providers
-          <ChevronRight className="size-4 rotate-90" />
-        </Button>
       </div>
       <div className="flex flex-col justify-between gap-2 border-t pt-4 text-sm text-muted-foreground sm:flex-row">
         <div className="flex items-center gap-2">
@@ -2262,7 +2266,7 @@ function ProviderDetailsPanel({
           />
         ))}
       </div>
-      <div className="flex flex-col gap-3 rounded-md border bg-background p-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-md bg-muted/40 p-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Info className="size-4 shrink-0" />
           <span>Providers are configured via environment variables and cannot be modified here.</span>
@@ -2403,15 +2407,13 @@ function ChatModelsDialog({
       ),
     [allowedModelSet, chatModelOptions, providerFilter, searchQuery, visibilityFilter],
   )
-  const enabledModelOptions = filteredChatModelOptions.filter((option) => allowedModelSet.has(option.value))
-  const availableModelOptions = filteredChatModelOptions.filter((option) => !allowedModelSet.has(option.value))
   const isDefaultEnabled = draftDefaultChatModel.length > 0 && allowedModelSet.has(draftDefaultChatModel)
   const isEmpty = chatModelOptions.length === 0
-  const hasFilteredResults = enabledModelOptions.length > 0 || availableModelOptions.length > 0
+  const hasFilteredResults = filteredChatModelOptions.length > 0
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden p-0 sm:max-w-6xl">
+      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden p-0 sm:max-w-4xl">
         <DialogHeader className="border-b px-6 py-5">
           <DialogTitle className="flex items-center gap-2">
             <MessageSquare className="size-5" />
@@ -2421,81 +2423,80 @@ function ChatModelsDialog({
             Choose which chat models users can access in chat and select the default for new conversations.
           </DialogDescription>
         </DialogHeader>
-        <div className="max-h-[calc(100vh-13rem)] overflow-y-auto px-6 py-5">
-          <div className="space-y-6">
-            <EmbeddingModelFilters
-              providerFilter={providerFilter}
-              providerOptions={providerOptions}
-              searchQuery={searchQuery}
-              visibilityFilter={visibilityFilter}
-              onProviderFilterChange={setProviderFilter}
-              onSearchQueryChange={setSearchQuery}
-              onVisibilityFilterChange={setVisibilityFilter}
-              visibilityItems={[
-                ["all", "All models"],
-                ["enabled", "Enabled only"],
-              ]}
-            />
-
-            <div className="grid gap-5 lg:grid-cols-[1.35fr_1fr]">
-              <EmbeddingDialogPanel title={`Available Models (${availableModelOptions.length.toLocaleString()})`}>
-                <EmbeddingModelSearch searchQuery={searchQuery} onSearchQueryChange={setSearchQuery} />
-                {isEmpty ? (
-                  <EmptyState
-                    message={
-                      isFetchingChatModels
-                        ? "Loading available models and provider status..."
-                        : "No chat models are selectable from healthy providers."
-                    }
-                  />
-                ) : !hasFilteredResults ? (
-                  <EmptyState message="No models match the current filters." />
-                ) : availableModelOptions.length > 0 ? (
-                  <ScrollableList enabled={availableModelOptions.length > 5} className="max-h-[20.25rem]">
-                    <ChatModelTable
-                      options={availableModelOptions}
-                      variant="available"
-                      onEnable={onAllowedModelChange}
-                    />
-                  </ScrollableList>
-                ) : (
-                  <EmptyState
-                    message={
-                      visibilityFilter === "enabled"
-                        ? "Enabled-only filtering is active."
-                        : "Every matching model is already enabled."
-                    }
-                  />
-                )}
-              </EmbeddingDialogPanel>
-
-              <EmbeddingDialogPanel title={`Enabled Models (${enabledModelOptions.length.toLocaleString()})`}>
-                <div className="space-y-3">
-                  {enabledModelOptions.length > 0 ? (
-                    <ScrollableList enabled={enabledModelOptions.length > 4} className="max-h-[15.5rem]">
-                      <ChatModelTable
-                        options={enabledModelOptions}
-                        defaultModel={draftDefaultChatModel}
-                        variant="enabled"
-                        onDefault={onDefaultModelChange}
-                        onDisable={onAllowedModelChange}
-                      />
-                    </ScrollableList>
-                  ) : (
-                    <EmptyState message="No enabled models match the current filters." />
-                  )}
-                  <InfoNotice>Users can choose any enabled model. The default is used for new conversations.</InfoNotice>
+        <div className="max-h-[calc(100vh-13rem)] overflow-y-auto px-6 py-4">
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-[14rem_12rem_minmax(0,1fr)] md:items-end">
+              <div className="space-y-1.5">
+                <Label>Provider</Label>
+                <Select value={providerFilter} onValueChange={setProviderFilter}>
+                  <SelectTrigger className="w-full data-[size=default]:h-10">
+                    <SelectValue placeholder="All Providers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Providers</SelectItem>
+                    {providerOptions.map(([provider, label]) => (
+                      <SelectItem key={provider} value={provider}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Show</Label>
+                <Select value={visibilityFilter} onValueChange={setVisibilityFilter}>
+                  <SelectTrigger className="w-full data-[size=default]:h-10">
+                    <SelectValue placeholder="All models" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All models</SelectItem>
+                    <SelectItem value="enabled">Enabled only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5 [&_input]:h-10">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="chat-model-search">Search</Label>
+                  <span className="text-xs text-muted-foreground">
+                    {filteredChatModelOptions.length.toLocaleString()} {filteredChatModelOptions.length === 1 ? "model" : "models"}
+                  </span>
                 </div>
-              </EmbeddingDialogPanel>
+                <EmbeddingModelSearch id="chat-model-search" searchQuery={searchQuery} onSearchQueryChange={setSearchQuery} />
+              </div>
             </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+              <span>Enable the models users can choose, then select one default for new conversations.</span>
+              <Badge variant="secondary">{draftAllowedChatModels.length.toLocaleString()} enabled</Badge>
+            </div>
+
+            {isEmpty ? (
+              <EmptyState
+                message={
+                  isFetchingChatModels
+                    ? "Loading available models and provider status..."
+                    : "No chat models are selectable from healthy providers."
+                }
+              />
+            ) : !hasFilteredResults ? (
+              <EmptyState message="No models match the current filters." />
+            ) : (
+              <ChatModelTable
+                allowedModels={allowedModelSet}
+                defaultModel={draftDefaultChatModel}
+                options={filteredChatModelOptions}
+                onAllowedChange={onAllowedModelChange}
+                onDefault={onDefaultModelChange}
+              />
+            )}
           </div>
         </div>
         <DialogFooter className="items-center border-t px-6 py-4 sm:justify-between">
-          <div className={cn("text-sm", isDefaultEnabled ? "text-muted-foreground" : "text-foreground")}>
-            {draftAllowedChatModels.length.toLocaleString()} models enabled
-            {isDefaultEnabled
-              ? ` - Default: ${getChatModelLabel(chatModelOptions, draftDefaultChatModel)}`
-              : " - select an enabled default model"}
+          <div className={cn("flex items-center gap-2 text-sm", isDefaultEnabled ? "text-muted-foreground" : "text-foreground")}>
+            {isDefaultEnabled ? <CheckCircle2 className="size-4 text-primary" /> : <TriangleAlert className="size-4" />}
+            <span>
+              {isDefaultEnabled
+                ? `Default: ${getChatModelLabel(chatModelOptions, draftDefaultChatModel)}`
+                : "Select a default model to save"}
+            </span>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -2557,20 +2558,16 @@ function EmbeddingModelDialog({
       ),
     [embeddingModelOptions, providerFilter, searchQuery, selectedEmbeddingModelKey, visibilityFilter],
   )
-  const currentModelSummary = selectedEmbeddingModel
-    ? `${selectedEmbeddingModel.model} - ${formatDimensions(selectedEmbeddingModel.dimensions)}`
-    : "No embedding model selected"
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden p-0 sm:max-w-6xl">
+      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden p-0 sm:max-w-2xl">
         <DialogHeader className="border-b px-6 py-5">
           <DialogTitle className="flex items-center gap-2">
             <Layers3 className="size-5" />
-            Configure embedding model
+            Select an embedding model
           </DialogTitle>
           <DialogDescription>
-            Choose the model used to generate embeddings for semantic search. Only one model can be active.
+            This model is the retrieval engine behind AI features, helping Arkivra find relevant content across your documents.
           </DialogDescription>
         </DialogHeader>
         <EmbeddingModelSelectionBody
@@ -2591,24 +2588,10 @@ function EmbeddingModelDialog({
           filteredCount={filteredOptions.length}
           hasOptions={embeddingModelOptions.length > 0}
           options={filteredOptions}
-          title="Available Models"
-          selectedEmbeddingModel={selectedEmbeddingModel}
-          selectedEmbeddingModelChanged={selectedEmbeddingModelChanged}
           selectedEmbeddingModelKey={selectedEmbeddingModelKey}
           onSelectedModelKeyChange={onSelectedModelKeyChange}
         />
-        <DialogFooter className="items-center border-t px-6 py-4 sm:justify-between">
-          <div className="text-sm text-muted-foreground">
-            Current model:{" "}
-            {selectedEmbeddingModel ? (
-              <>
-                <span className="font-medium text-foreground">{selectedEmbeddingModel.model}</span>{" "}
-                ({formatDimensions(selectedEmbeddingModel.dimensions)})
-              </>
-            ) : (
-              currentModelSummary
-            )}
-          </div>
+        <DialogFooter className="items-center border-t px-6 py-4 sm:justify-end">
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
@@ -2625,8 +2608,8 @@ function EmbeddingModelDialog({
               {isSaving
                 ? "Saving..."
                 : hasConfiguredSearchEngine
-                  ? "Save and rebuild index"
-                  : "Save embedding model"}
+                  ? "Save and rebuild search index"
+                  : "Save selection"}
             </Button>
           </div>
         </DialogFooter>
@@ -2642,54 +2625,46 @@ function EmbeddingModelSelectionBody({
   hasOptions,
   onSelectedModelKeyChange,
   options,
-  selectedEmbeddingModel,
-  selectedEmbeddingModelChanged,
   selectedEmbeddingModelKey,
-  title,
 }: {
   emptyMessage: string
   filterProps: ModelFiltersProps
   filteredCount: number
   hasOptions: boolean
   options: EmbeddingModelOption[]
-  selectedEmbeddingModel: EmbeddingModelOption | null
-  selectedEmbeddingModelChanged: boolean
   selectedEmbeddingModelKey: string
-  title: string
   onSelectedModelKeyChange: (key: string) => void
 }) {
   return (
-    <div className="max-h-[calc(100vh-13rem)] overflow-y-auto px-6 py-5">
-      <div className="space-y-6">
-        <EmbeddingModelFilters {...filterProps} />
-        <div className="grid gap-5 lg:grid-cols-[1.35fr_1fr]">
-          <EmbeddingDialogPanel title={`${title} (${filteredCount.toLocaleString()})`}>
+    <div className="max-h-[calc(100vh-13rem)] overflow-y-auto px-6 py-3">
+      <div className="space-y-3">
+        <div className="grid gap-3 md:grid-cols-[14rem_minmax(0,1fr)] md:items-end">
+          <EmbeddingModelFilters {...filterProps} compact showVisibilityFilter={false} />
+          <div className="space-y-1.5 [&_input]:h-10">
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="embedding-model-search">Search</Label>
+              <span className="text-xs text-muted-foreground">
+                {filteredCount.toLocaleString()} {filteredCount === 1 ? "model" : "models"}
+              </span>
+            </div>
             <EmbeddingModelSearch
               searchQuery={filterProps.searchQuery}
               onSearchQueryChange={filterProps.onSearchQueryChange}
             />
-            {!hasOptions ? (
-              <EmptyState message={emptyMessage} />
-            ) : filteredCount === 0 ? (
-              <EmptyState message="No models match the current filters." />
-            ) : (
-              <ScrollableList enabled={filteredCount > 5} className="max-h-[20.25rem]">
-                <EmbeddingModelTable
-                  options={options}
-                  selectedEmbeddingModelKey={selectedEmbeddingModelKey}
-                  onSelectedModelKeyChange={onSelectedModelKeyChange}
-                />
-              </ScrollableList>
-            )}
-          </EmbeddingDialogPanel>
-          <EmbeddingDialogPanel title="Selected Model">
-            <SelectedEmbeddingModelSummary
-              option={selectedEmbeddingModel}
-              selectedModelChanged={selectedEmbeddingModelChanged}
-            />
-            <InfoNotice>Changing the embedding model requires re-indexing your documents to maintain search quality.</InfoNotice>
-          </EmbeddingDialogPanel>
+          </div>
         </div>
+        {!hasOptions ? (
+          <EmptyState message={emptyMessage} />
+        ) : filteredCount === 0 ? (
+          <EmptyState message="No models match the current filters." />
+        ) : (
+          <EmbeddingModelTable
+            options={options}
+            selectedEmbeddingModelKey={selectedEmbeddingModelKey}
+            onSelectedModelKeyChange={onSelectedModelKeyChange}
+          />
+        )}
+        <InfoNotice>Changing this model rebuilds the semantic search index for your documents.</InfoNotice>
       </div>
     </div>
   )
@@ -2738,11 +2713,9 @@ function TranslationModelDialog({
       ),
     [providerFilter, searchQuery, selectedTranslationModelKey, translationModelOptions, visibilityFilter],
   )
-  const currentModelSummary = selectedTranslationModel?.label ?? "No translation model selected"
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden p-0 sm:max-w-6xl">
+      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden p-0 sm:max-w-2xl">
         <DialogHeader className="border-b px-6 py-5">
           <DialogTitle className="flex items-center gap-2">
             <Languages className="size-5" />
@@ -2752,54 +2725,57 @@ function TranslationModelDialog({
             Choose the multimodal model used for document translation. Only one translation model can be active.
           </DialogDescription>
         </DialogHeader>
-        <div className="max-h-[calc(100vh-13rem)] overflow-y-auto px-6 py-5">
-          <div className="space-y-6">
-            <EmbeddingModelFilters
-              providerFilter={providerFilter}
-              providerOptions={providerOptions}
-              searchQuery={searchQuery}
-              visibilityFilter={visibilityFilter}
-              onProviderFilterChange={setProviderFilter}
-              onSearchQueryChange={setSearchQuery}
-              onVisibilityFilterChange={setVisibilityFilter}
-            />
-            <div className="grid gap-5 lg:grid-cols-[1.35fr_1fr]">
-              <EmbeddingDialogPanel title={`Available Models (${filteredOptions.length.toLocaleString()})`}>
-                <EmbeddingModelSearch searchQuery={searchQuery} onSearchQueryChange={setSearchQuery} />
-                {!translationModelOptions.length ? (
-                  <EmptyState
-                    message={
-                      isFetchingModels
-                        ? "Loading available models and provider status..."
-                        : "No translation models are selectable from healthy providers."
-                    }
-                  />
-                ) : filteredOptions.length === 0 ? (
-                  <EmptyState message="No models match the current filters." />
-                ) : (
-                  <ScrollableList enabled={filteredOptions.length > 5} className="max-h-[20.25rem]">
-                    <TranslationModelTable
-                      options={filteredOptions}
-                      selectedTranslationModelKey={selectedTranslationModelKey}
-                      onSelectedModelKeyChange={onSelectedModelKeyChange}
-                    />
-                  </ScrollableList>
-                )}
-              </EmbeddingDialogPanel>
-              <EmbeddingDialogPanel title="Selected Model">
-                <SelectedTranslationModelCard
-                  option={selectedTranslationModel}
-                  selectedModelChanged={selectedTranslationModelChanged}
+        <div className="max-h-[calc(100vh-13rem)] overflow-y-auto px-6 py-3">
+          <div className="space-y-3">
+            <div className="grid gap-3 md:grid-cols-[14rem_minmax(0,1fr)] md:items-end">
+              <EmbeddingModelFilters
+                compact
+                showVisibilityFilter={false}
+                providerFilter={providerFilter}
+                providerOptions={providerOptions}
+                searchQuery={searchQuery}
+                visibilityFilter={visibilityFilter}
+                onProviderFilterChange={setProviderFilter}
+                onSearchQueryChange={setSearchQuery}
+                onVisibilityFilterChange={setVisibilityFilter}
+              />
+              <div className="space-y-1.5 [&_input]:h-10">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="translation-model-search">Search</Label>
+                  <span className="text-xs text-muted-foreground">
+                    {filteredOptions.length.toLocaleString()} {filteredOptions.length === 1 ? "model" : "models"}
+                  </span>
+                </div>
+                <EmbeddingModelSearch
+                  id="translation-model-search"
+                  searchQuery={searchQuery}
+                  onSearchQueryChange={setSearchQuery}
                 />
-                <InfoNotice>
-                  Translation uses a multimodal model so Arkivra can process rendered pages and selected visual regions.
-                </InfoNotice>
-              </EmbeddingDialogPanel>
+              </div>
             </div>
+            {!translationModelOptions.length ? (
+              <EmptyState
+                message={
+                  isFetchingModels
+                    ? "Loading available models and provider status..."
+                    : "No translation models are selectable from healthy providers."
+                }
+              />
+            ) : filteredOptions.length === 0 ? (
+              <EmptyState message="No models match the current filters." />
+            ) : (
+              <TranslationModelTable
+                options={filteredOptions}
+                selectedTranslationModelKey={selectedTranslationModelKey}
+                onSelectedModelKeyChange={onSelectedModelKeyChange}
+              />
+            )}
+            <InfoNotice>
+              Translation uses a multimodal model so Arkivra can process rendered pages and selected visual regions.
+            </InfoNotice>
           </div>
         </div>
-        <DialogFooter className="items-center border-t px-6 py-4 sm:justify-between">
-          <div className="text-sm text-muted-foreground">Current model: {currentModelSummary}</div>
+        <DialogFooter className="items-center border-t px-6 py-4 sm:justify-end">
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
@@ -2825,22 +2801,24 @@ interface ModelFiltersProps {
 }
 
 function EmbeddingModelFilters({
+  compact = false,
   onProviderFilterChange,
   onVisibilityFilterChange,
   providerFilter,
   providerOptions,
   visibilityFilter,
+  showVisibilityFilter = true,
   visibilityItems = [
     ["all", "All models"],
     ["selected", "Selected model"],
   ],
-}: ModelFiltersProps & { visibilityItems?: Array<[string, string]> }) {
+}: ModelFiltersProps & { compact?: boolean; showVisibilityFilter?: boolean; visibilityItems?: Array<[string, string]> }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <div className="space-y-2">
+    <div className={cn("grid gap-4", showVisibilityFilter && "md:grid-cols-2")}>
+      <div className={cn(compact ? "space-y-1.5" : "space-y-2")}>
         <Label>Provider</Label>
         <Select value={providerFilter} onValueChange={onProviderFilterChange}>
-          <SelectTrigger className="h-12 w-full">
+          <SelectTrigger className={cn("w-full", compact ? "data-[size=default]:h-10" : "data-[size=default]:h-12")}>
             <SelectValue placeholder="All Providers" />
           </SelectTrigger>
           <SelectContent>
@@ -2853,29 +2831,33 @@ function EmbeddingModelFilters({
           </SelectContent>
         </Select>
       </div>
-      <div className="space-y-2">
-        <Label>Show</Label>
-        <Select value={visibilityFilter} onValueChange={onVisibilityFilterChange}>
-          <SelectTrigger className="h-12 w-full">
-            <SelectValue placeholder="All models" />
-          </SelectTrigger>
-          <SelectContent>
-            {visibilityItems.map(([value, label]) => (
-              <SelectItem key={value} value={value}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {showVisibilityFilter ? (
+        <div className="space-y-2">
+          <Label>Show</Label>
+          <Select value={visibilityFilter} onValueChange={onVisibilityFilterChange}>
+            <SelectTrigger className="w-full data-[size=default]:h-12">
+              <SelectValue placeholder="All models" />
+            </SelectTrigger>
+            <SelectContent>
+              {visibilityItems.map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
     </div>
   )
 }
 
 function EmbeddingModelSearch({
+  id = "embedding-model-search",
   onSearchQueryChange,
   searchQuery,
 }: {
+  id?: string
   searchQuery: string
   onSearchQueryChange: (query: string) => void
 }) {
@@ -2884,7 +2866,7 @@ function EmbeddingModelSearch({
       <Search className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
       <Input
         type="text"
-        id="embedding-model-search"
+        id={id}
         value={searchQuery}
         className="cursor-text pl-9"
         placeholder="Search models..."
@@ -2894,55 +2876,34 @@ function EmbeddingModelSearch({
   )
 }
 
-function EmbeddingDialogPanel({ children, title }: { children: ReactNode; title: string }) {
-  return (
-    <div className="flex min-h-[27rem] flex-col gap-4 rounded-lg border bg-card p-4">
-      <div className="text-base font-semibold">{title}</div>
-      {children}
-    </div>
-  )
-}
-
-function ScrollableList({
-  children,
-  className,
-  enabled,
-}: {
-  children: ReactNode
-  className?: string
-  enabled: boolean
-}) {
-  return <div className={cn(enabled && "max-h-[31.5rem] overflow-y-auto pr-1", enabled && className)}>{children}</div>
-}
-
 function ChatModelTable({
+  allowedModels,
   defaultModel = "",
+  onAllowedChange,
   onDefault,
-  onDisable,
-  onEnable,
   options,
-  variant,
 }: {
+  allowedModels: Set<string>
   defaultModel?: string
   options: ChatModelOption[]
-  variant: "available" | "enabled"
+  onAllowedChange: (model: string, checked: boolean) => void
   onDefault?: (model: string) => void
-  onDisable?: (model: string, checked: boolean) => void
-  onEnable?: (model: string, checked: boolean) => void
 }) {
   return (
-    <div className="overflow-hidden rounded-md border bg-card">
-      <Table>
+    <div className="max-h-[24rem] overflow-auto rounded-md border bg-card [&_[data-slot=table-container]]:overflow-visible">
+      <Table className="table-fixed">
         <TableHeader>
           <TableRow>
-            <TableHead>Model</TableHead>
-            <TableHead className="hidden w-44 md:table-cell">Provider</TableHead>
-            <TableHead className="w-40 text-right">Action</TableHead>
+            <TableHead className="sticky top-0 z-10 bg-card">Model</TableHead>
+            <TableHead className="sticky top-0 z-10 hidden w-44 bg-card md:table-cell">Provider</TableHead>
+            <TableHead className="sticky top-0 z-10 w-20 bg-card text-right">Access</TableHead>
+            <TableHead className="sticky top-0 z-10 hidden w-36 bg-card text-right sm:table-cell">Default</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {options.map((option) => {
             const isDefault = option.value === defaultModel
+            const isEnabled = allowedModels.has(option.value)
 
             return (
               <TableRow key={option.value} data-state={isDefault ? "selected" : undefined}>
@@ -2950,10 +2911,26 @@ function ChatModelTable({
                   <div className="min-w-0">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <span className="truncate text-sm font-semibold">{option.label}</span>
-                      {isDefault ? <Badge className="shrink-0">Default</Badge> : null}
                     </div>
                     <div className="truncate text-xs text-muted-foreground md:hidden">
                       {option.providerLabel}
+                    </div>
+                    <div className="mt-2 sm:hidden">
+                      {isDefault ? (
+                        <Badge>
+                          <CheckCircle2 className="size-3" />
+                          Default
+                        </Badge>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={!isEnabled}
+                          onClick={() => onDefault?.(option.value)}
+                        >
+                          Set default
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </TableCell>
@@ -2961,31 +2938,30 @@ function ChatModelTable({
                   {option.providerLabel}
                 </TableCell>
                 <TableCell className="py-4 text-right">
-                  {variant === "available" ? (
-                    <Button size="sm" variant="outline" onClick={() => onEnable?.(option.value, true)}>
-                      Enable
-                    </Button>
+                  <div className="flex justify-end">
+                    <Switch
+                      checked={isEnabled}
+                      disabled={isDefault}
+                      aria-label={`${isEnabled ? "Disable" : "Enable"} ${option.label}`}
+                      onCheckedChange={(checked) => onAllowedChange(option.value, checked)}
+                    />
+                  </div>
+                </TableCell>
+                <TableCell className="hidden py-4 text-right sm:table-cell">
+                  {isDefault ? (
+                    <Badge>
+                      <CheckCircle2 className="size-3" />
+                      Default
+                    </Badge>
                   ) : (
-                    <div className="flex justify-end gap-2">
-                      {isDefault ? (
-                        <Badge variant="secondary">
-                          <CheckCircle2 className="size-3" />
-                          Default
-                        </Badge>
-                      ) : (
-                        <Button size="sm" variant="outline" onClick={() => onDefault?.(option.value)}>
-                          Default
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={isDefault}
-                        onClick={() => onDisable?.(option.value, false)}
-                      >
-                        Disable
-                      </Button>
-                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={!isEnabled}
+                      onClick={() => onDefault?.(option.value)}
+                    >
+                      Set default
+                    </Button>
                   )}
                 </TableCell>
               </TableRow>
@@ -3008,14 +2984,14 @@ function EmbeddingModelTable({
 }) {
   return (
     <RadioGroup value={selectedEmbeddingModelKey} onValueChange={onSelectedModelKeyChange}>
-      <div className="overflow-hidden rounded-md border bg-card">
+      <div className="max-h-[18rem] overflow-auto rounded-md border bg-card [&_[data-slot=table-container]]:overflow-visible">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-12" />
-              <TableHead>Model</TableHead>
-              <TableHead className="hidden w-44 md:table-cell">Provider</TableHead>
-              <TableHead className="hidden w-36 lg:table-cell">Dimensions</TableHead>
+              <TableHead className="sticky top-0 z-10 w-12 bg-card" />
+              <TableHead className="sticky top-0 z-10 bg-card">Model</TableHead>
+              <TableHead className="sticky top-0 z-10 hidden w-44 bg-card md:table-cell">Provider</TableHead>
+              <TableHead className="sticky top-0 z-10 hidden w-36 bg-card lg:table-cell">Dimensions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -3068,49 +3044,6 @@ function EmbeddingModelTable({
   )
 }
 
-function SelectedEmbeddingModelSummary({
-  option,
-  selectedModelChanged,
-}: {
-  option: EmbeddingModelOption | null
-  selectedModelChanged: boolean
-}) {
-  if (option === null) return <EmptyState message="No embedding model selected." />
-
-  return (
-    <div className="rounded-md border bg-card p-5">
-      <div className="mb-6 flex min-w-0 flex-wrap items-center gap-2">
-        <div className="break-words text-xl font-semibold">{option.model}</div>
-        {selectedModelChanged ? <Badge>Selected</Badge> : null}
-      </div>
-      <div className="grid gap-5 sm:grid-cols-2">
-        <SelectedEmbeddingMetric
-          icon={<Package className="size-5" />}
-          label="Provider"
-          value={option.providerLabel}
-        />
-        <SelectedEmbeddingMetric
-          icon={<Hash className="size-5" />}
-          label="Dimensions"
-          value={formatDimensionValue(option.dimensions)}
-        />
-      </div>
-    </div>
-  )
-}
-
-function SelectedEmbeddingMetric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
-  return (
-    <div className="flex min-w-0 gap-3">
-      <span className="mt-0.5 text-muted-foreground">{icon}</span>
-      <div className="min-w-0">
-        <div className="text-sm text-muted-foreground">{label}</div>
-        <div className="truncate text-sm font-semibold">{value}</div>
-      </div>
-    </div>
-  )
-}
-
 function TranslationModelTable({
   onSelectedModelKeyChange,
   options,
@@ -3122,14 +3055,14 @@ function TranslationModelTable({
 }) {
   return (
     <RadioGroup value={selectedTranslationModelKey} onValueChange={onSelectedModelKeyChange}>
-      <div className="overflow-hidden rounded-md border bg-card">
+      <div className="max-h-[18rem] overflow-auto rounded-md border bg-card [&_[data-slot=table-container]]:overflow-visible">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-12" />
-              <TableHead>Model</TableHead>
-              <TableHead className="hidden w-44 md:table-cell">Provider</TableHead>
-              <TableHead className="hidden w-36 lg:table-cell">Capability</TableHead>
+              <TableHead className="sticky top-0 z-10 w-12 bg-card" />
+              <TableHead className="sticky top-0 z-10 bg-card">Model</TableHead>
+              <TableHead className="sticky top-0 z-10 hidden w-44 bg-card md:table-cell">Provider</TableHead>
+              <TableHead className="sticky top-0 z-10 hidden w-36 bg-card lg:table-cell">Capability</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -3177,99 +3110,6 @@ function TranslationModelTable({
   )
 }
 
-function SelectedTranslationModelCard({
-  option,
-  selectedModelChanged,
-}: {
-  option: TranslationModelOption | null
-  selectedModelChanged: boolean
-}) {
-  if (option === null) return <EmptyState message="No translation model selected." />
-
-  return (
-    <SelectedModelCard
-      capabilityLabel="Capability"
-      capabilityValue="Multimodal"
-      model={option.label}
-      providerLabel={option.providerLabel}
-      selectedModelChanged={selectedModelChanged}
-      statusLabel={option.isConfigured ? "Configured" : "Available"}
-    />
-  )
-}
-
-function SelectedModelCard({
-  capabilityLabel,
-  capabilityValue,
-  isUnavailable = false,
-  model,
-  providerLabel,
-  selectedModelChanged,
-  statusLabel,
-}: {
-  capabilityLabel: string
-  capabilityValue: string
-  isUnavailable?: boolean
-  model: string
-  providerLabel: string
-  selectedModelChanged: boolean
-  statusLabel: string
-}) {
-  const stateLabel = isUnavailable ? "Unavailable" : selectedModelChanged ? "Selected for save" : statusLabel
-
-  return (
-    <div className="overflow-hidden rounded-md border border-primary/30 bg-card">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Model</TableHead>
-            <TableHead className="hidden w-36 md:table-cell">Provider</TableHead>
-            <TableHead className="hidden w-36 lg:table-cell">{capabilityLabel}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          <TableRow data-state="selected" className={cn(isUnavailable && "opacity-70")}>
-            <TableCell className="min-w-0 py-4">
-              <div className="min-w-0">
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <span className="truncate text-sm font-semibold">{model}</span>
-                  <Badge
-                    variant={isUnavailable ? "outline" : selectedModelChanged ? "default" : "secondary"}
-                    className="shrink-0"
-                  >
-                    {stateLabel}
-                  </Badge>
-                </div>
-                <div className="truncate text-xs text-muted-foreground md:hidden">{providerLabel}</div>
-                <div className="truncate text-xs text-muted-foreground lg:hidden">{capabilityValue}</div>
-              </div>
-            </TableCell>
-            <TableCell className="hidden py-4 text-muted-foreground md:table-cell">
-              {providerLabel}
-            </TableCell>
-            <TableCell className="hidden py-4 text-muted-foreground lg:table-cell">
-              {capabilityValue}
-            </TableCell>
-          </TableRow>
-        </TableBody>
-      </Table>
-      <div
-        className={cn(
-          "m-3 flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold",
-          isUnavailable
-            ? "border-border bg-muted text-muted-foreground"
-            : selectedModelChanged
-              ? "border-primary/30 bg-primary/10 text-primary"
-              : "border-primary/20 bg-primary/10 text-foreground",
-        )}
-      >
-        <CheckCircle2 className="size-4" />
-        {isUnavailable ? "Unavailable" : selectedModelChanged ? "Selected for save" : "Currently selected"}
-      </div>
-    </div>
-  )
-}
-
 function InfoNotice({ children }: { children: ReactNode }) {
   return (
     <div className="mt-auto flex gap-3 rounded-md border bg-card p-3 text-sm text-muted-foreground">
@@ -3310,6 +3150,7 @@ function StatusBadge({
     <Badge
       variant={tone === "enabled" ? "secondary" : "outline"}
       className={cn(
+        "h-6 px-2.5",
         tone === "enabled" && "border-primary/20 bg-primary/10 text-foreground",
         tone === "warning" && "border-border bg-muted text-muted-foreground",
       )}
@@ -3319,33 +3160,25 @@ function StatusBadge({
   )
 }
 
-function HeroVisual({ compact = false, state }: { state: AiSetupState; compact?: boolean }) {
-  const content =
-    state === "enabled"
-      ? "border-primary/20 bg-primary/10 text-foreground"
-      : state === "ready"
-        ? "border-primary/30 bg-primary/10 text-primary"
-        : state === "needs_configuration"
-          ? "border-border bg-muted text-muted-foreground"
-          : "bg-muted text-muted-foreground"
-
+function HeroStatusIcon({ state }: { state: AiSetupState }) {
   return (
-    <div
+    <span
       className={cn(
-        "flex items-center justify-center rounded-md border",
-        compact ? "h-28" : "h-40",
-        content,
+        "flex size-8 items-center justify-center rounded-full",
+        state === "enabled" && "bg-primary text-primary-foreground",
+        state === "ready" && "bg-secondary text-secondary-foreground",
+        (state === "needs_configuration" || state === "no_providers") && "bg-muted text-muted-foreground",
       )}
       aria-hidden="true"
     >
       {state === "needs_configuration" ? (
-        <TriangleAlert className={compact ? "size-11" : "size-16"} />
+        <TriangleAlert className="size-5" />
       ) : state === "no_providers" ? (
-        <Package className={compact ? "size-11" : "size-16"} />
+        <Package className="size-5" />
       ) : (
-        <CheckCircle2 className={compact ? "size-12" : "size-16"} />
+        <CheckCircle2 className="size-5" />
       )}
-    </div>
+    </span>
   )
 }
 
@@ -3356,6 +3189,16 @@ function getHeroContent(state: AiSetupState): {
   badgeVariant: "default" | "secondary" | "destructive" | "outline"
   className: string
 } {
+  if (state === "no_providers") {
+    return {
+      title: "No AI providers",
+      badge: "Unavailable",
+      description: "Configure an AI provider before setting up AI features.",
+      badgeVariant: "outline",
+      className: "border-border bg-muted/50",
+    }
+  }
+
   if (state === "needs_configuration") {
     return {
       title: "AI needs setup",
@@ -3379,9 +3222,9 @@ function getHeroContent(state: AiSetupState): {
   return {
     title: "AI is enabled",
     badge: "Enabled",
-    description: "AI is enabled. Configure the AI services below.",
-    badgeVariant: "secondary",
-    className: "border-primary/20 bg-primary/5",
+    description: "Configure the AI services below.",
+    badgeVariant: "default",
+    className: "border-primary/40 bg-primary/10 shadow-sm",
   }
 }
 
@@ -3441,10 +3284,6 @@ function getChatModelLabel(options: ChatModelOption[], value: string) {
 
 function formatDimensions(dimensions: number | null | undefined) {
   return dimensions === null || dimensions === undefined ? "Unknown dims" : `${dimensions.toLocaleString()} dims`
-}
-
-function formatDimensionValue(dimensions: number | null | undefined) {
-  return dimensions === null || dimensions === undefined ? "Unknown" : dimensions.toLocaleString()
 }
 
 function formatRelativeTime(timestamp: number) {

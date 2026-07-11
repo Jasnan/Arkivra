@@ -131,7 +131,7 @@ export function CreateVaultDialog() {
         <DialogHeader>
           <DialogTitle>New vault</DialogTitle>
           <DialogDescription>
-            Create a new vault for organizing documents and access.
+            Group related documents in one place and manage who can access them.
           </DialogDescription>
         </DialogHeader>
 
@@ -141,7 +141,7 @@ export function CreateVaultDialog() {
             <Input
               id={nameInputId}
               autoFocus
-              placeholder="Personal Vault"
+              placeholder="Finance & tax"
               value={name}
               disabled={isSubmitting}
               aria-invalid={nameError ? "true" : undefined}
@@ -157,7 +157,7 @@ export function CreateVaultDialog() {
             <Label htmlFor={descriptionInputId}>Description</Label>
             <Textarea
               id={descriptionInputId}
-              placeholder="Optional"
+              placeholder="Invoices, tax returns, and supporting records"
               value={description}
               disabled={isSubmitting}
               rows={3}
@@ -167,8 +167,8 @@ export function CreateVaultDialog() {
 
           <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
             {canCreateVault
-              ? "Vault permissions and member access can be configured after creation."
-              : "Vault creation will be queued for admin approval."}
+              ? "After creation, open the vault settings to invite members and assign viewer or editor access."
+              : "Your request will be sent to an administrator for approval before the vault is created."}
           </div>
 
           <div className="flex justify-end space-x-2 pt-4">

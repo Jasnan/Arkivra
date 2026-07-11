@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
-import { Archive, ArrowRight, FileText, HardDrive, ShieldCheck } from 'lucide-react';
+import { Archive, ArrowRight, FileText, HardDrive } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -132,10 +132,12 @@ function VaultGrid({
                   <FileText className="size-3.5" />
                   {vault.fileCount} {vault.fileCount === 1 ? 'file' : 'files'}
                 </span>
-                <span className="inline-flex items-center gap-1">
-                  <HardDrive className="size-3.5" />
-                  {formatBytes(vault.totalSize)}
-                </span>
+                {vault.fileCount > 0 ? (
+                  <span className="inline-flex items-center gap-1">
+                    <HardDrive className="size-3.5" />
+                    {formatBytes(vault.totalSize)}
+                  </span>
+                ) : null}
               </div>
               <Badge
                 variant="outline"
@@ -162,8 +164,9 @@ function VaultList({
 }) {
   return (
     <div className="-mt-4 overflow-hidden border-b bg-background md:-mt-6">
-      <div className="hidden grid-cols-[minmax(0,1fr)_7rem_4rem_5.75rem_7.5rem] gap-2 border-b bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground md:grid lg:px-6">
+      <div className="hidden grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)_6rem_3rem_4.5rem_6.5rem] gap-2 border-b bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground md:grid lg:px-6">
         <span>Name</span>
+        <span>Description</span>
         <span>Access</span>
         <span>Files</span>
         <span>Size</span>
@@ -175,7 +178,7 @@ function VaultList({
             key={vault.id}
             role="link"
             tabIndex={0}
-            className="grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b px-4 py-2 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[minmax(0,1fr)_7rem_4rem_5.75rem_7.5rem] lg:px-6"
+            className="grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b px-4 py-2 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)_6rem_3rem_4.5rem_6.5rem] lg:px-6"
             onClick={() => onOpenVault(vault)}
             onContextMenu={(event) => onOpenContextMenu(event, vault)}
             onKeyDown={(event) => {
@@ -193,11 +196,15 @@ function VaultList({
                 <div className="truncate font-medium">{vault.name}</div>
                 <div className="mt-0.5 truncate text-xs text-muted-foreground md:hidden">
                   {getParticipationLabel(vault)} · {vault.fileCount}{' '}
-                  {vault.fileCount === 1 ? 'file' : 'files'} · {formatBytes(vault.totalSize)}
+                  {vault.fileCount === 1 ? 'file' : 'files'}
+                  {vault.fileCount > 0 ? ` · ${formatBytes(vault.totalSize)}` : null}
                 </div>
               </div>
             </div>
 
+            <span className="hidden truncate text-sm text-muted-foreground md:block">
+              {getDescriptionPreview(getVaultDescription(vault.description)) ?? '—'}
+            </span>
             <Badge
               variant="outline"
               className={cn('hidden md:inline-flex', getParticipationBadgeClass(vault))}
@@ -208,7 +215,7 @@ function VaultList({
               {vault.fileCount}
             </span>
             <span className="hidden truncate text-sm text-muted-foreground md:block">
-              {formatBytes(vault.totalSize)}
+              {vault.fileCount > 0 ? formatBytes(vault.totalSize) : null}
             </span>
             <span className="hidden truncate text-sm text-muted-foreground md:block">
               {formatVaultDate(vault.updatedAt ?? vault.createdAt)}
@@ -381,7 +388,7 @@ export default function VaultsPage() {
         <div className="px-4 lg:px-6">
           <div className="flex min-h-80 flex-col items-center justify-center rounded-lg border bg-muted/20 p-8 text-center">
             <div className="flex size-14 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
-              <ShieldCheck className="size-7" />
+              <Archive className="size-7" strokeWidth={1.7} />
             </div>
             <h2 className="mt-4 text-lg font-semibold">No vaults yet</h2>
             <p className="mt-2 max-w-md text-sm text-muted-foreground">

@@ -14,7 +14,10 @@ export {
   rankCitationsForQuestion,
 } from './chat.citation-ranking.js';
 export {
+  alignCitationsToPromptOrder,
   buildChatMessageCitationRows,
+  createInlineCitationMarkerSanitizer,
+  sanitizeInlineCitationMarkers,
   sanitizeCitationsForMessagePersistence,
 } from './chat.citation-persistence.js';
 export {
@@ -22,7 +25,11 @@ export {
   isLikelyTruncatedSingleTokenAnswer,
   normalizeChatGenerationError,
 } from './chat.generation-guards.js';
-export { buildGlobalIntentSystemPrompt, formatFollowUpAssistantMessage } from './chat.core.js';
+export {
+  areChatScopesEquivalent,
+  buildGlobalIntentSystemPrompt,
+  formatFollowUpAssistantMessage,
+} from './chat.core.js';
 export {
   buildManifestHybridSearchArgs,
   filterCitationsToManifest,

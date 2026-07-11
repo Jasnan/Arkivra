@@ -2,6 +2,8 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
+    ports:
+      - '${ARKIVRA_POSTGRES_PORT:-5432}:5432'
     environment:
       POSTGRES_USER: arkivra
       POSTGRES_PASSWORD: arkivra

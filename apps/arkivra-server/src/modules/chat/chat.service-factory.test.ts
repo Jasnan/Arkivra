@@ -400,6 +400,38 @@ describe('chat service conversation activity ordering', () => {
     expect(db.conversationUpdateHistory.at(-1)?.toISOString()).toBe('2026-04-01T12:00:00.001Z');
   });
 
+  test('replaces the current turn scope when an internal caller supplies a new scope', async () => {
+    const db = new ChatMemoryDb({
+      conversations: [createConversationRow({ id: 'cht_1' })],
+      messages: [createMessageRow({ conversationId: 'cht_1' })],
+    });
+    const services = createServices(db);
+
+    const response = await services.createMessageStream({
+      userId: 'usr_1',
+      chatId: 'cht_1',
+      scope: { type: 'global', vaultIds: ['vlt_1', 'vlt_2'] },
+      messages: [userMessage],
+      responseMode: 'text',
+      includeCitations: false,
+      model: 'ollama:llama3.2',
+    });
+
+    expect(response).toBeInstanceOf(Response);
+    expect(db.conversations[0]?.contextSnapshot).toEqual({
+      type: 'global',
+      vaultIds: ['vlt_1', 'vlt_2'],
+    });
+    expect(db.conversations[0]?.vaultId).toBeNull();
+    const persistedUserRow = db.messages.find(
+      row => row.id !== 'msg_existing' && row.message.role === 'user',
+    );
+    expect(persistedUserRow?.message.metadata?.custom?.contextSnapshot).toEqual({
+      type: 'global',
+      vaultIds: ['vlt_1', 'vlt_2'],
+    });
+  });
+
   test('persists submitted user messages with the server message id', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(date('2026-04-01T12:00:00.000Z'));
@@ -431,6 +463,10 @@ describe('chat service conversation activity ordering', () => {
     expect(persistedUserRow).toBeDefined();
     expect(persistedUserRow?.message.id).toBe(persistedUserRow?.id);
     expect(persistedUserRow?.message.id).not.toBe(userMessage.id);
+    expect(persistedUserRow?.message.metadata?.custom?.contextSnapshot).toEqual({
+      type: 'vault',
+      vaultId: 'vlt_1',
+    });
   });
 
   test('completing the assistant response advances the parent activity timestamp again', async () => {

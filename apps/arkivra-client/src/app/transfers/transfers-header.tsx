@@ -5,6 +5,7 @@ import { ArrowDownUp } from "lucide-react"
 import { useLocation } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { TransfersDrawer } from "./transfers-drawer"
 import { useUploadManagerState } from "./use-upload-manager"
 
@@ -56,14 +57,19 @@ export function TransfersHeaderButton() {
 
   return (
     <>
-      <Button type="button" variant="ghost" size="icon" className="relative" aria-label={label} onClick={() => setIsOpen(true)}>
-        <ArrowDownUp className="size-4" />
-        {badgeCount > 0 ? (
-          <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
-            {badgeCount > 9 ? "9+" : badgeCount}
-          </span>
-        ) : null}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button type="button" variant="ghost" size="icon" className="relative" aria-label={label} onClick={() => setIsOpen(true)}>
+            <ArrowDownUp className="size-4" />
+            {badgeCount > 0 ? (
+              <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
+                {badgeCount > 9 ? "9+" : badgeCount}
+              </span>
+            ) : null}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{label}</TooltipContent>
+      </Tooltip>
       <TransfersDrawer open={isOpen} onOpenChange={setIsOpen} />
     </>
   )

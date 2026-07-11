@@ -144,11 +144,33 @@ function ArkivraThreadProvider({ children }: PropsWithChildren) {
   return <RuntimeAdapterProvider adapters={{ history }}>{children}</RuntimeAdapterProvider>
 }
 
-export function createArkivraThreadListAdapter(): RemoteThreadListAdapter {
+export function createArkivraThreadListAdapter({
+  ephemeralChatId,
+}: {
+  ephemeralChatId?: string | null
+} = {}): RemoteThreadListAdapter {
   return {
     async list() {
-      const { conversations } = await fetchJson<ChatListResponse>("/api/chats")
-      return { threads: sortConversationsByUpdatedAt(conversations).map(toThreadMetadata) }
+      const [{ conversations }, ephemeralConversation] = await Promise.all([
+        fetchJson<ChatListResponse>("/api/chats"),
+        ephemeralChatId
+          ? fetchJson<ChatDetailResponse>(`/api/chats/${encodeURIComponent(ephemeralChatId)}`)
+              .then(({ conversation }) => conversation)
+              .catch(() => null)
+          : Promise.resolve(null),
+      ])
+      const sortedConversations = sortConversationsByUpdatedAt(conversations)
+
+      if (!ephemeralConversation) {
+        return { threads: sortedConversations.map(toThreadMetadata) }
+      }
+
+      return {
+        threads: [
+          ephemeralConversation,
+          ...sortedConversations.filter((conversation) => conversation.id !== ephemeralConversation.id),
+        ].map(toThreadMetadata),
+      }
     },
     async initialize() {
       const { conversation } = await fetchJson<ChatCreateResponse>("/api/chats", {

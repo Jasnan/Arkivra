@@ -331,8 +331,17 @@ function useArkivraChatThreadRuntime(
   return runtime
 }
 
-export function ChatRuntimeProvider({ children }: { children: ReactNode }) {
-  const threadListAdapter = useMemo(() => createArkivraThreadListAdapter(), [])
+export function ChatRuntimeProvider({
+  children,
+  ephemeralChatId,
+}: {
+  children: ReactNode
+  ephemeralChatId?: string | null
+}) {
+  const threadListAdapter = useMemo(
+    () => createArkivraThreadListAdapter({ ephemeralChatId }),
+    [ephemeralChatId],
+  )
   const adapters = useMemo(
     () => ({
       speech: new WebSpeechSynthesisAdapter(),

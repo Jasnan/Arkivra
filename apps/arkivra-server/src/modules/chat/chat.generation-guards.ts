@@ -7,7 +7,19 @@ export function normalizeChatGenerationError(error: unknown) {
     return 'The chat response was interrupted before it finished. Please try again.';
   }
 
-  return message;
+  const safeApplicationErrors = [
+    'No chat models are available from the configured chat providers.',
+    'The model returned an empty answer. Please try again.',
+    'The model stopped after a partial answer. Please try again.',
+  ];
+  if (safeApplicationErrors.includes(message)) {
+    return message;
+  }
+  if (/^Model ".*" is not available from the configured chat providers\.$/.test(message)) {
+    return message;
+  }
+
+  return 'Chat generation failed. Please try again.';
 }
 
 export function isEmptyGeneratedChatContent(content: string) {

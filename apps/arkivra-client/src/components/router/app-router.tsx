@@ -1,7 +1,14 @@
 "use client"
 
 import { Suspense, useEffect, useMemo } from 'react'
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import {
+  createBrowserRouter,
+  createRoutesFromElements,
+  Navigate,
+  Route,
+  RouterProvider,
+  useLocation,
+} from 'react-router-dom'
 import { routes, type RouteConfig } from '@/config/routes'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { authClient } from '@/lib/auth-client'
@@ -159,10 +166,17 @@ function renderRoutes(routeConfigs: RouteConfig[]) {
   })
 }
 
+const router = createBrowserRouter(
+  createRoutesFromElements(
+    <>
+      {renderRoutes(routes)}
+    </>,
+  ),
+  { basename: import.meta.env.VITE_BASENAME || '' },
+)
+
 export function AppRouter() {
   return (
-    <Routes>
-      {renderRoutes(routes)}
-    </Routes>
+    <RouterProvider router={router} />
   )
 }

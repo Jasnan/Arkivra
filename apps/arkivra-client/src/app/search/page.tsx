@@ -20,7 +20,7 @@ import {
   Trash2,
   X,
 } from "lucide-react"
-import { Link, useSearchParams } from "react-router-dom"
+import { Link, useLocation, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import { BaseLayout } from "@/components/layouts/base-layout"
@@ -87,6 +87,16 @@ const SEARCH_RESULT_LIMIT = 25
 const SEARCH_QUERY_DEBOUNCE_MS = 280
 const SEARCH_LIST_SEPARATOR = ","
 const SEARCH_VIEW_STORAGE_KEY = "arkivra:search-view"
+
+function useSearchDocumentReturnState() {
+  const location = useLocation()
+
+  return {
+    documentReturnTo: `${location.pathname}${location.search}`,
+    documentReturnLabel: "search results",
+  } as const
+}
+
 const sortOptions: Array<{ value: SearchSortBy; label: string }> = [
   { value: "created_desc", label: "Recent" },
   { value: "created_asc", label: "Oldest" },
@@ -428,6 +438,8 @@ function ResultActions({
   onMove: () => void
   onTrash: () => void
 }) {
+  const documentReturnState = useSearchDocumentReturnState()
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -437,7 +449,7 @@ function ResultActions({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem asChild>
-          <Link to={`/vaults/${result.vaultId}/${result.documentId}`}>Open</Link>
+          <Link to={`/vaults/${result.vaultId}/${result.documentId}`} state={documentReturnState}>Open</Link>
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => downloadSearchResultDocument(result)}>
           <Download className="size-4" />
@@ -472,6 +484,8 @@ function SearchResultList({
   onMove: (result: SearchResultItem) => void
   onTrash: (result: SearchResultItem) => void
 }) {
+  const documentReturnState = useSearchDocumentReturnState()
+
   return (
     <div className="border-b bg-background">
       <Table>
@@ -494,7 +508,11 @@ function SearchResultList({
             return (
               <TableRow key={`${result.vaultId}-${result.documentId}`}>
                 <TableCell className="min-w-0 py-4 whitespace-normal">
-                  <Link to={`/vaults/${result.vaultId}/${result.documentId}`} className="flex min-w-0 gap-3">
+                  <Link
+                    to={`/vaults/${result.vaultId}/${result.documentId}`}
+                    state={documentReturnState}
+                    className="flex min-w-0 gap-3"
+                  >
                     <div className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-background text-muted-foreground">
                       <DocumentIcon className="size-5" strokeWidth={1.9} />
                     </div>
@@ -558,6 +576,8 @@ function SearchResultGrid({
   onMove: (result: SearchResultItem) => void
   onTrash: (result: SearchResultItem) => void
 }) {
+  const documentReturnState = useSearchDocumentReturnState()
+
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
       {results.map((result) => {
@@ -571,7 +591,11 @@ function SearchResultGrid({
             className="group rounded-md border bg-background p-4 transition-colors hover:border-primary/40 hover:bg-accent/30"
           >
             <div className="flex items-start justify-between gap-2">
-              <Link to={`/vaults/${result.vaultId}/${result.documentId}`} className="min-w-0 flex-1 text-center">
+              <Link
+                to={`/vaults/${result.vaultId}/${result.documentId}`}
+                state={documentReturnState}
+                className="min-w-0 flex-1 text-center"
+              >
                 <div className="mx-auto flex size-11 items-center justify-center rounded-md border bg-background text-muted-foreground">
                   <DocumentIcon className="size-5" strokeWidth={1.9} />
                 </div>

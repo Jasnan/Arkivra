@@ -20,7 +20,6 @@ export function VaultsViewToggle() {
       value={view}
       onValueChange={handleValueChange}
       variant="outline"
-      size="sm"
       aria-label="Vault view"
     >
       <ToggleGroupItem value="grid" aria-label="Grid view">

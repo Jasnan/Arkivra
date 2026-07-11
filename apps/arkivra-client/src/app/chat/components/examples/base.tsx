@@ -30,7 +30,7 @@ import {
   toModelSelectorOptions,
 } from "@/app/chat/lib/chat-model-options";
 import { useBaseConfig } from "@/app/chat/lib/base/config-provider";
-import type { BaseSuggestionIconId } from "@/app/chat/lib/base/defaults";
+import { draftContextFromSnapshot } from "@/app/chat/lib/chat-context-model";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
@@ -54,35 +54,30 @@ import {
   ThreadPrimitive,
   unstable_useMentionAdapter,
   unstable_useSlashCommandAdapter,
-  useAui,
   useAuiState,
   type Unstable_SlashCommand,
 } from "@assistant-ui/react";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
-  ChartColumnIcon,
   CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  CloudSunIcon,
-  CodeXmlIcon,
   CopyIcon,
   DownloadIcon,
   FileTextIcon,
   GlobeIcon,
   HelpCircleIcon,
   LanguagesIcon,
-  LightbulbIcon,
   MicIcon,
   MoreHorizontalIcon,
-  PanelLeftIcon,
   PencilIcon,
-  PencilLineIcon,
   PlusIcon,
   RefreshCwIcon,
   SlashIcon,
   SquareIcon,
+  TriangleAlertIcon,
+  VaultIcon,
   WrenchIcon,
 } from "lucide-react";
 import { useEffect, useId, useMemo, useState, type FC } from "react";
@@ -188,8 +183,36 @@ const isNewChatView = (s: AssistantState) =>
   s.thread.messages.length === 0 &&
   (!s.thread.isLoading || s.threads.isLoading);
 
-const Thread: FC = () => {
+type ChatAvailability = "loading" | "available" | "disabled" | "needs-setup" | "access-denied";
+
+function getChatAvailabilityNotice(availability: ChatAvailability) {
+  if (availability === "disabled") {
+    return {
+      title: "AI chat is disabled",
+      description: "AI features are disabled for this Arkivra instance. Contact your administrator to enable them.",
+    };
+  }
+
+  if (availability === "access-denied") {
+    return {
+      title: "AI chat is unavailable",
+      description: "Your account does not have permission to use AI features. Contact your administrator for access.",
+    };
+  }
+
+  if (availability === "needs-setup") {
+    return {
+      title: "AI chat needs setup",
+      description: "No chat models are currently available. Contact your administrator to complete AI setup.",
+    };
+  }
+
+  return null;
+}
+
+const Thread: FC<{ chatAvailability: ChatAvailability }> = ({ chatAvailability }) => {
   const isEmpty = useAuiState(isNewChatView);
+  const availabilityNotice = getChatAvailabilityNotice(chatAvailability);
 
   return (
     <ThreadPrimitive.Root
@@ -234,14 +257,19 @@ const Thread: FC = () => {
           )}
         >
           <ThreadScrollToBottom />
-          <Composer />
-          <AuiIf condition={isNewChatView}>
-            <div className="aui-thread-welcome-suggestions-shell min-h-19">
-              <AuiIf condition={(s) => s.composer.isEmpty}>
-                <ThreadSuggestions />
-              </AuiIf>
+          {availabilityNotice ? (
+            <div
+              role="alert"
+              className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm"
+            >
+              <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-400" />
+              <div className="min-w-0">
+                <p className="font-medium text-foreground">{availabilityNotice.title}</p>
+                <p className="mt-0.5 text-muted-foreground">{availabilityNotice.description}</p>
+              </div>
             </div>
-          </AuiIf>
+          ) : null}
+          <Composer disabled={chatAvailability !== "available"} />
         </ThreadPrimitive.ViewportFooter>
       </ThreadPrimitive.Viewport>
 
@@ -255,10 +283,9 @@ const ThreadScrollToBottom: FC = () => {
     <ThreadPrimitive.ScrollToBottom asChild>
       <TooltipIconButton
         tooltip="Scroll to bottom"
-        variant="outline"
-        className="aui-thread-scroll-to-bottom dark:border-border dark:bg-background dark:hover:bg-accent absolute -top-12 z-10 self-center rounded-full p-4 disabled:invisible"
+        className="aui-thread-scroll-to-bottom absolute -top-14 z-30 size-10 self-center rounded-full border bg-background p-0 text-foreground shadow-md hover:bg-accent hover:text-accent-foreground disabled:invisible"
       >
-        <ArrowDownIcon />
+        <ArrowDownIcon className="size-4" />
       </TooltipIconButton>
     </ThreadPrimitive.ScrollToBottom>
   );
@@ -281,90 +308,6 @@ const ThreadWelcome: FC = () => {
   );
 };
 
-const suggestionIconMap: Record<
-  BaseSuggestionIconId,
-  FC<{ className?: string }>
-> = {
-  weather: CloudSunIcon,
-  code: CodeXmlIcon,
-  write: PencilLineIcon,
-  analyze: ChartColumnIcon,
-  brainstorm: LightbulbIcon,
-  search: GlobeIcon,
-  document: FileTextIcon,
-  help: HelpCircleIcon,
-};
-
-const suggestionChipClass =
-  "aui-thread-welcome-suggestion border-primary/35 bg-primary/5 text-foreground hover:bg-primary/15 hover:border-primary/60 h-auto gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-normal whitespace-nowrap transition-colors [&_svg]:size-4 [&_svg]:text-primary";
-
-const ThreadSuggestions: FC = () => {
-  const { assistant } = useBaseConfig();
-  const aui = useAui();
-  const [expandedLabel, setExpandedLabel] = useState<string | null>(null);
-  const expandedGroup = assistant.suggestionGroups.find(
-    (group) => group.label === expandedLabel,
-  );
-
-  const sendPrompt = (prompt: string) => {
-    if (aui.thread().getState().isRunning) return;
-    aui.thread().append({
-      content: [{ type: "text", text: prompt }],
-      runConfig: aui.composer().getState().runConfig,
-    });
-  };
-
-  return (
-    <div className="aui-thread-welcome-suggestions flex w-full flex-col gap-2 px-4">
-      <div className="w-full scrollbar-none overflow-x-auto">
-        <div className="mx-auto flex w-max items-center gap-2">
-          {assistant.suggestionGroups.map((group) => {
-            const Icon = suggestionIconMap[group.icon] ?? LightbulbIcon;
-            return (
-              <Button
-                key={group.label}
-                variant="ghost"
-                className={cn(
-                  suggestionChipClass,
-                  group.label === expandedLabel &&
-                    "border-primary/70 bg-primary/20",
-                )}
-                onClick={() =>
-                  setExpandedLabel(
-                    group.label === expandedLabel ? null : group.label,
-                  )
-                }
-              >
-                <Icon />
-                {group.label}
-              </Button>
-            );
-          })}
-        </div>
-      </div>
-      {expandedGroup && (
-        <div
-          key={expandedGroup.label}
-          className="fade-in slide-in-from-top-1 animate-in w-full scrollbar-none overflow-x-auto duration-200"
-        >
-          <div className="mx-auto flex w-max items-center gap-2">
-            {expandedGroup.options.map((option) => (
-              <Button
-                key={option.label}
-                variant="ghost"
-                className={suggestionChipClass}
-                onClick={() => sendPrompt(option.prompt)}
-              >
-                {option.label}
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
 const slashIconMap: Record<string, FC<{ className?: string }>> = {
   FileText: FileTextIcon,
   Languages: LanguagesIcon,
@@ -372,7 +315,7 @@ const slashIconMap: Record<string, FC<{ className?: string }>> = {
   HelpCircle: HelpCircleIcon,
 };
 
-const Composer: FC = () => {
+const Composer: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
   const { assistant } = useBaseConfig();
   const mention = unstable_useMentionAdapter({ fallbackIcon: WrenchIcon });
   const slash = unstable_useSlashCommandAdapter({
@@ -390,9 +333,11 @@ const Composer: FC = () => {
     <ComposerPrimitive.Unstable_TriggerPopoverRoot>
       <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col">
         <ComposerPrimitive.AttachmentDropzone asChild>
-          <div
+          <fieldset
             data-slot="aui_composer-shell"
-            className="border-primary/25 data-[dragging=true]:border-ring focus-within:border-primary/60 dark:border-primary/25 dark:focus-within:border-primary/70 flex w-full flex-col gap-2 rounded-(--composer-radius) border bg-(--composer-bg) p-(--composer-padding) shadow-[0_4px_16px_-8px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] transition-[border-color,box-shadow] focus-within:shadow-[0_0_0_1px_var(--color-primary),0_8px_28px_-12px_var(--color-primary)] data-[dragging=true]:border-dashed data-[dragging=true]:bg-[color-mix(in_oklab,var(--color-primary)_12%,var(--color-background))] dark:shadow-none"
+            disabled={disabled}
+            aria-disabled={disabled}
+            className="border-primary/25 data-[dragging=true]:border-ring focus-within:border-primary/60 dark:border-primary/25 dark:focus-within:border-primary/70 flex min-w-0 w-full flex-col gap-2 rounded-(--composer-radius) border bg-(--composer-bg) p-(--composer-padding) shadow-[0_4px_16px_-8px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] transition-[border-color,box-shadow] focus-within:shadow-[0_0_0_1px_var(--color-primary),0_8px_28px_-12px_var(--color-primary)] data-[dragging=true]:border-dashed data-[dragging=true]:bg-[color-mix(in_oklab,var(--color-primary)_12%,var(--color-background))] disabled:cursor-not-allowed disabled:opacity-60 dark:shadow-none"
           >
             <ComposerQuotePreview />
             <ComposerAttachments />
@@ -401,7 +346,7 @@ const Composer: FC = () => {
               className="aui-composer-input placeholder:text-muted-foreground/80 max-h-32 min-h-10 w-full resize-none bg-transparent px-2.5 py-1 text-base outline-none"
             />
             <ComposerAction />
-          </div>
+          </fieldset>
         </ComposerPrimitive.AttachmentDropzone>
 
         <ComposerTriggerPopover char="@" {...mention} />
@@ -659,7 +604,9 @@ const UserMessage: FC = () => {
       data-role="user"
       className="fade-in slide-in-from-bottom-1 animate-in mx-auto grid w-full max-w-(--thread-max-width) auto-rows-auto grid-cols-[minmax(72px,1fr)_auto] content-start gap-y-2 px-2 duration-150 [&:where(>*)]:col-start-2"
     >
-      <UserMessageAttachments />
+      <UserMessageAttachments>
+        <UserMessageContextAttachments />
+      </UserMessageAttachments>
 
       <div className="aui-user-message-content-wrapper relative col-start-2 min-w-0">
         <div className="aui-user-message-content peer bg-muted text-foreground rounded-xl px-4 py-2 wrap-break-word empty:hidden">
@@ -678,6 +625,51 @@ const UserMessage: FC = () => {
         className="col-span-full col-start-1 row-start-3 -mr-1 justify-end"
       />
     </MessagePrimitive.Root>
+  );
+};
+
+const UserMessageContextAttachments: FC = () => {
+  const contextSnapshot = useAuiState((state) => {
+    const metadata = state.message.metadata as
+      | { custom?: { contextSnapshot?: unknown } }
+      | undefined;
+    return metadata?.custom?.contextSnapshot;
+  });
+  const context = useMemo(
+    () => draftContextFromSnapshot(contextSnapshot),
+    [contextSnapshot],
+  );
+  const isGlobalContext =
+    contextSnapshot !== null &&
+    typeof contextSnapshot === "object" &&
+    !Array.isArray(contextSnapshot) &&
+    (contextSnapshot as { type?: unknown }).type === "global";
+
+  if (isGlobalContext) return null;
+
+  return (
+    <>
+      {context.vaults.map((vault) => (
+        <div
+          key={`vault:${vault.vaultId}`}
+          className="flex h-14 max-w-52 items-center gap-2 rounded-md border bg-background px-3 text-sm shadow-sm"
+          title={vault.name ?? "Vault"}
+        >
+          <VaultIcon className="size-5 shrink-0 text-muted-foreground" />
+          <span className="truncate font-medium">{vault.name ?? "Vault"}</span>
+        </div>
+      ))}
+      {context.documents.map((document) => (
+        <div
+          key={`document:${document.vaultId}:${document.documentId}`}
+          className="flex h-14 max-w-52 items-center gap-2 rounded-md border bg-background px-3 text-sm shadow-sm"
+          title={document.name ?? "Document"}
+        >
+          <FileTextIcon className="size-5 shrink-0 text-muted-foreground" />
+          <span className="truncate font-medium">{document.name ?? "Document"}</span>
+        </div>
+      ))}
+    </>
   );
 };
 
@@ -761,7 +753,7 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
   );
 };
 
-export const Base: FC = () => {
+export const Base: FC<{ chatAvailability: ChatAvailability }> = ({ chatAvailability }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   return (
@@ -778,6 +770,11 @@ export const Base: FC = () => {
             sidebarCollapsed ? "justify-center px-2 py-3" : "gap-3 px-4 py-3",
           )}
         >
+          {!sidebarCollapsed && (
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-medium">Conversations</h2>
+            </div>
+          )}
           <TooltipIconButton
             tooltip={
               sidebarCollapsed ? "Show conversations" : "Hide conversations"
@@ -788,13 +785,12 @@ export const Base: FC = () => {
             className="size-8 shrink-0"
             onClick={() => setSidebarCollapsed((value) => !value)}
           >
-            <PanelLeftIcon className="size-4" />
+            {sidebarCollapsed ? (
+              <ChevronRightIcon className="size-4" />
+            ) : (
+              <ChevronLeftIcon className="size-4" />
+            )}
           </TooltipIconButton>
-          {!sidebarCollapsed && (
-            <div className="min-w-0 flex-1">
-              <h2 className="text-sm font-medium">Conversations</h2>
-            </div>
-          )}
         </div>
         {sidebarCollapsed ? (
           <div className="flex flex-col items-center gap-1 p-2">
@@ -817,7 +813,7 @@ export const Base: FC = () => {
         )}
       </aside>
       <main className="min-w-0 flex-1 overflow-hidden">
-        <Thread />
+        <Thread chatAvailability={chatAvailability} />
       </main>
     </div>
   );

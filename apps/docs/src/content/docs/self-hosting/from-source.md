@@ -1,76 +1,110 @@
 ---
-title: From Source
-description: Run Arkivra from a local source checkout.
+title: From source
+description: Run the Arkivra API, worker, and dashboard from a source checkout.
 ---
 
-Use this path for local development or evaluation from a source checkout. Production deployments should still review secrets, TLS, network access, email delivery, backups, and database operations before storing important documents.
+Use this setup for development and local evaluation. It runs the dashboard, API, and worker as separate processes and lets Docker provide PostgreSQL if you do not already have it.
 
-## Requirements
+## Prerequisites
 
 - Node.js 22
-- `pnpm` 10.30.3
-- PostgreSQL with pgvector
-- Docling Serve
-- `openssl` or another secure random generator for encryption keys
+- pnpm 10.30.3 through Corepack or a compatible installation
+- PostgreSQL 16 with pgvector
+- a reachable Docling Serve endpoint
+- OpenSSL
 
-## Setup
+## Prepare the repository
 
-```bash
-pnpm install
-cp .env.example .env
-openssl rand -hex 32
-```
+1. Install dependencies:
 
-Set the generated value in `.env`:
+   ```bash
+   pnpm install
+   ```
 
-```bash
-ARKIVRA_ENCRYPTION_KEYS=1:<generated-64-hex-character-key>
-```
+2. Create the environment file:
 
-For the default local dashboard/API split, keep:
+   ```bash
+   cp .env.example .env
+   ```
 
-```bash
-ARKIVRA_PUBLIC_URL=http://localhost:5173
-ARKIVRA_DATA_PATH=./var/default
-```
+3. Generate an encryption key and set it in `.env`:
 
-Start Docling separately, then set its URL in `.env`:
+   ```bash
+   openssl rand -hex 32
+   ```
 
-```bash
-ARKIVRA_DOCLING_URL=http://127.0.0.1:5001
-```
+   ```dotenv
+   ARKIVRA_ENCRYPTION_KEYS=1:<generated-64-hex-character-key>
+   ```
 
-Run migrations:
+4. Keep the default local split-origin values unless you need different ports:
 
-```bash
-pnpm db:migrate
-```
+   ```dotenv
+   ARKIVRA_PUBLIC_URL=http://localhost:5173
+   ARKIVRA_DATABASE_URL=postgres://arkivra:arkivra@127.0.0.1:5432/arkivra
+   ARKIVRA_DATA_PATH=./var/default
+   ARKIVRA_DOCLING_URL=http://127.0.0.1:5001
+   ```
 
-Start the app processes:
+The API environment loader reads the repository `.env` and `apps/arkivra-server/.env` when present.
 
-```bash
-pnpm dev:api
-pnpm dev:worker
-pnpm dev:web
-```
+## Start PostgreSQL and Docling
 
-Local URLs:
-
-- Dashboard: `http://localhost:5173`
-- API: `http://localhost:1221`
-- Docling: `http://localhost:5001`
-
-The API scripts load `.env` from the repository root and `apps/arkivra-server/.env` when present.
-
-## Docker-Backed Services
-
-For local source development, you can let Docker Compose provide PostgreSQL, then run Docling separately and run the API, worker, and dashboard from source:
+Start only the repository PostgreSQL service:
 
 ```bash
 docker compose up -d postgres
-pnpm dev:api
-pnpm dev:worker
-pnpm dev:web
 ```
 
-See [Docling Prerequisite](/self-hosting/docling-prerequisite/) for Docling setup options and [Using Docker Compose](/self-hosting/using-docker-compose/) for the Compose service layout.
+Start Docling separately. The native or container options are documented in [Document processing](/self-hosting/document-processing/).
+
+Verify both dependencies before continuing:
+
+```bash
+docker compose ps postgres
+curl http://127.0.0.1:5001/health
+```
+
+## Migrate and run
+
+1. Apply database migrations:
+
+   ```bash
+   pnpm db:migrate
+   ```
+
+2. Start these commands in separate terminals:
+
+   ```bash
+   pnpm dev:api
+   ```
+
+   ```bash
+   pnpm dev:worker
+   ```
+
+   ```bash
+   pnpm dev:web
+   ```
+
+3. Open the dashboard at `http://localhost:5173`.
+
+The API listens on `http://localhost:1221`; the dashboard development server proxies `/api` requests to it. The worker does not expose a browser page, but it must remain running for document processing, semantic indexing, backup jobs, restore jobs, and scheduled maintenance.
+
+## Useful checks
+
+Run focused checks for the app you changed:
+
+```bash
+pnpm --dir apps/arkivra-server test:fast
+pnpm --dir apps/arkivra-client test:fast
+pnpm --dir apps/docs check
+```
+
+Check migration/schema agreement with:
+
+```bash
+pnpm db:check
+```
+
+For a production source deployment, use built artifacts and a process manager, run migrations before starting a web-capable process, and give the API and worker the same stable configuration and data paths. The repository Docker image already encodes this startup order.

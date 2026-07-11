@@ -1,13 +1,13 @@
 ---
-title: Configuration
-description: Environment variables for configuring Arkivra.
+title: Configuration reference
+description: Configure Arkivra with environment variables and understand their defaults.
 ---
 
 Arkivra reads configuration from environment variables. Start with the standard variables below. Most deployments should not need the advanced overrides.
 
 The root `.env.example` contains a minimal local configuration with required values and optional feature sections.
 
-## Standard Configuration
+## Standard configuration
 
 | Variable                  | Purpose                                                                                                          | Default                                             |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
@@ -32,7 +32,7 @@ ARKIVRA_ENCRYPTION_KEYS=1:<generated-64-hex-character-key>
 
 For key rotation, keep old versions available and add a higher version for new files, for example `1:<old>,2:<new>`. Removing a version that was used to encrypt stored files prevents those files from being decrypted.
 
-## Derived Paths
+## Derived paths
 
 When only `ARKIVRA_DATA_PATH` is set, Arkivra derives:
 
@@ -44,15 +44,15 @@ When only `ARKIVRA_DATA_PATH` is set, Arkivra derives:
 
 If `APP_INSTANCE` is set and `ARKIVRA_DATA_PATH` is not set, the data root becomes `./var/<APP_INSTANCE>`. This is mainly useful for local secondary worktrees.
 
-## Optional Features
+## Optional features
 
 ### Restore
 
-| Variable                          | Purpose                                                             | Default |
-| --------------------------------- | ------------------------------------------------------------------- | ------- |
-| `ARKIVRA_RESTORE_BOOTSTRAP_TOKEN` | Token that enables `/restore` before an active admin account exists | unset   |
+| Variable                          | Purpose                                                                               | Default |
+| --------------------------------- | ------------------------------------------------------------------------------------- | ------- |
+| `ARKIVRA_RESTORE_BOOTSTRAP_TOKEN` | Token that enables bootstrap restore API routes before an active admin account exists | unset   |
 
-The `/restore` path is disabled automatically once an active admin exists.
+Bootstrap restore API routes are disabled automatically once an active admin exists. The current dashboard does not provide a `/restore` page.
 
 ### Email
 
@@ -83,13 +83,13 @@ Redirect URLs are derived from the public URL as `/api/auth/callback/google` and
 
 AI features are disabled until configured by an admin in Arkivra. Core document ingestion and full-text search do not require AI.
 
-| Variable         | Purpose                                              | Default |
-| ---------------- | ---------------------------------------------------- | ------- |
-| `GEMINI_API_KEY` | Default environment secret reference for Gemini chat | unset   |
+| Variable         | Purpose                                                                           | Default |
+| ---------------- | --------------------------------------------------------------------------------- | ------- |
+| `GEMINI_API_KEY` | Default environment secret reference for Gemini chat, translation, and embeddings | unset   |
 
 Admins can also configure provider settings that reference other environment variable names. Store provider credentials outside the database and reference them by name from the admin AI settings page.
 
-## Runtime Variables
+## Runtime variables
 
 These variables are useful for local development, process managers, or containers. They are not usually part of product configuration.
 
@@ -102,11 +102,11 @@ These variables are useful for local development, process managers, or container
 | `ARKIVRA_HOSTNAME`     | API bind hostname                                               | `0.0.0.0`     |
 | `APP_INSTANCE`         | Optional namespace for local runtime state                      | unset         |
 
-## Advanced Overrides
+## Advanced overrides
 
 Use these only when the standard variables do not match your deployment. They remain supported for split-origin deployments, legacy migration, troubleshooting, or operational tuning.
 
-### Split-Origin URL Overrides
+### Split-origin URL overrides
 
 | Variable                       | Purpose                                     | Default derived from   |
 | ------------------------------ | ------------------------------------------- | ---------------------- |
@@ -118,7 +118,7 @@ Use these only when the standard variables do not match your deployment. They re
 | `GOOGLE_REDIRECT_URI`          | Explicit Google OAuth redirect URI          | derived callback URI   |
 | `GITHUB_REDIRECT_URI`          | Explicit GitHub OAuth redirect URI          | derived callback URI   |
 
-### Path Overrides
+### Path overrides
 
 | Variable                      | Purpose                                 | Default derived from |
 | ----------------------------- | --------------------------------------- | -------------------- |
@@ -126,7 +126,7 @@ Use these only when the standard variables do not match your deployment. They re
 | `ARKIVRA_UPLOAD_STAGING_PATH` | Temporary multipart upload staging path | `ARKIVRA_DATA_PATH`  |
 | `ARKIVRA_BACKUPS_PATH`        | Backup archive directory                | `ARKIVRA_DATA_PATH`  |
 
-### Uploads And Backups
+### Uploads and backups
 
 | Variable                                | Purpose                                        | Default             |
 | --------------------------------------- | ---------------------------------------------- | ------------------- |
@@ -140,7 +140,7 @@ New backup archives are encrypted with the active key version from `ARKIVRA_ENCR
 
 `ARKIVRA_BACKUP_ENCRYPTION_KEY` is deprecated. It is only needed to restore older backup sets that were created before backup encryption used `ARKIVRA_ENCRYPTION_KEYS`.
 
-### Parsing And Processing
+### Parsing and processing
 
 | Variable                                       | Purpose                                                                 | Default         |
 | ---------------------------------------------- | ----------------------------------------------------------------------- | --------------- |
@@ -148,20 +148,21 @@ New backup archives are encrypted with the active key version from `ARKIVRA_ENCR
 | `ARKIVRA_DOCLING_VLM_PIPELINE`                 | `enabled` routes scan-heavy PDFs and image files through Docling VLM    | `disabled`      |
 | `ARKIVRA_DOCLING_VLM_MODEL`                    | Docling VLM model or preset. Only valid when VLM pipeline is enabled.   | Docling default |
 | `ARKIVRA_DOCLING_ENGINE_VERSION`               | Docling version recorded for parser provenance                          | `v1`            |
+| `ARKIVRA_GOTENBERG_URL`                        | Optional Gotenberg base URL for derived office-document PDF previews    | unset           |
 | `ARKIVRA_PDF_SCAN_DETECTION_MAX_SAMPLED_PAGES` | PDF pages sampled for scanned/digital classification                    | `8`             |
 | `ARKIVRA_PDF_SCAN_DETECTION_MIN_TEXT_ITEMS`    | Text objects required for a sampled page to count as digital            | `20`            |
 | `ARKIVRA_PDF_SCAN_DETECTION_MIN_ALNUM_CHARS`   | Alphanumeric characters required for a sampled page to count as digital | `120`           |
 | `ARKIVRA_PDF_SCAN_DETECTION_SCAN_HEAVY_RATIO`  | Scanned-page ratio for scan-heavy classification                        | `0.7`           |
 | `ARKIVRA_PDF_SCAN_DETECTION_MIXED_RATIO`       | Scanned-page ratio for mixed classification                             | `0.2`           |
 
-### Retention And Jobs
+### Retention and jobs
 
 | Variable                                     | Purpose                                                       | Default     |
 | -------------------------------------------- | ------------------------------------------------------------- | ----------- |
 | `ARKIVRA_DOCUMENT_RETENTION_DAYS`            | Days soft-deleted documents are retained before hard deletion | `30`        |
 | `ARKIVRA_HARD_DELETE_EXPIRED_DOCUMENTS_CRON` | Cron pattern for expired document hard deletion               | `0 3 * * *` |
 
-### AI Defaults And Debugging
+### AI defaults and debugging
 
 | Variable                                  | Purpose                                                                 | Default |
 | ----------------------------------------- | ----------------------------------------------------------------------- | ------- |
@@ -173,7 +174,7 @@ New backup archives are encrypted with the active key version from `ARKIVRA_ENCR
 
 Do not enable provider request logging with sensitive documents unless you have a deliberate redacted logging plan.
 
-### Internal Metadata
+### Internal metadata
 
 | Variable                | Purpose                                                            | Default |
 | ----------------------- | ------------------------------------------------------------------ | ------- |

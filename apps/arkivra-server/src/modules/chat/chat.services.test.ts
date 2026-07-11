@@ -17,6 +17,7 @@ import {
   buildExpandedCitationForChat,
   buildManifestHybridSearchArgs,
   filterCitationsToManifest,
+  buildGlobalAnswerSystemPrompt,
   buildGlobalIntentSystemPrompt,
   getFrozenManifestContextAvailability,
   formatFollowUpAssistantMessage,
@@ -31,6 +32,7 @@ import {
   sanitizeInlineCitationMarkers,
   shouldMaterializeConversationManifest,
   shouldRequireRetrievalConfidence,
+  shouldResolveIntentFollowUp,
 } from './chat.services.js';
 
 const citation: Citation = {
@@ -1639,6 +1641,34 @@ describe('chat service helpers', () => {
     expect(prompt).toContain('You are Arkivra, an AI assistant');
     expect(prompt).toContain('User intent: compare documents.');
     expect(prompt).toContain('Do not proceed until comparison targets are clear.');
+  });
+
+  test('compares an explicit selection without asking for targets again', () => {
+    const prompt = buildGlobalAnswerSystemPrompt({
+      intent: 'compare',
+      includeInlineCitations: true,
+      hasExplicitSelection: true,
+    });
+
+    expect(prompt).toContain('The user has already selected at least two comparison targets');
+    expect(prompt).toContain('Compare those selected targets directly');
+    expect(prompt).toContain('Do not ask which documents or vaults to compare.');
+    expect(prompt).not.toContain('Which documents should I compare?');
+  });
+
+  test('only resolves intent follow-ups for unscoped global chat', () => {
+    expect(shouldResolveIntentFollowUp({ type: 'global', vaultIds: ['vlt_1'] }, 'summarize')).toBe(true);
+    expect(shouldResolveIntentFollowUp({
+      type: 'selection',
+      vaults: [],
+      documents: [{ vaultId: 'vlt_1', documentId: 'doc_1' }],
+    }, 'summarize')).toBe(false);
+    expect(shouldResolveIntentFollowUp({ type: 'vault', vaultId: 'vlt_1' }, 'summarize')).toBe(false);
+    expect(shouldResolveIntentFollowUp({
+      type: 'document',
+      vaultId: 'vlt_1',
+      documentId: 'doc_1',
+    }, 'summarize')).toBe(false);
   });
 
   test('formats follow-up assistant questions as two short lines with examples', () => {

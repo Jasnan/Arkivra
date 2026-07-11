@@ -83,6 +83,79 @@ function getRequestedContextInput({
   return getMessageContextInput(messages) ?? body;
 }
 
+function getSelectedContextTargetCount(scope: ChatContextSnapshot) {
+  if (scope.type === 'vault' || scope.type === 'document') return 1;
+  if (scope.type === 'selection') return scope.vaults.length + scope.documents.length;
+  return 0;
+}
+
+function addDefaultIntentPrompt(
+  messages: ChatMessage[],
+  prompt: string,
+): ChatMessage[] | null {
+  let latestUserIndex = -1;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === 'user') {
+      latestUserIndex = index;
+      break;
+    }
+  }
+  if (latestUserIndex === -1) return null;
+
+  return messages.map((message, index) =>
+    index === latestUserIndex
+      ? {
+          ...message,
+          parts: [...message.parts, { type: 'text' as const, text: prompt }],
+        }
+      : message,
+  );
+}
+
+function prepareSubmittedMessages({
+  messages,
+  content,
+  intent,
+  scope,
+}: {
+  messages: ChatMessage[];
+  content: string;
+  intent: 'search' | 'summarize' | 'compare' | 'extract' | undefined;
+  scope: ChatContextSnapshot;
+}) {
+  const selectedTargetCount = getSelectedContextTargetCount(scope);
+
+  if (intent === 'compare' && selectedTargetCount < 2) {
+    return {
+      ok: false as const,
+      code: 'chat.invalid_context' as const,
+      message: 'Select at least two documents or vaults to compare',
+    };
+  }
+
+  if (content.length > 0) return { ok: true as const, messages };
+
+  if (intent === 'summarize' && selectedTargetCount > 0) {
+    return {
+      ok: true as const,
+      messages: addDefaultIntentPrompt(messages, 'Summarize the selected context.'),
+    };
+  }
+
+  if (intent === 'compare') {
+    return {
+      ok: true as const,
+      messages: addDefaultIntentPrompt(messages, 'Compare the selected context.'),
+    };
+  }
+
+  return {
+    ok: false as const,
+    code: 'chat.invalid_content' as const,
+    message: 'Select a document or vault before sending summarize without text',
+  };
+}
+
 export function registerChatRoutes({
   app,
   db,
@@ -234,7 +307,10 @@ export function registerChatRoutes({
       body?.includeCitations ?? configIncludeCitations,
     );
 
-    if (messages.length === 0 || content.length === 0) {
+    if (
+      messages.length === 0 ||
+      (content.length === 0 && intent !== 'summarize' && intent !== 'compare')
+    ) {
       return routeError(context, {
         status: 400,
         code: 'chat.invalid_content',
@@ -350,11 +426,22 @@ export function registerChatRoutes({
         });
       }
 
+      const preparedMessages = prepareSubmittedMessages({ messages, content, intent, scope: resolved.scope });
+      if (!preparedMessages.ok || preparedMessages.messages === null) {
+        return routeError(context, {
+          status: 400,
+          code: preparedMessages.ok ? 'chat.invalid_content' : preparedMessages.code,
+          message: preparedMessages.ok
+            ? 'messages must include a user message'
+            : preparedMessages.message,
+        });
+      }
+
       const stream = await services.createMessageStream({
         userId,
         chatId,
         ...(submittedScope !== undefined ? { scope: submittedScope } : {}),
-        messages,
+        messages: preparedMessages.messages,
         intent,
         responseMode,
         includeCitations,
@@ -404,10 +491,21 @@ export function registerChatRoutes({
       return routeError(context, resolved);
     }
 
+    const preparedMessages = prepareSubmittedMessages({ messages, content, intent, scope: resolved.scope });
+    if (!preparedMessages.ok || preparedMessages.messages === null) {
+      return routeError(context, {
+        status: 400,
+        code: preparedMessages.ok ? 'chat.invalid_content' : preparedMessages.code,
+        message: preparedMessages.ok
+          ? 'messages must include a user message'
+          : preparedMessages.message,
+      });
+    }
+
     const stream = await services.createMessageStream({
       userId,
       scope: resolved.scope,
-      messages,
+      messages: preparedMessages.messages,
       intent,
       responseMode,
       includeCitations,

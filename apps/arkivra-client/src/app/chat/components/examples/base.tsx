@@ -26,11 +26,16 @@ import {
 } from "@/app/chat/components/assistant-ui/reasoning";
 import { Button } from "@/components/ui/button";
 import {
+  getCachedChatModelOptions,
   getChatModelOptions,
   toModelSelectorOptions,
 } from "@/app/chat/lib/chat-model-options";
 import { useBaseConfig } from "@/app/chat/lib/base/config-provider";
-import { draftContextFromSnapshot } from "@/app/chat/lib/chat-context-model";
+import {
+  draftContextFromAttachments,
+  draftContextFromSnapshot,
+  type ComposerContextAttachment,
+} from "@/app/chat/lib/chat-context-model";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
@@ -52,8 +57,8 @@ import {
   MessagePrimitive,
   ThreadListPrimitive,
   ThreadPrimitive,
-  unstable_useMentionAdapter,
   unstable_useSlashCommandAdapter,
+  useAui,
   useAuiState,
   type Unstable_SlashCommand,
 } from "@assistant-ui/react";
@@ -63,41 +68,57 @@ import {
   CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  Columns2Icon,
   CopyIcon,
   DownloadIcon,
   FileTextIcon,
-  GlobeIcon,
-  HelpCircleIcon,
-  LanguagesIcon,
   MicIcon,
   MoreHorizontalIcon,
   PencilIcon,
   PlusIcon,
+  QuoteIcon,
   RefreshCwIcon,
   SlashIcon,
   SquareIcon,
   TriangleAlertIcon,
   VaultIcon,
-  WrenchIcon,
+  XIcon,
 } from "lucide-react";
 import { useEffect, useId, useMemo, useState, type FC } from "react";
 import { ModelSelector } from "@/app/chat/components/assistant-ui/model-selector";
 
+const CHAT_CITATIONS_PREFERENCE_KEY = "arkivra.chat.include-citations.v1";
+
+function getInitialCitationsPreference() {
+  if (typeof window === "undefined") return true;
+
+  try {
+    const stored = window.localStorage.getItem(CHAT_CITATIONS_PREFERENCE_KEY);
+    return stored === null ? true : stored === "true";
+  } catch {
+    return true;
+  }
+}
+
 const ModelPicker: FC = () => {
-  const [models, setModels] = useState<string[]>([]);
-  const [defaultModel, setDefaultModel] = useState<string | undefined>();
-  const [selectedModel, setSelectedModel] = useState<string | undefined>();
-  const [includeCitations, setIncludeCitations] = useState(true);
+  const cachedOptions = useMemo(() => getCachedChatModelOptions()?.options, []);
+  const [models, setModels] = useState<string[]>(cachedOptions?.models ?? []);
+  const [defaultModel, setDefaultModel] = useState<string | undefined>(
+    cachedOptions?.defaultModel || cachedOptions?.models[0] || undefined,
+  );
+  const [selectedModel, setSelectedModel] = useState<string | undefined>(
+    cachedOptions?.defaultModel || cachedOptions?.models[0] || undefined,
+  );
+  const [includeCitations, setIncludeCitations] = useState(
+    getInitialCitationsPreference,
+  );
   const citationsSwitchId = useId();
-  const [isLoadingModels, setIsLoadingModels] = useState(true);
   const [modelOptionsError, setModelOptionsError] = useState<string | null>(
     null,
   );
 
   useEffect(() => {
     let ignore = false;
-    setIsLoadingModels(true);
-
     getChatModelOptions()
       .then((result) => {
         if (ignore) return;
@@ -113,15 +134,10 @@ const ModelPicker: FC = () => {
       })
       .catch((error) => {
         if (ignore) return;
-        setModels([]);
-        setDefaultModel(undefined);
-        setSelectedModel(undefined);
+        // Keep cached metadata usable when a background refresh fails.
         setModelOptionsError(
           error instanceof Error ? error.message : "Unable to load chat models.",
         );
-      })
-      .finally(() => {
-        if (!ignore) setIsLoadingModels(false);
       });
 
     return () => {
@@ -130,11 +146,7 @@ const ModelPicker: FC = () => {
   }, []);
 
   const modelOptions = useMemo(() => {
-    if (isLoadingModels) {
-      return [{ id: "__loading__", name: "Loading models", disabled: true }];
-    }
-
-    if (modelOptionsError) {
+    if (modelOptionsError && models.length === 0) {
       return [{ id: "__error__", name: "Models unavailable", disabled: true }];
     }
 
@@ -143,8 +155,20 @@ const ModelPicker: FC = () => {
     }
 
     return toModelSelectorOptions(models);
-  }, [isLoadingModels, modelOptionsError, models]);
+  }, [modelOptionsError, models]);
   const requestConfig = useMemo(() => ({ includeCitations }), [includeCitations]);
+
+  function updateCitationsPreference(checked: boolean) {
+    setIncludeCitations(checked);
+    try {
+      window.localStorage.setItem(
+        CHAT_CITATIONS_PREFERENCE_KEY,
+        String(checked),
+      );
+    } catch {
+      // The preference still applies for the current page session.
+    }
+  }
 
   return (
     <>
@@ -159,20 +183,36 @@ const ModelPicker: FC = () => {
         className="h-7 rounded-full"
         contentClassName="min-w-72"
         searchable={models.length > 8}
+        footer={
+          <label
+            htmlFor={citationsSwitchId}
+            className="flex cursor-pointer items-center justify-between gap-4 rounded-md py-1"
+          >
+            <span className="flex min-w-0 flex-col">
+              <span className="text-sm font-medium">Cite sources</span>
+              <span className="text-muted-foreground text-xs">
+                Include source references in answers
+              </span>
+            </span>
+            <Switch
+              id={citationsSwitchId}
+              checked={includeCitations}
+              onCheckedChange={updateCitationsPreference}
+              aria-label="Cite sources"
+            />
+          </label>
+        }
       />
-      <label
-        htmlFor={citationsSwitchId}
-        className="text-muted-foreground hover:text-foreground inline-flex h-7 cursor-pointer items-center gap-2 rounded-full px-2 text-xs font-medium transition-colors"
-      >
-        <span>{includeCitations ? "Citations on" : "Citations off"}</span>
-        <Switch
-          id={citationsSwitchId}
-          checked={includeCitations}
-          onCheckedChange={setIncludeCitations}
-          aria-label={includeCitations ? "Citations on" : "Citations off"}
-          className="h-5 w-9 data-[state=checked]:bg-foreground data-[state=unchecked]:bg-muted-foreground/35 [&_[data-slot=switch-thumb]]:size-4"
-        />
-      </label>
+      {includeCitations && (
+        <span
+          role="status"
+          aria-label="Cite sources enabled. Change this in model options."
+          title="Cite sources enabled. Change this in model options."
+          className="bg-primary/10 text-primary inline-flex size-7 items-center justify-center rounded-full"
+        >
+          <QuoteIcon className="size-3.5" />
+        </span>
+      )}
     </>
   );
 };
@@ -269,7 +309,13 @@ const Thread: FC<{ chatAvailability: ChatAvailability }> = ({ chatAvailability }
               </div>
             </div>
           ) : null}
-          <Composer disabled={chatAvailability !== "available"} />
+          <Composer
+            disabled={
+              chatAvailability === "disabled" ||
+              chatAvailability === "needs-setup" ||
+              chatAvailability === "access-denied"
+            }
+          />
         </ThreadPrimitive.ViewportFooter>
       </ThreadPrimitive.Viewport>
 
@@ -310,24 +356,59 @@ const ThreadWelcome: FC = () => {
 
 const slashIconMap: Record<string, FC<{ className?: string }>> = {
   FileText: FileTextIcon,
-  Languages: LanguagesIcon,
-  Globe: GlobeIcon,
-  HelpCircle: HelpCircleIcon,
+  Columns2: Columns2Icon,
 };
+
+type ComposerChatIntent = "summarize" | "compare";
+
+function getComposerChatIntent(value: unknown): ComposerChatIntent | undefined {
+  return value === "summarize" || value === "compare" ? value : undefined;
+}
 
 const Composer: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
   const { assistant } = useBaseConfig();
-  const mention = unstable_useMentionAdapter({ fallbackIcon: WrenchIcon });
+  const aui = useAui();
+  const activeIntent = useAuiState((state) =>
+    getComposerChatIntent(state.composer.runConfig.custom?.intent),
+  );
+  const compareTargetCount = useAuiState((state) => {
+    const context = draftContextFromAttachments(
+      state.composer.attachments as readonly ComposerContextAttachment[],
+    );
+    return context.vaults.length + context.documents.length;
+  });
+  const isCompareSelectionIncomplete = activeIntent === "compare" && compareTargetCount < 2;
+  function setComposerIntent(intent: ComposerChatIntent | undefined) {
+    const composer = aui.composer();
+    const runConfig = composer.getState().runConfig;
+    const custom = Object.fromEntries(
+      Object.entries(runConfig.custom ?? {}).filter(([key]) => key !== "intent"),
+    );
+    composer.setRunConfig({
+      ...runConfig,
+      custom: intent ? { ...custom, intent } : custom,
+    });
+  }
+
   const slash = unstable_useSlashCommandAdapter({
     commands: assistant.slashCommands.map<Unstable_SlashCommand>((command) => ({
       id: command.id,
       description: command.description,
       icon: command.icon,
-      execute: () => console.log(`[base example] /${command.id} invoked`),
+      execute: () => setComposerIntent(command.id),
     })),
+    removeOnExecute: true,
     iconMap: slashIconMap,
     fallbackIcon: SlashIcon,
   });
+  const composerPlaceholder =
+    activeIntent === "summarize"
+      ? "What should I summarize?"
+      : activeIntent === "compare"
+        ? "Which documents should I compare?"
+        : assistant.labels.composerPlaceholder;
+  const ActiveIntentIcon = activeIntent === "compare" ? Columns2Icon : FileTextIcon;
+  const activeIntentLabel = activeIntent === "compare" ? "Compare" : "Summarize";
 
   return (
     <ComposerPrimitive.Unstable_TriggerPopoverRoot>
@@ -339,17 +420,41 @@ const Composer: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
             aria-disabled={disabled}
             className="border-primary/25 data-[dragging=true]:border-ring focus-within:border-primary/60 dark:border-primary/25 dark:focus-within:border-primary/70 flex min-w-0 w-full flex-col gap-2 rounded-(--composer-radius) border bg-(--composer-bg) p-(--composer-padding) shadow-[0_4px_16px_-8px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] transition-[border-color,box-shadow] focus-within:shadow-[0_0_0_1px_var(--color-primary),0_8px_28px_-12px_var(--color-primary)] data-[dragging=true]:border-dashed data-[dragging=true]:bg-[color-mix(in_oklab,var(--color-primary)_12%,var(--color-background))] disabled:cursor-not-allowed disabled:opacity-60 dark:shadow-none"
           >
+            {activeIntent && (
+              <div className="px-1 pt-1">
+                <span className="bg-primary/10 text-primary inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium">
+                  <ActiveIntentIcon className="size-3.5" />
+                  {activeIntentLabel}
+                  <button
+                    type="button"
+                    onClick={() => setComposerIntent(undefined)}
+                    aria-label={`Clear ${activeIntentLabel.toLowerCase()} mode`}
+                    className="hover:bg-primary/15 -me-1 inline-flex size-5 items-center justify-center rounded-full transition-colors"
+                  >
+                    <XIcon className="size-3" />
+                  </button>
+                </span>
+                {isCompareSelectionIncomplete && (
+                  <span className="text-muted-foreground ms-2 text-xs">
+                    Select at least two documents or vaults
+                  </span>
+                )}
+              </div>
+            )}
             <ComposerQuotePreview />
             <ComposerAttachments />
             <ComposerPrimitive.Input
-              placeholder={assistant.labels.composerPlaceholder}
+              placeholder={composerPlaceholder}
+              onKeyDown={(event) => {
+                if (isCompareSelectionIncomplete && event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                }
+              }}
               className="aui-composer-input placeholder:text-muted-foreground/80 max-h-32 min-h-10 w-full resize-none bg-transparent px-2.5 py-1 text-base outline-none"
             />
-            <ComposerAction />
+            <ComposerAction sendDisabled={isCompareSelectionIncomplete} />
           </fieldset>
         </ComposerPrimitive.AttachmentDropzone>
-
-        <ComposerTriggerPopover char="@" {...mention} />
 
         <ComposerTriggerPopover
           char="/"
@@ -361,7 +466,7 @@ const Composer: FC<{ disabled?: boolean }> = ({ disabled = false }) => {
   );
 };
 
-const ComposerAction: FC = () => {
+const ComposerAction: FC<{ sendDisabled?: boolean }> = ({ sendDisabled = false }) => {
   return (
     <div className="aui-composer-action-wrapper relative flex items-center justify-between">
       <div className="flex items-center gap-1">
@@ -404,13 +509,14 @@ const ComposerAction: FC = () => {
         <AuiIf condition={(s) => !s.thread.isRunning}>
           <ComposerPrimitive.Send asChild>
             <TooltipIconButton
-              tooltip="Send message"
+              tooltip={sendDisabled ? "Select at least two documents or vaults" : "Send message"}
               side="bottom"
               type="button"
               variant="default"
               size="icon"
               className="aui-composer-send size-7 rounded-full"
               aria-label="Send message"
+              disabled={sendDisabled}
             >
               <ArrowUpIcon className="aui-composer-send-icon size-4.5" />
             </TooltipIconButton>

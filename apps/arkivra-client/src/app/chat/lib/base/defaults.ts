@@ -30,9 +30,9 @@ export type ResolvedBaseConfig = {
       }>;
     }>;
     slashCommands: Array<{
-      id: string;
+      id: "summarize" | "compare";
       description: string;
-      icon: "FileText" | "Languages" | "Globe" | "HelpCircle";
+      icon: "FileText" | "Columns2";
     }>;
   };
 };
@@ -92,23 +92,13 @@ export const defaultBaseConfig = {
     slashCommands: [
       {
         id: "summarize",
-        description: "Summarize the conversation",
+        description: "Summarize selected documents",
         icon: "FileText",
       },
       {
-        id: "translate",
-        description: "Translate text to another language",
-        icon: "Languages",
-      },
-      {
-        id: "search",
-        description: "Search documents",
-        icon: "Globe",
-      },
-      {
-        id: "help",
-        description: "List available commands",
-        icon: "HelpCircle",
+        id: "compare",
+        description: "Compare selected documents",
+        icon: "Columns2",
       },
     ],
   },

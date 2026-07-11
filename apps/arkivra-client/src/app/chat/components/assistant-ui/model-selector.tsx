@@ -584,6 +584,8 @@ export type ModelSelectorProps = Omit<ModelSelectorRootProps, "children"> &
   VariantProps<typeof modelSelectorTriggerVariants> & {
     /** Render a search input above the model list. */
     searchable?: boolean;
+    /** Additional model-related controls rendered below the model list. */
+    footer?: ReactNode;
     className?: string;
     contentClassName?: string;
   };
@@ -613,6 +615,7 @@ function ModelSelectorModelContext() {
 
 const ModelSelectorImpl = ({
   searchable,
+  footer,
   variant,
   size,
   className,
@@ -631,6 +634,17 @@ const ModelSelectorImpl = ({
         {searchable && <ModelSelectorSearch />}
         <ModelSelectorList />
         <ModelSelectorEffort />
+        {footer && (
+          <div
+            data-slot="model-selector-footer"
+            className="border-t px-3 py-2"
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.stopPropagation();
+            }}
+          >
+            {footer}
+          </div>
+        )}
       </ModelSelectorContent>
     </ModelSelectorRoot>
   );

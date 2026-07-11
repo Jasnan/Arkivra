@@ -27,8 +27,10 @@ export {
 } from './chat.generation-guards.js';
 export {
   areChatScopesEquivalent,
+  buildGlobalAnswerSystemPrompt,
   buildGlobalIntentSystemPrompt,
   formatFollowUpAssistantMessage,
+  shouldResolveIntentFollowUp,
 } from './chat.core.js';
 export {
   buildManifestHybridSearchArgs,

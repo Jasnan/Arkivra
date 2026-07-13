@@ -24,7 +24,7 @@ Monitor disk use for PostgreSQL and the configured Arkivra named volume or host 
 
 Arkivra does not yet have a stable release line. Before updating the pinned beta image:
 
-1. Review repository changes and any available tagged release notes.
+1. Review the [changelog](/changelog/) and the notes for the target GitHub release.
 2. Create and export a tested Arkivra backup.
 3. Preserve deployment configuration and secrets separately.
 4. Stop user traffic when the change warrants a maintenance window.
@@ -136,4 +136,4 @@ Do not delete a maintenance marker while a backup or restore worker may still be
 
 When reporting a problem, include the Arkivra version or commit, deployment method, process role, sanitized configuration names, relevant timestamps, document type and size, job or backup ID, and redacted logs. Never include auth secrets, encryption keys, provider tokens, document text, embeddings, or unredacted provider payloads.
 
-Use a public repository issue only for non-sensitive bugs. The repository does not currently publish a dedicated vulnerability-reporting process; establish private contact with the maintainer before sharing security details or sensitive evidence.
+Use a public repository issue only for non-sensitive bugs. Follow the repository [security policy](https://github.com/Jasnan/Arkivra/security/policy) and use private vulnerability reporting or its documented email fallback before sharing security details or sensitive evidence.

@@ -6,7 +6,7 @@ import {
 	docsUrl,
 	githubUrl,
 	navigationItems,
-	selfHostingGuideUrl,
+	quickStartUrl,
 } from "@/data/landing";
 import { Archive, Menu, Moon, Sun, X } from "@lucide/astro";
 
@@ -50,7 +50,7 @@ const resolveNavigationHref = (href: string) =>
 				<GitHubMark class="size-5" />
 			</Button>
 			<Button href={docsUrl} variant="outline" target="_blank" rel="noopener noreferrer">Read the docs</Button>
-			<Button href={selfHostingGuideUrl} target="_blank" rel="noopener noreferrer">
+			<Button href={quickStartUrl} target="_blank" rel="noopener noreferrer">
 				<Archive class="mr-2 size-4" />
 				Self-host
 			</Button>
@@ -125,7 +125,7 @@ const resolveNavigationHref = (href: string) =>
 			<Button href={docsUrl} variant="outline" size="lg" class="w-full" target="_blank" rel="noopener noreferrer">
 				Read the docs
 			</Button>
-			<Button href={selfHostingGuideUrl} size="lg" class="w-full" target="_blank" rel="noopener noreferrer">
+			<Button href={quickStartUrl} size="lg" class="w-full" target="_blank" rel="noopener noreferrer">
 				Self-host Arkivra
 			</Button>
 		</div>

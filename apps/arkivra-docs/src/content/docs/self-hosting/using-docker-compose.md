@@ -148,7 +148,7 @@ The deployment defaults to the fixed version tag:
 ghcr.io/jasnan/arkivra:0.1.0-beta.1
 ```
 
-The GHCR package must be public, or the Docker client must already be authenticated to pull it. A pull-denied response on an otherwise correct image name can indicate that package visibility still needs to be changed.
+The beta package is public and can be pulled from GitHub Container Registry without authentication. A pull-denied response usually indicates an incorrect image name, a network or registry problem, or stale local registry credentials.
 
 To intentionally follow the newest beta, set:
 

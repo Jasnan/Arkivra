@@ -3,7 +3,7 @@ import GitHubMark from "@/components/icons/GitHubMark.astro";
 import Badge from "@/components/ui/Badge.astro";
 import Button from "@/components/ui/Button.astro";
 import DotPattern from "@/components/ui/DotPattern.astro";
-import { githubUrl, selfHostingGuideUrl } from "@/data/landing";
+import { githubUrl, quickStartUrl } from "@/data/landing";
 import { ArrowRight } from "@lucide/astro";
 ---
 
@@ -16,8 +16,9 @@ import { ArrowRight } from "@lucide/astro";
 		<div class="grid items-center gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:gap-12">
 			<div class="mx-auto max-w-2xl text-center lg:mx-0 lg:text-left">
 				<div class="mb-6 flex flex-wrap justify-center gap-2 lg:justify-start">
+					<Badge variant="secondary" class="px-4 py-2">Public beta · v0.1.0-beta.1</Badge>
 					<Badge variant="outline" class="border-foreground/40 px-4 py-2">Open source</Badge>
-					<Badge variant="secondary" class="px-4 py-2">Self-hostable</Badge>
+					<Badge variant="outline" class="border-foreground/40 px-4 py-2">Self-hostable</Badge>
 				</div>
 
 				<h1 class="mb-6 text-4xl font-bold tracking-tight text-balance sm:text-6xl lg:text-7xl">
@@ -30,8 +31,8 @@ import { ArrowRight } from "@lucide/astro";
 				</p>
 
 				<div class="flex flex-col gap-4 sm:flex-row sm:justify-center lg:justify-start">
-					<Button href={selfHostingGuideUrl} size="lg" class="text-base" target="_blank" rel="noopener noreferrer">
-						Self-host Arkivra
+					<Button href={quickStartUrl} size="lg" class="text-base" target="_blank" rel="noopener noreferrer">
+						Start with Docker
 						<ArrowRight class="ml-2 size-4" />
 					</Button>
 					<Button href={githubUrl} variant="outline" size="lg" class="text-base" target="_blank" rel="noopener noreferrer">

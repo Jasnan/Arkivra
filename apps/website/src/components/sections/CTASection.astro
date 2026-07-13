@@ -1,7 +1,7 @@
 ---
 import GitHubMark from "@/components/icons/GitHubMark.astro";
 import Button from "@/components/ui/Button.astro";
-import { githubUrl, selfHostingGuideUrl } from "@/data/landing";
+import { githubUrl, quickStartUrl } from "@/data/landing";
 import { ArrowRight, Server } from "@lucide/astro";
 ---
 
@@ -15,21 +15,21 @@ import { ArrowRight, Server } from "@lucide/astro";
 					</h1>
 
 					<p class="mx-auto max-w-2xl text-balance text-muted-foreground lg:text-xl">
-						Use the Docker guide to prepare the required services and start Arkivra. Review the complete source on GitHub
+						Use the quick-start guide to prepare the required services and start the public beta. Review the complete source on GitHub
 						before deployment.
 					</p>
 				</div>
 
 				<div class="flex flex-col justify-center gap-4 sm:flex-row sm:gap-6">
 					<Button
-						href={selfHostingGuideUrl}
+						href={quickStartUrl}
 						size="lg"
 						class="px-6 text-base font-medium"
 						target="_blank"
 						rel="noopener noreferrer"
 					>
 						<Server class="me-2 size-4" />
-						Self-host Arkivra
+						Start with Docker
 					</Button>
 					<Button
 						href={githubUrl}

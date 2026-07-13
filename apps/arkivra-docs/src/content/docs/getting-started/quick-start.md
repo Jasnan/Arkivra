@@ -12,7 +12,7 @@ This guide starts the pinned Arkivra beta, PostgreSQL, and the required Docling 
 - enough memory and CPU for Docling, or an existing Docling Serve endpoint reachable from Docker
 - enough disk space for PostgreSQL, uploaded files, extracted assets, and backups
 
-The public image is `ghcr.io/jasnan/arkivra:0.1.0-beta.1`. The GHCR package must be public, or your Docker client must already be authenticated to pull it.
+The public image is `ghcr.io/jasnan/arkivra:0.1.0-beta.1` and can be pulled from GitHub Container Registry without authentication.
 
 ## Prepare the deployment
 

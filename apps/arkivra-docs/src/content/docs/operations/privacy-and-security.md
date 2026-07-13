@@ -68,4 +68,4 @@ OAuth callback security depends on an accurate public URL and trusted-origin con
 
 ## Report vulnerabilities
 
-The repository does not currently publish a `SECURITY.md` or a dedicated vulnerability-reporting channel. Do not post credentials, document samples, or exploit details in a public issue; establish private contact with the maintainer before sharing sensitive evidence. The project is pre-1.0, so assess it against your threat model before storing high-impact material.
+Follow the repository [security policy](https://github.com/Jasnan/Arkivra/security/policy) and use GitHub private vulnerability reporting when it is available. If private reporting is unavailable, use the email fallback documented in `SECURITY.md`. Do not post credentials, document samples, or exploit details in a public issue or discussion. The project is pre-1.0, so assess it against your threat model before storing high-impact material.

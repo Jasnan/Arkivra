@@ -6,11 +6,11 @@ heading: "Project Terms"
 ---
 
 - **Effective date:** June 20, 2026
-- **Last updated:** June 20, 2026
+- **Last updated:** July 14, 2026
 
 ## 1. Project Terms
 
-Arkivra is open-source software released under the AGPL-3.0 license. You may use, copy, modify, and distribute Arkivra according to that license.
+Arkivra is open-source software released under the [GNU Affero General Public License v3.0 or later](https://github.com/Jasnan/Arkivra/blob/main/LICENSE). You may use, copy, modify, and distribute Arkivra according to that license.
 
 ## 2. Open-Source Software
 

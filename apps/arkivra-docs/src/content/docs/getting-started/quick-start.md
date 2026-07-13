@@ -1,82 +1,77 @@
 ---
 title: Quick start
-description: Start a local Arkivra instance with Docker Compose and create the first administrator.
+description: Start the published Arkivra beta with Docker Compose and create the first administrator.
 ---
 
-This guide starts the repository Docker Compose stack, connects it to a separate Docling Serve container, and gets you to a working Arkivra dashboard.
+This guide starts the pinned Arkivra beta, PostgreSQL, and the required Docling document parser with Docker Compose. The generator can bundle Docling or connect Arkivra to an existing bare-metal, containerized, or remote service.
 
 ## Prerequisites
 
 - Docker Engine with Docker Compose
-- Git
 - OpenSSL
-- enough memory and disk space for PostgreSQL, Arkivra, and the Docling models used for document processing
+- enough memory and CPU for Docling, or an existing Docling Serve endpoint reachable from Docker
+- enough disk space for PostgreSQL, uploaded files, extracted assets, and backups
 
-Arkivra is under active development and does not yet have a stable public release line. The current Compose file builds Arkivra from the checked-out source instead of pulling a published Arkivra image.
+The public image is `ghcr.io/jasnan/arkivra:0.1.0-beta.1`. The GHCR package must be public, or your Docker client must already be authenticated to pull it.
 
-## Start the services
+## Prepare the deployment
 
-1. Clone the repository and enter it:
-
-   ```bash
-   git clone https://github.com/Jasnan/Arkivra.git
-   cd Arkivra
-   ```
-
-2. Create the local environment file:
+1. Create a private deployment directory:
 
    ```bash
-   cp .env.example .env
+   mkdir arkivra && cd arkivra
+   umask 077
    ```
 
-3. Generate a file-encryption key and add it to `.env`:
+2. Use the [Compose generator](/docker-compose-generator/) to set the public URL, choose where Docling runs, and download `compose.yaml` plus a generated `.env` file. The default bundles the tested Docling CPU image:
+
+   ```text
+   ARKIVRA_PUBLIC_URL=http://localhost:3210
+   ARKIVRA_DOCLING_URL=http://docling:5001
+   ```
+
+   To use an existing Docling instance instead, select that option and enter the URL visible from inside the Arkivra container. Docling is required for document parsing and full-text search even when AI is not configured.
+
+   The generator writes the basic settings to `.env`. It creates the PostgreSQL password, authentication secret, and file-encryption key locally in your browser and never displays them or puts them in the Compose preview.
+
+3. Keep both files in the private deployment directory. Do not print, share, or commit `.env`.
 
    ```bash
-   openssl rand -hex 32
+   chmod 600 .env
    ```
 
-   Set the generated value as:
+   Use the exact HTTPS origin served by your reverse proxy for a non-local deployment. The Docling URL must be reachable from inside the Arkivra container; it may be an internal DNS name, another Compose service name, or a hosted endpoint.
 
-   ```dotenv
-   ARKIVRA_ENCRYPTION_KEYS=1:<generated-64-hex-character-key>
-   ```
+4. If Docling is running on the Docker host rather than on the internal Compose network, use a host address reachable from Docker. `host.docker.internal` is available by default in Docker Desktop but may need an explicit host-gateway mapping on Linux. Apple Silicon users can follow the [Arkivra Docling companion repository](https://github.com/Jasnan/arkivra-docling-apple-silicon) for a native MLX/MPS setup and optional VLM configuration.
 
-4. Set a stable authentication secret:
+## Start and verify Arkivra
 
-   ```dotenv
-   ARKIVRA_AUTH_SECRET=<strong-random-secret>
-   ```
-
-5. Start Docling Serve as a separate container:
+1. Validate the interpolated configuration without printing or sharing its output:
 
    ```bash
-   docker run --name arkivra-docling \
-     -d \
-     -p 5001:5001 \
-     -e DOCLING_SERVE_ENABLE_UI=1 \
-     quay.io/docling-project/docling-serve-cpu
+   docker compose config --quiet
    ```
 
-6. Point the Arkivra container at Docling:
-
-   ```dotenv
-   ARKIVRA_DOCLING_URL=http://host.docker.internal:5001
-   ```
-
-7. Build and start Arkivra:
+2. Pull and start the services:
 
    ```bash
+   docker compose pull
    docker compose up -d
    docker compose ps
+   ```
+
+3. Check Arkivra:
+
+   ```bash
    curl http://localhost:3210/api/health
    ```
 
-8. Open `http://localhost:3210`, register the first account, and sign in. When no active administrator exists, Arkivra promotes the oldest registered user after that user reaches an authenticated API route.
+4. Open `http://localhost:3210`, register the first account, and sign in. When no active administrator exists, Arkivra promotes the oldest registered user after that user reaches an authenticated API route.
 
-The expected result is a signed-in dashboard with access to the Administration menu. Database migrations run automatically when the web-capable production container starts.
+Database migrations run automatically before the web process starts. With the default generator choices, the expected result is healthy PostgreSQL, Docling, and Arkivra services.
 
 :::note
-Keep `ARKIVRA_ENCRYPTION_KEYS` and `ARKIVRA_AUTH_SECRET` stable. Losing encryption keys makes encrypted files and backups that depend on them unreadable. Changing the auth secret invalidates or disrupts authentication state.
+Keep `.env` stable and backed up separately from the named volumes. Losing an encryption key can make encrypted files unreadable. Changing the authentication secret disrupts existing authentication state.
 :::
 
 ## Upload a test document
@@ -91,11 +86,10 @@ If the upload completes but processing fails, verify that Docling is reachable f
 
 ## Before storing important documents
 
-- set `ARKIVRA_PUBLIC_URL` to the browser-facing HTTPS origin;
-- put Arkivra behind TLS and keep PostgreSQL off public networks;
-- configure SMTP if users need delivered verification, invitation, or reset emails;
-- set `ARKIVRA_RESTORE_BOOTSTRAP_TOKEN` for fresh-instance recovery;
+- put Arkivra behind a trusted TLS reverse proxy and keep the default loopback bind when the proxy runs on the Docker host;
+- close public registration after creating the accounts you need;
+- configure SMTP before requiring email verification or relying on invitations and password resets;
 - create a backup and test the restore procedure;
-- store encryption keys, auth secrets, provider credentials, and deployment configuration separately from Arkivra backups.
+- preserve both named volumes and the deployment secrets.
 
-Continue with [First steps](/getting-started/first-steps/) for the main document workflow or [Using Docker Compose](/self-hosting/using-docker-compose/) for the deployment layout.
+Continue with [First steps](/getting-started/first-steps/) for the main document workflow or [Using Docker Compose](/self-hosting/using-docker-compose/) for the deployment layout and update procedure.

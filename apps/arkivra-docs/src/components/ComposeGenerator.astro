@@ -1,0 +1,584 @@
+---
+import { Icon } from '@astrojs/starlight/components';
+import { DEFAULT_COMPOSE_CONFIG, generateCompose } from '../lib/compose-generator';
+
+const defaultCompose = generateCompose(DEFAULT_COMPOSE_CONFIG);
+---
+
+<div class="compose-generator not-content">
+	<form id="compose-generator-form" novalidate>
+		<section class="form-section" aria-labelledby="general-settings-title">
+			<h2 id="general-settings-title">General settings</h2>
+
+			<div class="form-row">
+				<label for="public-url">Public URL <span aria-hidden="true">*</span></label>
+				<div class="control">
+					<input
+						id="public-url"
+						name="publicUrl"
+						type="url"
+						placeholder="https://archive.example.com"
+						required
+						aria-describedby="public-url-error"
+					/>
+					<small class="field-error" id="public-url-error"></small>
+				</div>
+			</div>
+
+			<div class="form-row">
+				<label for="image-channel">Arkivra version</label>
+				<select id="image-channel" name="imageChannel">
+					<option value="pinned">0.1.0-beta.1 — pinned release</option>
+					<option value="beta">beta — automatically follows new betas</option>
+				</select>
+			</div>
+
+			<div class="form-row">
+				<label for="host-port">Host port</label>
+				<div class="control compact-control">
+					<input
+						id="host-port"
+						name="hostPort"
+						type="number"
+						min="1024"
+						max="65535"
+						step="1"
+						placeholder="3210"
+						inputmode="numeric"
+						aria-describedby="host-port-error"
+					/>
+					<small class="field-error" id="host-port-error"></small>
+				</div>
+			</div>
+
+			<div class="form-row">
+				<label for="bind-address">Published interface</label>
+				<select id="bind-address" name="bindAddress">
+					<option value="127.0.0.1">This host only — recommended for a reverse proxy</option>
+					<option value="0.0.0.0">All network interfaces</option>
+				</select>
+			</div>
+
+			<div class="form-row">
+				<label for="registration-enabled">Account registration</label>
+				<select id="registration-enabled" name="registrationEnabled">
+					<option value="true">Enabled for initial setup</option>
+					<option value="false">Disabled</option>
+				</select>
+			</div>
+		</section>
+
+		<section class="form-section" aria-labelledby="processing-settings-title">
+			<h2 id="processing-settings-title">Document processing</h2>
+			<p class="section-note">Docling is required. Gotenberg adds optional office previews.</p>
+
+			<div class="form-row">
+				<label for="docling-mode">Docling <span aria-hidden="true">*</span></label>
+				<select id="docling-mode" name="doclingMode">
+					<option value="docker">Run Docling in this Compose stack</option>
+					<option value="external">Connect to an existing Docling service</option>
+				</select>
+			</div>
+
+			<div class="form-row conditional-field" id="docling-url-field" hidden>
+				<label for="docling-url">Docling URL <span aria-hidden="true">*</span></label>
+				<div class="control">
+					<input
+						id="docling-url"
+						name="doclingUrl"
+						type="url"
+						placeholder="http://docling.internal:5001"
+						aria-describedby="docling-url-error"
+					/>
+					<small class="field-error" id="docling-url-error"></small>
+				</div>
+			</div>
+
+			<div class="form-row">
+				<label for="gotenberg-mode">Office previews with Gotenberg</label>
+				<select id="gotenberg-mode" name="gotenbergMode">
+					<option value="disabled">Do not configure office previews</option>
+					<option value="docker">Run Gotenberg in this Compose stack</option>
+					<option value="external">Connect to an existing Gotenberg service</option>
+				</select>
+			</div>
+
+			<div class="form-row conditional-field" id="gotenberg-url-field" hidden>
+				<label for="gotenberg-url">Gotenberg URL <span aria-hidden="true">*</span></label>
+				<div class="control">
+					<input
+						id="gotenberg-url"
+						name="gotenbergUrl"
+						type="url"
+						placeholder="http://gotenberg.internal:3000"
+						aria-describedby="gotenberg-url-error"
+					/>
+					<small class="field-error" id="gotenberg-url-error"></small>
+				</div>
+			</div>
+		</section>
+	</form>
+
+	<section class="generator-output" aria-labelledby="compose-output-title">
+		<div class="output-heading">
+			<div>
+				<h2 id="compose-output-title">Generated Compose file</h2>
+				<p id="generator-status" role="status" aria-live="polite">
+					Enter the public URL to enable the actions for the default bundled Docling stack.
+				</p>
+			</div>
+			<div class="actions">
+				<button id="copy-compose" type="button" disabled>
+					<Icon name="document" />
+					<span>Copy YAML</span>
+				</button>
+				<button id="download-compose" type="button" disabled>
+					<Icon name="download" />
+					<span>Download YAML</span>
+				</button>
+				<button id="download-env" class="primary-action" type="button" disabled>
+					<Icon name="padlock" />
+					<span>Download .env</span>
+				</button>
+			</div>
+		</div>
+
+		<p class="secret-note">
+			Secrets are generated in your browser and written only to <code>.env</code>. Keep both files
+			private and run <code>chmod 600 .env</code>.
+		</p>
+		<details class="compose-preview">
+			<summary>Preview compose.yaml</summary>
+			<div
+				id="compose-output"
+				class="code-output"
+				tabindex="0"
+				aria-label="Generated compose.yaml preview"
+			>
+				<pre><code>{defaultCompose}</code></pre>
+			</div>
+		</details>
+		<noscript>
+			<p class="noscript-note">
+				The default pinned Compose file with bundled Docling remains available above. Set
+				<code>ARKIVRA_DOCLING_URL=http://docling:5001</code>, replace the other required environment
+				placeholders manually, and follow the
+				<a href="/self-hosting/using-docker-compose/">Docker Compose guide</a> to generate secrets
+				with OpenSSL.
+			</p>
+		</noscript>
+	</section>
+</div>
+
+<script>
+	import { createHighlighterCore } from 'shiki/core';
+	import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
+	import yaml from 'shiki/langs/yaml.mjs';
+	import githubDark from 'shiki/themes/github-dark.mjs';
+	import {
+		generateCompose,
+		generateEnvironmentFile,
+		validateComposeConfig,
+		type ArkivraBindAddress,
+		type ArkivraImageChannel,
+		type ComposeGeneratorConfig,
+		type DoclingMode,
+		type GotenbergMode,
+	} from '../lib/compose-generator';
+
+	const form = document.querySelector<HTMLFormElement>('#compose-generator-form');
+	const output = document.querySelector<HTMLElement>('#compose-output');
+	const status = document.querySelector<HTMLElement>('#generator-status');
+	const copyButton = document.querySelector<HTMLButtonElement>('#copy-compose');
+	const composeDownloadButton = document.querySelector<HTMLButtonElement>('#download-compose');
+	const envDownloadButton = document.querySelector<HTMLButtonElement>('#download-env');
+	let currentCompose = output?.textContent ?? '';
+	const yamlHighlighter = createHighlighterCore({
+		langs: [yaml],
+		themes: [githubDark],
+		engine: createJavaScriptRegexEngine(),
+	});
+
+	function renderCompose(compose: string) {
+		currentCompose = compose;
+		if (!output) return;
+
+		// Keep an immediate plain-text preview while the small YAML highlighter loads.
+		output.textContent = compose;
+		void yamlHighlighter
+			.then((highlighter) => {
+				if (currentCompose !== compose) return;
+				output.innerHTML = highlighter.codeToHtml(compose, {
+					lang: 'yaml',
+					theme: 'github-dark',
+				});
+			})
+			.catch(() => {
+				// The plain-text preview remains fully usable if highlighting is unavailable.
+			});
+	}
+
+	function field<T extends HTMLInputElement | HTMLSelectElement>(name: string) {
+		const element = form?.elements.namedItem(name);
+		if (!(element instanceof HTMLElement)) {
+			throw new Error(`Missing Compose generator field: ${name}`);
+		}
+		return element as T;
+	}
+
+	function currentConfig(): ComposeGeneratorConfig {
+		const hostPortValue = field<HTMLInputElement>('hostPort').value.trim();
+		return {
+			imageChannel: field<HTMLSelectElement>('imageChannel').value as ArkivraImageChannel,
+			bindAddress: field<HTMLSelectElement>('bindAddress').value as ArkivraBindAddress,
+			hostPort: hostPortValue ? Number(hostPortValue) : 3210,
+			publicUrl: field<HTMLInputElement>('publicUrl').value.trim(),
+			doclingMode: field<HTMLSelectElement>('doclingMode').value as DoclingMode,
+			doclingUrl: field<HTMLInputElement>('doclingUrl').value.trim(),
+			gotenbergMode: field<HTMLSelectElement>('gotenbergMode').value as GotenbergMode,
+			gotenbergUrl: field<HTMLInputElement>('gotenbergUrl').value.trim(),
+			registrationEnabled: field<HTMLSelectElement>('registrationEnabled').value === 'true',
+		};
+	}
+
+	function setError(name: string, message?: string) {
+		const input = field<HTMLInputElement>(name);
+		const error = document.querySelector<HTMLElement>(`#${input.id}-error`);
+		input.toggleAttribute('aria-invalid', Boolean(message));
+		if (error) error.textContent = message ?? '';
+	}
+
+	function update() {
+		if (!output || !status || !copyButton || !composeDownloadButton || !envDownloadButton) {
+			return;
+		}
+		const config = currentConfig();
+		const externalDocling = config.doclingMode === 'external';
+		const externalGotenberg = config.gotenbergMode === 'external';
+		const doclingUrlField = document.querySelector<HTMLElement>('#docling-url-field');
+		const gotenbergUrlField = document.querySelector<HTMLElement>('#gotenberg-url-field');
+		doclingUrlField?.toggleAttribute('hidden', !externalDocling);
+		gotenbergUrlField?.toggleAttribute('hidden', !externalGotenberg);
+		field<HTMLInputElement>('doclingUrl').required = externalDocling;
+		field<HTMLInputElement>('gotenbergUrl').required = externalGotenberg;
+		const errors = validateComposeConfig(config);
+		const errorCount = Object.keys(errors).length;
+
+		setError('hostPort', errors.hostPort);
+		setError('publicUrl', errors.publicUrl);
+		setError('doclingUrl', errors.doclingUrl);
+		setError('gotenbergUrl', errors.gotenbergUrl);
+
+		renderCompose(generateCompose(config));
+		copyButton.disabled = errorCount > 0;
+		composeDownloadButton.disabled = errorCount > 0;
+		envDownloadButton.disabled = errorCount > 0;
+		status.textContent = errorCount
+			? `Resolve ${errorCount} ${errorCount === 1 ? 'setting' : 'settings'} to enable the actions.`
+			: 'The Compose file is ready. Download both files into the same private deployment directory.';
+	}
+
+	function download(name: string, contents: string, type: string) {
+		const url = URL.createObjectURL(new Blob([contents], { type }));
+		const link = document.createElement('a');
+		link.href = url;
+		link.download = name;
+		document.body.append(link);
+		link.click();
+		link.remove();
+		setTimeout(() => URL.revokeObjectURL(url), 0);
+	}
+
+	function randomHex(byteLength: number) {
+		const bytes = crypto.getRandomValues(new Uint8Array(byteLength));
+		return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+	}
+
+	async function copyCompose() {
+		if (!status) return;
+		try {
+			await navigator.clipboard.writeText(currentCompose);
+			status.textContent = 'Compose file copied. Secret values were not included.';
+		} catch {
+			status.textContent =
+				'Clipboard access was unavailable. Select the preview and copy it manually.';
+		}
+	}
+
+	form?.addEventListener('input', update);
+	form?.addEventListener('change', update);
+	copyButton?.addEventListener('click', copyCompose);
+	composeDownloadButton?.addEventListener('click', () => {
+		if (!status) return;
+		download('compose.yaml', currentCompose, 'application/yaml');
+		status.textContent = 'Compose file downloaded. Generate the matching deployment .env next.';
+	});
+	envDownloadButton?.addEventListener('click', () => {
+		if (!status) return;
+		const config = currentConfig();
+		const env = generateEnvironmentFile(config, {
+			postgresPassword: randomHex(32),
+			authSecret: randomHex(48),
+			encryptionKey: randomHex(32),
+		});
+		download('.env', env, 'text/plain');
+		status.textContent = 'Deployment .env downloaded. Its secret values were not displayed or copied.';
+	});
+
+	update();
+</script>
+
+<style>
+	.compose-generator {
+		display: grid;
+		gap: 3rem;
+		min-width: 0;
+		max-width: 100%;
+		margin-top: 2rem;
+	}
+
+	form,
+	.generator-output {
+		width: min(100%, 48rem);
+		max-width: 100%;
+		min-width: 0;
+		margin-inline: auto;
+		box-sizing: border-box;
+	}
+
+	.generator-output {
+		min-width: 0;
+		border-top: 1px solid var(--sl-color-gray-5);
+		padding-top: 2rem;
+	}
+
+	.form-section {
+		padding: 0;
+	}
+
+	.form-section + .form-section {
+		margin-top: 2.5rem;
+		border-top: 1px solid var(--sl-color-gray-5);
+		padding-top: 2rem;
+	}
+
+	.form-section h2 {
+		margin: 0 0 1rem;
+		font-size: var(--sl-text-h3);
+	}
+
+	.section-note {
+		margin: -0.5rem 0 1rem;
+		color: var(--sl-color-gray-2);
+	}
+
+	.form-row {
+		display: grid;
+		grid-template-columns: 12rem minmax(0, 1fr);
+		gap: 1rem;
+		align-items: start;
+		margin-top: 0.6rem;
+	}
+
+	.form-row > label {
+		padding-top: 0.45rem;
+	}
+
+	.control {
+		min-width: 0;
+	}
+
+	.compact-control {
+		width: min(100%, 12rem);
+	}
+
+	.output-heading p,
+	.secret-note,
+	.noscript-note {
+		margin: 0 0 1rem;
+		color: var(--sl-color-gray-2);
+	}
+
+	[hidden] {
+		display: none;
+	}
+
+	label {
+		font-weight: 600;
+		color: var(--sl-color-white);
+	}
+
+	input,
+	select,
+	button {
+		font: inherit;
+	}
+
+	input:not([type='checkbox']),
+	select {
+		height: 2.5rem;
+		width: 100%;
+		min-width: 0;
+		box-sizing: border-box;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 0.6rem;
+		background: var(--sl-color-bg);
+		padding: 0 0.7rem;
+		color: var(--sl-color-white);
+	}
+
+	input:focus-visible,
+	select:focus-visible,
+	button:focus-visible,
+	.code-output:focus-visible {
+		outline: 2px solid var(--sl-color-accent-high);
+		outline-offset: 2px;
+	}
+
+	input[aria-invalid='true'] {
+		border-color: var(--sl-color-red-high);
+	}
+
+	small {
+		display: block;
+		color: var(--sl-color-gray-2);
+	}
+
+	.field-error {
+		color: var(--sl-color-red-high);
+	}
+
+	.field-error:empty {
+		display: none;
+	}
+
+	.output-heading {
+		display: block;
+	}
+
+	.output-heading h2 {
+		margin: 0 0 0.35rem;
+		font-size: var(--sl-text-h3);
+	}
+
+	.actions {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.5rem;
+		width: 100%;
+		margin-top: 1rem;
+	}
+
+	button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.45rem;
+		width: 100%;
+		border: 1px solid var(--sl-color-gray-4);
+		border-radius: 0.45rem;
+		background: var(--sl-color-gray-6);
+		padding: 0.55rem 0.8rem;
+		color: var(--sl-color-white);
+		cursor: pointer;
+		overflow-wrap: anywhere;
+	}
+
+	button:hover:not(:disabled) {
+		border-color: var(--sl-color-accent-high);
+	}
+
+	button:disabled {
+		cursor: not-allowed;
+		opacity: 0.55;
+	}
+
+	.primary-action {
+		border-color: var(--sl-color-accent);
+		background: var(--sl-color-accent);
+		color: var(--sl-color-black);
+	}
+
+	.secret-note {
+		margin-top: 1.25rem;
+		overflow-wrap: anywhere;
+	}
+
+	.compose-preview {
+		box-sizing: border-box;
+		width: 100%;
+		max-width: 100%;
+		min-width: 0;
+		margin-top: 1rem;
+		border-top: 1px solid var(--sl-color-gray-5);
+		padding-top: 1rem;
+	}
+
+	.compose-preview summary {
+		width: fit-content;
+		font-weight: 650;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+
+	.code-output {
+		box-sizing: border-box;
+		width: 100%;
+		max-width: 100%;
+		min-width: 0;
+		max-height: 42rem;
+		margin: 1rem 0 0;
+		overflow-x: hidden;
+		overflow-y: auto;
+		border-radius: 0.55rem;
+		background: #0d1117;
+	}
+
+	.code-output :global(pre) {
+		box-sizing: border-box;
+		width: 100%;
+		max-width: 100%;
+		min-width: 0;
+		margin: 0;
+		overflow: visible;
+		padding: 1rem;
+		font-size: var(--sl-text-code);
+		line-height: 1.55;
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+		word-break: normal;
+		tab-size: 2;
+	}
+
+	.code-output :global(code) {
+		white-space: inherit;
+	}
+
+	.code-output > pre > code {
+		color: var(--sl-color-gray-1);
+	}
+
+	.noscript-note {
+		margin-top: 1rem;
+	}
+
+	@media (max-width: 40rem) {
+		.form-row {
+			grid-template-columns: 1fr;
+			gap: 0.3rem;
+			margin-top: 1rem;
+		}
+
+		.form-row > label {
+			padding-top: 0;
+		}
+
+		.compact-control {
+			width: 100%;
+		}
+
+		.actions {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>

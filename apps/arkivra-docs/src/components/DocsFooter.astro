@@ -1,0 +1,59 @@
+---
+import StarlightFooter from '@astrojs/starlight/components/Footer.astro';
+
+const year = new Date().getFullYear();
+---
+
+<StarlightFooter />
+
+<div class="site-credits">
+	<p>
+		Crafted with{' '}<span class="heart" aria-hidden="true">♥</span><span class="sr-only"
+			>care</span
+		>{' '}by{' '}<a href="https://jasnan.xyz/" rel="author">Jasnan Thachaparamban</a>
+	</p>
+	<p>
+		© {year} · Licensed under{' '}<a href="https://www.gnu.org/licenses/agpl-3.0.html"
+			>AGPL-3.0</a
+		>
+	</p>
+</div>
+
+<style>
+	.site-credits {
+		display: flex;
+		justify-content: space-between;
+		gap: 0.75rem 2rem;
+		margin-top: 3rem;
+		border-top: 1px solid var(--sl-color-hairline);
+		padding: 1.25rem 0 0.5rem;
+		color: var(--sl-color-gray-3);
+		font-size: var(--sl-text-sm);
+	}
+
+	.site-credits p {
+		margin: 0;
+	}
+
+	.site-credits a {
+		color: var(--sl-color-gray-2);
+		font-weight: 600;
+		text-decoration: none;
+	}
+
+	.site-credits a:hover {
+		color: var(--sl-color-white);
+		text-decoration: underline;
+		text-underline-offset: 0.2em;
+	}
+
+	.heart {
+		color: var(--sl-color-red);
+	}
+
+	@media (max-width: 40rem) {
+		.site-credits {
+			flex-direction: column;
+		}
+	}
+</style>

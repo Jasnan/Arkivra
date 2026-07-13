@@ -1,0 +1,19 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import ComposeGenerator from '../components/ComposeGenerator.astro';
+---
+
+<StarlightPage
+	frontmatter={{
+		title: 'Docker Compose generator',
+		description: 'Build a production-oriented Arkivra Compose file without putting secrets in the page.',
+		tableOfContents: false,
+	}}
+>
+	<p>
+		Create <code>compose.yaml</code> and a private <code>.env</code> for the published Arkivra image,
+		PostgreSQL, and Docling. Gotenberg is optional; SMTP, OAuth, AI providers, VLM settings, and
+		worker tuning remain in the <a href="/self-hosting/configuration/">configuration reference</a>.
+	</p>
+	<ComposeGenerator />
+</StarlightPage>

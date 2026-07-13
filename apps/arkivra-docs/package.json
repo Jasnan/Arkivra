@@ -15,12 +15,13 @@
     "check": "astro check",
     "lint": "astro check",
     "test": "pnpm run test:fast",
-    "test:fast": "pnpm run check"
+    "test:fast": "vitest run src/lib/compose-generator.test.ts && pnpm run check"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.41.3",
     "astro": "^7.0.2",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "shiki": "^4.2.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",

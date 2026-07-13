@@ -1,0 +1,97 @@
+---
+import { Icon } from '@astrojs/starlight/components';
+---
+
+<button
+	class="theme-toggle"
+	type="button"
+	aria-label="Switch color theme"
+	title="Switch color theme"
+>
+	<Icon name="moon" class="moon-icon" />
+	<Icon name="sun" class="sun-icon" />
+</button>
+
+<script>
+	type Theme = 'dark' | 'light';
+
+	const storageKey = 'starlight-theme';
+	const systemTheme = window.matchMedia('(prefers-color-scheme: light)');
+
+	function activeTheme(): Theme {
+		return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+	}
+
+	function updateButtons() {
+		const theme = activeTheme();
+		const nextTheme = theme === 'light' ? 'dark' : 'light';
+		document.querySelectorAll<HTMLButtonElement>('.theme-toggle').forEach((button) => {
+			button.setAttribute('aria-label', `Switch to ${nextTheme} theme`);
+			button.title = `Switch to ${nextTheme} theme`;
+		});
+	}
+
+	function useTheme(theme: Theme, remember = true) {
+		document.documentElement.dataset.theme = theme;
+		if (remember) localStorage.setItem(storageKey, theme);
+		updateButtons();
+	}
+
+	document.querySelectorAll<HTMLButtonElement>('.theme-toggle').forEach((button) => {
+		button.addEventListener('click', () => {
+			useTheme(activeTheme() === 'light' ? 'dark' : 'light');
+		});
+	});
+
+	// Continue following the operating-system setting until the visitor chooses a theme.
+	systemTheme.addEventListener('change', (event) => {
+		if (!localStorage.getItem(storageKey)) useTheme(event.matches ? 'light' : 'dark', false);
+	});
+
+	updateButtons();
+</script>
+
+<style>
+	.theme-toggle {
+		display: grid;
+		width: 2.25rem;
+		height: 2.25rem;
+		place-items: center;
+		border: 0;
+		border-radius: 0.45rem;
+		background: transparent;
+		color: var(--sl-color-gray-1);
+		cursor: pointer;
+	}
+
+	.theme-toggle:hover {
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+	}
+
+	.theme-toggle:focus-visible {
+		outline: 2px solid var(--sl-color-accent-high);
+		outline-offset: 2px;
+	}
+
+	.theme-toggle :global(svg) {
+		grid-area: 1 / 1;
+		width: 1.2rem;
+		height: 1.2rem;
+	}
+
+	:global(:root[data-theme='light']) .sun-icon,
+	:global(:root[data-theme='dark']) .moon-icon {
+		display: none;
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.theme-toggle :global(svg) {
+			transition: transform 150ms ease;
+		}
+
+		.theme-toggle:hover :global(svg) {
+			transform: rotate(12deg);
+		}
+	}
+</style>

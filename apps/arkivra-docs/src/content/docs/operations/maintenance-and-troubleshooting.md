@@ -9,7 +9,7 @@ Arkivra runs an API and several background workers against PostgreSQL and filesy
 
 ### Monitor the deployment
 
-For the repository Compose stack:
+For a public Compose deployment directory:
 
 ```bash
 docker compose ps
@@ -20,24 +20,35 @@ docker compose logs --tail=200 postgres
 
 Monitor disk use for both named volumes, PostgreSQL health, worker errors, Docling capacity, backup completion, and embedding-index coverage when AI is enabled.
 
-### Update a checkout-based deployment
+### Update a published-image deployment
 
-Arkivra does not yet have a stable public release line. Before updating:
+Arkivra does not yet have a stable release line. Before updating the pinned beta image:
 
 1. Review repository changes and any available tagged release notes.
 2. Create and export a tested Arkivra backup.
 3. Preserve deployment configuration and secrets separately.
 4. Stop user traffic when the change warrants a maintenance window.
-5. Update the source checkout.
-6. Rebuild and start:
+5. Change `ARKIVRA_IMAGE` or the Compose image line to the reviewed beta version.
+6. Pull and start:
 
    ```bash
-   docker compose up -d --build
+   docker compose pull
+   docker compose up -d
    ```
 
 7. Watch migration and startup logs, then test sign-in, document download, a small upload, keyword search, and background processing.
 
-The production container runs migrations before a web-capable process starts. Source deployments must run `pnpm db:migrate` explicitly before starting code that expects a newer schema.
+The production container runs migrations before a web-capable process starts. Do not use an unreviewed movable tag for an important deployment.
+
+### Update a checkout-based development stack
+
+The repository `docker-compose.yml` remains the local image-build path. After updating the checkout, rebuild it with:
+
+```bash
+docker compose up -d --build
+```
+
+Source deployments that run pnpm processes directly must run `pnpm db:migrate` before starting code that expects a newer schema.
 
 ### Review Trash and backups
 
@@ -91,7 +102,7 @@ Use **Content** or download the original when extraction succeeded but a visual 
 
 Confirm the current document version is active and processing completed. Open **Content** to verify the expected words were extracted. Normal dashboard search excludes Trash and historical versions.
 
-Scanned or mixed PDFs may need better OCR capacity or Docling VLM configuration. Review the document processing error and external Docling logs.
+Scanned or mixed PDFs may need better OCR capacity or Docling VLM configuration. Review the document processing error and Docling logs.
 
 ## AI search or chat is unavailable
 

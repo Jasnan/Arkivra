@@ -5,7 +5,7 @@ description: Configure Arkivra with environment variables and understand their d
 
 Arkivra reads configuration from environment variables. Start with the standard variables below. Most deployments should not need the advanced overrides.
 
-The root `.env.example` contains a minimal local configuration with required values and optional feature sections.
+The root `.env.example` contains the source-development configuration. Public Compose deployments should start from the deliberately small `compose.env.example`; the [Compose generator](/docker-compose-generator/) creates the basic settings and three required secret values locally in the browser. Add advanced variables only when the deployment needs them.
 
 ## Standard configuration
 
@@ -13,10 +13,32 @@ The root `.env.example` contains a minimal local configuration with required val
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
 | `ARKIVRA_PUBLIC_URL`      | Public browser origin for Arkivra. API URL, web URL, CORS, and auth trusted origins are derived from this value. | local API and dashboard origins when unset          |
 | `ARKIVRA_DATABASE_URL`    | PostgreSQL connection URL                                                                                        | `postgres://arkivra:arkivra@localhost:5432/arkivra` |
-| `ARKIVRA_DOCLING_URL`     | External Docling Serve HTTP API URL used for document parsing                                                    | required; no default                                |
+| `ARKIVRA_DOCLING_URL`     | Reachable Docling Serve HTTP API URL used for document parsing                                                   | required; no default                                |
 | `ARKIVRA_DATA_PATH`       | Root runtime data path. Document storage, upload staging, and backups are derived below this path.               | `./var/default`                                     |
 | `ARKIVRA_ENCRYPTION_KEYS` | Comma-separated key-encryption keys in `version:hex-key` format                                                  | required; no default                                |
 | `ARKIVRA_AUTH_SECRET`     | Better Auth session secret. Required in production. Use a strong, stable value.                                  | development placeholder outside production          |
+
+:::caution
+Docling is required for normal document parsing and full-text search even when AI is disabled. It can run in the same Compose stack, as a separate Docker or bare-metal service, or remotely; `ARKIVRA_DOCLING_URL` must be reachable from the Arkivra process.
+:::
+
+## Basic Compose environment
+
+The public Compose bootstrap uses these non-secret settings:
+
+| Variable                                   | Basic value or purpose                                    |
+| ------------------------------------------ | --------------------------------------------------------- |
+| `COMPOSE_PROJECT_NAME`                     | `arkivra`; namespaces containers and named volumes        |
+| `POSTGRES_DB_NAME`                         | `arkivra`; database created by bundled PostgreSQL         |
+| `ARKIVRA_PUBLIC_URL`                       | Required exact browser-facing origin                      |
+| `ARKIVRA_PORT`                             | `3210`; published host port                               |
+| `ARKIVRA_AUTH_REGISTRATION_ENABLED`        | `true` initially                                          |
+| `ARKIVRA_AUTH_EMAIL_VERIFICATION_REQUIRED` | `false` until SMTP is configured                          |
+| `ARKIVRA_DOCLING_URL`                      | Required; generated as `http://docling:5001` when bundled |
+| `ARKIVRA_GOTENBERG_URL`                    | Optional office-preview endpoint                          |
+| `ARKIVRA_OLLAMA_HOST`                      | Optional Ollama endpoint; does not enable AI by itself    |
+
+The same file needs `POSTGRES_PASSWORD` in addition to `ARKIVRA_AUTH_SECRET` and `ARKIVRA_ENCRYPTION_KEYS`. `ARKIVRA_DATABASE_URL` is assembled inside Compose from the PostgreSQL values and should not be duplicated in the bootstrap file.
 
 Generate an encryption key with:
 

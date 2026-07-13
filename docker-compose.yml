@@ -1,3 +1,7 @@
+# Local contributor stack.
+#
+# This file intentionally builds Arkivra from the current checkout and exposes
+# PostgreSQL to the host. Public deployments should use compose.production.yaml.
 services:
   postgres:
     image: pgvector/pgvector:pg16

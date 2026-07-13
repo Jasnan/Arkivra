@@ -68,6 +68,41 @@ const defaultCompose = generateCompose(DEFAULT_COMPOSE_CONFIG);
 			</div>
 		</section>
 
+		<section class="form-section" aria-labelledby="storage-settings-title">
+			<h2 id="storage-settings-title">File storage</h2>
+			<p class="section-note">
+				Docker-managed storage is the simplest default. Linux host directories must be writable by
+				UID/GID <code>10001:10001</code>.
+			</p>
+
+			<div class="form-row">
+				<label for="storage-mode">Arkivra data</label>
+				<select id="storage-mode" name="storageMode">
+					<option value="volume">Docker-managed volume — recommended</option>
+					<option value="bind">Directory on this host</option>
+				</select>
+			</div>
+
+			<div class="form-row conditional-field" id="data-directory-field" hidden>
+				<label for="data-directory">Host data directory <span aria-hidden="true">*</span></label>
+				<div class="control">
+					<input
+						id="data-directory"
+						name="dataDirectory"
+						type="text"
+						placeholder="/srv/arkivra/data"
+						autocomplete="off"
+						spellcheck="false"
+						aria-describedby="data-directory-help data-directory-error"
+					/>
+					<small id="data-directory-help">
+						Create this absolute path before starting the stack. Do not use <code>/</code>.
+					</small>
+					<small class="field-error" id="data-directory-error"></small>
+				</div>
+			</div>
+		</section>
+
 		<section class="form-section" aria-labelledby="processing-settings-title">
 			<h2 id="processing-settings-title">Document processing</h2>
 			<p class="section-note">Docling is required. Gotenberg adds optional office previews.</p>
@@ -181,6 +216,7 @@ const defaultCompose = generateCompose(DEFAULT_COMPOSE_CONFIG);
 		validateComposeConfig,
 		type ArkivraBindAddress,
 		type ArkivraImageChannel,
+		type ArkivraStorageMode,
 		type ComposeGeneratorConfig,
 		type DoclingMode,
 		type GotenbergMode,
@@ -233,6 +269,8 @@ const defaultCompose = generateCompose(DEFAULT_COMPOSE_CONFIG);
 			bindAddress: field<HTMLSelectElement>('bindAddress').value as ArkivraBindAddress,
 			hostPort: hostPortValue ? Number(hostPortValue) : 3210,
 			publicUrl: field<HTMLInputElement>('publicUrl').value.trim(),
+			storageMode: field<HTMLSelectElement>('storageMode').value as ArkivraStorageMode,
+			dataDirectory: field<HTMLInputElement>('dataDirectory').value.trim(),
 			doclingMode: field<HTMLSelectElement>('doclingMode').value as DoclingMode,
 			doclingUrl: field<HTMLInputElement>('doclingUrl').value.trim(),
 			gotenbergMode: field<HTMLSelectElement>('gotenbergMode').value as GotenbergMode,
@@ -253,12 +291,16 @@ const defaultCompose = generateCompose(DEFAULT_COMPOSE_CONFIG);
 			return;
 		}
 		const config = currentConfig();
+		const bindStorage = config.storageMode === 'bind';
 		const externalDocling = config.doclingMode === 'external';
 		const externalGotenberg = config.gotenbergMode === 'external';
+		const dataDirectoryField = document.querySelector<HTMLElement>('#data-directory-field');
 		const doclingUrlField = document.querySelector<HTMLElement>('#docling-url-field');
 		const gotenbergUrlField = document.querySelector<HTMLElement>('#gotenberg-url-field');
+		dataDirectoryField?.toggleAttribute('hidden', !bindStorage);
 		doclingUrlField?.toggleAttribute('hidden', !externalDocling);
 		gotenbergUrlField?.toggleAttribute('hidden', !externalGotenberg);
+		field<HTMLInputElement>('dataDirectory').required = bindStorage;
 		field<HTMLInputElement>('doclingUrl').required = externalDocling;
 		field<HTMLInputElement>('gotenbergUrl').required = externalGotenberg;
 		const errors = validateComposeConfig(config);
@@ -266,6 +308,7 @@ const defaultCompose = generateCompose(DEFAULT_COMPOSE_CONFIG);
 
 		setError('hostPort', errors.hostPort);
 		setError('publicUrl', errors.publicUrl);
+		setError('dataDirectory', errors.dataDirectory);
 		setError('doclingUrl', errors.doclingUrl);
 		setError('gotenbergUrl', errors.gotenbergUrl);
 

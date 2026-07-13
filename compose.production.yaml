@@ -38,7 +38,7 @@ services:
       ARKIVRA_AUTH_SECRET: ${ARKIVRA_AUTH_SECRET:?Set ARKIVRA_AUTH_SECRET in .env}
       ARKIVRA_ENCRYPTION_KEYS: ${ARKIVRA_ENCRYPTION_KEYS:?Set ARKIVRA_ENCRYPTION_KEYS in .env}
     volumes:
-      - arkivra-data:/app/data
+      - '${ARKIVRA_DATA_DIR:-arkivra-data}:/app/data'
     depends_on:
       postgres:
         condition: service_healthy

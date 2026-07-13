@@ -35,6 +35,7 @@ The public Compose bootstrap uses these non-secret settings:
 | `ARKIVRA_AUTH_REGISTRATION_ENABLED`        | `true` initially                                          |
 | `ARKIVRA_AUTH_EMAIL_VERIFICATION_REQUIRED` | `false` until SMTP is configured                          |
 | `ARKIVRA_DOCLING_URL`                      | Required; generated as `http://docling:5001` when bundled |
+| `ARKIVRA_DATA_DIR`                         | Optional absolute host bind-mount path for Arkivra files  |
 | `ARKIVRA_GOTENBERG_URL`                    | Optional office-preview endpoint                          |
 | `ARKIVRA_OLLAMA_HOST`                      | Optional Ollama endpoint; does not enable AI by itself    |
 
@@ -53,6 +54,12 @@ ARKIVRA_ENCRYPTION_KEYS=1:<generated-64-hex-character-key>
 ```
 
 For key rotation, keep old versions available and add a higher version for new files, for example `1:<old>,2:<new>`. Removing a version that was used to encrypt stored files prevents those files from being decrypted.
+
+### Docker host storage
+
+`ARKIVRA_DATA_DIR` is interpreted by the public Compose file, not by the Arkivra application. Leave it unset to use the Docker-managed `arkivra-data` volume. Set it to an absolute host path to bind-mount that directory at the container's fixed `/app/data` path.
+
+On Linux, the bind-mounted directory must be writable by the rootless container user, UID/GID `10001:10001`. Create a new private directory with `sudo install -d -m 0700 -o 10001 -g 10001 <path>`. Avoid `chmod 777`. See [Using Docker Compose](/self-hosting/using-docker-compose/#choose-where-arkivra-files-are-stored) for Linux, network-filesystem, and macOS guidance.
 
 ## Derived paths
 

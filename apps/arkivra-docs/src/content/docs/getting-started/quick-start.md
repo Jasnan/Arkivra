@@ -71,7 +71,7 @@ The public image is `ghcr.io/jasnan/arkivra:0.1.0-beta.1`. The GHCR package must
 Database migrations run automatically before the web process starts. With the default generator choices, the expected result is healthy PostgreSQL, Docling, and Arkivra services.
 
 :::note
-Keep `.env` stable and backed up separately from the named volumes. Losing an encryption key can make encrypted files unreadable. Changing the authentication secret disrupts existing authentication state.
+Keep `.env` stable and backed up separately from PostgreSQL and the configured Arkivra data volume or host directory. Losing an encryption key can make encrypted files unreadable. Changing the authentication secret disrupts existing authentication state.
 :::
 
 ## Upload a test document
@@ -90,6 +90,6 @@ If the upload completes but processing fails, verify that Docling is reachable f
 - close public registration after creating the accounts you need;
 - configure SMTP before requiring email verification or relying on invitations and password resets;
 - create a backup and test the restore procedure;
-- preserve both named volumes and the deployment secrets.
+- preserve PostgreSQL, the Arkivra data volume or host directory, and the deployment secrets.
 
 Continue with [First steps](/getting-started/first-steps/) for the main document workflow or [Using Docker Compose](/self-hosting/using-docker-compose/) for the deployment layout and update procedure.

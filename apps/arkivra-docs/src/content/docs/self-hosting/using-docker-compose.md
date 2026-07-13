@@ -23,10 +23,12 @@ It requires a reachable **Docling** HTTP API for document parsing. Docling can r
 
 Arkivra waits for PostgreSQL to become healthy. Both services use `unless-stopped` restart policies, and Arkivra has its own HTTP health check. The application runs as UID/GID `10001` inside the rootless image.
 
-Two named volumes persist state:
+By default, two named volumes persist state:
 
 - `postgres-data` contains users, vaults, metadata, extracted text and chunks, search vectors, embeddings, chat history, audit and activity records, and job state.
 - `arkivra-data` contains encrypted uploaded source files, encrypted extracted assets, upload staging data, backup sets, and restore maintenance markers.
+
+The Arkivra volume can instead be replaced with an absolute host directory. PostgreSQL remains in its named volume unless you deliberately customize it separately.
 
 Neither volume is a complete backup by itself. Preserve both application data and the secrets described in [Backups and restore](/operations/backups-and-restore/).
 
@@ -101,6 +103,43 @@ Do not put credentials in these URLs. For a service on the same Compose network,
 
 This is a parsing dependency, not an AI provider. Without reachable Docling, Arkivra cannot extract uploaded documents for normal content and full-text search. See [Document processing](/self-hosting/document-processing/) for Docker, native, remote, and Apple Silicon options.
 
+## Choose where Arkivra files are stored
+
+The default `arkivra-data` volume lets Docker manage the host location. This is the simplest option and requires no additional setting. Inspect its Docker-managed location with:
+
+```bash
+docker volume inspect arkivra_arkivra-data
+```
+
+The exact volume name includes `COMPOSE_PROJECT_NAME`. Treat the path returned by Docker as implementation-managed; do not move files inside it while Arkivra is running.
+
+To store Arkivra files on a specific disk, mount point, or NAS path, create an absolute host directory and set `ARKIVRA_DATA_DIR`. On a Linux Docker host, Arkivra runs as numeric UID/GID `10001:10001`, so a new private directory can be prepared with:
+
+```bash
+sudo install -d -m 0700 -o 10001 -g 10001 /srv/arkivra/data
+```
+
+Then add this to `.env`:
+
+```dotenv
+ARKIVRA_DATA_DIR=/srv/arkivra/data
+```
+
+Run `docker compose config --quiet` and start the stack normally. Compose bind-mounts that directory at `/app/data`; keep `ARKIVRA_DATA_PATH=/app/data` inside the container. Do not put the host path in `ARKIVRA_DATA_PATH`.
+
+For an existing Linux directory, verify its numeric ownership and access:
+
+```bash
+sudo chown -R 10001:10001 /srv/arkivra/data
+sudo chmod 0700 /srv/arkivra/data
+```
+
+Do not use `chmod 777`. For NFS or another network filesystem, its server-side UID mapping and permissions must also allow UID/GID `10001:10001` to create, rename, and delete files.
+
+On macOS with Docker Desktop, use an absolute shared path such as `/Users/you/Arkivra/data` and ensure Docker Desktop is allowed to access it. Docker Desktop mediates host ownership, so apply the Linux `chown` command only on a Linux Docker host or Linux-backed network mount.
+
+The selected directory contains file-backed document data, upload staging, and Arkivra backup archives. Database-backed metadata, extracted text, chunks, search data, and job state remain in `postgres-data`; back up both locations together with `.env` and the encryption keys.
+
 ## Image and network defaults
 
 The deployment defaults to the fixed version tag:
@@ -165,13 +204,14 @@ Stop the services without deleting named volumes:
 docker compose down
 ```
 
-Do not run `docker compose down --volumes` unless you intend to delete the PostgreSQL and Arkivra named volumes.
+Do not run `docker compose down --volumes` unless you intend to delete the PostgreSQL and any Arkivra named volume. Docker does not delete an `ARKIVRA_DATA_DIR` bind-mounted host directory, but it is still your responsibility to preserve and back it up.
 
 ## Production checklist
 
 - Terminate TLS at a trusted reverse proxy.
 - Set the exact browser-facing HTTPS origin in `ARKIVRA_PUBLIC_URL`.
 - Keep PostgreSQL and integration endpoints off public networks.
+- If `ARKIVRA_DATA_DIR` is set on Linux, keep it owned by UID/GID `10001:10001` and avoid world-writable permissions.
 - Back up the database, stored files, encryption keys, authentication secret, and deployment configuration.
 - Configure SMTP before requiring email verification or relying on email invitations and password resets.
 - Monitor workers and Docling; a healthy API alone does not prove documents are processing.

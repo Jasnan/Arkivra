@@ -8,6 +8,7 @@ export const GOTENBERG_IMAGE = 'gotenberg/gotenberg:8.32.0';
 
 export type ArkivraImageChannel = keyof typeof ARKIVRA_IMAGES;
 export type ArkivraBindAddress = '127.0.0.1' | '0.0.0.0';
+export type ArkivraStorageMode = 'volume' | 'bind';
 export type DoclingMode = 'docker' | 'external';
 export type GotenbergMode = 'disabled' | 'docker' | 'external';
 
@@ -16,6 +17,8 @@ export interface ComposeGeneratorConfig {
   bindAddress: ArkivraBindAddress;
   hostPort: number;
   publicUrl: string;
+  storageMode: ArkivraStorageMode;
+  dataDirectory: string;
   doclingMode: DoclingMode;
   doclingUrl: string;
   gotenbergMode: GotenbergMode;
@@ -31,7 +34,7 @@ export interface DeploymentSecrets {
 
 export type ComposeGeneratorErrors = Partial<
   Record<
-    'hostPort' | 'publicUrl' | 'doclingUrl' | 'gotenbergUrl',
+    'hostPort' | 'publicUrl' | 'dataDirectory' | 'doclingUrl' | 'gotenbergUrl',
     string
   >
 >;
@@ -41,6 +44,8 @@ export const DEFAULT_COMPOSE_CONFIG: ComposeGeneratorConfig = {
   bindAddress: '127.0.0.1',
   hostPort: 3210,
   publicUrl: '',
+  storageMode: 'volume',
+  dataDirectory: '',
   doclingMode: 'docker',
   doclingUrl: '',
   gotenbergMode: 'disabled',
@@ -81,6 +86,20 @@ function validateHttpUrl(
   return undefined;
 }
 
+function validateDataDirectory(config: ComposeGeneratorConfig) {
+  if (config.storageMode !== 'bind') return undefined;
+
+  const directory = config.dataDirectory.trim();
+  if (!directory) return 'Host data directory is required.';
+  if (!directory.startsWith('/')) {
+    return 'Host data directory must be an absolute path beginning with /.';
+  }
+  if (directory === '/') return 'Host data directory must not be the filesystem root.';
+  if (/[\r\n]/.test(directory)) return 'Host data directory must be a single path.';
+
+  return undefined;
+}
+
 export function validateComposeConfig(config: ComposeGeneratorConfig): ComposeGeneratorErrors {
   const errors: ComposeGeneratorErrors = {};
 
@@ -91,6 +110,7 @@ export function validateComposeConfig(config: ComposeGeneratorConfig): ComposeGe
     required: true,
     originOnly: true,
   });
+  errors.dataDirectory = validateDataDirectory(config);
   errors.doclingUrl = validateHttpUrl(config.doclingUrl, 'Docling URL', {
     required: config.doclingMode === 'external',
   });
@@ -157,6 +177,20 @@ function serviceDependencies(config: ComposeGeneratorConfig) {
     .join('\n');
 }
 
+function arkivraDataMount(config: ComposeGeneratorConfig) {
+  if (config.storageMode === 'bind') {
+    return `      - type: bind
+        source: \${ARKIVRA_DATA_DIR:?Set ARKIVRA_DATA_DIR in .env}
+        target: /app/data`;
+  }
+
+  return '      - arkivra-data:/app/data';
+}
+
+function arkivraNamedVolume(config: ComposeGeneratorConfig) {
+  return config.storageMode === 'volume' ? '  arkivra-data:\n' : '';
+}
+
 export function generateCompose(config: ComposeGeneratorConfig) {
   const image = ARKIVRA_IMAGES[config.imageChannel] ?? ARKIVRA_IMAGES.pinned;
 
@@ -196,7 +230,7 @@ ${doclingService(config)}${gotenbergService(config)}
       ARKIVRA_AUTH_SECRET: \${ARKIVRA_AUTH_SECRET:?Set ARKIVRA_AUTH_SECRET in .env}
       ARKIVRA_ENCRYPTION_KEYS: \${ARKIVRA_ENCRYPTION_KEYS:?Set ARKIVRA_ENCRYPTION_KEYS in .env}
     volumes:
-      - arkivra-data:/app/data
+${arkivraDataMount(config)}
     depends_on:
 ${serviceDependencies(config)}
     healthcheck:
@@ -211,8 +245,7 @@ ${serviceDependencies(config)}
 
 volumes:
   postgres-data:
-  arkivra-data:
-`;
+${arkivraNamedVolume(config)}`;
 }
 
 function requireHex(value: string, bytes: number, label: string) {
@@ -246,6 +279,9 @@ export function generateEnvironmentFile(
     `ARKIVRA_PORT=${config.hostPort}`,
     `ARKIVRA_AUTH_REGISTRATION_ENABLED=${String(config.registrationEnabled)}`,
     'ARKIVRA_AUTH_EMAIL_VERIFICATION_REQUIRED=false',
+    config.storageMode === 'bind'
+      ? `ARKIVRA_DATA_DIR=${JSON.stringify(config.dataDirectory.trim())}`
+      : undefined,
     `ARKIVRA_DOCLING_URL=${doclingUrl}`,
     gotenbergUrl ? `ARKIVRA_GOTENBERG_URL=${gotenbergUrl}` : undefined,
     `ARKIVRA_AUTH_SECRET=${secrets.authSecret}`,

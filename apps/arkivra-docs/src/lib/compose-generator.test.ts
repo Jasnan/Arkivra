@@ -21,6 +21,7 @@ describe('Arkivra Compose generator', () => {
     expect(compose).not.toMatch(/ghcr\.io\/jasnan\/arkivra:latest\b/);
     expect(compose).not.toContain('/app/apps');
     expect(compose.split('\n  arkivra:')[0]).not.toContain('ports:');
+    expect(compose).toContain("${ARKIVRA_DATA_DIR:-arkivra-data}:/app/data");
   });
 
   it('generates a complete pinned deployment and keeps secrets in environment placeholders', () => {
@@ -49,6 +50,57 @@ describe('Arkivra Compose generator', () => {
 
     expect(compose).toContain('image: ghcr.io/jasnan/arkivra:beta');
     expect(compose).not.toContain(':latest');
+  });
+
+  it('generates a host bind mount and records its absolute path in the environment file', () => {
+    const config = {
+      ...DEFAULT_COMPOSE_CONFIG,
+      publicUrl: 'https://documents.example.com',
+      storageMode: 'bind' as const,
+      dataDirectory: '/srv/arkivra/data',
+    };
+    const compose = generateCompose(config);
+    const env = generateEnvironmentFile(config, {
+      postgresPassword: 'a'.repeat(64),
+      authSecret: 'b'.repeat(96),
+      encryptionKey: 'c'.repeat(64),
+    });
+
+    expect(compose).toContain('type: bind');
+    expect(compose).toContain('source: ${ARKIVRA_DATA_DIR:?Set ARKIVRA_DATA_DIR in .env}');
+    expect(compose).toContain('target: /app/data');
+    expect(compose).not.toContain('\n  arkivra-data:\n');
+    expect(env).toContain('ARKIVRA_DATA_DIR="/srv/arkivra/data"');
+  });
+
+  it('requires a safe absolute host directory only for bind mounts', () => {
+    expect(
+      validateComposeConfig({
+        ...DEFAULT_COMPOSE_CONFIG,
+        publicUrl: 'https://documents.example.com',
+        storageMode: 'bind',
+      }),
+    ).toEqual({ dataDirectory: 'Host data directory is required.' });
+
+    expect(
+      validateComposeConfig({
+        ...DEFAULT_COMPOSE_CONFIG,
+        publicUrl: 'https://documents.example.com',
+        storageMode: 'bind',
+        dataDirectory: './arkivra-data',
+      }),
+    ).toEqual({
+      dataDirectory: 'Host data directory must be an absolute path beginning with /.',
+    });
+
+    expect(
+      validateComposeConfig({
+        ...DEFAULT_COMPOSE_CONFIG,
+        publicUrl: 'https://documents.example.com',
+        storageMode: 'bind',
+        dataDirectory: '/',
+      }),
+    ).toEqual({ dataDirectory: 'Host data directory must not be the filesystem root.' });
   });
 
   it('requires an external Docling URL only when external mode is selected', () => {

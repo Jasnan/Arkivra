@@ -1,0 +1,251 @@
+name: Publish Docker image
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/docker-publish.yml'
+      - 'apps/arkivra-server/Dockerfile'
+      - 'apps/arkivra-server/docker-entrypoint.sh'
+      - 'apps/arkivra-server/package.json'
+      - 'apps/arkivra-client/package.json'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-release:
+    name: Validate release tag
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    outputs:
+      channel: ${{ steps.release.outputs.channel }}
+      image: ${{ steps.release.outputs.image }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate signed SemVer tag
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          semver_pattern='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?$'
+
+          if [[ ! "${tag}" =~ ${semver_pattern} ]]; then
+            echo "Release tag must be valid SemVer prefixed with v (for example, v0.1.0-beta.1)." >&2
+            exit 1
+          fi
+
+          git fetch origin main --no-tags
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "Release tags must point to a commit on the main branch." >&2
+            exit 1
+          fi
+
+          tag_ref="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}")"
+          if [[ "$(jq -r '.object.type' <<<"${tag_ref}")" != 'tag' ]]; then
+            echo "Release tags must be annotated and signed; lightweight tags are not accepted." >&2
+            exit 1
+          fi
+
+          tag_sha="$(jq -r '.object.sha' <<<"${tag_ref}")"
+          verification="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${tag_sha}")"
+          if [[ "$(jq -r '.verification.verified' <<<"${verification}")" != 'true' ]]; then
+            reason="$(jq -r '.verification.reason' <<<"${verification}")"
+            echo "GitHub could not verify the release tag signature: ${reason}." >&2
+            exit 1
+          fi
+
+          version="${tag#v}"
+          channel='prerelease'
+          if [[ "${version}" != *-* ]]; then
+            channel='latest'
+          elif [[ "${version}" =~ -beta(\.[0-9]+)?$ ]]; then
+            channel='beta'
+          fi
+
+          echo "channel=${channel}" >> "${GITHUB_OUTPUT}"
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "${GITHUB_OUTPUT}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+  smoke-test:
+    name: Rootless image smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Resolve image version
+        id: build-info
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == 'tag' ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="sha-${GITHUB_SHA::12}"
+          fi
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+
+      - name: Build smoke-test image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          file: apps/arkivra-server/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          provenance: false
+          tags: arkivra:smoke
+          build-args: |
+            ARKIVRA_VERSION=${{ steps.build-info.outputs.version }}
+          cache-from: type=gha,scope=arkivra-docker-smoke
+          cache-to: type=gha,mode=max,scope=arkivra-docker-smoke
+
+      - name: Start smoke-test services
+        run: |
+          set -euo pipefail
+
+          docker network create arkivra-smoke
+          docker run --detach \
+            --name arkivra-smoke-postgres \
+            --network arkivra-smoke \
+            --health-cmd='pg_isready -U arkivra -d arkivra' \
+            --health-interval=2s \
+            --health-timeout=5s \
+            --health-retries=30 \
+            --env POSTGRES_USER=arkivra \
+            --env POSTGRES_PASSWORD=arkivra \
+            --env POSTGRES_DB=arkivra \
+            pgvector/pgvector:pg16
+
+          for attempt in {1..30}; do
+            if [[ "$(docker inspect --format '{{.State.Health.Status}}' arkivra-smoke-postgres)" == 'healthy' ]]; then
+              break
+            fi
+            if [[ "${attempt}" == '30' ]]; then
+              docker logs arkivra-smoke-postgres
+              exit 1
+            fi
+            sleep 2
+          done
+
+          docker run --detach \
+            --name arkivra-smoke-app \
+            --network arkivra-smoke \
+            --publish 3210:3210 \
+            --env ARKIVRA_DATABASE_URL=postgres://arkivra:arkivra@arkivra-smoke-postgres:5432/arkivra \
+            --env ARKIVRA_DOCLING_URL=http://127.0.0.1:5001 \
+            --env ARKIVRA_AUTH_SECRET=arkivra-ci-smoke-auth-secret-change-me \
+            --env ARKIVRA_ENCRYPTION_KEYS=1:0000000000000000000000000000000000000000000000000000000000000000 \
+            arkivra:smoke
+
+      - name: Verify rootless runtime and health
+        run: |
+          set -euo pipefail
+
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:3210/api/health >/dev/null; then
+              break
+            fi
+            if [[ "$(docker inspect --format '{{.State.Running}}' arkivra-smoke-app)" != 'true' ]]; then
+              docker logs arkivra-smoke-app
+              exit 1
+            fi
+            if [[ "${attempt}" == '60' ]]; then
+              docker logs arkivra-smoke-app
+              exit 1
+            fi
+            sleep 2
+          done
+
+          test "$(docker exec arkivra-smoke-app id -u)" = '10001'
+          test "$(docker exec arkivra-smoke-app id -g)" = '10001'
+          docker exec arkivra-smoke-app sh -c 'test -w /app/data && test ! -w /app'
+
+      - name: Clean up smoke-test services
+        if: ${{ always() }}
+        run: |
+          docker rm --force arkivra-smoke-app arkivra-smoke-postgres 2>/dev/null || true
+          docker network rm arkivra-smoke 2>/dev/null || true
+
+  publish:
+    name: Publish multi-platform image
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
+    needs:
+      - validate-release
+      - smoke-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image metadata
+        id: metadata
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
+        with:
+          images: ${{ needs.validate-release.outputs.image }}
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=beta,enable=${{ needs.validate-release.outputs.channel == 'beta' }}
+            type=raw,value=latest,enable=${{ needs.validate-release.outputs.channel == 'latest' }}
+            type=raw,value=sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.title=Arkivra
+            org.opencontainers.image.description=Open-source, self-hostable document management with full-text search and optional AI integrations.
+            org.opencontainers.image.licenses=AGPL-3.0-or-later
+
+      - name: Build and publish image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          file: apps/arkivra-server/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          annotations: ${{ steps.metadata.outputs.annotations }}
+          build-args: |
+            ARKIVRA_VERSION=${{ needs.validate-release.outputs.version }}
+          provenance: mode=max
+          sbom: true
+          cache-from: |
+            type=gha,scope=arkivra-docker-smoke
+            type=gha,scope=arkivra-docker-release
+          cache-to: type=gha,mode=max,scope=arkivra-docker-release

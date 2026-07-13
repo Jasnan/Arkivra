@@ -21,13 +21,17 @@ export default defineConfig({
 		starlight({
 			title: 'Arkivra Docs',
 			favicon: '/favicon.svg',
+			components: {
+				Footer: './src/components/DocsFooter.astro',
+				SocialIcons: './src/components/GitHubStarButton.astro',
+				ThemeSelect: './src/components/ThemeToggle.astro',
+			},
 			logo: {
 				light: './src/assets/arkivra-logo.svg',
 				dark: './src/assets/arkivra-logo-dark.svg',
 				alt: 'Arkivra',
 			},
 			customCss: ['./src/styles/custom.css'],
-			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/Jasnan/Arkivra' }],
 			sidebar: [
 				{
 					label: 'Getting started',
@@ -41,6 +45,7 @@ export default defineConfig({
 					label: 'Install and configure',
 					items: [
 						{ label: 'Using Docker Compose', slug: 'self-hosting/using-docker-compose' },
+						{ label: 'Compose generator', link: '/docker-compose-generator' },
 						{ label: 'From Source', slug: 'self-hosting/from-source' },
 						{ label: 'Document processing', slug: 'self-hosting/document-processing' },
 						{ label: 'Configuration reference', slug: 'self-hosting/configuration' },

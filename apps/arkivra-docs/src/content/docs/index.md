@@ -21,7 +21,7 @@ An **instance** is one running Arkivra installation. Users organize documents in
 
 Each document is a logical record with one or more immutable content **versions**. Uploading a replacement can create a new latest version without changing older versions. Moving a document to **Trash** keeps it recoverable until it is permanently deleted or its retention period expires.
 
-Document processing runs in the background. Arkivra sends supported files to a required external Docling Serve endpoint, stores the extracted text and chunks in PostgreSQL, and prepares previews where supported. Full-text search becomes useful after that processing completes.
+Document processing runs in the background. Arkivra sends supported files to a required reachable Docling Serve endpoint, stores the extracted text and chunks in PostgreSQL, and prepares previews where supported. Docling may be bundled or operated separately and is required even when AI is disabled. Full-text search becomes useful after that processing completes.
 
 ## Optional AI features
 

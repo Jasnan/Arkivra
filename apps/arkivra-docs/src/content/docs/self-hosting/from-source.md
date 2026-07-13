@@ -5,6 +5,8 @@ description: Run the Arkivra API, worker, and dashboard from a source checkout.
 
 Use this setup for development and local evaluation. It runs the dashboard, API, and worker as separate processes and lets Docker provide PostgreSQL if you do not already have it.
 
+This guide uses the repository root `docker-compose.yml`. That contributor file builds from the checkout and exposes PostgreSQL to local tools; it is separate from the public `compose.production.yaml` deployment.
+
 ## Prerequisites
 
 - Node.js 22
@@ -98,7 +100,7 @@ Run focused checks for the app you changed:
 ```bash
 pnpm --dir apps/arkivra-server test:fast
 pnpm --dir apps/arkivra-client test:fast
-pnpm --dir apps/docs check
+pnpm --dir apps/arkivra-docs check
 ```
 
 Check migration/schema agreement with:

@@ -1,0 +1,49 @@
+---
+import { Icon } from '@astrojs/starlight/components';
+---
+
+<a
+	class="github-star-button"
+	href="https://github.com/Jasnan/Arkivra"
+	rel="me"
+	aria-label="Star Arkivra on GitHub"
+>
+	<Icon name="github" />
+	<span>Star on GitHub</span>
+</a>
+
+<style>
+	.github-star-button {
+		display: inline-flex;
+		height: 2.25rem;
+		align-items: center;
+		gap: 0.4rem;
+		box-sizing: border-box;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.45rem;
+		padding: 0 0.65rem;
+		color: var(--sl-color-gray-1);
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		line-height: 1;
+		text-decoration: none;
+		white-space: nowrap;
+	}
+
+	.github-star-button:hover {
+		border-color: var(--sl-color-gray-4);
+		background: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+	}
+
+	.github-star-button:focus-visible {
+		outline: 2px solid var(--sl-color-accent-high);
+		outline-offset: 2px;
+	}
+
+	.github-star-button :global(svg) {
+		width: 1rem;
+		height: 1rem;
+		flex: none;
+	}
+</style>

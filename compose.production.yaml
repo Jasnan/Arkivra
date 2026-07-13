@@ -1,0 +1,58 @@
+# Public Arkivra deployment stack.
+# Copy compose.env.example to .env and set every required value before starting.
+# This canonical file expects an existing reachable Docling service. The documentation
+# generator can create a variant that runs Docling in the same Compose stack.
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB_NAME:-arkivra}
+      POSTGRES_USER: arkivra
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  arkivra:
+    image: ${ARKIVRA_IMAGE:-ghcr.io/jasnan/arkivra:0.1.0-beta.1}
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - '${ARKIVRA_BIND_ADDRESS:-127.0.0.1}:${ARKIVRA_PORT:-3210}:3210'
+    environment:
+      NODE_ENV: production
+      ARKIVRA_PROCESS_ROLE: all
+      ARKIVRA_PORT: 3210
+      ARKIVRA_HOSTNAME: 0.0.0.0
+      ARKIVRA_DATA_PATH: /app/data
+      ARKIVRA_PUBLIC_URL: ${ARKIVRA_PUBLIC_URL:?Set ARKIVRA_PUBLIC_URL in .env}
+      ARKIVRA_DATABASE_URL: postgres://arkivra:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB_NAME:-arkivra}
+      ARKIVRA_DOCLING_URL: ${ARKIVRA_DOCLING_URL:?Set ARKIVRA_DOCLING_URL in .env}
+      ARKIVRA_AUTH_SECRET: ${ARKIVRA_AUTH_SECRET:?Set ARKIVRA_AUTH_SECRET in .env}
+      ARKIVRA_ENCRYPTION_KEYS: ${ARKIVRA_ENCRYPTION_KEYS:?Set ARKIVRA_ENCRYPTION_KEYS in .env}
+    volumes:
+      - arkivra-data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        ['CMD', 'curl', '--fail', '--silent', '--show-error', 'http://127.0.0.1:3210/api/health']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  postgres-data:
+  arkivra-data:

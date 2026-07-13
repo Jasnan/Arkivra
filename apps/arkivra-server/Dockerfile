@@ -20,7 +20,8 @@ RUN corepack enable && corepack prepare pnpm@10.30.3 --activate
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/arkivra-server/package.json ./apps/arkivra-server/
-RUN pnpm install --prod --frozen-lockfile
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @arkivra/server deploy --legacy --prod /prod
 
 # Build
 FROM build-base AS build
@@ -33,24 +34,36 @@ COPY apps/arkivra-client ./apps/arkivra-client
 RUN pnpm --dir apps/arkivra-server build
 RUN pnpm --dir apps/arkivra-client build
 
-# Production
-FROM ${NODE_IMAGE} AS production
-ARG ARKIVRA_VERSION=dev
-
+# Strip package managers from the official Node filesystem before copying it
+# into the final image so their files do not remain in lower image layers.
+FROM ${NODE_IMAGE} AS runtime-base
 RUN apk add --no-cache curl tini \
   && addgroup -S -g 10001 arkivra \
-  && adduser -S -D -H -u 10001 -G arkivra arkivra
+  && adduser -S -D -H -u 10001 -G arkivra arkivra \
+  && rm -rf \
+    /opt/yarn-v* \
+    /usr/local/lib/node_modules/corepack \
+    /usr/local/lib/node_modules/npm \
+  && rm -f \
+    /usr/local/bin/corepack \
+    /usr/local/bin/npm \
+    /usr/local/bin/npx \
+    /usr/local/bin/yarn \
+    /usr/local/bin/yarnpkg
+
+# Production
+FROM scratch AS production
+ARG ARKIVRA_VERSION=dev
+
+COPY --from=runtime-base / /
 
 WORKDIR /app
 
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=prod-deps /app/apps/arkivra-server/node_modules ./apps/arkivra-server/node_modules
+COPY --from=prod-deps /prod/node_modules ./apps/arkivra-server/node_modules
 COPY --from=build /app/apps/arkivra-server/dist ./apps/arkivra-server/dist
 COPY --from=build /app/apps/arkivra-server/drizzle ./apps/arkivra-server/drizzle
 COPY --from=build /app/apps/arkivra-server/package.json ./apps/arkivra-server/package.json
 COPY --from=build /app/apps/arkivra-client/dist ./apps/arkivra-server/public
-COPY --from=build /app/package.json ./package.json
-COPY --from=build /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 COPY --chmod=755 apps/arkivra-server/docker-entrypoint.sh /usr/local/bin/arkivra-entrypoint
 
 RUN mkdir -p /app/data /home/arkivra \

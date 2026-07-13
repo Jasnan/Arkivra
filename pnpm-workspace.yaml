@@ -1,6 +1,15 @@
 packages:
   - apps/*
 
+autoInstallPeers: false
+resolvePeersFromWorkspaceRoot: false
+
 ignoredBuiltDependencies:
   - esbuild
   - msgpackr-extract
+
+ignoredOptionalDependencies:
+  - drizzle-kit
+  - postgres
+  - vitest
+  - vue

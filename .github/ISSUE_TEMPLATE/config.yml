@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and deployment help
+    url: https://github.com/Jasnan/Arkivra/discussions/categories/q-a
+    about: Ask the community for help using, configuring, or self-hosting Arkivra.
+  - name: Early feature ideas
+    url: https://github.com/Jasnan/Arkivra/discussions/categories/ideas
+    about: Discuss an idea before turning it into a concrete proposal.
+  - name: Security vulnerability
+    url: https://github.com/Jasnan/Arkivra/security/policy
+    about: Read the private reporting instructions. Do not disclose vulnerabilities publicly.

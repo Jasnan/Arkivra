@@ -18,7 +18,7 @@ docker compose logs --tail=200 arkivra
 docker compose logs --tail=200 postgres
 ```
 
-Monitor disk use for both named volumes, PostgreSQL health, worker errors, Docling capacity, backup completion, and embedding-index coverage when AI is enabled.
+Monitor disk use for PostgreSQL and the configured Arkivra named volume or host directory, PostgreSQL health, worker errors, Docling capacity, backup completion, and embedding-index coverage when AI is enabled.
 
 ### Update a published-image deployment
 
@@ -79,6 +79,8 @@ If required email verification, invitations, or password resets do not arrive, i
 ## Upload or processing fails
 
 For a stalled transfer, check API reachability, upload-size limits, session expiry, and free space in upload staging. A browser reload may require the user to select the source file again to continue a resumable upload.
+
+For a public Compose bind mount, confirm `ARKIVRA_DATA_DIR` is an existing absolute path. On Linux, inspect it with `ls -ldn <path>` and confirm UID/GID `10001:10001` can write to it. Permission errors in Arkivra logs usually mean the host directory, one of its parents, or a network filesystem's server-side UID mapping blocks the rootless container user. Do not solve this with world-writable permissions.
 
 For processing:
 

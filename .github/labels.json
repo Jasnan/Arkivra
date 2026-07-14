@@ -1,0 +1,170 @@
+{
+  "migrations": [
+    { "from": "optimization", "to": "performance" },
+    { "from": "question", "to": "needs information" },
+    { "from": "wontfix", "to": "not planned" }
+  ],
+  "delete": ["skip-coderabbit"],
+  "labels": [
+    {
+      "name": "bug",
+      "color": "D73A4A",
+      "description": "Something in Arkivra is not working as intended."
+    },
+    {
+      "name": "documentation",
+      "color": "0075CA",
+      "description": "Documentation or public project copy needs improvement."
+    },
+    {
+      "name": "duplicate",
+      "color": "CFD3D7",
+      "description": "This issue or pull request already exists."
+    },
+    {
+      "name": "enhancement",
+      "color": "A2EEEF",
+      "description": "A new feature or improvement request."
+    },
+    {
+      "name": "good first issue",
+      "color": "7057FF",
+      "description": "A well-scoped issue suitable for a new contributor."
+    },
+    {
+      "name": "help wanted",
+      "color": "008672",
+      "description": "Maintainer would welcome community assistance."
+    },
+    {
+      "name": "invalid",
+      "color": "E4E669",
+      "description": "This does not describe an actionable Arkivra issue."
+    },
+    {
+      "name": "PR welcome",
+      "color": "7BEA88",
+      "description": "The scope is approved and a community pull request is welcome."
+    },
+    {
+      "name": "performance",
+      "color": "FBCA04",
+      "description": "Performance, scalability, or resource-usage improvement."
+    },
+    {
+      "name": "needs information",
+      "color": "D876E3",
+      "description": "More information is required from the reporter."
+    },
+    {
+      "name": "not planned",
+      "color": "FFFFFF",
+      "description": "Not currently aligned with the project direction or capacity."
+    },
+    {
+      "name": "needs triage",
+      "color": "D4C5F9",
+      "description": "Awaiting initial maintainer review and classification."
+    },
+    {
+      "name": "proposal",
+      "color": "C5DEF5",
+      "description": "A feature proposal that has not yet been accepted."
+    },
+    {
+      "name": "needs discussion",
+      "color": "F9D0C4",
+      "description": "Requires product or technical discussion before a decision."
+    },
+    {
+      "name": "accepted",
+      "color": "0E8A16",
+      "description": "Direction approved; scope may still need refinement."
+    },
+    {
+      "name": "ready for development",
+      "color": "006B75",
+      "description": "Scope approved and implementation may begin."
+    },
+    {
+      "name": "blocked",
+      "color": "E99695",
+      "description": "Cannot progress until a dependency or decision is resolved."
+    },
+    {
+      "name": "needs reproduction",
+      "color": "FBCA04",
+      "description": "A reliable reproduction is needed before investigation continues."
+    },
+    {
+      "name": "beta feedback",
+      "color": "BFDADC",
+      "description": "Feedback specifically related to the current public beta."
+    },
+    {
+      "name": "security",
+      "color": "B60205",
+      "description": "Public hardening work; report vulnerabilities privately."
+    },
+    {
+      "name": "maintenance",
+      "color": "EDEDED",
+      "description": "Refactoring, dependencies, tooling, or internal maintenance."
+    },
+    {
+      "name": "area: server",
+      "color": "5319E7",
+      "description": "API, workers, backend services, or server configuration."
+    },
+    {
+      "name": "area: dashboard",
+      "color": "1D76DB",
+      "description": "React dashboard, browser behavior, or user interface."
+    },
+    {
+      "name": "area: docs",
+      "color": "0075CA",
+      "description": "Documentation website or operator guidance."
+    },
+    {
+      "name": "area: website",
+      "color": "0E8A16",
+      "description": "Marketing website, legal pages, or public project messaging."
+    },
+    {
+      "name": "area: deployment",
+      "color": "006B75",
+      "description": "Docker images, Compose, self-hosting, or runtime configuration."
+    },
+    {
+      "name": "area: auth & permissions",
+      "color": "B60205",
+      "description": "Authentication, platform privileges, or vault access control."
+    },
+    {
+      "name": "area: documents & storage",
+      "color": "C2E0C6",
+      "description": "Uploads, parsing, versions, encryption, or stored files."
+    },
+    {
+      "name": "area: search & indexing",
+      "color": "BFDADC",
+      "description": "Full-text search, semantic indexing, embeddings, or retrieval."
+    },
+    {
+      "name": "area: AI & providers",
+      "color": "D4C5F9",
+      "description": "Optional AI features, models, or provider integrations."
+    },
+    {
+      "name": "area: backups & restore",
+      "color": "FEF2C0",
+      "description": "Backup creation, export, restore, or recovery."
+    },
+    {
+      "name": "area: CI & release",
+      "color": "FBCA04",
+      "description": "Continuous integration, dependency checks, images, or releases."
+    }
+  ]
+}

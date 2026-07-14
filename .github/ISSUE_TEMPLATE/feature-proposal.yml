@@ -3,6 +3,8 @@ description: Propose a focused improvement for maintainer consideration
 title: '[Proposal]: '
 labels:
   - enhancement
+  - proposal
+  - needs triage
 body:
   - type: markdown
     attributes:

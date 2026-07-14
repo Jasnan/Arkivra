@@ -1,0 +1,116 @@
+name: Sync repository labels
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/labels.json'
+      - '.github/workflows/sync-labels.yml'
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: sync-repository-labels
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Apply label taxonomy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Validate label manifest
+        run: |
+          set -euo pipefail
+
+          jq --exit-status '
+            type == "object"
+            and (.labels | type == "array" and length > 0)
+            and (.migrations | type == "array")
+            and (.delete | type == "array")
+            and (all(.labels[];
+              (.name | type == "string" and length > 0)
+              and (.color | type == "string" and test("^[0-9A-Fa-f]{6}$"))
+              and (.description | type == "string" and length <= 100)
+            ))
+            and (([.labels[].name] | length) == ([.labels[].name] | unique | length))
+          ' .github/labels.json >/dev/null
+
+      - name: Apply labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          api="repos/${GITHUB_REPOSITORY}"
+
+          encode() {
+            jq --null-input --raw-output --arg value "$1" '$value | @uri'
+          }
+
+          label_exists() {
+            gh api "${api}/labels/$(encode "$1")" >/dev/null 2>&1
+          }
+
+          migrate_label() {
+            old_name="$1"
+            new_name="$2"
+
+            if ! label_exists "${old_name}"; then
+              return
+            fi
+
+            if label_exists "${new_name}"; then
+              gh api --paginate \
+                "${api}/issues?state=all&labels=$(encode "${old_name}")&per_page=100" \
+                --jq '.[].number' |
+                while read -r issue_number; do
+                  gh api --method POST "${api}/issues/${issue_number}/labels" \
+                    -f "labels[]=${new_name}" >/dev/null
+                done
+
+              gh api --method DELETE "${api}/labels/$(encode "${old_name}")" >/dev/null
+              echo "Removed superseded label: ${old_name}"
+              return
+            fi
+
+            gh api --method PATCH "${api}/labels/$(encode "${old_name}")" \
+              -f "new_name=${new_name}" >/dev/null
+            echo "Renamed label: ${old_name} -> ${new_name}"
+          }
+
+          while IFS=$'\t' read -r old_name new_name; do
+            migrate_label "${old_name}" "${new_name}"
+          done < <(jq --raw-output '.migrations[] | [.from, .to] | @tsv' .github/labels.json)
+
+          while IFS=$'\t' read -r name color description; do
+            if label_exists "${name}"; then
+              gh api --method PATCH "${api}/labels/$(encode "${name}")" \
+                -f "new_name=${name}" \
+                -f "color=${color}" \
+                -f "description=${description}" >/dev/null
+              echo "Updated label: ${name}"
+            else
+              gh api --method POST "${api}/labels" \
+                -f "name=${name}" \
+                -f "color=${color}" \
+                -f "description=${description}" >/dev/null
+              echo "Created label: ${name}"
+            fi
+          done < <(jq --raw-output '.labels[] | [.name, .color, .description] | @tsv' .github/labels.json)
+
+          while read -r name; do
+            if label_exists "${name}"; then
+              gh api --method DELETE "${api}/labels/$(encode "${name}")" >/dev/null
+              echo "Deleted obsolete label: ${name}"
+            fi
+          done < <(jq --raw-output '.delete[]' .github/labels.json)
+
+          expected_count="$(jq '.labels | length' .github/labels.json)"
+          echo "Applied ${expected_count} managed labels."

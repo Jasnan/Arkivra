@@ -18,9 +18,14 @@ import {
 } from "@lucide/astro";
 
 export const docsUrl = "https://docs.arkivra.app/";
+export const quickStartUrl =
+	"https://docs.arkivra.app/getting-started/quick-start/";
 export const selfHostingGuideUrl =
 	"https://docs.arkivra.app/self-hosting/using-docker-compose/";
 export const githubUrl = "https://github.com/Jasnan/Arkivra";
+export const discussionsUrl = `${githubUrl}/discussions`;
+export const issuesUrl = `${githubUrl}/issues`;
+export const releasesUrl = `${githubUrl}/releases`;
 
 export const navigationItems = [
 	{ name: "Home", href: "#hero" },
@@ -33,7 +38,7 @@ export const values = [
 		icon: GitFork,
 		title: "Open source",
 		description:
-			"Arkivra is released under AGPL-3.0. Review the code or adapt it to your setup.",
+			"Arkivra is released under AGPL-3.0-or-later. Review the code or adapt it to your setup.",
 	},
 	{
 		icon: Server,
@@ -193,7 +198,7 @@ export const faqItems = [
 	{
 		question: "What license is Arkivra released under?",
 		answer:
-			"Arkivra is open source under the AGPL-3.0 license. The source code, issue tracker, and project roadmap are available on GitHub.",
+			"Arkivra is open source under the AGPL-3.0-or-later license. The source code, issue tracker, Discussions, and release notes are available on GitHub.",
 	},
 ];
 
@@ -205,6 +210,9 @@ export const footerLinks = {
 	resources: [
 		{ name: "Documentation", href: docsUrl },
 		{ name: "Docker guide", href: selfHostingGuideUrl },
+		{ name: "Release notes", href: releasesUrl },
+		{ name: "Discussions", href: discussionsUrl },
+		{ name: "Issue tracker", href: issuesUrl },
 		{ name: "GitHub", href: githubUrl },
 	],
 	legal: [

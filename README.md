@@ -8,6 +8,12 @@
   <a href="https://docs.arkivra.app">Documentation</a>
   <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
   <a href="https://docs.arkivra.app/getting-started/quick-start/">Quick start</a>
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="CONTRIBUTING.md">Contributing</a>
+</p>
+
+<p align="center">
+  <strong>Public beta:</strong> <code>v0.1.0-beta.1</code>
 </p>
 
 ## What is Arkivra?
@@ -56,7 +62,7 @@ Today, Arkivra is the document management system I wanted for myself. My hope is
 
 ### Self-hosting and administration
 
-- **Docker Compose:** Build and run Arkivra with PostgreSQL on your own server.
+- **Published Docker image:** Deploy Arkivra with Docker Compose on AMD64 or ARM64 infrastructure.
 - **Access control:** Use vault roles and platform privileges to control access to each collection.
 - **Authentication:** Use email and password, TOTP, or optional Google and GitHub OAuth.
 - **Backups:** Create encrypted backup sets that contain the database dump and stored document files.
@@ -65,7 +71,7 @@ Today, Arkivra is the document management system I wanted for myself. My hope is
 
 ## Self-hosting
 
-Arkivra is designed to run on infrastructure you manage. The documentation covers prerequisites, Docker Compose, document processing, configuration, and production considerations.
+Arkivra is designed to run on infrastructure you manage. The public beta image is published as `ghcr.io/jasnan/arkivra:0.1.0-beta.1`. A complete deployment includes PostgreSQL and a reachable Docling Serve instance; Docling provides document parsing for normal content extraction and full-text search even when optional AI features are disabled.
 
 Follow the [quick-start guide](https://docs.arkivra.app/getting-started/quick-start/) to try Arkivra. For a complete deployment walkthrough, see [self-hosting with Docker Compose](https://docs.arkivra.app/self-hosting/using-docker-compose/).
 
@@ -84,9 +90,9 @@ Remote processors and AI providers receive the document content needed for the f
 
 ## Project status
 
-Arkivra is still evolving and has not yet reached a stable 1.0 release. The core document management features are stable for everyday use, and AI features such as semantic search are also considered stable. Document chat is usable but still being refined, while translation remains experimental. As development continues, some interfaces and configuration options may change. For production deployments or instances containing important documents, test upgrades before applying them.
+Arkivra is available as a public beta and has not reached a stable 1.0 release. The main document management and full-text search workflows are ready for early adopters, while document chat is still being refined and PDF translation remains experimental. Interfaces, configuration, migrations, and deployment guidance may change between beta releases.
 
-Bug reports, focused pull requests, and practical feedback are welcome through the [GitHub repository](https://github.com/Jasnan/Arkivra).
+Use a fixed image version, keep tested backups, and review release information before upgrading an instance that contains important documents. See the [`v0.1.0-beta.1` release](https://github.com/Jasnan/Arkivra/releases/tag/v0.1.0-beta.1) and the [changelog](https://docs.arkivra.app/changelog/) for the current beta line.
 
 ## Development
 
@@ -101,13 +107,22 @@ Arkivra is a pnpm monorepo with four application packages:
 
 The [documentation](https://docs.arkivra.app) covers source setup and operational guidance.
 
+## Community
+
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing or implementing a change. Substantial features require maintainer approval before development begins.
+- Use [GitHub Discussions](https://github.com/Jasnan/Arkivra/discussions) for questions, deployment help, early ideas, and general feedback.
+- Use the [issue tracker](https://github.com/Jasnan/Arkivra/issues) for reproducible bugs and concrete proposals.
+- Follow [SECURITY.md](SECURITY.md) to report suspected vulnerabilities privately.
+
+Participation in Arkivra community spaces is governed by the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## Inspiration
 
 Arkivra draws inspiration from the open-source document management and self-hosting ecosystem. This includes [Paperless-ngx](https://paperless-ngx.com/), [Papra](https://papra.app/), and [Filen](https://filen.io/).
 
 ## License
 
-Arkivra is licensed under the [AGPL-3.0 License](LICENSE).
+Arkivra is licensed under the [GNU Affero General Public License v3.0 or later](LICENSE).
 
 ## Maintainer
 

@@ -1,0 +1,63 @@
+name: Feature proposal
+description: Propose a focused improvement for maintainer consideration
+title: '[Proposal]: '
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature proposals help shape discussion, but opening an issue does not mean the work has been accepted. Please wait for explicit maintainer approval before implementing a substantial feature.
+
+        Early ideas and open-ended product discussion may be a better fit for the [Ideas category](https://github.com/Jasnan/Arkivra/discussions/categories/ideas).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the user problem without prescribing an implementation.
+      placeholder: As a self-hosting user, I need ... because ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed outcome
+      description: What should a user be able to do, and what would success look like?
+    validations:
+      required: true
+
+  - type: textarea
+    id: fit
+    attributes:
+      label: Fit with Arkivra
+      description: Explain how this supports focused document management, self-hosting, full-text search, or optional provider-configured AI without making core workflows depend on AI.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe current workarounds or simpler approaches you considered.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and risks
+      description: Note likely effects on permissions, stored data, migrations, configuration, integrations, security, or compatibility.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and discussions for this proposal.
+          required: true
+        - label: I understand that submitting or upvoting a proposal does not place it on the roadmap.
+          required: true
+        - label: I will wait for maintainer approval before opening a pull request that implements this feature.
+          required: true

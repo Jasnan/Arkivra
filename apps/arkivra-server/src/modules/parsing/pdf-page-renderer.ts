@@ -1,6 +1,7 @@
 import type { ParserOutput } from './parsed-document.schema.js';
 import { createCanvas, DOMMatrix, ImageData, Path2D } from '@napi-rs/canvas';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { PDF_STANDARD_FONT_DATA_URL } from './pdfjs-runtime.js';
 
 type EmbeddedImage = NonNullable<ParserOutput['embeddedImages']>[number];
 
@@ -72,10 +73,11 @@ export async function renderPdfPagesToImages({
 
   const loadingTask = getDocument({
     data: new Uint8Array(fileData),
+    standardFontDataUrl: PDF_STANDARD_FONT_DATA_URL,
   });
-  const document = await loadingTask.promise;
 
   try {
+    const document = await loadingTask.promise;
     const pageLimit = Math.min(document.numPages, clampPositiveInteger(maxPages, 8));
     const images: EmbeddedImage[] = [];
 
@@ -156,10 +158,11 @@ export async function renderPdfPageToImage({
 
   const loadingTask = getDocument({
     data: new Uint8Array(fileData),
+    standardFontDataUrl: PDF_STANDARD_FONT_DATA_URL,
   });
-  const document = await loadingTask.promise;
 
   try {
+    const document = await loadingTask.promise;
     return await renderPdfPage({
       document,
       pageNumber,

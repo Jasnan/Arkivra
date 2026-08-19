@@ -1,6 +1,7 @@
 import { getDocument, OPS } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { ParseInput } from './parser.types.js';
 import { sha256Hex, toExactUint8Array } from './binary-diagnostics.js';
+import { PDF_STANDARD_FONT_DATA_URL } from './pdfjs-runtime.js';
 
 export type PdfProcessingPath = 'digital' | 'mixed' | 'scan-heavy' | 'unknown';
 
@@ -175,10 +176,11 @@ export async function classifyPdfForProcessing(
   try {
     const loadingTask = getDocument({
       data: toExactUint8Array(input.fileData),
+      standardFontDataUrl: PDF_STANDARD_FONT_DATA_URL,
     });
-    const document = await loadingTask.promise;
 
     try {
+      const document = await loadingTask.promise;
       const sampledPages = buildSamplePageNumbers(
         document.numPages,
         Math.min(thresholds.maxSampledPages, document.numPages),

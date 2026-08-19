@@ -38,7 +38,7 @@ body:
     attributes:
       label: Arkivra version
       description: Provide the release, Docker image tag, or commit SHA. Do not write only "latest".
-      placeholder: 0.1.0-beta.1
+      placeholder: 0.1.0-rc.1
     validations:
       required: true
 

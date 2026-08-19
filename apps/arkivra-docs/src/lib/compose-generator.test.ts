@@ -10,13 +10,13 @@ import {
 } from './compose-generator';
 
 describe('Arkivra Compose generator', () => {
-  it('keeps the canonical deployment file on the pinned beta without build inputs', () => {
+  it('keeps the canonical deployment file on the pinned release candidate without build inputs', () => {
     const compose = readFileSync(
       new URL('../../../../compose.production.yaml', import.meta.url),
       'utf8',
     );
 
-    expect(compose).toContain('ghcr.io/jasnan/arkivra:0.1.0-beta.1');
+    expect(compose).toContain('ghcr.io/jasnan/arkivra:0.1.0-rc.1');
     expect(compose).not.toMatch(/\bbuild:/);
     expect(compose).not.toMatch(/ghcr\.io\/jasnan\/arkivra:latest\b/);
     expect(compose).not.toContain('/app/apps');
@@ -30,7 +30,7 @@ describe('Arkivra Compose generator', () => {
       publicUrl: 'https://documents.example.com',
     });
 
-    expect(compose).toContain('image: ghcr.io/jasnan/arkivra:0.1.0-beta.1');
+    expect(compose).toContain('image: ghcr.io/jasnan/arkivra:0.1.0-rc.1');
     expect(compose).toContain('POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?');
     expect(compose).toContain('ARKIVRA_ENCRYPTION_KEYS: ${ARKIVRA_ENCRYPTION_KEYS:?');
     expect(compose).toContain('postgres-data:/var/lib/postgresql/data');

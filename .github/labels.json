@@ -99,7 +99,7 @@
     {
       "name": "beta feedback",
       "color": "BFDADC",
-      "description": "Feedback specifically related to the current public beta."
+      "description": "Feedback specifically related to beta or release-candidate builds."
     },
     {
       "name": "security",

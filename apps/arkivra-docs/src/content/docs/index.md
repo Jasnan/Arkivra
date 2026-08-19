@@ -5,8 +5,8 @@ description: Learn how to install, use, administer, and maintain Arkivra.
 
 Arkivra is an open-source, self-hostable document management system. It stores documents in vaults, preserves version history, extracts searchable content, and provides optional AI-assisted search, chat, and PDF translation.
 
-:::note[Public beta]
-The current release is `v0.1.0-beta.1`. Arkivra has not reached a stable 1.0 release, so review the [changelog](/changelog/) and test backups before upgrading an instance that contains important documents.
+:::note[Release candidate]
+The current release is `v0.1.0-rc.1`, the candidate for the first stable `0.1` release. Arkivra has not reached a stable 1.0 release, so review the [changelog](/changelog/) and test backups before upgrading an instance that contains important documents.
 :::
 
 AI is not required for the core document workflow. You can create vaults and folders, upload and preview documents, manage versions, use tags, search extracted text, and recover items from trash without configuring an AI provider.

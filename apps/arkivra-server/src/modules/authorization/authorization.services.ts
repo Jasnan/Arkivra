@@ -711,6 +711,7 @@ export function createAuthorizationServices({ db }: { db: Database }) {
           userId: user.id,
           accountId: user.id,
           providerId: 'credential',
+          issuer: 'local:credential',
           password: passwordHash,
         });
 

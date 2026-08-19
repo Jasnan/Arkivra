@@ -145,18 +145,18 @@ The selected directory contains file-backed document data, upload staging, and A
 The deployment defaults to the fixed version tag:
 
 ```text
-ghcr.io/jasnan/arkivra:0.1.0-beta.1
+ghcr.io/jasnan/arkivra:0.1.0-rc.1
 ```
 
-The beta package is public and can be pulled from GitHub Container Registry without authentication. A pull-denied response usually indicates an incorrect image name, a network or registry problem, or stale local registry credentials.
+The release-candidate package is public and can be pulled from GitHub Container Registry without authentication. A pull-denied response usually indicates an incorrect image name, a network or registry problem, or stale local registry credentials.
 
-To intentionally follow the newest beta, set:
+To intentionally follow the newest beta channel instead, set:
 
 ```dotenv
 ARKIVRA_IMAGE=ghcr.io/jasnan/arkivra:beta
 ```
 
-The `beta` tag can change. Review release information and take a tested backup before pulling it. Arkivra does not use or document a `latest` tag for this beta deployment.
+The `beta` tag can change and may not contain the current release candidate. Review release information and take a tested backup before pulling any movable tag. The release candidate remains pinned by default.
 
 By default, Compose publishes Arkivra as `127.0.0.1:3210`. This is suitable for a reverse proxy on the Docker host. To deliberately publish the unencrypted application port on every interface, set `ARKIVRA_BIND_ADDRESS=0.0.0.0` and protect access at the host firewall or network boundary. PostgreSQL is never published by the public file.
 

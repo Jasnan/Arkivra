@@ -74,6 +74,8 @@ pnpm build
 
 Database, migration, authorization, search, AI, storage, and shared changes may require broader integration checks. If a check cannot be run locally, explain why in the pull request.
 
+Maintainers preparing a candidate or stable tag should follow the [release runbook](RELEASING.md).
+
 ## Pull requests
 
 - Link the accepted issue for a feature or substantial change.

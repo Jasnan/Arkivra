@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
+import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -79,6 +80,25 @@ describe.sequential('persistParsedDocument integration', () => {
     await pool?.end();
 
     if (adminPool !== null && isolatedDatabaseName.length > 0) {
+      // pg@8.16 can resolve Pool.end() just before its final socket disappears
+      // from pg_stat_activity. Give that graceful close a moment so the cleanup
+      // query does not terminate an already-ending client and surface a Vitest
+      // unhandled error.
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        const { rows } = await adminPool.query<{ connection_count: string }>(
+          `
+            SELECT count(*)::text AS connection_count
+            FROM pg_stat_activity
+            WHERE datname = $1
+          `,
+          [isolatedDatabaseName],
+        );
+        if (rows[0]?.connection_count === '0') {
+          break;
+        }
+        await delay(25);
+      }
+
       await adminPool.query(
         `
           SELECT pg_terminate_backend(pid)

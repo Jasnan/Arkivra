@@ -1,4 +1,4 @@
-import { genericOAuthClient, twoFactorClient } from "better-auth/client/plugins"
+import { twoFactorClient } from "better-auth/client/plugins"
 import { createAuthClient } from "better-auth/react"
 
 function resolveBaseURL() {
@@ -11,5 +11,5 @@ function resolveBaseURL() {
 
 export const authClient = createAuthClient({
   baseURL: resolveBaseURL(),
-  plugins: [genericOAuthClient(), twoFactorClient()],
+  plugins: [twoFactorClient()],
 })

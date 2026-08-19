@@ -290,8 +290,8 @@ importers:
         specifier: ^1.19.15
         version: 1.19.17(hono@4.13.3)
       '@napi-rs/canvas':
-        specifier: ^0.1.100
-        version: 0.1.100
+        specifier: ^1.0.7
+        version: 1.0.7
       '@paralleldrive/cuid2':
         specifier: ^2.2.2
         version: 2.3.1
@@ -8293,6 +8293,7 @@ snapshots:
       '@napi-rs/canvas-linux-x64-musl': 0.1.100
       '@napi-rs/canvas-win32-arm64-msvc': 0.1.100
       '@napi-rs/canvas-win32-x64-msvc': 0.1.100
+    optional: true
 
   '@napi-rs/canvas@1.0.7':
     optionalDependencies:
@@ -8307,7 +8308,6 @@ snapshots:
       '@napi-rs/canvas-linux-x64-musl': 1.0.7
       '@napi-rs/canvas-win32-arm64-msvc': 1.0.7
       '@napi-rs/canvas-win32-x64-msvc': 1.0.7
-    optional: true
 
   '@napi-rs/wasm-runtime@1.2.3(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)':
     dependencies:

@@ -22,13 +22,13 @@ Monitor disk use for PostgreSQL and the configured Arkivra named volume or host 
 
 ### Update a published-image deployment
 
-Arkivra does not yet have a stable release line. Before updating the pinned beta image:
+Arkivra does not yet have a stable release line. Before updating the pinned release-candidate image:
 
 1. Review the [changelog](/changelog/) and the notes for the target GitHub release.
 2. Create and export a tested Arkivra backup.
 3. Preserve deployment configuration and secrets separately.
 4. Stop user traffic when the change warrants a maintenance window.
-5. Change `ARKIVRA_IMAGE` or the Compose image line to the reviewed beta version.
+5. Change `ARKIVRA_IMAGE` or the Compose image line to the reviewed release version.
 6. Pull and start:
 
    ```bash

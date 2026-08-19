@@ -94,7 +94,7 @@ export async function renderPdfPagesToImages({
 
     return images;
   } finally {
-    await document.destroy();
+    await loadingTask.destroy();
   }
 }
 
@@ -167,6 +167,6 @@ export async function renderPdfPageToImage({
       maxDimension,
     });
   } finally {
-    await document.destroy();
+    await loadingTask.destroy();
   }
 }

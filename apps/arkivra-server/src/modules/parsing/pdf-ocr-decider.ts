@@ -247,7 +247,7 @@ export async function classifyPdfForProcessing(
 
       return result;
     } finally {
-      await document.destroy();
+      await loadingTask.destroy();
     }
   } catch (error) {
     console.info(

@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -170,6 +171,121 @@ describe.sequential('migrations smoke', () => {
       'documents_name_trgm_idx',
       'vault_folders_name_trgm_idx',
     ]);
+  });
+
+  test('baseline includes issuer-scoped auth account identities', async () => {
+    if (pool === null) {
+      throw new Error('Migration smoke pool not initialised');
+    }
+
+    const { rows: columnRows } = await pool.query<{
+      column_name: string;
+      data_type: string;
+      is_nullable: string;
+    }>(
+      `
+        SELECT column_name, data_type, is_nullable
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'auth_accounts'
+          AND column_name = 'issuer'
+      `,
+    );
+
+    expect(columnRows).toEqual([
+      {
+        column_name: 'issuer',
+        data_type: 'text',
+        is_nullable: 'NO',
+      },
+    ]);
+
+    const { rows: indexRows } = await pool.query<{ indexname: string }>(
+      `
+        SELECT indexname
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename = 'auth_accounts'
+          AND indexname = 'auth_accounts_issuer_account_id_unique'
+      `,
+    );
+
+    expect(indexRows).toHaveLength(1);
+  });
+
+  test('better Auth 1.7 migration backfills supported account issuers', async () => {
+    if (pool === null) {
+      throw new Error('Migration smoke pool not initialised');
+    }
+
+    const schemaName = `issuer_backfill_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const client = await pool.connect();
+
+    try {
+      await client.query(`CREATE SCHEMA "${schemaName}"`);
+      await client.query(`SET search_path TO "${schemaName}"`);
+      await client.query(`
+        CREATE TABLE auth_accounts (
+          id text PRIMARY KEY,
+          user_id text NOT NULL,
+          account_id text NOT NULL,
+          provider_id text NOT NULL
+        )
+      `);
+      await client.query(
+        `
+          INSERT INTO auth_accounts (id, user_id, account_id, provider_id)
+          VALUES
+            ('credential-account', 'user-1', 'legacy-credential-id', 'credential'),
+            ('google-account', 'user-1', 'google-subject', 'google'),
+            ('github-account', 'user-2', 'github-subject', 'github')
+        `,
+      );
+
+      const migrationSql = await readFile(
+        resolve(drizzleFolder, '0012_careless_shadow_king.sql'),
+        'utf8',
+      );
+      for (const statement of migrationSql.split('--> statement-breakpoint')) {
+        if (statement.trim().length > 0) {
+          await client.query(statement);
+        }
+      }
+
+      const { rows } = await client.query<{
+        account_id: string;
+        issuer: string;
+        provider_id: string;
+      }>(
+        `
+          SELECT account_id, issuer, provider_id
+          FROM auth_accounts
+          ORDER BY provider_id
+        `,
+      );
+
+      expect(rows).toEqual([
+        {
+          account_id: 'user-1',
+          issuer: 'local:credential',
+          provider_id: 'credential',
+        },
+        {
+          account_id: 'github-subject',
+          issuer: 'local:oauth:github',
+          provider_id: 'github',
+        },
+        {
+          account_id: 'google-subject',
+          issuer: 'https://accounts.google.com',
+          provider_id: 'google',
+        },
+      ]);
+    } finally {
+      await client.query('RESET search_path');
+      await client.query(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
+      client.release();
+    }
   });
 
   test('baseline includes the document_chunk_assets table with the expected shape', async () => {

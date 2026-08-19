@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <strong>Public beta:</strong> <code>v0.1.0-beta.1</code>
+  <strong>Release candidate:</strong> <code>v0.1.0-rc.1</code>
 </p>
 
 ## What is Arkivra?
@@ -71,7 +71,7 @@ Today, Arkivra is the document management system I wanted for myself. My hope is
 
 ## Self-hosting
 
-Arkivra is designed to run on infrastructure you manage. The public beta image is published as `ghcr.io/jasnan/arkivra:0.1.0-beta.1`. A complete deployment includes PostgreSQL and a reachable Docling Serve instance; Docling provides document parsing for normal content extraction and full-text search even when optional AI features are disabled.
+Arkivra is designed to run on infrastructure you manage. The release-candidate image is published as `ghcr.io/jasnan/arkivra:0.1.0-rc.1`. A complete deployment includes PostgreSQL and a reachable Docling Serve instance; Docling provides document parsing for normal content extraction and full-text search even when optional AI features are disabled.
 
 Follow the [quick-start guide](https://docs.arkivra.app/getting-started/quick-start/) to try Arkivra. For a complete deployment walkthrough, see [self-hosting with Docker Compose](https://docs.arkivra.app/self-hosting/using-docker-compose/).
 
@@ -90,9 +90,9 @@ Remote processors and AI providers receive the document content needed for the f
 
 ## Project status
 
-Arkivra is available as a public beta and has not reached a stable 1.0 release. The main document management and full-text search workflows are ready for early adopters, while document chat is still being refined and PDF translation remains experimental. Interfaces, configuration, migrations, and deployment guidance may change between beta releases.
+Arkivra `v0.1.0-rc.1` is the release candidate for the first stable `0.1` release. Arkivra has not reached a stable 1.0 release: document chat is still being refined, PDF translation remains experimental, and interfaces may evolve before 1.0.
 
-Use a fixed image version, keep tested backups, and review release information before upgrading an instance that contains important documents. See the [`v0.1.0-beta.1` release](https://github.com/Jasnan/Arkivra/releases/tag/v0.1.0-beta.1) and the [changelog](https://docs.arkivra.app/changelog/) for the current beta line.
+Use a fixed image version, keep tested backups, and review release information before upgrading an instance that contains important documents. See the [`v0.1.0-rc.1` release](https://github.com/Jasnan/Arkivra/releases/tag/v0.1.0-rc.1) and the [changelog](https://docs.arkivra.app/changelog/) for the current release line.
 
 ## Development
 

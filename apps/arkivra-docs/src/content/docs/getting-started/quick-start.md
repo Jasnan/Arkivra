@@ -1,9 +1,9 @@
 ---
 title: Quick start
-description: Start the published Arkivra beta with Docker Compose and create the first administrator.
+description: Start the published Arkivra release candidate with Docker Compose and create the first administrator.
 ---
 
-This guide starts the pinned Arkivra beta, PostgreSQL, and the required Docling document parser with Docker Compose. The generator can bundle Docling or connect Arkivra to an existing bare-metal, containerized, or remote service.
+This guide starts the pinned Arkivra release candidate, PostgreSQL, and the required Docling document parser with Docker Compose. The generator can bundle Docling or connect Arkivra to an existing bare-metal, containerized, or remote service.
 
 ## Prerequisites
 
@@ -12,7 +12,7 @@ This guide starts the pinned Arkivra beta, PostgreSQL, and the required Docling 
 - enough memory and CPU for Docling, or an existing Docling Serve endpoint reachable from Docker
 - enough disk space for PostgreSQL, uploaded files, extracted assets, and backups
 
-The public image is `ghcr.io/jasnan/arkivra:0.1.0-beta.1` and can be pulled from GitHub Container Registry without authentication.
+The public image is `ghcr.io/jasnan/arkivra:0.1.0-rc.1` and can be pulled from GitHub Container Registry without authentication.
 
 ## Prepare the deployment
 

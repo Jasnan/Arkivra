@@ -555,6 +555,7 @@ export function createSensitiveActionServices({
         id: generateRandomString(32),
         accountId: userId,
         providerId: 'credential',
+        issuer: 'local:credential',
         password: passwordHash,
         userId,
       });

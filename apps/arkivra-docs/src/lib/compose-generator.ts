@@ -1,5 +1,5 @@
 export const ARKIVRA_IMAGES = {
-  pinned: 'ghcr.io/jasnan/arkivra:0.1.0-beta.1',
+  pinned: 'ghcr.io/jasnan/arkivra:0.1.0-rc.1',
   beta: 'ghcr.io/jasnan/arkivra:beta',
 } as const;
 

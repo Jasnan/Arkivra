@@ -1,4 +1,4 @@
-export type AdminAiChatProviderKind = 'ollama' | 'gemini';
+export type AdminAiChatProviderKind = 'ollama' | 'gemini' | 'privatemode';
 export type AdminAiProviderKind = AdminAiChatProviderKind;
 export type AdminAiModelCapability = 'chat' | 'vision' | 'embedding';
 
@@ -29,6 +29,7 @@ export type AdminAiSettings = {
   translation: AdminAiProviderSettings;
   embedding: AdminAiEmbeddingProviderSettings;
   providers?: {
+    privatemode?: { baseUrl: string; apiKeySecretRef: string | null; configured?: boolean };
     gemini?: {
       baseUrl: string;
       apiKeySecretRef: string | null;
@@ -41,7 +42,7 @@ export type AdminAiSettings = {
 };
 
 export type AdminAiChatSettings = {
-  provider: 'ollama' | 'openrouter' | 'gemini' | 'custom';
+  provider: 'ollama' | 'openrouter' | 'gemini' | 'privatemode' | 'custom';
   baseUrl: string | null;
   model: string;
   allowedModels: string[];
@@ -78,7 +79,7 @@ export type AdminAiModelAvailability = {
 };
 
 export type AdminStartEmbeddingIndexInput = {
-  provider: 'ollama' | 'openrouter' | 'gemini' | 'voyage' | 'custom';
+  provider: 'ollama' | 'openrouter' | 'gemini' | 'voyage' | 'privatemode' | 'custom';
   model: string;
   dimensions: number;
   name?: string;
@@ -95,7 +96,7 @@ export type AdminEmbeddingIndexActionResult = {
 export type AdminEmbeddingIndexSummary = {
   id: string;
   providerConfigId: string;
-  provider: 'ollama' | 'openrouter' | 'gemini' | 'voyage' | 'custom';
+  provider: 'ollama' | 'openrouter' | 'gemini' | 'voyage' | 'privatemode' | 'custom';
   model: string;
   dimensions: number;
   distanceMetric: string;

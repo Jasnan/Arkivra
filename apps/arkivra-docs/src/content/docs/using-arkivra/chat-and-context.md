@@ -45,7 +45,7 @@ Changing the selected chat model does not change the embedding model used to ret
 
 ## Data sent to providers
 
-Arkivra sends the prompt, relevant conversation history, and retrieved document context required for generation to the selected chat endpoint. With an operator-controlled local Ollama endpoint, this can remain on that infrastructure. With Gemini or a remote Ollama-compatible endpoint, it leaves the Arkivra process and is governed by that provider's configuration and terms.
+Arkivra sends the prompt, relevant conversation history, and retrieved document context required for generation to the selected chat endpoint. With an operator-controlled local Ollama endpoint, this can remain on that infrastructure. With Gemini, Privatemode, or a remote Ollama-compatible endpoint, it leaves the Arkivra process and is governed by that provider's configuration and terms. Privatemode requests pass through a trusted encryption proxy; see [Providers and models](/ai/providers-and-models/) for the encryption boundary.
 
 See [Privacy and security](/operations/privacy-and-security/) before using remote providers for sensitive documents.
 

@@ -33,6 +33,7 @@ export function createDocumentSearchServices({
 
       const vectors = await provider.embed({
         texts: [trimmedQuery],
+        purpose: 'query',
         config,
       });
       const vector = vectors[0] ?? null;

@@ -130,6 +130,16 @@ function createTestApp({
 }
 
 describe('admin ai routes', () => {
+  test.each([
+    { isAuthenticated: false, isAdmin: false, expectedStatus: 401 },
+    { isAuthenticated: true, isAdmin: false, expectedStatus: 403 },
+  ])('protects Privatemode discovery from unauthorized callers ($expectedStatus)', async ({ isAuthenticated, isAdmin, expectedStatus }) => {
+    const { app, aiServices } = createTestApp({ isAuthenticated, isAdmin });
+    const response = await app.request('/api/admin/ai/models', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ host: 'http://proxy:8080/v1', provider: 'privatemode', includeEmbeddingModels: true }) });
+    expect(response.status).toBe(expectedStatus);
+    expect(aiServices.listChatModels).not.toHaveBeenCalled();
+  });
+
   test('defaults ingestion AI settings to disabled when no instance settings row exists', async () => {
     const aiServices = createAdminAiServices({
       db: {

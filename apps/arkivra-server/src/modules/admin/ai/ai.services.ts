@@ -1,3 +1,8 @@
+import {
+  createPrivatemodeEmbeddingProvider,
+  listPrivatemodeModels,
+  privatemodeProviderSettings,
+} from '../../ai/providers/privatemode.provider.js';
 import type { Config } from '../../config/config.js';
 import type { Database } from '../../database/database.js';
 import type {
@@ -209,13 +214,18 @@ function embeddingSelectionIsUsable({
     return hasConfiguredOllamaProvider;
   }
 
+  if (settings.embedding.provider === 'privatemode')
+    return privatemodeProviderSettings().configured;
+
   if (settings.embedding.provider === 'gemini') {
-    return resolveApiKey(
-      settings.embedding.apiKeySecretRef,
-      settings.providers?.gemini?.apiKeySecretRef,
-      settings.chat.provider === 'gemini' ? settings.chat.apiKeySecretRef : null,
-      settings.translation.provider === 'gemini' ? settings.translation.apiKeySecretRef : null,
-    ) !== null;
+    return (
+      resolveApiKey(
+        settings.embedding.apiKeySecretRef,
+        settings.providers?.gemini?.apiKeySecretRef,
+        settings.chat.provider === 'gemini' ? settings.chat.apiKeySecretRef : null,
+        settings.translation.provider === 'gemini' ? settings.translation.apiKeySecretRef : null,
+      ) !== null
+    );
   }
 
   return false;
@@ -234,6 +244,7 @@ export function createAdminAiServices({
 }) {
   const ollama = createOllamaProvider({ fetchImpl });
   const gemini = createGeminiProvider({ fetchImpl });
+  const privatemodeEmbedding = createPrivatemodeEmbeddingProvider({ fetchImpl });
   const geminiEmbedding = createGeminiEmbeddingProvider({ fetchImpl });
   const configuredOllamaHost =
     config.ollama.configured === false ? '' : normalizeHost(config.ollama.host);
@@ -267,10 +278,13 @@ export function createAdminAiServices({
             ? configuredOllamaHost
             : settings.embedding.provider === 'gemini'
               ? normalizeGeminiBaseUrl(settings.embedding.baseUrl)
-              : '',
+              : settings.embedding.provider === 'privatemode'
+                ? privatemodeProviderSettings().baseUrl
+                : '',
       },
       providers: {
         ...settings.providers,
+        privatemode: privatemodeProviderSettings(),
         gemini: {
           ...settings.providers?.gemini,
           baseUrl: GEMINI_OPENAI_COMPATIBLE_BASE_URL,
@@ -300,7 +314,9 @@ export function createAdminAiServices({
       return applyConfiguredOllamaHost(defaults);
     }
 
-    const storedChatProvider = stored.chatProvider === 'gemini' ? 'gemini' : 'ollama';
+    const storedChatProvider = isAdminAiProviderKind(stored.chatProvider)
+      ? stored.chatProvider
+      : 'ollama';
     const storedAllowedChatModels = Array.isArray(stored.chatAllowedModels)
       ? stored.chatAllowedModels
       : [];
@@ -325,7 +341,9 @@ export function createAdminAiServices({
           : (stored.chatBaseUrl ?? stored.ollamaHost),
       fallbackOllamaHost: configuredOllamaHost,
     });
-    const storedTranslationProvider = stored.translationProvider === 'gemini' ? 'gemini' : 'ollama';
+    const storedTranslationProvider = isAdminAiProviderKind(stored.translationProvider)
+      ? stored.translationProvider
+      : 'ollama';
     const translationBaseUrl = normalizeChatBaseUrl({
       provider: storedTranslationProvider,
       baseUrl:
@@ -347,13 +365,17 @@ export function createAdminAiServices({
         ? configuredOllamaHost
         : storedEmbeddingProvider === 'gemini'
           ? normalizeGeminiBaseUrl(stored.embeddingBaseUrl)
-          : '';
+          : storedEmbeddingProvider === 'privatemode'
+            ? privatemodeProviderSettings().baseUrl
+            : '';
     const storedEmbeddingApiKeySecretRef =
-      storedEmbeddingProvider === 'gemini'
-        ? normalizeApiKeySecretRef(
-            stored.embeddingApiKeySecretRef ?? stored.geminiApiKeySecretRef,
-          )
-        : null;
+      storedEmbeddingProvider === 'privatemode'
+        ? 'PRIVATEMODE_API_KEY'
+        : storedEmbeddingProvider === 'gemini'
+          ? normalizeApiKeySecretRef(
+              stored.embeddingApiKeySecretRef ?? stored.geminiApiKeySecretRef,
+            )
+          : null;
 
     return applyConfiguredOllamaHost({
       aiFeaturesEnabled: stored.aiFeaturesEnabled,
@@ -651,6 +673,17 @@ export function createAdminAiServices({
       return settings;
     }
 
+    if (settings.embedding.provider === 'privatemode') {
+      if (settings.embedding.dimensions !== null && settings.embedding.dimensions !== 1024) {
+        throw new Error('Privatemode embeddings require 1024 dimensions.');
+      }
+      await privatemodeEmbedding.embed({
+        texts: ['dimension probe'],
+        config: { provider: 'privatemode', model: settings.embedding.model, dimensions: 1024 },
+      });
+      return { ...settings, embedding: { ...settings.embedding, dimensions: 1024 } };
+    }
+
     if (settings.embedding.dimensions !== null) {
       return settings;
     }
@@ -939,6 +972,11 @@ export function createAdminAiServices({
     includeEmbeddingModels?: boolean;
     apiKeySecretRef?: string | null;
   } = {}): Promise<AdminAiModel[]> {
+    if (provider === 'privatemode') {
+      return (await listPrivatemodeModels(fetchImpl)).filter(
+        (entry) => includeEmbeddingModels || entry.capabilities.includes('chat'),
+      );
+    }
     if (provider === 'gemini') {
       return (await listGeminiModels({ apiKeySecretRef }))
         .filter((entry) => includeEmbeddingModels || entry.capabilities.includes('chat'))
@@ -973,14 +1011,12 @@ export function createAdminAiServices({
     const settings = host === undefined || model === undefined ? await getSettings() : null;
     const effectiveProvider = provider ?? settings?.chat.provider ?? 'ollama';
     const effectiveHost =
-      effectiveProvider === 'gemini'
-        ? normalizeGeminiBaseUrl(host ?? settings?.chat.baseUrl)
-        : configuredOllamaHost;
-    const effectiveModel = (
-      model ??
-      settings?.chat.model ??
-      ''
-    ).trim();
+      effectiveProvider === 'privatemode'
+        ? privatemodeProviderSettings().baseUrl
+        : effectiveProvider === 'gemini'
+          ? normalizeGeminiBaseUrl(host ?? settings?.chat.baseUrl)
+          : configuredOllamaHost;
+    const effectiveModel = (model ?? settings?.chat.model ?? '').trim();
     const startedAt = Date.now();
 
     if (effectiveProvider === 'ollama' && !hasConfiguredOllamaProvider) {
@@ -995,6 +1031,35 @@ export function createAdminAiServices({
       };
     }
 
+    if (effectiveProvider === 'privatemode') {
+      try {
+        const models = await listPrivatemodeModels(fetchImpl);
+        const modelAvailable = models.some(
+          (item) => item.name === effectiveModel && item.capabilities.includes('chat'),
+        );
+        return {
+          host: effectiveHost,
+          model: effectiveModel,
+          reachable: true,
+          modelAvailable,
+          models,
+          responseTimeMs: Date.now() - startedAt,
+          error: modelAvailable
+            ? null
+            : 'The selected chat model is not available from Privatemode.',
+        };
+      } catch {
+        return {
+          host: effectiveHost,
+          model: effectiveModel,
+          reachable: false,
+          modelAvailable: false,
+          models: [],
+          responseTimeMs: null,
+          error: 'Could not query the configured Privatemode encryption proxy.',
+        };
+      }
+    }
     if (effectiveProvider === 'gemini') {
       const apiKey = resolveGeminiProviderApiKey({ settings, apiKeySecretRef });
 

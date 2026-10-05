@@ -29,7 +29,7 @@ Document processing runs in the background. Arkivra sends supported files to a r
 
 ## Optional AI features
 
-An administrator chooses whether AI is available and which provider and models Arkivra may use. Arkivra currently integrates with Ollama-compatible endpoints and Google Gemini for model-backed features. Semantic search requires a completed embedding index; chat also requires the user's **Use AI** platform privilege and normal access to every source it uses.
+An administrator chooses whether AI is available and which provider and models Arkivra may use. Arkivra currently integrates with Ollama-compatible endpoints, Google Gemini, and Privatemode for model-backed features. Semantic search requires a completed embedding index; chat also requires the user's **Use AI** platform privilege and normal access to every source it uses.
 
 If a remote provider is configured, Arkivra sends the document context needed for the request to that provider. Review [Privacy and security](/operations/privacy-and-security/) before enabling remote AI for sensitive material.
 

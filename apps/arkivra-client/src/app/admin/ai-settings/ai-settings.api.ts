@@ -1,6 +1,6 @@
 import { fetchJson } from "@/lib/api"
 
-export type AdminAiProviderKind = "ollama" | "gemini"
+export type AdminAiProviderKind = "ollama" | "gemini" | "privatemode"
 export type AdminAiModelCapability = "chat" | "vision" | "embedding"
 
 export interface MeResponse {
@@ -47,6 +47,7 @@ export interface AdminAiSettings {
   translation: AdminAiProviderSettings
   embedding: AdminAiEmbeddingProviderSettings
   providers?: {
+    privatemode?: { baseUrl: string; apiKeySecretRef: string | null; configured?: boolean }
     gemini?: {
       baseUrl: string
       apiKeySecretRef: string | null
@@ -63,6 +64,7 @@ export type AdminAiSettingsUpdatePayload = Omit<
 > & {
   translation?: AdminAiProviderSettings
   providers?: {
+    privatemode?: { baseUrl: string; apiKeySecretRef: string | null; configured?: boolean }
     gemini?: {
       baseUrl: string
       apiKeySecretRef: string | null

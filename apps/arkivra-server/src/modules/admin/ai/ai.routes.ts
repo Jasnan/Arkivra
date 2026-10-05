@@ -10,7 +10,7 @@ import { getAuditActorFromContext, getAuditRequestContext } from '../../audit/au
 import { AUDIT_EVENT_TYPES } from '../../audit/audit.types.js';
 
 const chatProviderSettingsSchema = z.object({
-  provider: z.enum(['ollama', 'gemini']),
+  provider: z.enum(['ollama', 'gemini', 'privatemode']),
   baseUrl: z.string().url(),
   apiKeySecretRef: z.string().min(1).nullable().optional(),
   model: z.string().min(1),
@@ -18,7 +18,7 @@ const chatProviderSettingsSchema = z.object({
 });
 
 const providerSettingsSchema = z.object({
-  provider: z.enum(['ollama', 'gemini']),
+  provider: z.enum(['ollama', 'gemini', 'privatemode']),
   baseUrl: z.string().url(),
   apiKeySecretRef: z.string().min(1).nullable().optional(),
   model: z.string().min(1),
@@ -28,7 +28,7 @@ const nullableUrlSchema = z.string().url().or(z.literal(''));
 
 const embeddingProviderSettingsSchema = z
   .object({
-    provider: z.enum(['ollama', 'gemini']).nullable(),
+    provider: z.enum(['ollama', 'gemini', 'privatemode']).nullable(),
     baseUrl: nullableUrlSchema,
     apiKeySecretRef: z.string().min(1).nullable().optional(),
     model: z.string().min(1).nullable(),
@@ -67,7 +67,7 @@ const aiSettingsSchema = z.object({
 
 const aiHostSchema = z.object({
   host: z.string().url(),
-  provider: z.enum(['ollama', 'gemini']).optional(),
+  provider: z.enum(['ollama', 'gemini', 'privatemode']).optional(),
   includeEmbeddingModels: z.boolean().optional(),
   apiKeySecretRef: z.string().min(1).nullable().optional(),
 });
@@ -75,7 +75,7 @@ const aiHostSchema = z.object({
 const aiAvailabilitySchema = z.object({
   host: z.string().url(),
   model: z.string().min(1),
-  provider: z.enum(['ollama', 'gemini']).optional(),
+  provider: z.enum(['ollama', 'gemini', 'privatemode']).optional(),
   apiKeySecretRef: z.string().min(1).nullable().optional(),
 });
 

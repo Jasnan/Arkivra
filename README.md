@@ -58,7 +58,7 @@ Today, Arkivra is the document management system I wanted for myself. My hope is
 - **Semantic search:** Find documents by meaning when the exact words do not match.
 - **Document chat:** Ask questions across selected documents, folders, or vaults. Open citations to check the source.
 - **PDF translation:** Translate selected text or rendered PDF content between English and German.
-- **Provider choice:** Use a local Ollama-compatible endpoint or connect Google Gemini.
+- **Provider choice:** Use a local Ollama-compatible endpoint, Google Gemini, or Privatemode through its encryption proxy.
 
 ### Self-hosting and administration
 

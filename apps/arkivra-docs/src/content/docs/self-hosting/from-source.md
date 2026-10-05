@@ -50,6 +50,19 @@ This guide uses the repository root `docker-compose.yml`. That contributor file 
 
 The API environment loader reads the repository `.env` and `apps/arkivra-server/.env` when present.
 
+## Optional Privatemode provider
+
+The API, worker, and dashboard run with the `pnpm` commands below; no Arkivra image is needed. The current Privatemode adapter requires a separately running [Privatemode encryption proxy](https://docs.privatemode.ai/api/proxy-configuration/). An API key alone does not replace that proxy.
+
+If the proxy listens locally on port 8080, add these values to the repository `.env`:
+
+```dotenv
+ARKIVRA_PRIVATEMODE_PROXY_URL=http://127.0.0.1:8080/v1
+PRIVATEMODE_API_KEY=<your-api-key>
+```
+
+Use the trusted proxy's actual address if it runs elsewhere. Do not use `api.privatemode.ai` as the proxy URL. Restart both API and worker after changing the environment. Once the dashboard is running, open **Administration** → **AI Settings**, refresh Privatemode, choose the models, and enable AI. See [Providers and models](/ai/providers-and-models/) for capabilities and the encryption boundary.
+
 ## Start PostgreSQL and Docling
 
 Start only the repository PostgreSQL service:

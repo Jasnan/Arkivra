@@ -1,0 +1,17 @@
+# Optional overlay: docker compose -f compose.production.yaml -f compose.privatemode.yaml up -d
+# Set PRIVATEMODE_API_KEY in .env. The proxy is reachable only on the Compose network.
+services:
+  privatemode-proxy:
+    image: ${PRIVATEMODE_PROXY_IMAGE:-ghcr.io/edgelesssys/privatemode/privatemode-proxy:latest}
+    restart: unless-stopped
+    command: ['--api-key-fallback=never', '--disable-prompt-cache=true']
+    security_opt:
+      - no-new-privileges:true
+
+  arkivra:
+    environment:
+      ARKIVRA_PRIVATEMODE_PROXY_URL: http://privatemode-proxy:8080/v1
+      PRIVATEMODE_API_KEY: ${PRIVATEMODE_API_KEY:?Set PRIVATEMODE_API_KEY in .env}
+    depends_on:
+      privatemode-proxy:
+        condition: service_started

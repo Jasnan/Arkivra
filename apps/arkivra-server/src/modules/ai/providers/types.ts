@@ -3,6 +3,7 @@ export type EmbeddingProviderKind =
   | 'openrouter'
   | 'gemini'
   | 'voyage'
+  | 'privatemode'
   | 'custom';
 
 export type EmbeddingProviderRegistry = Partial<Record<EmbeddingProviderKind, EmbeddingProvider>>;
@@ -22,6 +23,7 @@ export interface EmbeddingProvider {
     texts: string[];
     config: EmbeddingModelConfig;
     signal?: AbortSignal;
+    purpose?: 'document' | 'query';
   }) => Promise<number[][]>;
   listModels?: (config: Partial<EmbeddingModelConfig>) => Promise<string[]>;
   validate?: (config: EmbeddingModelConfig) => Promise<void>;

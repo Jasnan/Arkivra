@@ -101,7 +101,7 @@ const DEFAULT_INTENT_EXAMPLES: Record<ChatIntent, string[]> = {
 };
 
 export type AiRuntimeSettings = {
-  provider: 'ollama' | 'gemini';
+  provider: 'ollama' | 'gemini' | 'privatemode';
   baseUrl: string;
   apiKey?: string;
   model: string;
@@ -178,7 +178,7 @@ export function parseChatModelSelection({
   const providerSeparator = trimmed.indexOf(':');
   const maybeProvider = providerSeparator > 0 ? trimmed.slice(0, providerSeparator) : '';
 
-  if (maybeProvider === 'ollama' || maybeProvider === 'gemini') {
+  if (maybeProvider === 'ollama' || maybeProvider === 'gemini' || maybeProvider === 'privatemode') {
     const model = trimmed.slice(providerSeparator + 1).trim();
     return {
       provider: maybeProvider,

@@ -105,12 +105,13 @@ export function formatChatModelLabel(value: string) {
   const separator = value.indexOf(":")
   const provider = separator > 0 ? value.slice(0, separator) : ""
 
-  if (provider !== "ollama" && provider !== "gemini") {
+  if (provider !== "ollama" && provider !== "gemini" && provider !== "privatemode") {
     return value
   }
 
   const model = value.slice(separator + 1)
-  const providerLabel = provider === "gemini" ? "Gemini" : "Ollama"
+  const providerLabel =
+    provider === "privatemode" ? "Privatemode" : provider === "gemini" ? "Gemini" : "Ollama"
   return `${model} · ${providerLabel}`
 }
 
@@ -118,7 +119,7 @@ export function formatChatModelName(value: string) {
   const separator = value.indexOf(":")
   const provider = separator > 0 ? value.slice(0, separator) : ""
 
-  if (provider !== "ollama" && provider !== "gemini") {
+  if (provider !== "ollama" && provider !== "gemini" && provider !== "privatemode") {
     return value
   }
 
@@ -129,6 +130,7 @@ export function formatChatModelProviderLabel(value: string) {
   const separator = value.indexOf(":")
   const provider = separator > 0 ? value.slice(0, separator) : ""
 
+  if (provider === "privatemode") return "Privatemode"
   if (provider === "gemini") return "Gemini"
   if (provider === "ollama") return "Ollama"
   return "Models"

@@ -8,7 +8,7 @@ A semantic index stores one vector for each eligible document chunk. Arkivra use
 ## Prerequisites
 
 - At least one completed, active document with extracted chunks
-- A healthy Ollama or Gemini embedding provider
+- A healthy Ollama, Gemini, or Privatemode embedding provider
 - An embedding-capable model with known dimensions
 - The API and worker running with the same AI configuration
 

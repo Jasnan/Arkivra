@@ -28,6 +28,7 @@ export function formatProvider(provider: string | null) {
   if (provider === null) return "Not selected"
   if (provider === "ollama") return "Ollama"
   if (provider === "gemini") return "Google Gemini"
+  if (provider === "privatemode") return "Privatemode"
   return provider
 }
 

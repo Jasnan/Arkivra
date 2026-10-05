@@ -1,3 +1,7 @@
+import {
+  privatemodeApiKey,
+  privatemodeProxyBaseUrl,
+} from '../ai/providers/privatemode.provider.js';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type { LanguageModel, LanguageModelUsage } from 'ai';
 import type { ChatGenerationMetrics } from './chat.types.js';
@@ -6,7 +10,7 @@ const DEFAULT_GEMINI_API_KEY_SECRET_REF = 'GEMINI_API_KEY';
 const RAW_GOOGLE_API_KEY_PATTERN = /^AIza[\w-]{20,}$/;
 
 export type ChatAiRuntimeSettings = {
-  provider: 'ollama' | 'gemini';
+  provider: 'ollama' | 'gemini' | 'privatemode';
   baseUrl: string;
   apiKey?: string;
 };
@@ -84,9 +88,11 @@ export function resolveChatProviderApiKey({
   providerApiKeySecretRef?: string | null;
   env?: NodeJS.ProcessEnv;
 }) {
-  const secretRefs = provider === 'gemini'
-    ? [providerApiKeySecretRef, apiKeySecretRef, DEFAULT_GEMINI_API_KEY_SECRET_REF]
-    : [apiKeySecretRef];
+  if (provider === 'privatemode') return privatemodeApiKey();
+  const secretRefs =
+    provider === 'gemini'
+      ? [providerApiKeySecretRef, apiKeySecretRef, DEFAULT_GEMINI_API_KEY_SECRET_REF]
+      : [apiKeySecretRef];
 
   for (const secretRef of secretRefs) {
     const normalizedSecretRef = normalizeApiKeySecretRef(secretRef);
@@ -111,8 +117,28 @@ export function createChatModel({
 
   const provider = createOpenAICompatible({
     name: settings.provider,
-    baseURL: normalizeOpenAICompatibleBaseUrl(settings.baseUrl, settings.provider),
-    ...(settings.apiKey ? { apiKey: settings.apiKey } : {}),
+    baseURL:
+      settings.provider === 'privatemode'
+        ? privatemodeProxyBaseUrl()
+        : normalizeOpenAICompatibleBaseUrl(settings.baseUrl, settings.provider),
+    ...(settings.provider === 'privatemode'
+      ? {
+          apiKey: privatemodeApiKey(),
+          fetch: async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+            const response = await fetch(input, { ...init, redirect: 'error' });
+            if (!response.ok)
+              return new Response(
+                JSON.stringify({
+                  error: { message: `Privatemode proxy returned HTTP ${response.status}.` },
+                }),
+                { status: response.status, headers: { 'content-type': 'application/json' } },
+              );
+            return response;
+          },
+        }
+      : settings.apiKey
+        ? { apiKey: settings.apiKey }
+        : {}),
     includeUsage: true,
     supportsStructuredOutputs: false,
     ...(settings.provider === 'ollama'

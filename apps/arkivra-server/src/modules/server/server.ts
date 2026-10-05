@@ -207,6 +207,16 @@ export function createServer({
       }
 
       const effectiveProvider = provider ?? settings.chat.provider;
+      if (effectiveProvider === 'privatemode') {
+        return {
+          provider: 'privatemode',
+          baseUrl: settings.providers?.privatemode?.baseUrl ?? '',
+          apiKey: resolveChatProviderApiKey({ provider: 'privatemode' }),
+          model: settings.chat.provider === 'privatemode' ? settings.chat.model : '',
+          allowedModels: settings.chat.allowedModels ?? [],
+          maxImagesPerRequest: DEFAULT_CHAT_MAX_IMAGES_PER_REQUEST,
+        };
+      }
       if (effectiveProvider === 'gemini') {
         return {
           provider: 'gemini',
@@ -263,10 +273,14 @@ export function createServer({
           }).value,
         ),
       );
-      const hasQualifiedAllowlist = allowedModels.some(model =>
-        model.startsWith('ollama:') || model.startsWith('gemini:'),
+      const hasQualifiedAllowlist = allowedModels.some(
+        (model) =>
+          model.startsWith('ollama:') ||
+          model.startsWith('gemini:') ||
+          model.startsWith('privatemode:'),
       );
       const modelGroups = await Promise.allSettled([
+        aiServices.listChatModels({ provider: 'privatemode' }),
         aiServices.listChatModels({
           provider: 'gemini',
           baseUrl: settings.providers?.gemini?.baseUrl,
@@ -283,7 +297,8 @@ export function createServer({
       for (const [index, result] of modelGroups.entries()) {
         if (result.status !== 'fulfilled') continue;
 
-        const provider: ChatProvider = index === 0 ? 'gemini' : 'ollama';
+        const provider: ChatProvider =
+          index === 0 ? 'privatemode' : index === 1 ? 'gemini' : 'ollama';
         for (const model of result.value) {
           const value = formatChatModelValue({ provider, model: model.name });
 

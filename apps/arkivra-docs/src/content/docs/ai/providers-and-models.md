@@ -1,6 +1,6 @@
 ---
 title: Providers and models
-description: Configure optional AI features with Ollama-compatible endpoints or Google Gemini.
+description: Configure optional AI features with Ollama, Google Gemini, or Privatemode.
 ---
 
 Arkivra keeps AI disabled until a platform administrator configures providers, selects models, and enables the instance-wide AI switch. Uploads, Docling processing, previews, versions, tags, trash, and keyword search continue to work without AI.
@@ -49,6 +49,35 @@ AI Settings stores the name of an environment variable containing the secret, no
 
 Arkivra checks Google's native model metadata against the OpenAI-compatible model listing and exposes models with capabilities usable by Arkivra. There is no static fallback catalog; discovery failure makes Gemini unavailable until it succeeds.
 
+## Configure Privatemode
+
+Privatemode is an additional provider for chat, embeddings, and translation. Document parsing still uses the existing parser. Arkivra connects through the official [Privatemode encryption proxy](https://docs.privatemode.ai/api/proxy-configuration/), which verifies the remote deployment, encrypts requests, and decrypts responses.
+
+1. Obtain a Privatemode API key and run its proxy on a trusted network reachable by both the API and worker.
+2. Configure both Arkivra processes:
+
+   ```dotenv
+   ARKIVRA_PRIVATEMODE_PROXY_URL=http://privatemode-proxy:8080/v1
+   PRIVATEMODE_API_KEY=<api-key>
+   ```
+
+3. Restart Arkivra and open **Administration** → **AI Settings**. Refresh Privatemode to discover its live models.
+4. Select chat models, a vision-capable translation model, and an embedding model independently of Ollama and Gemini.
+
+For the production Docker stack, set `PRIVATEMODE_API_KEY` in `.env`, then use the optional overlay:
+
+```bash
+docker compose -f compose.production.yaml -f compose.privatemode.yaml up -d
+```
+
+The overlay does not publish a proxy port. The API key stays in the Arkivra process environment; Arkivra forwards it to the proxy. For production, set `PRIVATEMODE_PROXY_IMAGE` to a reviewed image digest. Keep request dumping disabled. If the proxy runs on another machine, enable TLS between Arkivra and the proxy.
+
+The proxy URL must point to a trusted encryption proxy, not `api.privatemode.ai`. A plain OpenAI-compatible HTTP client cannot perform Privatemode's encryption and attestation on its own. The local Arkivra-to-proxy connection carries plaintext unless TLS is configured; encryption begins at the proxy. Provider protection does not add encryption to Arkivra's PostgreSQL text, chunks, embeddings, metadata, or chat history.
+
+Models are discovered through `/v1/models`; there is no fallback model catalog. OCR models are excluded from chat selection. This integration supports 1,024-dimensional embeddings and uses the Qwen3 retrieval instruction for search queries while embedding document chunks without that prefix. Changing providers rebuilds the semantic index.
+
+Translation uses general-purpose generation models, not a dedicated translation service. Choose a model reporting both chat and vision capability, such as GLM Flash when available, to support text, full-page, and selected-area translation. Translation quality should be evaluated for your documents. Models and capabilities can change; consult the [Privatemode model documentation](https://docs.privatemode.ai/models/overview/).
+
 ## Select models
 
 AI Settings separates three choices:
@@ -94,6 +123,7 @@ A provider outside the operator's infrastructure may log, retain, or process thi
 
 - Confirm the endpoint is reachable from both API and worker networks.
 - For Gemini, confirm the referenced environment variable exists in both processes.
+- For Privatemode, confirm the proxy URL and `PRIVATEMODE_API_KEY` are configured in both processes, and check the proxy’s attestation and connectivity logs.
 - For Ollama, confirm the model is pulled and appears in model discovery.
 - Reopen AI Settings and refresh health after changing environment configuration.
 - Do not enable `ARKIVRA_OLLAMA_LOG_REQUESTS` with sensitive documents unless logs are deliberately protected and reviewed; it can expose provider payloads.

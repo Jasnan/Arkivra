@@ -222,7 +222,7 @@ function parseChatModelValue({
   const separator = trimmed.indexOf(":")
   const maybeProvider = separator > 0 ? trimmed.slice(0, separator) : ""
 
-  if (maybeProvider === "ollama" || maybeProvider === "gemini") {
+  if (maybeProvider === "ollama" || maybeProvider === "gemini" || maybeProvider === "privatemode") {
     const model = trimmed.slice(separator + 1).trim()
     return {
       provider: maybeProvider,
@@ -317,10 +317,16 @@ function toSchemaModelValue(model: string) {
 
 export default function AdminAiSettingsPage() {
   const [meState, setMeState] = useState<AsyncState<MeResponse>>(emptyAsyncState)
-  const [settingsState, setSettingsState] = useState<AsyncState<{ settings: AdminAiSettings }>>(emptyAsyncState)
-  const [statusState, setStatusState] = useState<AsyncState<{ status: AdminAiStatus }>>(emptyAsyncState)
-  const [geminiModelsState, setGeminiModelsState] = useState<AsyncState<{ models: AdminAiModel[] }>>(emptyAsyncState)
-  const [ollamaModelsState, setOllamaModelsState] = useState<AsyncState<{ models: AdminAiModel[] }>>(emptyAsyncState)
+  const [settingsState, setSettingsState] =
+    useState<AsyncState<{ settings: AdminAiSettings }>>(emptyAsyncState)
+  const [statusState, setStatusState] =
+    useState<AsyncState<{ status: AdminAiStatus }>>(emptyAsyncState)
+  const [privatemodeModelsState, setPrivatemodeModelsState] =
+    useState<AsyncState<{ models: AdminAiModel[] }>>(emptyAsyncState)
+  const [geminiModelsState, setGeminiModelsState] =
+    useState<AsyncState<{ models: AdminAiModel[] }>>(emptyAsyncState)
+  const [ollamaModelsState, setOllamaModelsState] =
+    useState<AsyncState<{ models: AdminAiModel[] }>>(emptyAsyncState)
   const [geminiAvailabilityState, setGeminiAvailabilityState] =
     useState<AsyncState<{ availability: AdminAiAvailability }>>(emptyAsyncState)
   const [ollamaAvailabilityState, setOllamaAvailabilityState] =
@@ -380,10 +386,11 @@ export default function AdminAiSettingsPage() {
   }, [aiDraftOverride, savedAiSettings])
 
   const effectiveOllamaBaseUrl =
-    aiDraft.chat.provider === "ollama"
-      ? aiDraft.chat.baseUrl
-      : aiDraft.ollamaHost || aiDraft.translation.baseUrl || aiDraft.embedding.baseUrl
+    aiDraft.chat.provider === "ollama" ? aiDraft.chat.baseUrl : aiDraft.ollamaHost
 
+  const privatemodeBaseUrl = aiDraft.providers?.privatemode?.baseUrl ?? ""
+  const isPrivatemodeConfigured = aiDraft.providers?.privatemode?.configured === true
+  const isPrivatemodeHealthy = isPrivatemodeConfigured && privatemodeModelsState.data !== null
   const isGeminiConfigured = aiDraft.providers?.gemini?.configured === true
   const geminiApiKeySecretRef =
     aiDraft.providers?.gemini?.apiKeySecretRef ?? aiDraft.chat.apiKeySecretRef ?? null
@@ -437,6 +444,43 @@ export default function AdminAiSettingsPage() {
       }))
     }
   }, [])
+
+  const refreshPrivatemode = useCallback(async () => {
+    if (!isAdmin || !isPrivatemodeConfigured) {
+      setPrivatemodeModelsState({
+        data: { models: [] },
+        error: null,
+        isLoading: false,
+        isFetching: false,
+        updatedAt: 0,
+      })
+      return
+    }
+
+    setPrivatemodeModelsState((current) => ({ ...current, isFetching: true }))
+    try {
+      const data = await listAdminAiProviderModels({
+        host: privatemodeBaseUrl,
+        provider: "privatemode",
+        includeEmbeddingModels: true,
+      })
+      setPrivatemodeModelsState({
+        data,
+        error: null,
+        isLoading: false,
+        isFetching: false,
+        updatedAt: Date.now(),
+      })
+    } catch (error) {
+      setPrivatemodeModelsState({
+        data: null,
+        error: error instanceof Error ? error : new Error("Could not load Privatemode models."),
+        isLoading: false,
+        isFetching: false,
+        updatedAt: Date.now(),
+      })
+    }
+  }, [privatemodeBaseUrl, isAdmin, isPrivatemodeConfigured])
 
   const refreshGemini = useCallback(async () => {
     if (!isAdmin || !isGeminiConfigured) {
@@ -576,6 +620,11 @@ export default function AdminAiSettingsPage() {
 
   useEffect(() => {
     if (!isAdmin || settingsState.isLoading) return
+    void refreshPrivatemode()
+  }, [isAdmin, refreshPrivatemode, settingsState.isLoading])
+
+  useEffect(() => {
+    if (!isAdmin || settingsState.isLoading) return
     void refreshOllama()
   }, [isAdmin, refreshOllama, settingsState.isLoading])
 
@@ -642,12 +691,24 @@ export default function AdminAiSettingsPage() {
     [isOllamaProviderReachable, ollamaAvailability?.models, ollamaModelsState.data?.models],
   )
 
+  const privatemodeProviderModels = useMemo<AdminAiProviderModelOption[]>(
+    () =>
+      (privatemodeModelsState.data?.models ?? []).map((model) => ({
+        provider: "privatemode",
+        model: model.name,
+        label: model.displayName ?? model.name,
+        capabilities: mapProviderCapabilities(model.capabilities),
+        embeddingDimensions: model.embeddingDimensions,
+      })),
+    [privatemodeModelsState.data?.models],
+  )
+
   const availableEmbeddingProviderModels = useMemo(
     () =>
-      [...geminiProviderModels, ...availableOllamaModels].filter((model) =>
-        hasModelCapability(model, "embedding"),
+      [...geminiProviderModels, ...availableOllamaModels, ...privatemodeProviderModels].filter(
+        (model) => hasModelCapability(model, "embedding"),
       ),
-    [availableOllamaModels, geminiProviderModels],
+    [availableOllamaModels, geminiProviderModels, privatemodeProviderModels],
   )
 
   const chatModelOptions = useMemo<ChatModelOption[]>(() => {
@@ -674,10 +735,31 @@ export default function AdminAiSettingsPage() {
         capabilities: model.capabilities,
       }))
 
-    return [...geminiOptions, ...ollamaOptions]
-  }, [availableGeminiChatModels, availableOllamaModels, effectiveOllamaBaseUrl])
+    const privatemodeOptions = privatemodeProviderModels
+      .filter((model) => hasModelCapability(model, "chat"))
+      .map((model) => ({
+        value: formatChatModelValue({ provider: "privatemode", model: model.model }),
+        provider: "privatemode" as const,
+        providerLabel: "Privatemode",
+        model: model.model,
+        label: model.label ?? model.model,
+        baseUrl: privatemodeBaseUrl,
+        description: null,
+        capabilities: model.capabilities,
+      }))
+    return [...geminiOptions, ...ollamaOptions, ...privatemodeOptions]
+  }, [
+    availableGeminiChatModels,
+    availableOllamaModels,
+    effectiveOllamaBaseUrl,
+    privatemodeProviderModels,
+    privatemodeBaseUrl,
+  ])
 
-  const chatModelValues = useMemo(() => chatModelOptions.map((option) => option.value), [chatModelOptions])
+  const chatModelValues = useMemo(
+    () => chatModelOptions.map((option) => option.value),
+    [chatModelOptions],
+  )
 
   const translationModelOptions = useMemo<TranslationModelOption[]>(() => {
     const geminiOptions = availableGeminiChatModels
@@ -709,8 +791,25 @@ export default function AdminAiSettingsPage() {
           aiDraft.translation.provider === "ollama" && aiDraft.translation.model === model.model,
       }))
 
-    return [...geminiOptions, ...ollamaOptions]
+    const privatemodeOptions = privatemodeProviderModels
+      .filter((model) => hasModelCapability(model, "chat") && hasModelCapability(model, "vision"))
+      .map((model) => ({
+        key: formatChatModelValue({ provider: "privatemode", model: model.model }),
+        provider: "privatemode" as const,
+        providerLabel: "Privatemode",
+        model: model.model,
+        label: model.label ?? model.model,
+        baseUrl: privatemodeBaseUrl,
+        description: null,
+        capabilities: model.capabilities,
+        isConfigured:
+          aiDraft.translation.provider === "privatemode" &&
+          aiDraft.translation.model === model.model,
+      }))
+    return [...geminiOptions, ...ollamaOptions, ...privatemodeOptions]
   }, [
+    privatemodeProviderModels,
+    privatemodeBaseUrl,
     aiDraft.translation.model,
     aiDraft.translation.provider,
     availableGeminiChatModels,
@@ -775,7 +874,8 @@ export default function AdminAiSettingsPage() {
 
   const isChatConfigValid =
     effectiveDefaultChatModel.length > 0 &&
-    ((effectiveDefaultChatSelection.provider === "gemini" && isGeminiProviderHealthy) ||
+    ((effectiveDefaultChatSelection.provider === "privatemode" && isPrivatemodeHealthy) ||
+      (effectiveDefaultChatSelection.provider === "gemini" && isGeminiProviderHealthy) ||
       (effectiveDefaultChatSelection.provider === "ollama" &&
         isConfiguredChatModelAvailable &&
         (effectiveDefaultChatOption?.baseUrl ?? "").trim().length > 0))
@@ -820,10 +920,12 @@ export default function AdminAiSettingsPage() {
     ).trim().length > 0 &&
     effectiveTranslationModel.length > 0 &&
     effectiveTranslationOption !== null &&
-    ((effectiveTranslationOption.provider === "gemini" && isGeminiProviderHealthy) ||
+    ((effectiveTranslationOption.provider === "privatemode" && isPrivatemodeHealthy) ||
+      (effectiveTranslationOption.provider === "gemini" && isGeminiProviderHealthy) ||
       (effectiveTranslationOption.provider === "ollama" && isConfiguredTranslationModelAvailable))
   const isTranslationModelMultimodal =
-    effectiveTranslationModel.length > 0 && (effectiveTranslationOption?.capabilities.includes("vision") ?? false)
+    effectiveTranslationModel.length > 0 &&
+    (effectiveTranslationOption?.capabilities.includes("vision") ?? false)
 
   const activeIndex = statusState.data?.status.embedding.activeIndex ?? null
   const preparingIndex =
@@ -853,7 +955,9 @@ export default function AdminAiSettingsPage() {
       ? isOllamaProviderReachable
       : aiDraft.embedding.provider === "gemini"
         ? geminiModelsState.data !== null
-        : false
+        : aiDraft.embedding.provider === "privatemode"
+          ? isPrivatemodeHealthy
+          : false
   const isSelectedEmbeddingModelConfirmedMissing =
     aiDraft.embedding.provider !== null &&
     isSelectedEmbeddingProviderReachable &&
@@ -875,7 +979,9 @@ export default function AdminAiSettingsPage() {
       ? isOllamaProviderHealthy
       : aiDraft.embedding.provider === "gemini"
         ? isGeminiProviderHealthy
-        : false
+        : aiDraft.embedding.provider === "privatemode"
+          ? isPrivatemodeHealthy
+          : false
   const isEmbeddingOperational =
     selectedSearchEngine !== undefined &&
     isSelectedEmbeddingProviderHealthy &&
@@ -927,6 +1033,7 @@ export default function AdminAiSettingsPage() {
         model: aiDraft.embedding.model,
         provider: aiDraft.embedding.provider,
         providerBaseUrls: {
+          privatemode: privatemodeBaseUrl,
           gemini: geminiBaseUrl,
           ollama: effectiveOllamaBaseUrl,
         },
@@ -940,6 +1047,7 @@ export default function AdminAiSettingsPage() {
       aiDraft.embedding.provider,
       availableEmbeddingProviderModels,
       effectiveOllamaBaseUrl,
+      privatemodeBaseUrl,
       savedAiSettings.embedding,
     ],
   )
@@ -957,6 +1065,30 @@ export default function AdminAiSettingsPage() {
       savedAiSettings.embedding.dimensions !== selectedEmbeddingModel.dimensions)
 
   const providerSummaries: ProviderSummary[] = [
+    {
+      id: "privatemode",
+      name: "Privatemode",
+      description: "Hosted provider through an encryption proxy",
+      endpoint: privatemodeBaseUrl,
+      status: !isPrivatemodeConfigured
+        ? "Not configured"
+        : privatemodeModelsState.isFetching
+          ? "Checking"
+          : isPrivatemodeHealthy
+            ? "Healthy"
+            : "Error",
+      tone: isPrivatemodeHealthy ? "enabled" : "inactive",
+      isConfigured: isPrivatemodeConfigured,
+      isHealthy: isPrivatemodeHealthy,
+      modelCount: privatemodeProviderModels.length,
+      models: privatemodeProviderModels.map((model) => model.model),
+      updatedAt: privatemodeModelsState.updatedAt,
+      error: privatemodeModelsState.error?.message ?? null,
+      isChecking: privatemodeModelsState.isFetching,
+      onRefresh: () => {
+        void refreshPrivatemode()
+      },
+    },
     {
       id: "gemini",
       name: "Google Gemini",
@@ -1169,9 +1301,14 @@ export default function AdminAiSettingsPage() {
     const ollamaBaseUrl = (
       configuredModel.provider === "ollama" && settings.chat.baseUrl.trim().length > 0
         ? settings.chat.baseUrl
-        : settings.ollamaHost || savedAiSettings.ollamaHost || settings.embedding.baseUrl
+        : settings.ollamaHost || savedAiSettings.ollamaHost
     ).trim()
-    const chatBaseUrl = configuredModel.provider === "gemini" ? geminiBaseUrl : ollamaBaseUrl
+    const chatBaseUrl =
+      configuredModel.provider === "privatemode"
+        ? privatemodeBaseUrl
+        : configuredModel.provider === "gemini"
+          ? geminiBaseUrl
+          : ollamaBaseUrl
     const translationBaseUrl = (settings.translation.baseUrl || ollamaBaseUrl).trim()
     const configuredTranslation = settings.translation.model.trim()
     const hasEmbeddingSelection =
@@ -1560,6 +1697,7 @@ export default function AdminAiSettingsPage() {
         draftAllowedChatModels={draftAllowedChatModels}
         draftDefaultChatModel={draftDefaultChatModel}
         isFetchingChatModels={
+          privatemodeModelsState.isFetching ||
           geminiModelsState.isFetching ||
           geminiAvailabilityState.isFetching ||
           ollamaModelsState.isFetching ||
@@ -1580,6 +1718,7 @@ export default function AdminAiSettingsPage() {
         selectedEmbeddingModelChanged={selectedEmbeddingModelChanged}
         selectedEmbeddingModelKey={selectedEmbeddingModelKey}
         isFetchingModels={
+          privatemodeModelsState.isFetching ||
           geminiModelsState.isFetching ||
           geminiAvailabilityState.isFetching ||
           ollamaModelsState.isFetching ||
@@ -1613,6 +1752,7 @@ export default function AdminAiSettingsPage() {
         selectedTranslationModelChanged={selectedTranslationModelChanged}
         selectedTranslationModelKey={selectedTranslationModelKey}
         isFetchingModels={
+          privatemodeModelsState.isFetching ||
           geminiModelsState.isFetching ||
           geminiAvailabilityState.isFetching ||
           ollamaModelsState.isFetching ||

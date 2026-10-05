@@ -28,7 +28,7 @@ The result records which provider and model produced it, but Arkivra does not sa
 
 ## Provider requirements
 
-Arkivra can use either a selected Ollama or Gemini translation model. Image-based page and region translation needs a model capable of understanding the submitted image. A model that works for text-only translation may fail on image input.
+Arkivra can use a selected Ollama, Gemini, or Privatemode translation model. Image-based page and region translation needs a model capable of understanding the submitted image. A model that works for text-only translation may fail on image input.
 
 An administrator configures the translation model separately from the default chat model. The feature also depends on the overall AI configuration being healthy; use [Providers and models](/ai/providers-and-models/) to review the setup.
 

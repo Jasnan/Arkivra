@@ -1,3 +1,4 @@
+import { privatemodeProviderSettings } from '../../ai/providers/privatemode.provider.js';
 import type { Config } from '../../config/config.js';
 import { normalizeOllamaHost } from '../../ai/providers/index.js';
 import type { AdminAiChatProviderKind, AdminAiProviderKind, AdminAiSettings } from './ai.types.js';
@@ -27,6 +28,7 @@ export function normalizeChatBaseUrl({
   baseUrl: string | null | undefined;
   fallbackOllamaHost: string;
 }) {
+  if (provider === 'privatemode') return privatemodeProviderSettings().baseUrl;
   return provider === 'gemini'
     ? normalizeGeminiBaseUrl(baseUrl)
     : normalizeHost(baseUrl ?? fallbackOllamaHost);
@@ -66,7 +68,7 @@ export function parseChatModelSelection({
   const separator = trimmed.indexOf(':');
   const maybeProvider = separator > 0 ? trimmed.slice(0, separator) : '';
 
-  if (maybeProvider === 'ollama' || maybeProvider === 'gemini') {
+  if (maybeProvider === 'ollama' || maybeProvider === 'gemini' || maybeProvider === 'privatemode') {
     const model = trimmed.slice(separator + 1).trim();
     return {
       provider: maybeProvider,
@@ -83,7 +85,7 @@ export function parseChatModelSelection({
 }
 
 export function isAdminAiProviderKind(provider: unknown): provider is AdminAiProviderKind {
-  return provider === 'ollama' || provider === 'gemini';
+  return provider === 'ollama' || provider === 'gemini' || provider === 'privatemode';
 }
 
 export function normalizeAllowedChatModels({
@@ -157,6 +159,7 @@ export function createDefaultSettings(config: Config): AdminAiSettings {
       dimensions: null,
     },
     providers: {
+      privatemode: privatemodeProviderSettings(),
       gemini: {
         baseUrl: GEMINI_OPENAI_COMPATIBLE_BASE_URL,
         apiKeySecretRef: null,
@@ -187,7 +190,9 @@ export function createDefaultIngestionSettings(config: Config) {
 }
 
 export function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
-  const requestedChatProvider = input.chat?.provider === 'gemini' ? 'gemini' : 'ollama';
+  const requestedChatProvider = isAdminAiProviderKind(input.chat?.provider)
+    ? input.chat.provider
+    : 'ollama';
   const requestedChatModel = (input.chat?.model ?? '').trim();
   const chatSelection = parseChatModelSelection({
     value: requestedChatModel,
@@ -205,8 +210,9 @@ export function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
     model: chatModel,
     allowedModels: input.chat?.allowedModels,
   });
-  const requestedTranslationProvider =
-    input.translation?.provider === 'gemini' ? 'gemini' : 'ollama';
+  const requestedTranslationProvider = isAdminAiProviderKind(input.translation?.provider)
+    ? input.translation.provider
+    : 'ollama';
   const translationBaseUrl = normalizeChatBaseUrl({
     provider: requestedTranslationProvider,
     baseUrl: input.translation?.baseUrl,
@@ -220,24 +226,27 @@ export function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
   const embeddingBaseUrl =
     embeddingProvider === null
       ? ''
-      : embeddingProvider === 'gemini'
-        ? normalizeGeminiBaseUrl(input.embedding?.baseUrl)
-        : normalizeHost(input.embedding?.baseUrl ?? chatBaseUrl);
+      : embeddingProvider === 'privatemode'
+        ? privatemodeProviderSettings().baseUrl
+        : embeddingProvider === 'gemini'
+          ? normalizeGeminiBaseUrl(input.embedding?.baseUrl)
+          : normalizeHost(input.embedding?.baseUrl ?? chatBaseUrl);
   const embeddingModel = input.embedding?.model?.trim() || null;
   const embeddingDimensions =
     typeof input.embedding?.dimensions === 'number' && input.embedding.dimensions > 0
       ? input.embedding.dimensions
       : null;
   const embeddingApiKeySecretRef =
-    embeddingProvider === 'gemini'
-      ? normalizeApiKeySecretRef(
-          input.embedding?.apiKeySecretRef ??
-            input.providers?.gemini?.apiKeySecretRef ??
-            (chatProvider === 'gemini' ? input.chat?.apiKeySecretRef : null),
-        )
-      : null;
-  const hasEmbeddingSelection =
-    embeddingProvider !== null && embeddingModel !== null;
+    embeddingProvider === 'privatemode'
+      ? 'PRIVATEMODE_API_KEY'
+      : embeddingProvider === 'gemini'
+        ? normalizeApiKeySecretRef(
+            input.embedding?.apiKeySecretRef ??
+              input.providers?.gemini?.apiKeySecretRef ??
+              (chatProvider === 'gemini' ? input.chat?.apiKeySecretRef : null),
+          )
+        : null;
+  const hasEmbeddingSelection = embeddingProvider !== null && embeddingModel !== null;
   const legacyOllamaHost =
     chatProvider === 'ollama'
       ? chatBaseUrl
@@ -259,7 +268,10 @@ export function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
     chat: {
       provider: chatProvider,
       baseUrl: chatBaseUrl,
-      apiKeySecretRef: normalizeApiKeySecretRef(input.chat?.apiKeySecretRef),
+      apiKeySecretRef:
+        chatProvider === 'privatemode'
+          ? 'PRIVATEMODE_API_KEY'
+          : normalizeApiKeySecretRef(input.chat?.apiKeySecretRef),
       model: chatModel,
       allowedModels: allowedChatModels,
     },
@@ -267,9 +279,11 @@ export function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
       provider: requestedTranslationProvider,
       baseUrl: translationBaseUrl,
       apiKeySecretRef:
-        requestedTranslationProvider === 'gemini'
-          ? normalizeApiKeySecretRef(input.translation?.apiKeySecretRef ?? geminiApiKeySecretRef)
-          : null,
+        requestedTranslationProvider === 'privatemode'
+          ? 'PRIVATEMODE_API_KEY'
+          : requestedTranslationProvider === 'gemini'
+            ? normalizeApiKeySecretRef(input.translation?.apiKeySecretRef ?? geminiApiKeySecretRef)
+            : null,
       model: translationModel,
     },
     embedding: {
@@ -280,6 +294,7 @@ export function normalizeSettings(input: AdminAiSettings): AdminAiSettings {
       dimensions: embeddingDimensions,
     },
     providers: {
+      privatemode: privatemodeProviderSettings(),
       gemini: {
         baseUrl: GEMINI_OPENAI_COMPATIBLE_BASE_URL,
         apiKeySecretRef: normalizeApiKeySecretRef(geminiApiKeySecretRef),

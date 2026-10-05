@@ -41,7 +41,7 @@ export type DocumentTranslation = {
 
 export type RuntimeTranslationSettings = {
   enabled?: boolean;
-  provider?: 'ollama' | 'gemini';
+  provider?: 'ollama' | 'gemini' | 'privatemode';
   host: string;
   model: string;
   apiKey?: string;
@@ -145,16 +145,16 @@ export function createRuntimeConfiguredOllamaTranslationProvider({
       }
       const provider = settings.provider ?? 'ollama';
       const prompt = buildPrompt({ targetLanguage, source });
-      if (provider === 'gemini') {
+      if (provider === 'gemini' || provider === 'privatemode') {
         if (settings.logRequests) {
           console.info(
-            `[translation:gemini] translating ${source.type} with model=${settings.model} target=${targetLanguage}`,
+            `[translation:${provider}] translating ${source.type} with model=${settings.model} target=${targetLanguage}`,
           );
         }
 
         const model = createChatModel({
           settings: {
-            provider: 'gemini',
+            provider,
             baseUrl: settings.host,
             apiKey: settings.apiKey,
           },
@@ -176,7 +176,7 @@ export function createRuntimeConfiguredOllamaTranslationProvider({
         const text = result.text.trim();
 
         if (text.length === 0) {
-          throw new Error('Gemini returned an empty translation.');
+          throw new Error(`${provider} returned an empty translation.`);
         }
 
         return {

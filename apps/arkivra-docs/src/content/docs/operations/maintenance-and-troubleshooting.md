@@ -116,7 +116,7 @@ In **Administration** → **AI Settings**, confirm:
 - a semantic index is active and chunk coverage is progressing;
 - the regular user has the **Use AI** privilege.
 
-Check provider connectivity from both API and worker environments. For Gemini, the configured secret reference must resolve there. For Ollama, the selected models must be pulled on the target endpoint.
+Check provider connectivity from both API and worker environments. For Gemini, the configured secret reference must resolve there. For Ollama, the selected models must be pulled on the target endpoint. For Privatemode, both processes need the proxy URL and API key; verify proxy connectivity and attestation.
 
 Keyword search remains the diagnostic fallback when semantic retrieval is unavailable.
 

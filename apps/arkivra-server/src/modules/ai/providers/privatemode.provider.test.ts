@@ -10,7 +10,7 @@ import { createRuntimeConfiguredOllamaTranslationProvider } from '../../translat
 import { createAdminAiServices } from '../../admin/ai/ai.services.js';
 import { normalizeSettings, parseChatModelSelection } from '../../admin/ai/ai.settings.js';
 
-const vector = Array<number>(1024).fill(0.1);
+const vector = Array.from<number>({ length: 1024 }).fill(0.1);
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,

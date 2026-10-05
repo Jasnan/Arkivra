@@ -25,7 +25,7 @@ describe.skipIf(!process.env.ARKIVRA_TEST_DATABASE_URL)('privatemode database in
             config,
             embeddingIndexQueue: { enqueueOrchestrateIndex } as any,
             fetchImpl: async () =>
-              Response.json({ data: [{ index: 0, embedding: Array<number>(1024).fill(0.1) }] }),
+              Response.json({ data: [{ index: 0, embedding: Array.from<number>({ length: 1024 }).fill(0.1) }] }),
           });
           await services.updateSettings({
             aiFeaturesEnabled: true,

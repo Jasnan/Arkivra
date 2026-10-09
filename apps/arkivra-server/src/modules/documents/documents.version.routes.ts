@@ -299,7 +299,7 @@ export function registerDocumentVersionRoutes({
             const activeIndex = await createEmbeddingIndexServices({
               db,
             }).getActiveEmbeddingIndex();
-            if (activeIndex !== null && !result.copiedEmbeddingIndexIds.includes(activeIndex.id)) {
+            if (activeIndex !== null) {
               await embeddingIndexQueue.enqueueDocumentIndexing({
                 embeddingIndexId: activeIndex.id,
                 documentVersionId: result.documentVersion.id,

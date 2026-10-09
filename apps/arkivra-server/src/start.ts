@@ -1,3 +1,5 @@
+import { createQdrantClient } from './modules/search/qdrant.client.js';
+import { createGlmOcrParser } from './modules/parsing/adapters/glm-ocr.parser.js';
 import process from 'node:process';
 import { serve } from '@hono/node-server';
 import { parseConfig } from './modules/config/config.js';
@@ -101,9 +103,6 @@ export async function startApp() {
   const cleanups: Array<() => Promise<void>> = [];
 
   if (isWorkerMode) {
-    const doclingClient = createDoclingClient({
-      baseUrl: config.docling.url,
-    });
     const imageCaptioner = createRuntimeConfiguredOllamaImageCaptioner({
       resolveSettings: async () => {
         const settings = await adminAiServices.getIngestionSettings();
@@ -115,23 +114,33 @@ export async function startApp() {
         };
       },
     });
-    const doclingParser = createDoclingParser({
-      doclingClient,
-      engineVersion: config.docling.engineVersion,
-      imageCaptioner,
-      vlmEnabled: config.docling.vlmPipeline === 'enabled',
-      vlmPipelinePreset: config.docling.vlmModel,
-      scanClassifier: {
-        maxSampledPages: config.parsers.pdfScanDetection.maxSampledPages,
-        minTextItemsPerDigitalPage: config.parsers.pdfScanDetection.minTextItemsPerDigitalPage,
-        minAlnumCharsPerDigitalPage: config.parsers.pdfScanDetection.minAlnumCharsPerDigitalPage,
-        scanHeavyScannedPageRatio: config.parsers.pdfScanDetection.scanHeavyScannedPageRatio,
-        mixedScannedPageRatio: config.parsers.pdfScanDetection.mixedScannedPageRatio,
-      },
-    });
+    const parser =
+      config.ingestion.engine === 'glm-ocr'
+        ? createGlmOcrParser({
+            baseUrl: config.glmOcr.url!,
+            engineVersion: config.glmOcr.engineVersion,
+            maxChunkCharacters: config.glmOcr.maxChunkCharacters,
+            imageCaptioner,
+          })
+        : createDoclingParser({
+            doclingClient: createDoclingClient({ baseUrl: config.docling.url! }),
+            engineVersion: config.docling.engineVersion,
+            imageCaptioner,
+            vlmEnabled: config.docling.vlmPipeline === 'enabled',
+            vlmPipelinePreset: config.docling.vlmModel,
+            scanClassifier: {
+              maxSampledPages: config.parsers.pdfScanDetection.maxSampledPages,
+              minTextItemsPerDigitalPage:
+                config.parsers.pdfScanDetection.minTextItemsPerDigitalPage,
+              minAlnumCharsPerDigitalPage:
+                config.parsers.pdfScanDetection.minAlnumCharsPerDigitalPage,
+              scanHeavyScannedPageRatio: config.parsers.pdfScanDetection.scanHeavyScannedPageRatio,
+              mixedScannedPageRatio: config.parsers.pdfScanDetection.mixedScannedPageRatio,
+            },
+          });
     const parserRegistry = createParserRegistry({
-      parsers: [doclingParser],
-      defaultEngine: 'docling',
+      parsers: [parser],
+      defaultEngine: parser.engine,
     });
     const textCleaner = createNoopTextCleaner();
     const parsePipeline = createParsePipeline({
@@ -178,7 +187,11 @@ export async function startApp() {
       version: config.version,
       appInstance: config.app.instance,
     });
+    const qdrant = config.qdrant.url
+      ? createQdrantClient({ ...config.qdrant, url: config.qdrant.url })
+      : undefined;
     const embeddingIndexWorker = createEmbeddingIndexWorker({
+      qdrant,
       db,
       appInstance: config.app.instance,
       adminAiServices,
@@ -209,9 +222,11 @@ export async function startApp() {
 
     console.info('Document processing worker started');
     console.info('Embedding indexing worker started');
-    console.info(`Document parser: Docling ${config.docling.url}`);
+    console.info(`Document parser: ${parser.engine}@${parser.engineVersion}`);
     if (documentConverter !== undefined) {
-      console.info(`Office document converter: ${documentConverter.provider} ${documentConverter.baseUrl}`);
+      console.info(
+        `Office document converter: ${documentConverter.provider} ${documentConverter.baseUrl}`,
+      );
     }
     console.info(
       `Scheduled hard-delete-expired-documents cron (${config.backgroundJobs.hardDeleteExpiredDocumentsCron}) with ${config.backgroundJobs.documentRetentionDays} day retention`,

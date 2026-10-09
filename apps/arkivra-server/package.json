@@ -39,7 +39,9 @@
     "db:migrate": "tsx src/scripts/migrate.ts",
     "db:migrate:prod": "node dist/scripts/migrate.js",
     "db:cleanup:e2e": "tsx src/scripts/cleanup-e2e-data.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "test:e2e:glm-qdrant": "vitest run src/modules/parsing/glm-qdrant.e2e.integration.test.ts",
+    "eval:glm": "tsx src/scripts/evaluate-glm-ocr.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.48",

@@ -1,8 +1,6 @@
+import type { VectorSearch } from './qdrant.client.js';
 import type { Database } from '../database/database.js';
-import type {
-  EmbeddingProvider,
-  EmbeddingProviderRegistry,
-} from '../ai/providers/types.js';
+import type { EmbeddingProvider, EmbeddingProviderRegistry } from '../ai/providers/types.js';
 import type { ActiveEmbeddingIndex } from '../ai/indexing/index.js';
 import type { DocumentSearchServices } from './search.types.js';
 import { createSearchDocuments } from './search.documents.js';
@@ -13,8 +11,10 @@ export function createDocumentSearchServices({
   embeddingProvider,
   embeddingProviders,
   resolveActiveEmbeddingIndex,
+  vectorSearch,
 }: {
   db: Database;
+  vectorSearch?: VectorSearch;
   embeddingProvider?: EmbeddingProvider;
   embeddingProviders?: EmbeddingProviderRegistry;
   resolveActiveEmbeddingIndex?: () => Promise<ActiveEmbeddingIndex | null>;
@@ -45,8 +45,8 @@ export function createDocumentSearchServices({
   }
 
   return {
-    name: 'database-pg-tsvector',
-    searchDocuments: createSearchDocuments({ db, embedQuery }),
-    searchHybrid: createSearchHybrid({ db, embedQuery }),
+    name: vectorSearch ? 'qdrant-pg-tsvector' : 'database-pg-tsvector',
+    searchDocuments: createSearchDocuments({ db, embedQuery, vectorSearch }),
+    searchHybrid: createSearchHybrid({ db, embedQuery, vectorSearch }),
   };
 }

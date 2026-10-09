@@ -1,3 +1,4 @@
+import type { QdrantClient } from '../../search/qdrant.client.js';
 import type { Database } from '../../database/database.js';
 import type { EmbeddingProviderRegistry } from '../providers/types.js';
 import type { AsyncJob } from '../../worker/postgres-jobs.js';
@@ -12,10 +13,7 @@ import {
   EMBEDDING_INDEX_QUEUE,
   createEmbeddingIndexQueue,
 } from './embedding-index.queue.js';
-import {
-  createEmbeddingIndexServices,
-  hashEmbeddingContent,
-} from './embedding-index.services.js';
+import { createEmbeddingIndexServices, hashEmbeddingContent } from './embedding-index.services.js';
 
 type ChunkRow = {
   document_id: string;
@@ -48,6 +46,7 @@ type ChunkEmbeddingHashRow = {
 };
 
 export type EmbeddingIndexWorkerDeps = {
+  qdrant?: QdrantClient;
   db: Database;
   embeddingProviders: EmbeddingProviderRegistry;
   adminAiServices?: {
@@ -96,14 +95,16 @@ function toIndexableChunks(rows: ChunkRow[]) {
       return [];
     }
 
-    return [{
-      chunkId: row.chunk_id,
-      documentId: row.document_id,
-      documentVersionId: row.document_version_id,
-      vaultId: row.vault_id,
-      content: row.content,
-      contentSha256: hashEmbeddingContent(row.content),
-    }];
+    return [
+      {
+        chunkId: row.chunk_id,
+        documentId: row.document_id,
+        documentVersionId: row.document_version_id,
+        vaultId: row.vault_id,
+        content: row.content,
+        contentSha256: hashEmbeddingContent(row.content),
+      },
+    ];
   });
 }
 
@@ -128,10 +129,10 @@ async function documentEmbeddingIsCurrent({
   const status = statusRows.rows[0];
 
   if (
-    status === undefined
-    || status.status !== 'ready'
-    || status.expected_chunk_count !== chunks.length
-    || status.embedded_chunk_count !== chunks.length
+    status === undefined ||
+    status.status !== 'ready' ||
+    status.expected_chunk_count !== chunks.length ||
+    status.embedded_chunk_count !== chunks.length
   ) {
     return false;
   }
@@ -148,10 +149,10 @@ async function documentEmbeddingIsCurrent({
   }
 
   const hashByChunkId = new Map(
-    embeddingRows.rows.map(row => [row.chunk_id, row.content_sha256]),
+    embeddingRows.rows.map((row) => [row.chunk_id, row.content_sha256]),
   );
 
-  return chunks.every(chunk => hashByChunkId.get(chunk.chunkId) === chunk.contentSha256);
+  return chunks.every((chunk) => hashByChunkId.get(chunk.chunkId) === chunk.contentSha256);
 }
 
 function assertEmbeddingsMatchConfig({
@@ -164,10 +165,12 @@ function assertEmbeddingsMatchConfig({
   dimensions: number;
 }) {
   if (embeddings.length !== expectedCount) {
-    throw new Error(`Embedding provider returned ${embeddings.length} vector(s) for ${expectedCount} chunk(s).`);
+    throw new Error(
+      `Embedding provider returned ${embeddings.length} vector(s) for ${expectedCount} chunk(s).`,
+    );
   }
 
-  const invalidIndex = embeddings.findIndex(vector => vector.length !== dimensions);
+  const invalidIndex = embeddings.findIndex((vector) => vector.length !== dimensions);
   if (invalidIndex >= 0) {
     throw new Error(
       `Embedding provider returned ${embeddings[invalidIndex]?.length ?? 0} dimensions for chunk ${invalidIndex}; expected ${dimensions}.`,
@@ -176,6 +179,7 @@ function assertEmbeddingsMatchConfig({
 }
 
 export async function indexDocumentForEmbedding({
+  qdrant,
   db,
   embeddingProviders,
   adminAiServices,
@@ -189,6 +193,7 @@ export async function indexDocumentForEmbedding({
   };
   embeddingIndexId: string;
   documentVersionId: string;
+  qdrant?: QdrantClient;
 }) {
   const services = createEmbeddingIndexServices({ db });
   const config = await services.getEmbeddingIndexConfig({ embeddingIndexId });
@@ -236,12 +241,28 @@ export async function indexDocumentForEmbedding({
     return { status: 'skipped' as const, reason: 'no_chunks' };
   }
 
-  if (await documentEmbeddingIsCurrent({
-    db,
-    embeddingIndexId,
-    documentVersionId,
-    chunks,
-  })) {
+  if (
+    await documentEmbeddingIsCurrent({
+      db,
+      embeddingIndexId,
+      documentVersionId,
+      chunks,
+    })
+  ) {
+    if (qdrant) {
+      const cached = await db.execute<{ chunk_id: string; embedding: string }>(sql`
+        SELECT chunk_id, embedding::text AS embedding FROM document_chunk_embeddings
+        WHERE embedding_index_id = ${embeddingIndexId} AND document_version_id = ${documentVersionId}
+      `);
+      const byId = new Map(
+        cached.rows.map((row) => [row.chunk_id, JSON.parse(row.embedding) as number[]]),
+      );
+      await qdrant.upsert(
+        embeddingIndexId,
+        config.dimensions,
+        chunks.map((chunk) => ({ ...chunk, embedding: byId.get(chunk.chunkId)! })),
+      );
+    }
     return {
       status: 'ready' as const,
       skippedProvider: true,
@@ -258,12 +279,14 @@ export async function indexDocumentForEmbedding({
   });
 
   if (!claimed) {
-    if (await documentEmbeddingIsCurrent({
-      db,
-      embeddingIndexId,
-      documentVersionId,
-      chunks,
-    })) {
+    if (
+      await documentEmbeddingIsCurrent({
+        db,
+        embeddingIndexId,
+        documentVersionId,
+        chunks,
+      })
+    ) {
       return {
         status: 'ready' as const,
         skippedProvider: true,
@@ -276,7 +299,7 @@ export async function indexDocumentForEmbedding({
 
   try {
     const embeddings = await provider.embed({
-      texts: chunks.map(chunk => chunk.content),
+      texts: chunks.map((chunk) => chunk.content),
       config,
     });
 
@@ -287,9 +310,10 @@ export async function indexDocumentForEmbedding({
     });
 
     const latestChunks = toIndexableChunks(await loadDocumentChunks({ db, documentVersionId }));
-    const latestHashes = new Map(latestChunks.map(chunk => [chunk.chunkId, chunk.contentSha256]));
-    const chunksChanged = chunks.some(chunk => latestHashes.get(chunk.chunkId) !== chunk.contentSha256)
-      || latestChunks.length !== chunks.length;
+    const latestHashes = new Map(latestChunks.map((chunk) => [chunk.chunkId, chunk.contentSha256]));
+    const chunksChanged =
+      chunks.some((chunk) => latestHashes.get(chunk.chunkId) !== chunk.contentSha256) ||
+      latestChunks.length !== chunks.length;
 
     if (chunksChanged) {
       await services.setDocumentIndexStatus({
@@ -322,6 +346,14 @@ export async function indexDocumentForEmbedding({
         embedding: embeddings[index]!,
       })),
     });
+
+    if (qdrant) {
+      await qdrant.upsert(
+        embeddingIndexId,
+        config.dimensions,
+        chunks.map((chunk, index) => ({ ...chunk, embedding: embeddings[index]! })),
+      );
+    }
 
     await services.setDocumentIndexStatus({
       embeddingIndexId,
@@ -385,6 +417,7 @@ async function getFinalizeCounts({
 }
 
 export async function finalizeEmbeddingIndex({
+  qdrant,
   db,
   embeddingIndexQueue,
   embeddingIndexId,
@@ -392,6 +425,7 @@ export async function finalizeEmbeddingIndex({
   db: Database;
   embeddingIndexQueue: EmbeddingIndexQueue;
   embeddingIndexId: string;
+  qdrant?: QdrantClient;
 }) {
   const services = createEmbeddingIndexServices({ db });
   const config = await services.getEmbeddingIndexConfig({ embeddingIndexId });
@@ -401,7 +435,9 @@ export async function finalizeEmbeddingIndex({
 
   const counts = await getFinalizeCounts({ db, embeddingIndexId });
   if (counts.pendingCount > 0) {
-    throw new Error(`Embedding index ${embeddingIndexId} still has ${counts.pendingCount} pending document(s).`);
+    throw new Error(
+      `Embedding index ${embeddingIndexId} still has ${counts.pendingCount} pending document(s).`,
+    );
   }
 
   if (counts.failedCount > 0) {
@@ -413,16 +449,13 @@ export async function finalizeEmbeddingIndex({
   }
 
   if (counts.embeddedChunkCount !== counts.expectedChunkCount) {
-    const failureMessage =
-      `Embedding count mismatch: expected ${counts.expectedChunkCount}, got ${counts.embeddedChunkCount}.`;
+    const failureMessage = `Embedding count mismatch: expected ${counts.expectedChunkCount}, got ${counts.embeddedChunkCount}.`;
     await services.markEmbeddingIndexFailed({ embeddingIndexId, failureMessage });
     return { status: 'failed' as const, ...counts };
   }
 
-  await services.buildHnswIndex({
-    embeddingIndexId,
-    dimensions: config.dimensions,
-  });
+  if (qdrant) await qdrant.ensureCollection(embeddingIndexId, config.dimensions);
+  else await services.buildHnswIndex({ embeddingIndexId, dimensions: config.dimensions });
   await services.markEmbeddingIndexReady({ embeddingIndexId });
   const retiredEmbeddingIndexIds = await services.activateEmbeddingIndex({ embeddingIndexId });
 
@@ -441,6 +474,7 @@ export async function finalizeEmbeddingIndex({
 }
 
 export function createEmbeddingIndexWorker({
+  qdrant,
   db,
   embeddingProviders,
   adminAiServices,
@@ -458,7 +492,9 @@ export function createEmbeddingIndexWorker({
     }
 
     try {
-      const config = await createEmbeddingIndexServices({ db }).getEmbeddingIndexConfig({ embeddingIndexId });
+      const config = await createEmbeddingIndexServices({ db }).getEmbeddingIndexConfig({
+        embeddingIndexId,
+      });
       if (config === null) {
         return `embedding index ${embeddingIndexId}, model unavailable`;
       }
@@ -500,7 +536,8 @@ export function createEmbeddingIndexWorker({
 
       const documents = await services.discoverDocumentsForIndex({
         embeddingIndexId: job.data.embeddingIndexId,
-        includeReady: false,
+        includeReady: qdrant !== undefined,
+        includeHistorical: qdrant !== undefined,
       });
 
       for (const [index, document] of documents.entries()) {
@@ -508,7 +545,9 @@ export function createEmbeddingIndexWorker({
           embeddingIndexId: job.data.embeddingIndexId,
           documentVersionId: document.documentVersionId,
         });
-        await job.updateProgress(documents.length === 0 ? 50 : Math.round(((index + 1) / documents.length) * 80));
+        await job.updateProgress(
+          documents.length === 0 ? 50 : Math.round(((index + 1) / documents.length) * 80),
+        );
       }
 
       if (config.status === 'building') {
@@ -532,6 +571,7 @@ export function createEmbeddingIndexWorker({
 
       try {
         result = await indexDocumentForEmbedding({
+          qdrant,
           db,
           embeddingProviders,
           adminAiServices,
@@ -540,7 +580,8 @@ export function createEmbeddingIndexWorker({
         });
       } catch (error) {
         if (job.attempts >= job.maxAttempts) {
-          const failureMessage = error instanceof Error ? error.message : 'Unknown embedding indexing failure.';
+          const failureMessage =
+            error instanceof Error ? error.message : 'Unknown embedding indexing failure.';
           await services.markDocumentIndexFailed({
             embeddingIndexId: job.data.embeddingIndexId,
             documentVersionId: job.data.documentVersionId,
@@ -579,6 +620,7 @@ export function createEmbeddingIndexWorker({
       }
 
       return finalizeEmbeddingIndex({
+        qdrant,
         db,
         embeddingIndexQueue,
         embeddingIndexId: job.data.embeddingIndexId,
@@ -590,6 +632,7 @@ export function createEmbeddingIndexWorker({
         throw new Error('Cleanup job is missing retiredEmbeddingIndexId.');
       }
 
+      if (qdrant) await qdrant.deleteIndex(job.data.retiredEmbeddingIndexId);
       await services.cleanupRetiredEmbeddingIndex({
         retiredEmbeddingIndexId: job.data.retiredEmbeddingIndexId,
       });
@@ -608,7 +651,7 @@ export function createEmbeddingIndexWorker({
     concurrency,
     autorun: startPolling,
     pauseWhen,
-    handler: async job => processEmbeddingIndexJob(job),
+    handler: async (job) => processEmbeddingIndexJob(job),
   });
 
   worker.on('failed', (job, error) => {

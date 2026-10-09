@@ -1,6 +1,6 @@
 import type { ParserOutput } from './parsed-document.schema.js';
 
-export type ParserEngine = 'docling';
+export type ParserEngine = 'docling' | 'glm-ocr';
 
 export type ParseInput = {
   documentId: string;

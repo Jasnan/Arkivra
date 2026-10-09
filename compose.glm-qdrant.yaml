@@ -1,0 +1,125 @@
+# Experimental GLM SDK + Qdrant contributor stack. Use a separate Compose project.
+#
+# This file intentionally builds Arkivra from the current checkout and exposes
+# PostgreSQL to the host. Public deployments should use compose.production.yaml.
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    ports:
+      - '${ARKIVRA_POSTGRES_PORT:-5432}:5432'
+    environment:
+      POSTGRES_USER: arkivra
+      POSTGRES_PASSWORD: arkivra
+      POSTGRES_DB: ${POSTGRES_DB_NAME:-arkivra}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U arkivra -d "$${POSTGRES_DB:-arkivra}"']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  arkivra:
+    image: arkivra:local
+    build:
+      context: .
+      dockerfile: ./apps/arkivra-server/Dockerfile
+    restart: unless-stopped
+    ports:
+      - '${ARKIVRA_PORT:-3210}:${ARKIVRA_PORT:-3210}'
+    environment:
+      NODE_ENV: production
+      ARKIVRA_PROCESS_ROLE: all
+
+      ARKIVRA_PORT: ${ARKIVRA_PORT:-3210}
+      ARKIVRA_HOSTNAME: '0.0.0.0'
+      ARKIVRA_PUBLIC_URL: ${ARKIVRA_PUBLIC_URL:-http://localhost:3210}
+
+      # Docker-internal DB URL. Do not use localhost or 127.0.0.1 here.
+      ARKIVRA_DATABASE_URL: postgres://arkivra:arkivra@postgres:5432/${POSTGRES_DB_NAME:-arkivra}
+
+      # Container storage path.
+      ARKIVRA_DATA_PATH: /app/data
+
+      # Auth / secrets from shell via arkivra-secrets.
+      ARKIVRA_AUTH_SECRET: ${ARKIVRA_AUTH_SECRET:?Run arkivra-secrets first}
+      ARKIVRA_ENCRYPTION_KEYS: ${ARKIVRA_ENCRYPTION_KEYS:?Run arkivra-secrets first}
+
+      # Optional OAuth / AI provider secrets from shell via arkivra-secrets.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+
+      # Auth / email config from .env.docker.
+      ARKIVRA_AUTH_REGISTRATION_ENABLED: ${ARKIVRA_AUTH_REGISTRATION_ENABLED:-true}
+      ARKIVRA_AUTH_EMAIL_VERIFICATION_REQUIRED: ${ARKIVRA_AUTH_EMAIL_VERIFICATION_REQUIRED:-false}
+      ARKIVRA_SMTP_URL: ${ARKIVRA_SMTP_URL:-}
+      ARKIVRA_EMAIL_FROM: ${ARKIVRA_EMAIL_FROM:-noreply@localhost}
+      ARKIVRA_EMAIL_FROM_NAME: ${ARKIVRA_EMAIL_FROM_NAME:-Arkivra}
+
+      # External services running on your Mac.
+      # Use host.docker.internal, not localhost or 127.0.0.1.
+      ARKIVRA_INGESTION_ENGINE: glm-ocr
+      ARKIVRA_GLM_OCR_URL: http://glm-ocr:5002
+      ARKIVRA_GLM_OCR_ENGINE_VERSION: glmocr-0.1.5
+      ARKIVRA_GLM_OCR_MAX_CHUNK_CHARACTERS: ${ARKIVRA_GLM_OCR_MAX_CHUNK_CHARACTERS:-4000}
+      ARKIVRA_QDRANT_URL: http://qdrant:6333
+      ARKIVRA_QDRANT_API_KEY: ${ARKIVRA_QDRANT_API_KEY:?Set a Qdrant API key}
+      ARKIVRA_QDRANT_COLLECTION_PREFIX: arkivra_experiment
+
+      ARKIVRA_OLLAMA_HOST: ${ARKIVRA_OLLAMA_HOST:-http://host.docker.internal:11434}
+      ARKIVRA_OLLAMA_IMAGE_CAPTIONING_ENABLED: ${ARKIVRA_OLLAMA_IMAGE_CAPTIONING_ENABLED:-false}
+      ARKIVRA_OLLAMA_IMAGE_CAPTIONING_MODEL: ${ARKIVRA_OLLAMA_IMAGE_CAPTIONING_MODEL:-}
+
+      ARKIVRA_GOTENBERG_URL: ${ARKIVRA_GOTENBERG_URL:-}
+
+      ARKIVRA_RESTORE_BOOTSTRAP_TOKEN: ${ARKIVRA_RESTORE_BOOTSTRAP_TOKEN:-}
+
+    volumes:
+      - arkivra-data:/app/data
+
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f "http://localhost:$${ARKIVRA_PORT:-3210}/api/health"']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:v1.17.0
+    restart: unless-stopped
+    environment:
+      QDRANT__SERVICE__API_KEY: ${ARKIVRA_QDRANT_API_KEY:?Set a Qdrant API key}
+      QDRANT__TELEMETRY_DISABLED: 'true'
+    ports:
+      - '127.0.0.1:${ARKIVRA_QDRANT_PORT:-6333}:6333'
+    volumes:
+      - qdrant-data:/qdrant/storage
+
+  glm-ocr:
+    build:
+      context: ./docker/glm-ocr
+    restart: unless-stopped
+    volumes:
+      - glm-model-cache:/root/.cache
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    # This SDK service performs layout detection on CPU and calls an external
+    # self-hosted GLM model server at host.docker.internal:8080.
+    # It is private to the Compose network; no documents go to a cloud API.
+
+volumes:
+  qdrant-data:
+  glm-model-cache:
+  postgres-data:
+  arkivra-data:

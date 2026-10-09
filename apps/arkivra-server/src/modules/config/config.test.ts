@@ -269,5 +269,30 @@ describe('parseConfig', () => {
     expect(enabled.ollama.imageCaptioningEnabled).toBe(true);
     expect(enabled.ollama.imageCaptioningModel).toBe('granite4.1:3b');
   });
+});
 
+describe('experimental GLM/Qdrant config', () => {
+  it('runs without Docling when GLM is selected', () => {
+    const { config } = parseConfig({
+      env: {
+        ARKIVRA_ENCRYPTION_KEYS: requiredEnv.ARKIVRA_ENCRYPTION_KEYS,
+        ARKIVRA_INGESTION_ENGINE: 'glm-ocr',
+        ARKIVRA_GLM_OCR_URL: 'http://sdk:5002',
+        ARKIVRA_QDRANT_URL: 'http://qdrant:6333',
+      },
+    });
+    expect(config.docling.url).toBeUndefined();
+    expect(config.ingestion.engine).toBe('glm-ocr');
+    expect(config.qdrant.url).toBe('http://qdrant:6333');
+  });
+  it('requires the SDK URL in GLM mode', () => {
+    expect(() =>
+      parseConfig({
+        env: {
+          ARKIVRA_ENCRYPTION_KEYS: requiredEnv.ARKIVRA_ENCRYPTION_KEYS,
+          ARKIVRA_INGESTION_ENGINE: 'glm-ocr',
+        },
+      }),
+    ).toThrow('ARKIVRA_GLM_OCR_URL is required');
+  });
 });

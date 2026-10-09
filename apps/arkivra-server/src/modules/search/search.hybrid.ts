@@ -1,3 +1,5 @@
+import { loadExternalVectorCandidates } from './search.vector-candidates.js';
+import type { VectorSearch } from './qdrant.client.js';
 import type { Database } from '../database/database.js';
 import { sql } from 'drizzle-orm';
 import type { Citation, HybridSearchMode } from './search.types.js';
@@ -24,22 +26,22 @@ import {
   parseImageAssets,
   parseImageProvenance,
   parseStringArray,
-  parseTextLocator
-  
+  parseTextLocator,
 } from './search.service-helpers.js';
-import type {HybridSearchRow} from './search.service-helpers.js';
+import type { HybridSearchRow } from './search.service-helpers.js';
 
 type QueryEmbedding = { vector: number[]; index: { id: string } };
 
 export function createSearchHybrid({
   db,
   embedQuery,
+  vectorSearch,
 }: {
   db: Database;
+  vectorSearch?: VectorSearch;
   embedQuery: (trimmedQuery: string) => Promise<QueryEmbedding | null>;
 }) {
-
-async function searchHybrid({
+  async function searchHybrid({
     vaultId,
     vaultIds,
     documentId,
@@ -108,6 +110,24 @@ async function searchHybrid({
 
     if (queryEmbedding === null) {
       effectiveMode = 'fts';
+    }
+
+    let externalCandidates = null;
+    if (vectorSearch && queryEmbedding) {
+      try {
+        externalCandidates = await loadExternalVectorCandidates({
+          db,
+          vectorSearch,
+          embedding: queryEmbedding,
+          vaultIds: scopedVaultIds,
+          documentId,
+          documentVersionIds: scopedDocumentVersionIds,
+          limit: normalizedCandidateLimit,
+        });
+      } catch {
+        queryEmbedding = null;
+        effectiveMode = 'fts';
+      }
     }
 
     const result =
@@ -319,7 +339,9 @@ async function searchHybrid({
               FROM fts_candidates
             ),
             vec_candidates AS (
-              SELECT
+              ${
+                externalCandidates ??
+                sql`SELECT
                 dc.id,
                 1 - (dce.embedding <=> ${buildVectorLiteral(queryEmbedding.vector)}::vector) AS similarity
               FROM document_chunk_embeddings AS dce
@@ -339,8 +361,9 @@ async function searchHybrid({
                 AND ${hybridVersionScopeSql}
                 AND (${documentId ?? null}::text IS NULL OR d.id = ${documentId ?? null})
               ORDER BY dce.embedding <=> ${buildVectorLiteral(queryEmbedding.vector)}::vector ASC, dc.chunk_index ASC, dc.id ASC
-              LIMIT ${normalizedCandidateLimit}
-            ),
+              LIMIT ${normalizedCandidateLimit}`
+              }
+      ),
             vec_ranked AS (
               SELECT
                 id,

@@ -1,3 +1,4 @@
+import { createQdrantClient } from '../search/qdrant.client.js';
 import type { Config } from '../config/config.js';
 import type { Auth } from '../auth/auth.services.js';
 import type { Database } from '../database/database.js';
@@ -177,6 +178,7 @@ export function createServer({
   const searchServices = createDocumentSearchServices({
     db,
     embeddingProviders,
+    vectorSearch: config.qdrant.url ? createQdrantClient({ ...config.qdrant, url: config.qdrant.url }).search : undefined,
     resolveActiveEmbeddingIndex: async () => {
       const settings = await aiServices.getSettings();
       if (!settings.aiFeaturesEnabled) {

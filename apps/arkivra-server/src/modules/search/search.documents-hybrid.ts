@@ -1,3 +1,5 @@
+import { loadExternalVectorCandidates } from './search.vector-candidates.js';
+import type { VectorSearch } from './qdrant.client.js';
 import type { Database } from '../database/database.js';
 import { sql } from 'drizzle-orm';
 import type { SearchSortBy, SearchVersionMode } from './search.types.js';
@@ -11,18 +13,19 @@ import {
   HYBRID_DOCUMENT_EXCERPT_LENGTH,
   HYBRID_DOCUMENT_MIN_SEMANTIC_SIMILARITY,
   mapSearchRow,
-  toIsoString
-  
+  toIsoString,
 } from './search.service-helpers.js';
-import type {SearchRow} from './search.service-helpers.js';
+import type { SearchRow } from './search.service-helpers.js';
 
 type QueryEmbedding = { vector: number[]; index: { id: string } };
 
 export function createSearchDocumentsWithHybrid({
   db,
   embedQuery,
+  vectorSearch,
 }: {
   db: Database;
+  vectorSearch?: VectorSearch;
   embedQuery: (trimmedQuery: string) => Promise<QueryEmbedding | null>;
 }) {
   async function searchDocumentsWithHybrid({
@@ -81,6 +84,25 @@ export function createSearchDocumentsWithHybrid({
     const effectiveCreatedAtSql = sql.raw('d.created_at');
     const versionScopeFilterSql =
       includeVersions === 'historical' ? sql`TRUE` : sql`dv.id = d.current_version_id`;
+
+    let externalCandidates = null;
+    try {
+      externalCandidates = vectorSearch
+        ? await loadExternalVectorCandidates({
+            db,
+            vectorSearch,
+            embedding: queryEmbedding,
+            vaultIds: effectiveVaultIds,
+            historical: includeVersions === 'historical',
+            tagIds: normalizedTagIds,
+            dateFrom: normalizedDateFrom,
+            dateTo: normalizedDateTo,
+            limit: HYBRID_DOCUMENT_CANDIDATE_LIMIT,
+          })
+        : null;
+    } catch {
+      return null;
+    }
 
     const searchResult = await db.execute<SearchRow>(sql`
       WITH search_query AS (
@@ -145,7 +167,9 @@ export function createSearchDocumentsWithHybrid({
         FROM keyword_candidates
       ),
       vec_candidates AS (
-        SELECT
+        ${
+          externalCandidates ??
+          sql`SELECT
           dc.id,
           1 - (dce.embedding <=> ${buildVectorLiteral(queryEmbedding.vector)}::vector) AS similarity,
           dc.chunk_index
@@ -156,7 +180,8 @@ export function createSearchDocumentsWithHybrid({
           AND dce.vault_id IN (${vaultIdListSql})
           AND dce.document_version_id = sd.document_version_id
         ORDER BY dce.embedding <=> ${buildVectorLiteral(queryEmbedding.vector)}::vector ASC, dc.chunk_index ASC, dc.id ASC
-        LIMIT ${HYBRID_DOCUMENT_CANDIDATE_LIMIT}
+        LIMIT ${HYBRID_DOCUMENT_CANDIDATE_LIMIT}`
+        }
       ),
       vec_ranked AS (
         SELECT

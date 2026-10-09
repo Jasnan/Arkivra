@@ -186,10 +186,58 @@ export const configDefinition = {
       env: 'ARKIVRA_RESTORE_BOOTSTRAP_TOKEN',
     },
   },
+  ingestion: {
+    engine: {
+      doc: 'Document extraction engine.',
+      schema: z.enum(['docling', 'glm-ocr']),
+      default: 'docling' as const,
+      env: 'ARKIVRA_INGESTION_ENGINE',
+    },
+  },
+  glmOcr: {
+    url: {
+      doc: 'GLM SDK service base URL; never a bare model endpoint.',
+      schema: z.string().url().optional(),
+      default: undefined,
+      env: 'ARKIVRA_GLM_OCR_URL',
+    },
+    engineVersion: {
+      doc: 'GLM SDK/model version recorded for provenance.',
+      schema: z.string().min(1),
+      default: 'glmocr-0.1.5',
+      env: 'ARKIVRA_GLM_OCR_ENGINE_VERSION',
+    },
+    maxChunkCharacters: {
+      doc: 'Maximum characters per GLM block slice; original region boxes are retained.',
+      schema: z.coerce.number().int().min(256).max(32000),
+      default: 4000,
+      env: 'ARKIVRA_GLM_OCR_MAX_CHUNK_CHARACTERS',
+    },
+  },
+  qdrant: {
+    url: {
+      doc: 'Optional Qdrant URL. When set, semantic candidates come from Qdrant.',
+      schema: z.string().url().optional(),
+      default: undefined,
+      env: 'ARKIVRA_QDRANT_URL',
+    },
+    apiKey: {
+      doc: 'Qdrant server API key.',
+      schema: z.string().optional(),
+      default: undefined,
+      env: 'ARKIVRA_QDRANT_API_KEY',
+    },
+    collectionPrefix: {
+      doc: 'Unique collection prefix for this Arkivra database.',
+      schema: z.string().regex(/^[\w-]+$/),
+      default: 'arkivra',
+      env: 'ARKIVRA_QDRANT_COLLECTION_PREFIX',
+    },
+  },
   docling: {
     url: {
       doc: 'Required Docling HTTP API base URL. Arkivra connects to this external Docling Serve endpoint for document ingestion and parsing.',
-      schema: z.string().url(),
+      schema: z.string().url().optional(),
       default: undefined,
       env: 'ARKIVRA_DOCLING_URL',
     },
@@ -509,15 +557,20 @@ export function parseConfig({ env }: { env: Record<string, string | undefined> }
     'ARKIVRA_ENCRYPTION_KEYS',
     'ARKIVRA_ENCRYPTION_KEYS is required. Generate a key with `openssl rand -hex 32` and configure it as `ARKIVRA_ENCRYPTION_KEYS=1:<key>`.',
   );
-  requireEnvValue(
-    env,
-    'ARKIVRA_DOCLING_URL',
-    'ARKIVRA_DOCLING_URL is required. Configure it with the reachable HTTP URL of your Docling Serve endpoint.',
-  );
+  if (env.ARKIVRA_INGESTION_ENGINE !== 'glm-ocr')
+    requireEnvValue(
+      env,
+      'ARKIVRA_DOCLING_URL',
+      'ARKIVRA_DOCLING_URL is required. Configure it with the reachable HTTP URL of your Docling Serve endpoint.',
+    );
 
   const { config } = defineConfig(configDefinition, {
     envSource: env,
   });
+
+  if (config.ingestion.engine === 'glm-ocr' && !config.glmOcr.url) {
+    throw new Error('ARKIVRA_GLM_OCR_URL is required for GLM ingestion.');
+  }
 
   if (hasEnvValue(env, 'ARKIVRA_DOCLING_VLM_MODEL') && config.docling.vlmPipeline !== 'enabled') {
     throw new Error(

@@ -181,7 +181,7 @@ describe.sequential('document upload processing e2e', () => {
     const storage = createStorageDriver({ config });
     documentQueue = createDocumentQueue({ db });
     const doclingClient = createDoclingClient({
-      baseUrl: config.docling.url,
+      baseUrl: config.docling.url!,
     });
     const parserRegistry = createParserRegistry({
       parsers: [

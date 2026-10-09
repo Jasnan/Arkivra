@@ -227,9 +227,11 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
   async function discoverDocumentsForIndex({
     embeddingIndexId,
     includeReady = false,
+    includeHistorical = false,
   }: {
     embeddingIndexId: string;
     includeReady?: boolean;
+    includeHistorical?: boolean;
   }): Promise<DiscoveredIndexDocument[]> {
     const result = await db.execute<DiscoveredIndexDocumentRow>(sql`
       SELECT
@@ -240,7 +242,7 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
       FROM document_versions AS dv
       INNER JOIN documents AS d ON d.id = dv.document_id
         AND d.vault_id = dv.vault_id
-        AND d.current_version_id = dv.id
+        AND ${includeHistorical ? sql`TRUE` : sql`d.current_version_id = dv.id`}
       INNER JOIN document_chunks AS dc ON dc.document_version_id = dv.id
       WHERE dv.processing_status = 'completed'
         AND dv.deleted_at IS NULL
@@ -328,7 +330,7 @@ export function createEmbeddingIndexServices({ db }: { db: Database }) {
       INNER JOIN document_versions AS dv ON dv.id = deis.document_version_id
       INNER JOIN documents AS d ON d.id = dv.document_id
         AND d.vault_id = dv.vault_id
-        AND d.current_version_id = dv.id
+        AND ${includeHistorical ? sql`TRUE` : sql`d.current_version_id = dv.id`}
       WHERE deis.embedding_index_id = ${embeddingIndexId}
         AND deis.status <> 'ready'
         AND dv.processing_status = 'completed'

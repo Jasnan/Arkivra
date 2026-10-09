@@ -1,3 +1,4 @@
+import type { VectorSearch } from './qdrant.client.js';
 import type { Database } from '../database/database.js';
 import { sql } from 'drizzle-orm';
 import type { DocumentSearchMode, SearchSortBy, SearchVersionMode } from './search.types.js';
@@ -11,22 +12,26 @@ import {
   mapSearchRow,
   normalizeTagIds,
   toIsoString,
-  toSqlDateBoundary
-  
-  
+  toSqlDateBoundary,
 } from './search.service-helpers.js';
-import type {CountRow, SearchRow} from './search.service-helpers.js';
+import type { CountRow, SearchRow } from './search.service-helpers.js';
 
 type QueryEmbedding = { vector: number[]; index: { id: string } };
 
 export function createSearchDocuments({
   db,
   embedQuery,
+  vectorSearch,
 }: {
   db: Database;
+  vectorSearch?: VectorSearch;
   embedQuery: (trimmedQuery: string) => Promise<QueryEmbedding | null>;
 }) {
-  const searchDocumentsWithHybrid = createSearchDocumentsWithHybrid({ db, embedQuery });
+  const searchDocumentsWithHybrid = createSearchDocumentsWithHybrid({
+    db,
+    embedQuery,
+    vectorSearch,
+  });
 
   async function searchDocuments({
     vaultId,
@@ -576,7 +581,6 @@ export function createSearchDocuments({
       },
     };
   }
-
 
   return searchDocuments;
 }

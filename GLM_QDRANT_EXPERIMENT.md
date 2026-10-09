@@ -51,6 +51,10 @@ choices. Do not expose the SDK service publicly.
 
 ## Run in isolation
 
+For a Mac with Apple Silicon, use the [native SDK setup](scripts/glm-ocr-mac/README.md)
+to reuse local Ollama and test experimental MPS layout detection. This runs the
+SDK outside Docker with its own checkout and pinned Python environment.
+
 Use a fresh database and data volumes. Do not reuse production or main-branch
 storage. This branch does not remove the pgvector extension or existing parser
 code; those remain for durable vector backups and baseline tests.

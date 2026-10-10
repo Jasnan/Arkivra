@@ -1,10 +1,46 @@
 """Local SDK wrapper: serialized requests, leases and content-free progress."""
 import argparse
+import copy
+import logging
 import threading
 import time
 import uuid
 
 from flask import jsonify, request
+
+
+def safe_ocr_error(result):
+    # Provider bodies may contain document text; expose only fixed categories.
+    body = str(result[0]).lower() if result else ''
+    if 'prediction aborted, token repeat limit reached' in body:
+        return 'repeated_token_abort'
+    for category, terms in {
+        'invalid_json': ('json',),
+        'invalid_image': ('image', 'bitmap', 'decode'),
+        'context_limit': ('context', 'too long', 'n_ctx'),
+        'memory': ('memory', 'allocation'),
+        'runner': ('runner', 'llama', 'terminated'),
+        'connection': ('connection', 'timeout', 'timed out', 'eof'),
+        'invalid_number': ('nan', 'infinity'),
+        'busy': ('slot', 'busy'),
+        'response_format': ('parse', 'syntax', 'utf', 'unicode', 'escape'),
+        'internal_server_error': ('internal server error',),
+        'configuration': ('parameter', 'option', 'unsupported', 'template'),
+        'tool_call': ('tool call', 'function name', 'argument name'),
+        'invalid_response': ('invalid character', 'unexpected', 'completion'),
+    }.items():
+        if any(term in body for term in terms):
+            return category
+    return 'upstream_error'
+
+
+class RedactOCRLogs(logging.Filter):
+    def filter(self, record):
+        record.msg = 'OCR request diagnostic redacted; see /status'
+        record.args = ()
+        record.exc_info = None
+        record.exc_text = None
+        return True
 
 
 def install_monitoring(app, pipeline, lease_seconds=90, maximum_seconds=7200):
@@ -32,8 +68,25 @@ def install_monitoring(app, pipeline, lease_seconds=90, maximum_seconds=7200):
             inflight += 1
         started = time.monotonic()
         result = None
+        exception = None
         try:
             result = original_ocr(*args, **kwargs)
+            if result[1] != 200 and safe_ocr_error(result) == 'repeated_token_abort':
+                with mutex:
+                    retry_allowed = not status.get('cancel_reason')
+                    if retry_allowed:
+                        status['ocr_region_retries'] += 1
+                if retry_allowed:
+                    # Retry this region once; retain all other regions' SDK defaults.
+                    retry_args = list(copy.deepcopy(args))
+                    retry_kwargs = copy.deepcopy(kwargs)
+                    payload = retry_args[0] if retry_args else retry_kwargs['request_data']
+                    payload.update(temperature=0.2, top_p=0.9, top_k=40,
+                                   repetition_penalty=1.2)
+                    result = original_ocr(*retry_args, **retry_kwargs)
+        except Exception as error:
+            exception = error
+            raise
         finally:
             with idle:
                 inflight -= 1
@@ -43,6 +96,12 @@ def install_monitoring(app, pipeline, lease_seconds=90, maximum_seconds=7200):
                     status["last_ocr_status"] = result[1] if result else 500
                     status["last_progress_at"] = time.time()
                     if result is None or result[1] != 200:
+                        status['last_ocr_error_code'] = safe_ocr_error(
+                            result or ({'error': str(exception)}, 500)
+                        )
+                        status['last_ocr_exception_type'] = (
+                            type(exception).__name__ if exception else None
+                        )
                         cancel("ocr_request_failed")
                 idle.notify_all()
         if result[1] != 200:
@@ -61,7 +120,7 @@ def install_monitoring(app, pipeline, lease_seconds=90, maximum_seconds=7200):
                 active=True,
                 request_id=request.headers.get("x-arkivra-request-id") or str(uuid.uuid4()),
                 started_at=time.time(), last_progress_at=None,
-                ocr_calls_started=0, ocr_calls_completed=0,
+                ocr_calls_started=0, ocr_calls_completed=0, ocr_region_retries=0,
                 last_ocr_seconds=None, last_ocr_status=None, cancel_reason=None,
             )
             status["last_heartbeat"] = time.monotonic()
@@ -84,6 +143,9 @@ def install_monitoring(app, pipeline, lease_seconds=90, maximum_seconds=7200):
             result = original_parse()
             with mutex:
                 if status["cancel_reason"]:
+                    if status['cancel_reason'] == 'ocr_request_failed':
+                        return jsonify(error='OCR recognition failed',
+                                       code=status.get('last_ocr_error_code', 'upstream_error')), 502
                     return jsonify(error="Extraction cancelled"), 504
             return result
         finally:
@@ -145,6 +207,7 @@ def main():
     args = parser.parse_args()
     config = load_config(args.config)
     configure_logging(level=config.logging.level)
+    logging.getLogger('glmocr.ocr_client').addFilter(RedactOCRLogs())
     app = create_app(config)
     pipeline = app.config["pipeline"]
     install_monitoring(app, pipeline)

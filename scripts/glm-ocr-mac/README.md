@@ -85,6 +85,13 @@ later regions; an already-running OCR call can take up to its 180-second timeout
 to finish. The SDK retains its request gate until that call ends. A failed OCR
 call fails the document instead of silently accepting incomplete extraction.
 The local configuration disables automatic per-region HTTP retries.
+The wrapper makes one exception: Ollama's specific repeated-token abort gets
+one region retry with temperature 0.2, top-p 0.9, top-k 40, and repetition penalty
+1.2. All other regions retain the SDK's original greedy settings. The retry can
+change transcription, so review recovered regions on representative documents.
+Status reports `ocr_region_retries` and a fixed `last_ocr_error_code`, never the
+provider response body. Recognition failures return HTTP 502; cancellation and
+timeout return 504. OCR client logs are redacted to prevent response-body leaks.
 
 The complete document timeout defaults to 30 minutes. Set
 `ARKIVRA_GLM_OCR_TIMEOUT_MS` on the API/worker to change it (maximum two hours).
@@ -145,4 +152,9 @@ ready in PostgreSQL and all 26 points were present in Qdrant. The isolated live
 PostgreSQL/Qdrant integration test also passed. Service tests cover
 serialization, matching cancellation, expired leases, and rejecting partial
 results after an OCR failure.
+The next uploaded one-page PDF exposed a repeated-token abort and SDK image
+regions with null text. After a bounded retry and accepting null only for image
+regions, it completed with 42 boxed chunks. Image regions retain their crops and
+provenance; text regions still reject null content. Six wrapper tests cover the
+recovery path, exhausted retry, and failure isolation.
 These are sample results, not a guarantee of end-to-end speed or OCR accuracy.

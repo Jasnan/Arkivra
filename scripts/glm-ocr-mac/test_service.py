@@ -1,8 +1,9 @@
 import threading
+import logging
 from types import SimpleNamespace
 from flask import Flask, jsonify
 
-from service import install_monitoring
+from service import install_monitoring, RedactOCRLogs
 
 
 def make_app(handler=None, **limits):
@@ -19,6 +20,15 @@ def make_app(handler=None, **limits):
 
     install_monitoring(app, pipeline, **limits)
     return app, pipeline
+
+
+def test_ocr_log_filter_removes_provider_payload_and_exception():
+    record = logging.LogRecord('glmocr.ocr_client', logging.ERROR, '', 0,
+                               'response: %s', ('private provider payload',), None)
+    record.exc_text = 'private exception contents'
+    assert RedactOCRLogs().filter(record)
+    assert 'private' not in record.getMessage()
+    assert record.exc_info is None and record.exc_text is None
 
 
 def test_status_counts_without_contents():
@@ -93,8 +103,55 @@ def test_failed_ocr_region_cancels_whole_document():
     app.add_url_rule("/glmocr/parse", "parse", lambda: handler(pipeline), methods=["POST"])
     install_monitoring(app, pipeline)
     with app.test_client() as client:
-        assert client.post("/glmocr/parse").status_code == 504
+        assert client.post("/glmocr/parse").status_code == 502
         assert cancelled.is_set()
         status = client.get("/status").json
         assert status["cancel_reason"] == "ocr_request_failed"
         assert "private" not in str(status)
+
+
+def test_repeated_token_abort_retries_only_once_without_mutating_input():
+    calls = []
+    payload = {'temperature': 0, 'content': 'private input'}
+    def recognize(request_data):
+        calls.append(request_data.copy())
+        return ({'response': 'prediction aborted, token repeat limit reached'}, 500)
+    app = Flask(__name__)
+    pipeline = SimpleNamespace(_current_state=None, ocr_client=SimpleNamespace(process=recognize))
+    app.add_url_rule('/glmocr/parse', 'parse', lambda: run_region(pipeline, payload), methods=['POST'])
+    install_monitoring(app, pipeline)
+    with app.test_client() as client:
+        assert client.post('/glmocr/parse').status_code == 502
+        status = client.get('/status').json
+        assert status['last_ocr_error_code'] == 'repeated_token_abort'
+        assert status['ocr_region_retries'] == 1
+        assert 'private' not in str(status)
+    assert len(calls) == 2
+    assert calls[1]['temperature'] == 0.2
+    assert payload['temperature'] == 0
+
+
+def run_region(pipeline, payload):
+    try:
+        pipeline.ocr_client.process(payload)
+    except RuntimeError:
+        pass
+    return jsonify(ok=True)
+
+
+def test_repeated_token_retry_can_recover_a_region():
+    calls = []
+    def recognize(payload):
+        calls.append(payload)
+        if len(calls) == 1:
+            return ({'response': 'prediction aborted, token repeat limit reached'}, 500)
+        return ({'choices': [{'message': {'content': 'private output'}}]}, 200)
+    app = Flask(__name__)
+    pipeline = SimpleNamespace(_current_state=None, ocr_client=SimpleNamespace(process=recognize))
+    app.add_url_rule('/glmocr/parse', 'parse', lambda: run_region(pipeline, {}), methods=['POST'])
+    install_monitoring(app, pipeline)
+    with app.test_client() as client:
+        assert client.post('/glmocr/parse').status_code == 200
+        status = client.get('/status').json
+        assert status['cancel_reason'] is None
+        assert status['ocr_region_retries'] == 1

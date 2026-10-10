@@ -36,6 +36,21 @@ const input = {
 };
 
 describe('gLM SDK adapter', () => {
+  it('accepts SDK image regions with null content while rejecting null text', () => {
+    const item = { index: 0, label: 'image', content: null, bbox_2d: [100, 100, 300, 300] };
+    const response = glmOcrResponseSchema.parse({ json_result: [[item]] });
+    const output = mapGlmOcrOutput({ response, documentId: input.documentId });
+    expect(output.structuredElements?.[0]).toMatchObject({
+      type: 'image',
+      text: '',
+      bbox: { x0: 100, y0: 100, x1: 300, y1: 300 },
+    });
+    expect(() =>
+      glmOcrResponseSchema.parse({
+        json_result: [[{ ...item, label: 'text' }]],
+      }),
+    ).toThrow('Only image regions may have null OCR content');
+  });
   it('preserves page order, region identity, boxes, headings and tables without reparsing', () => {
     const output = mapGlmOcrOutput({
       response: glmOcrResponseSchema.parse(fixture),

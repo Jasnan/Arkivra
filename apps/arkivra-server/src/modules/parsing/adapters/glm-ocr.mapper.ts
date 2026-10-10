@@ -9,12 +9,23 @@ const box = z.tuple([
   z.number().finite(),
   z.number().finite(),
 ]);
-const region = z.object({
-  index: z.number().int().nonnegative(),
-  label: z.string(),
-  content: z.string(),
-  bbox_2d: box.nullable().optional(),
-});
+const region = z
+  .object({
+    index: z.number().int().nonnegative(),
+    label: z.string(),
+    content: z.string().nullable(),
+    bbox_2d: box.nullable().optional(),
+  })
+  .superRefine((item, context) => {
+    if (item.content === null && !/image|figure|picture/i.test(item.label)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['content'],
+        message: 'Only image regions may have null OCR content',
+      });
+    }
+  })
+  .transform((item) => ({ ...item, content: item.content ?? '' }));
 export const glmOcrResponseSchema = z.object({
   json_result: z.array(z.array(region)).min(1),
   markdown_result: z.string().optional(),

@@ -3,7 +3,11 @@ import type { Citation } from '../search/search.types.js';
 import { sql } from 'drizzle-orm';
 import { MAX_EXPANDED_CONTEXT_CHUNKS } from './chat.constants.js';
 import { compactWhitespace } from './chat.core.js';
-import { buildChunkLevelCitationsForChat } from './chat.citation-ranking.js';
+import {
+  buildChunkLevelCitationsForChat,
+  isFineGrainedDoclingRepresentation,
+} from './chat.citation-ranking.js';
+import { buildLayoutContextCitations } from './chat.layout-context.js';
 import {
   getCitationRetrievalRankMap,
   getExpandedPageWindow,
@@ -32,6 +36,13 @@ export async function loadContextChunksForCitationGroup({
   }
 
   const retrievalRanks = getCitationRetrievalRankMap(citations);
+  const layoutAware = citations.some((citation) =>
+    isFineGrainedDoclingRepresentation(citation.retrievalRepresentation),
+  );
+  const hitIds = sql.join(
+    citations.map((citation) => sql`${citation.chunkId}`),
+    sql`, `,
+  );
   const result = await db.execute<ChatContextChunkRow>(sql`
     SELECT
       dc.id AS chunk_id,
@@ -114,12 +125,20 @@ export async function loadContextChunksForCitationGroup({
       AND dv.processing_status = 'completed'
       AND COALESCE(dc.page_end, dc.page_start, dc.page_number) >= ${pageWindow.start}
       AND COALESCE(dc.page_start, dc.page_number, dc.page_end) <= ${pageWindow.end}
-    ORDER BY dc.chunk_index ASC, dc.id ASC
-    LIMIT ${MAX_EXPANDED_CONTEXT_CHUNKS}
+    ORDER BY ${
+      layoutAware
+        ? sql`(
+      SELECT MIN(ABS(dc.chunk_index - hit.chunk_index)) FROM document_chunks AS hit
+      WHERE hit.document_version_id = dc.document_version_id
+        AND hit.vault_id = dc.vault_id AND hit.id IN (${hitIds})
+    )`
+        : sql`dc.chunk_index`
+    } ASC, dc.chunk_index ASC, dc.id ASC
+    LIMIT ${layoutAware ? 256 : MAX_EXPANDED_CONTEXT_CHUNKS}
   `);
 
   return result.rows.flatMap((row) => {
-    const snippet = compactWhitespace(row.snippet ?? '');
+    const snippet = layoutAware ? (row.snippet ?? '').trim() : compactWhitespace(row.snippet ?? '');
     const retrieval = retrievalRanks.get(row.chunk_id);
 
     if (snippet.length === 0) {
@@ -164,14 +183,37 @@ export async function expandRetrievedCitationsForChat({
 
   for (const group of groups) {
     const contextChunks = await loadContextChunksForCitationGroup({ db, citations: group });
-    const chunkLevelCitations = buildChunkLevelCitationsForChat({
+    if (contextChunks.length === 0 && getExpandedPageWindow(group) !== null) continue;
+    const grouped = buildLayoutContextCitations({
+      citations: group,
+      chunks: contextChunks,
       question,
       answerText,
-      citations: group,
-      contextChunks,
     });
+    const ordinary = group.filter(
+      (citation) => !isFineGrainedDoclingRepresentation(citation.retrievalRepresentation),
+    );
+    const hasLayoutHits = ordinary.length !== group.length;
+    const chunkLevelCitations =
+      ordinary.length === 0
+        ? []
+        : buildChunkLevelCitationsForChat({
+            question,
+            answerText,
+            citations: ordinary,
+            contextChunks: hasLayoutHits
+              ? contextChunks.filter(
+                  (chunk) => !isFineGrainedDoclingRepresentation(chunk.retrievalRepresentation),
+                )
+              : contextChunks,
+          });
 
-    expandedCitations.push(...chunkLevelCitations);
+    expandedCitations.push(
+      ...grouped.filter((citation) =>
+        isFineGrainedDoclingRepresentation(citation.retrievalRepresentation),
+      ),
+      ...chunkLevelCitations,
+    );
   }
 
   return expandedCitations;

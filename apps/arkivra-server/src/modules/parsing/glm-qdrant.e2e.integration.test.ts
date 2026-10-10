@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import * as schema from '../database/schema/index.js';
@@ -23,6 +23,9 @@ import { persistParsedDocument } from './persistence.js';
 
 import { createGlmOcrParser } from './adapters/glm-ocr.parser.js';
 import { createParsePipeline } from './parse-pipeline.js';
+import { expandRetrievedCitationsForChat } from '../chat/chat.context-expansion.js';
+import { buildAnswerPrompt } from '../chat/chat.answer-prompt.js';
+import type { Citation } from '../search/search.types.js';
 import { createParserRegistry } from './parser.registry.js';
 import { createNoopTextCleaner } from './text-cleaner.js';
 import { createQdrantClient } from '../search/qdrant.client.js';
@@ -311,4 +314,124 @@ describe.sequential('gLM fixture persistence and live Qdrant integration', () =>
       ).results,
     ).toEqual([]);
   }, 60_000);
+  test('expands late-page label hits with neighboring values without crossing vaults or deleted versions', async () => {
+    if (!db) throw new Error('Test database not initialized');
+    const documentId = 'doc_layout_fixture';
+    const versionId = 'dvr_layout_fixture';
+    const vaultId = 'vlt_glm_fixture';
+    await db
+      .insert(documentsTable)
+      .values({
+        id: documentId,
+        vaultId,
+        originalName: 'form.pdf',
+        originalStorageKey: 'form',
+        originalSha256Hash: 'form',
+        name: 'Form',
+        mimeType: 'application/pdf',
+      });
+    await db
+      .insert(documentVersionsTable)
+      .values({
+        id: versionId,
+        documentId,
+        vaultId,
+        versionNumber: 1,
+        originalName: 'form.pdf',
+        originalStorageKey: 'form',
+        originalSha256Hash: 'form',
+        mimeType: 'application/pdf',
+      });
+    const parser = createGlmOcrParser({
+      baseUrl: 'http://fixture-sdk',
+      fetchImpl: async () =>
+        Response.json({
+          json_result: [
+            Array.from({ length: 80 }, (_, index) => ({
+              index,
+              label: 'text',
+              content:
+                index === 77
+                  ? 'Reference'
+                  : index === 78
+                    ? 'ZX'
+                    : index === 79
+                      ? '987654'
+                      : `Note ${index}`,
+              bbox_2d: [100, index * 10, 500, index * 10 + 8],
+            })),
+          ],
+        }),
+    });
+    const pipeline = createParsePipeline({
+      parserRegistry: createParserRegistry({ parsers: [parser], defaultEngine: 'glm-ocr' }),
+      cleaner: createNoopTextCleaner(),
+    });
+    const parsed = await pipeline.run({
+      documentId,
+      documentVersionId: versionId,
+      fileName: 'form.pdf',
+      mimeType: 'application/pdf',
+      fileData: Buffer.from('%PDF-fixture'),
+    });
+    await persistParsedDocument({
+      db,
+      storage: createFilesystemStorage({ basePath: storagePath }),
+      encryption: createEncryptionServices({ kekKeysRaw: `1:${generateHexKey()}` }),
+      documentId,
+      documentVersionId: versionId,
+      vaultId,
+      parsed,
+    });
+    await db
+      .update(documentVersionsTable)
+      .set({ processingStatus: 'completed' })
+      .where(eq(documentVersionsTable.id, versionId));
+    const rows = await db.execute<{ id: string }>(sql`SELECT id FROM document_chunks
+      WHERE document_version_id = ${versionId} AND chunk_index = 77`);
+    const hit: Citation = {
+      chunkId: rows.rows[0]!.id,
+      documentId,
+      documentVersionId: versionId,
+      vaultId,
+      vaultName: 'Fixture',
+      documentName: 'form.pdf',
+      versionNumber: 1,
+      mimeType: 'application/pdf',
+      pageStart: 1,
+      pageEnd: 1,
+      section: null,
+      snippet: 'Reference',
+      retrievalRepresentation: 'glm_block',
+      boundingBoxes: [],
+      citationPrecision: 'page',
+      assetType: 'text',
+      tablesHtml: [],
+      imageAssetIds: [],
+      score: 0.9,
+    };
+    const expand = (citation = hit) =>
+      expandRetrievedCitationsForChat({
+        db: db!,
+        question: 'What is the reference?',
+        citations: [citation],
+      });
+    const expanded = await expand();
+    expect(expanded).toHaveLength(1);
+    expect(expanded[0]!.contextChunks![0]!.sourceElementIds).toHaveLength(80);
+    expect(
+      buildAnswerPrompt({
+        question: 'What is the reference?',
+        citations: expanded,
+        includeInlineCitations: true,
+      }),
+    ).toContain('ZX\n\n987654');
+    expect(await expand({ ...hit, vaultId: 'vlt_wrong' })).toEqual([]);
+    expect(await expand({ ...hit, documentVersionId: 'dvr_glm_1' })).toEqual([]);
+    await db
+      .update(documentVersionsTable)
+      .set({ deletedAt: new Date() })
+      .where(eq(documentVersionsTable.id, versionId));
+    expect(await expand()).toEqual([]);
+  });
 });

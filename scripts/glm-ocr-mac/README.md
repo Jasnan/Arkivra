@@ -101,6 +101,23 @@ may be slow per region, so measure `/status` counts before declaring a stall.
 
 ## Evaluate
 
+Chat uses persisted document-version/page membership as parent relationships.
+Fine-grained GLM (and Docling element) hits expand to one ordered page context
+when its text fits 3,600 characters. Larger pages use bounded reading-order and
+geometric neighbors. Overlapping contexts merge when they fit; source regions,
+boxes, and retrieved table/image assets remain available for citations. The
+answer prompt retains region boundaries instead of truncating every region to
+a short independent excerpt. Candidate loading prioritizes retrieved locations
+and is capped at 256 chunks; the overall answer context remains bounded at
+9,000 characters. These are context limits, not guarantees of complete pages.
+
+This requires no re-upload, re-embedding, or additional graph database. Qdrant
+still retrieves candidate regions, and PostgreSQL validates document/vault/version
+visibility before assembling their parent context. A new chat question uses
+this path; old answers are not regenerated. If OCR missed or misread characters,
+context expansion cannot restore them. Test exact answers and citation highlights
+on representative documents before merging the experiment.
+
 ```sh
 curl http://127.0.0.1:5002/health
 ARKIVRA_GLM_OCR_URL=http://127.0.0.1:5002 \

@@ -1,4 +1,5 @@
 import { createCanvas, loadImage } from '@napi-rs/canvas';
+import { randomUUID } from 'node:crypto';
 import type { DocumentParser, ParseInput } from '../parser.types.js';
 import { ParserValidationError } from '../parser.types.js';
 import { parserOutputSchema } from '../parsed-document.schema.js';
@@ -10,7 +11,7 @@ export function createGlmOcrParser({
   baseUrl,
   engineVersion = 'sdk',
   maxChunkCharacters = 4000,
-  timeoutMs = 300_000,
+  timeoutMs = 1_800_000,
   imageCaptioner,
   fetchImpl = fetch,
 }: {
@@ -56,19 +57,45 @@ export function createGlmOcrParser({
         'glm-ocr',
       );
     }
-    const response = await fetchImpl(`${baseUrl.replace(/\/$/, '')}/glmocr/parse`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      signal: AbortSignal.timeout(timeoutMs),
-      body: JSON.stringify({
-        images: [
-          `data:${isPdf ? 'application/pdf' : input.mimeType};base64,${input.fileData.toString('base64')}`,
-        ],
-      }),
-    });
+    const sdkUrl = baseUrl.replace(/\/$/, '');
+    const requestId = randomUUID();
+    // A short lease prevents a restarted worker from leaving indefinite OCR work.
+    const heartbeat = setInterval(() => {
+      void fetchImpl(`${sdkUrl}/glmocr/heartbeat/${requestId}`, {
+        method: 'POST',
+        signal: AbortSignal.timeout(5000),
+      }).catch(() => {});
+    }, 30_000);
+    heartbeat.unref();
+    let response: Response;
+    try {
+      response = await fetchImpl(`${sdkUrl}/glmocr/parse`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-arkivra-request-id': requestId,
+          'x-arkivra-lease': '1',
+        },
+        signal: AbortSignal.timeout(timeoutMs),
+        body: JSON.stringify({
+          images: [
+            `data:${isPdf ? 'application/pdf' : input.mimeType};base64,${input.fileData.toString('base64')}`,
+          ],
+        }),
+      });
+      if (!response.ok)
+        throw new ParserValidationError(`GLM SDK request failed (${response.status})`, 'glm-ocr');
+    } catch (error) {
+      // Do not let cancellation failures hide the original extraction error.
+      await fetchImpl(`${sdkUrl}/glmocr/cancel/${requestId}`, {
+        method: 'POST',
+        signal: AbortSignal.timeout(5000),
+      }).catch(() => {});
+      throw error;
+    } finally {
+      clearInterval(heartbeat);
+    }
     // Do not include upstream response bodies, which may contain document contents.
-    if (!response.ok)
-      throw new ParserValidationError(`GLM SDK request failed (${response.status})`, 'glm-ocr');
     const sdkOutput = glmOcrResponseSchema.parse(await response.json());
     if (!isPdf && sdkOutput.json_result.length !== 1) {
       throw new ParserValidationError(

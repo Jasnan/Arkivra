@@ -22,4 +22,5 @@ if [[ ! -d "$sdk_directory/.venv" ]]; then
 fi
 uv pip install --python "$sdk_directory/.venv/bin/python" -r "$script_directory/requirements.lock"
 uv pip install --python "$sdk_directory/.venv/bin/python" --no-deps -e "$sdk_directory"
+"$sdk_directory/.venv/bin/python" "$script_directory/repair_model.py"
 "$sdk_directory/.venv/bin/python" "$script_directory/configure.py" "$sdk_directory"

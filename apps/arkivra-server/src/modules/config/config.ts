@@ -195,6 +195,12 @@ export const configDefinition = {
     },
   },
   glmOcr: {
+    timeoutMs: {
+      doc: 'Maximum duration of a complete GLM document extraction request.',
+      schema: z.coerce.number().int().min(1000).max(7_200_000),
+      default: 1_800_000,
+      env: 'ARKIVRA_GLM_OCR_TIMEOUT_MS',
+    },
     url: {
       doc: 'GLM SDK service base URL; never a bare model endpoint.',
       schema: z.string().url().optional(),

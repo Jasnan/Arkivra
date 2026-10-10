@@ -6,9 +6,11 @@ The isolated checkout is `~/glm-ocr-arkivra`, branch
 The original `~/glm-ocr` checkout and environment are not modified.
 
 This reuses native Ollama at `127.0.0.1:11434` and its existing
-`glm-ocr:q8_0` weights. Dependencies are isolated and pinned, including the
+`glm-ocr:q8_0` weights, copied into a repaired `glm-ocr-arkivra:q8_0` model.
+Dependencies are isolated and pinned, including the
 Transformers source revision from the original environment. Hugging Face model
-caches are shared; no copies of the OCR model are needed.
+caches are shared. The repaired GGUF uses about 1.6 GB additional persistent
+disk space and a temporary copy during creation; the original model is preserved.
 
 ## Set up or reproduce
 
@@ -17,6 +19,22 @@ From the Arkivra root, with native ARM64 Python 3.12 and `uv` available:
 ```sh
 bash scripts/glm-ocr-mac/setup.sh
 ```
+
+Setup repairs missing `tokenizer.ggml.eot_token_id` metadata by registering
+`<|user|>` as end-of-turn in a separate GGUF. This follows the workaround in
+[Ollama PR #17195](https://github.com/ollama/ollama/pull/17195). Without it, our
+installed model repeated text until its context filled, taking about 40 seconds
+even for small regions. Textual stop sequences do not fix this control-token bug.
+For an existing SDK environment, repair and regenerate configs with:
+
+```sh
+uv pip install --python ~/glm-ocr-arkivra/.venv/bin/python gguf==0.19.0
+~/glm-ocr-arkivra/.venv/bin/python scripts/glm-ocr-mac/repair_model.py
+~/glm-ocr-arkivra/.venv/bin/python scripts/glm-ocr-mac/configure.py ~/glm-ocr-arkivra
+```
+
+Stop and restart the SDK after changing configs. `configure.py --model NAME`
+can select another tested model. Reapply the repair when replacing source weights.
 
 The patch accepts explicit `mps` layout placement and fails before downloading a
 model if MPS is unavailable. Automatic placement retains the SDK's original
@@ -49,6 +67,30 @@ ARKIVRA_GLM_LAYOUT_DEVICE=cpu bash scripts/glm-ocr-mac/run.sh
 `ARKIVRA_GLM_SDK_DIRECTORY` can override the checkout path. Do not run both SDK
 servers simultaneously on the same port. CPU fallback for unsupported MPS
 operations is not enabled by these scripts.
+
+The launcher wraps the SDK with a local `/status` endpoint and serializes
+document requests. Status includes elapsed time, loaded pages, queue sizes, OCR
+call counts, and the last call's duration/status; it excludes document contents
+and filenames. Queue sizes may include completion markers and skip regions, so
+they are not a percentage or a reliable total region count.
+
+```sh
+curl -s http://127.0.0.1:5002/status | python3 -m json.tool
+```
+
+Arkivra sends a heartbeat every 30 seconds while extraction is in flight. A
+missing heartbeat for 90 seconds requests cancellation after a worker restart.
+Cancellation also occurs when Arkivra's HTTP request fails/times out. It stops
+later regions; an already-running OCR call can take up to its 180-second timeout
+to finish. The SDK retains its request gate until that call ends. A failed OCR
+call fails the document instead of silently accepting incomplete extraction.
+The local configuration disables automatic per-region HTTP retries.
+
+The complete document timeout defaults to 30 minutes. Set
+`ARKIVRA_GLM_OCR_TIMEOUT_MS` on the API/worker to change it (maximum two hours).
+The monitored service has an independent two-hour maximum. The dashboard's 30%
+partitioning marker remains a stage indicator, not live OCR progress. Ollama
+may be slow per region, so measure `/status` counts before declaring a stall.
 
 ## Evaluate
 
@@ -92,6 +134,15 @@ difference requiring evaluation on representative documents.
 
 The public table sample produced the same single table region and identical
 box on both backends. Arkivra's adapter successfully exported its live SDK/Ollama
-result for both the image and a one-page PDF made from that image. Ollama reported
-`glm-ocr:q8_0` at `100% GPU` with a 4096-token context.
+result for both the image and a one-page PDF made from that image. That early
+contract smoke test did not catch repeated OCR output. After the metadata repair,
+a generated known-text image returned the exact text, stopped after 11 tokens,
+and took 1.97 seconds including loading. A three-page uploaded PDF completed
+SDK extraction in 16.67 seconds, persisted 26 chunks with bounding boxes across
+all three pages, and reached completed/100% in Arkivra. This checks processing
+and provenance persistence, not transcription accuracy. All 26 embeddings were
+ready in PostgreSQL and all 26 points were present in Qdrant. The isolated live
+PostgreSQL/Qdrant integration test also passed. Service tests cover
+serialization, matching cancellation, expired leases, and rejecting partial
+results after an OCR failure.
 These are sample results, not a guarantee of end-to-end speed or OCR accuracy.

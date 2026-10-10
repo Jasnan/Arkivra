@@ -7,6 +7,7 @@ import glmocr
 
 parser = argparse.ArgumentParser()
 parser.add_argument("directory", type=Path)
+parser.add_argument("--model", default="glm-ocr-arkivra:q8_0")
 args = parser.parse_args()
 baseline = Path(glmocr.__file__).parent / "config.yaml"
 for device in ("cpu", "mps"):
@@ -18,8 +19,8 @@ for device in ("cpu", "mps"):
     pipeline.update(max_workers=1, page_maxsize=2, region_maxsize=64)
     pipeline["ocr_api"].update(
         api_host="127.0.0.1", api_port=11434, api_path="/api/generate",
-        api_mode="ollama_generate", model="glm-ocr:q8_0", api_url=None,
-        api_key=None, request_timeout=300,
+        api_mode="ollama_generate", model=args.model, api_url=None,
+        api_key=None, request_timeout=180, retry_max_attempts=0,
     )
     pipeline["layout"].update(device=device, batch_size=1, workers=1)
     pipeline["result_formatter"]["output_format"] = "both"

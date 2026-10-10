@@ -175,4 +175,21 @@ describe('gLM SDK adapter', () => {
     });
     await expect(parser.parse(input)).rejects.toThrow('GLM SDK request failed (500)');
   });
+  it('cancels a timed-out SDK request using the same request ID', async () => {
+    const fetchImpl = vi.fn().mockImplementation(async (url: string, options: RequestInit) => {
+      if (url.endsWith('/glmocr/parse')) {
+        await new Promise<void>((resolve, reject) => {
+          options.signal?.addEventListener('abort', () => reject(options.signal?.reason), {
+            once: true,
+          });
+        });
+      }
+      return Response.json({ ok: true });
+    });
+    const parser = createGlmOcrParser({ baseUrl: 'http://sdk', timeoutMs: 10, fetchImpl });
+    await expect(parser.parse(input)).rejects.toThrow(/timeout/i);
+    const requestId = fetchImpl.mock.calls[0]?.[1].headers['x-arkivra-request-id'];
+    expect(fetchImpl.mock.calls[0]?.[1].headers['x-arkivra-lease']).toBe('1');
+    expect(fetchImpl.mock.calls[1]?.[0]).toBe(`http://sdk/glmocr/cancel/${requestId}`);
+  });
 });

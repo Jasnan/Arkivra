@@ -120,6 +120,7 @@ export async function startApp() {
             baseUrl: config.glmOcr.url!,
             engineVersion: config.glmOcr.engineVersion,
             maxChunkCharacters: config.glmOcr.maxChunkCharacters,
+            timeoutMs: config.glmOcr.timeoutMs,
             imageCaptioner,
           })
         : createDoclingParser({

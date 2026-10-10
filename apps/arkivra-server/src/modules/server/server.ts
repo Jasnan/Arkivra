@@ -173,6 +173,7 @@ export function createServer({
   });
   const embeddingProviders = createEmbeddingProviderRegistry({
     ollamaBatchSize: config.ollama.embeddingBatchSize,
+    remoteOnly: config.ingestion.engine === 'privatemode',
   });
   const embeddingIndexServices = createEmbeddingIndexServices({ db });
   const searchServices = createDocumentSearchServices({

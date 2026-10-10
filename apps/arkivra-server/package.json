@@ -10,7 +10,7 @@
     "dev": "ARKIVRA_PROCESS_ROLE=all tsx watch src/index.ts",
     "dev:web": "ARKIVRA_PROCESS_ROLE=web tsx watch src/index.ts",
     "dev:worker": "ARKIVRA_PROCESS_ROLE=worker tsx watch src/index.ts",
-    "build": "esbuild --bundle src/index.ts src/scripts/migrate.ts --platform=node --packages=external --format=esm --outdir=dist --outbase=src --minify",
+    "build": "esbuild --bundle src/index.ts src/scripts/migrate.ts src/scripts/configure-remote-ingestion.ts --platform=node --packages=external --format=esm --outdir=dist --outbase=src --minify",
     "start": "node dist/index.js",
     "start:with-migrations": "pnpm db:migrate:prod && pnpm start",
     "lint": "eslint .",
@@ -40,8 +40,9 @@
     "db:migrate:prod": "node dist/scripts/migrate.js",
     "db:cleanup:e2e": "tsx src/scripts/cleanup-e2e-data.ts",
     "db:studio": "drizzle-kit studio",
-    "test:e2e:glm-qdrant": "vitest run src/modules/parsing/glm-qdrant.e2e.integration.test.ts",
-    "eval:glm": "tsx src/scripts/evaluate-glm-ocr.ts"
+    "configure:remote": "tsx src/scripts/configure-remote-ingestion.ts",
+    "test:e2e:remote-live": "vitest run src/modules/parsing/remote-live.e2e.integration.test.ts",
+    "test:e2e:remote-qdrant": "vitest run src/modules/parsing/remote-qdrant.e2e.integration.test.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.48",

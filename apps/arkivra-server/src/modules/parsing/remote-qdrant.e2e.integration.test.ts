@@ -21,7 +21,8 @@ import { createEncryptionServices } from '../encryption/encryption.services.js';
 import { createFilesystemStorage } from '../storage/storage.filesystem.js';
 import { persistParsedDocument } from './persistence.js';
 
-import { createGlmOcrParser } from './adapters/glm-ocr.parser.js';
+import { PDFDocument } from 'pdf-lib';
+import { createPrivatemodeParser } from './adapters/privatemode.parser.js';
 import { createParsePipeline } from './parse-pipeline.js';
 import { expandRetrievedCitationsForChat } from '../chat/chat.context-expansion.js';
 import { buildAnswerPrompt } from '../chat/chat.answer-prompt.js';
@@ -35,6 +36,33 @@ import {
   indexDocumentForEmbedding,
   finalizeEmbeddingIndex,
 } from '../ai/indexing/embedding-index.worker.js';
+
+async function fixturePdf() {
+  const pdf = await PDFDocument.create();
+  pdf.addPage([200, 200]);
+  return Buffer.from(await pdf.save());
+}
+function fixtureCompletion(
+  options: RequestInit,
+  fixture: {
+    json_result: Array<Array<{ index: number; label: string; content: string; bbox_2d: number[] }>>;
+  },
+) {
+  const body = JSON.parse(options.body as string);
+  const content = body.messages[0].content;
+  const result =
+    typeof content === 'string'
+      ? JSON.stringify({
+          chunks: JSON.parse(content.split('Blocks: ')[1]!).map((block: { id: string }) => [
+            block.id,
+          ]),
+        })
+      : fixture.json_result[0]!.map(
+          (region) =>
+            `<|ref|>${region.label}<|/ref|><|det|>${JSON.stringify([region.bbox_2d])}<|/det|>\n${region.content}`,
+        ).join('\n');
+  return Response.json({ choices: [{ finish_reason: 'stop', message: { content: result } }] });
+}
 const drizzleFolder = resolve(dirname(fileURLToPath(import.meta.url)), '../../../drizzle');
 
 function generateHexKey(): string {
@@ -43,7 +71,7 @@ function generateHexKey(): string {
 
 type Database = ReturnType<typeof drizzle<typeof schema>>;
 
-describe.sequential('gLM fixture persistence and live Qdrant integration', () => {
+describe.sequential('remote fixture persistence and live Qdrant integration', () => {
   let adminPool: Pool | null = null;
   let pool: Pool | null = null;
   let db: Database | null = null;
@@ -159,14 +187,14 @@ describe.sequential('gLM fixture persistence and live Qdrant integration', () =>
     const encryption = createEncryptionServices({ kekKeysRaw: `1:${generateHexKey()}` });
     const indexServices = createEmbeddingIndexServices({ db });
     const index = await indexServices.createEmbeddingIndex({
-      provider: 'ollama',
+      provider: 'privatemode',
       model: 'fixture',
       dimensions: 2,
     });
     embeddingIndexId = index.embeddingIndexId;
     const embeddingProviders = {
-      ollama: {
-        kind: 'ollama' as const,
+      privatemode: {
+        kind: 'privatemode' as const,
         embed: async ({ texts }: { texts: string[] }) => texts.map(() => [1, 0]),
       },
     };
@@ -188,10 +216,11 @@ describe.sequential('gLM fixture persistence and live Qdrant integration', () =>
         .update(documentsTable)
         .set({ currentVersionId: versionId })
         .where(eq(documentsTable.id, documentId));
-      const parser = createGlmOcrParser({
-        baseUrl: 'http://fixture-sdk',
-        fetchImpl: async () =>
-          Response.json({
+      const parser = createPrivatemodeParser({
+        baseUrl: 'http://fixture-proxy/v1',
+        apiKey: 'fixture',
+        fetchImpl: async (_url, options) =>
+          fixtureCompletion(options!, {
             json_result: [
               [
                 {
@@ -205,7 +234,7 @@ describe.sequential('gLM fixture persistence and live Qdrant integration', () =>
           }),
       });
       const pipeline = createParsePipeline({
-        parserRegistry: createParserRegistry({ parsers: [parser], defaultEngine: 'glm-ocr' }),
+        parserRegistry: createParserRegistry({ parsers: [parser], defaultEngine: 'privatemode' }),
         cleaner: createNoopTextCleaner(),
       });
       const parsed = await pipeline.run({
@@ -213,7 +242,7 @@ describe.sequential('gLM fixture persistence and live Qdrant integration', () =>
         documentVersionId: versionId,
         fileName: 'fixture.pdf',
         mimeType: 'application/pdf',
-        fileData: Buffer.from('%PDF-fixture'),
+        fileData: await fixturePdf(),
       });
       await persistParsedDocument({
         db,
@@ -253,7 +282,7 @@ describe.sequential('gLM fixture persistence and live Qdrant integration', () =>
     expect(result.citations).toHaveLength(1);
     expect(result.citations[0]).toMatchObject({
       documentVersionId: 'dvr_glm_2',
-      sourceElementIds: ['glm:p1:r0'],
+      sourceElementIds: ['remote:p1:r0'],
       citationPrecision: 'box',
     });
     expect(result.citations[0]?.boundingBoxes[0]).toMatchObject({
@@ -319,33 +348,30 @@ describe.sequential('gLM fixture persistence and live Qdrant integration', () =>
     const documentId = 'doc_layout_fixture';
     const versionId = 'dvr_layout_fixture';
     const vaultId = 'vlt_glm_fixture';
-    await db
-      .insert(documentsTable)
-      .values({
-        id: documentId,
-        vaultId,
-        originalName: 'form.pdf',
-        originalStorageKey: 'form',
-        originalSha256Hash: 'form',
-        name: 'Form',
-        mimeType: 'application/pdf',
-      });
-    await db
-      .insert(documentVersionsTable)
-      .values({
-        id: versionId,
-        documentId,
-        vaultId,
-        versionNumber: 1,
-        originalName: 'form.pdf',
-        originalStorageKey: 'form',
-        originalSha256Hash: 'form',
-        mimeType: 'application/pdf',
-      });
-    const parser = createGlmOcrParser({
-      baseUrl: 'http://fixture-sdk',
-      fetchImpl: async () =>
-        Response.json({
+    await db.insert(documentsTable).values({
+      id: documentId,
+      vaultId,
+      originalName: 'form.pdf',
+      originalStorageKey: 'form',
+      originalSha256Hash: 'form',
+      name: 'Form',
+      mimeType: 'application/pdf',
+    });
+    await db.insert(documentVersionsTable).values({
+      id: versionId,
+      documentId,
+      vaultId,
+      versionNumber: 1,
+      originalName: 'form.pdf',
+      originalStorageKey: 'form',
+      originalSha256Hash: 'form',
+      mimeType: 'application/pdf',
+    });
+    const parser = createPrivatemodeParser({
+      baseUrl: 'http://fixture-proxy/v1',
+      apiKey: 'fixture',
+      fetchImpl: async (_url, options) =>
+        fixtureCompletion(options!, {
           json_result: [
             Array.from({ length: 80 }, (_, index) => ({
               index,
@@ -364,7 +390,7 @@ describe.sequential('gLM fixture persistence and live Qdrant integration', () =>
         }),
     });
     const pipeline = createParsePipeline({
-      parserRegistry: createParserRegistry({ parsers: [parser], defaultEngine: 'glm-ocr' }),
+      parserRegistry: createParserRegistry({ parsers: [parser], defaultEngine: 'privatemode' }),
       cleaner: createNoopTextCleaner(),
     });
     const parsed = await pipeline.run({
@@ -372,7 +398,7 @@ describe.sequential('gLM fixture persistence and live Qdrant integration', () =>
       documentVersionId: versionId,
       fileName: 'form.pdf',
       mimeType: 'application/pdf',
-      fileData: Buffer.from('%PDF-fixture'),
+      fileData: await fixturePdf(),
     });
     await persistParsedDocument({
       db,
@@ -402,7 +428,7 @@ describe.sequential('gLM fixture persistence and live Qdrant integration', () =>
       pageEnd: 1,
       section: null,
       snippet: 'Reference',
-      retrievalRepresentation: 'glm_block',
+      retrievalRepresentation: 'remote_block',
       boundingBoxes: [],
       citationPrecision: 'page',
       assetType: 'text',

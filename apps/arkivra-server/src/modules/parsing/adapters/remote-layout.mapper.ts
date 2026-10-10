@@ -26,11 +26,11 @@ const region = z
     }
   })
   .transform((item) => ({ ...item, content: item.content ?? '' }));
-export const glmOcrResponseSchema = z.object({
+export const remoteLayoutResponseSchema = z.object({
   json_result: z.array(z.array(region)).min(1),
   markdown_result: z.string().optional(),
 });
-export type GlmOcrResponse = z.infer<typeof glmOcrResponseSchema>;
+export type RemoteLayoutResponse = z.infer<typeof remoteLayoutResponseSchema>;
 
 function escapeHtml(value: string) {
   return value
@@ -58,28 +58,28 @@ function tableHtml(content: string) {
     .join('')}</tbody></table>`;
 }
 
-export function mapGlmOcrOutput({
+export function mapRemoteLayoutOutput({
   response,
   documentId,
-  engineVersion = 'sdk',
+  engineVersion = 'v1',
   maxChunkCharacters = 4000,
   plainText = false,
 }: {
-  response: GlmOcrResponse;
+  response: RemoteLayoutResponse;
   documentId: string;
   engineVersion?: string;
   maxChunkCharacters?: number;
   plainText?: boolean;
 }): ParserOutput {
   if (!Number.isInteger(maxChunkCharacters) || maxChunkCharacters < 1)
-    throw new Error('Invalid GLM chunk size');
+    throw new Error('Invalid Remote chunk size');
   const elements: StructuredElement[] = [];
   const chunks: ParsedChunk[] = [];
   let section: string | null = null;
   for (const [pageIndex, regions] of response.json_result.entries()) {
     const seen = new Set<number>();
     for (const item of [...regions].sort((a, b) => a.index - b.index)) {
-      if (seen.has(item.index)) throw new Error('Duplicate GLM region index on a page');
+      if (seen.has(item.index)) throw new Error('Duplicate Remote region index on a page');
       seen.add(item.index);
       const label = item.label.toLowerCase();
       const type = /title|heading/.test(label)
@@ -105,7 +105,7 @@ export function mapGlmOcrOutput({
         coords &&
         (coords.some((v) => v < 0 || v > 1000) || coords[0] >= coords[2] || coords[1] >= coords[3])
       ) {
-        throw new Error('GLM SDK must return valid normalized 0–1000 bounding boxes');
+        throw new Error('Remote SDK must return valid normalized 0–1000 bounding boxes');
       }
       const bbox = coords
         ? {
@@ -115,10 +115,10 @@ export function mapGlmOcrOutput({
             y1: coords[3],
             layoutWidth: 1000,
             layoutHeight: 1000,
-            system: 'GlmNormalizedSpace',
+            system: 'DeepSeekNormalizedSpace',
           }
         : null;
-      const elementId = `glm:p${pageIndex + 1}:r${item.index}`;
+      const elementId = `remote:p${pageIndex + 1}:r${item.index}`;
       const element: StructuredElement = {
         elementId,
         parentId: null,
@@ -132,13 +132,9 @@ export function mapGlmOcrOutput({
         sectionPath: section ? [section] : [],
       };
       elements.push(element);
-      // Images receive a provenance-only chunk; the parser attaches local crops/captions.
-      const parts =
-        text.length === 0
-          ? ['']
-          : Array.from({ length: Math.ceil(text.length / maxChunkCharacters) }, (_, i) =>
-              text.slice(i * maxChunkCharacters, (i + 1) * maxChunkCharacters),
-            );
+      // The remote parser already supplied bounded source blocks. Never locally rechunk them.
+      if (text.length > maxChunkCharacters) throw new Error('Remote source block exceeds chunk size');
+      const parts = [text];
       for (const [partIndex, part] of parts.entries()) {
         if (!part && type !== 'image') continue;
         chunks.push({
@@ -166,10 +162,10 @@ export function mapGlmOcrOutput({
                   ? 'list'
                   : 'paragraph',
           metadata: {
-            retrievalRepresentation: 'glm_block',
-            glmLabel: item.label,
-            glmRegionIndex: item.index,
-            glmSplitPart: partIndex,
+            retrievalRepresentation: 'remote_block',
+            remoteLabel: item.label,
+            remoteRegionIndex: item.index,
+            remoteSplitPart: partIndex,
             ...(type === 'table' ? { tableProvenance: [elementId] } : {}),
             ...(type === 'image'
               ? {
@@ -188,14 +184,14 @@ export function mapGlmOcrOutput({
     }
   }
   return {
-    engine: 'glm-ocr',
+    engine: 'privatemode',
     engineVersion,
     text: elements
       .map((e) => e.text)
       .filter(Boolean)
       .join('\n\n'),
     markdown: response.markdown_result ?? elements.map((e) => e.text).join('\n\n'),
-    rawStructuredOutput: { ...response, schema_name: 'GlmOcrDocument' },
+    rawStructuredOutput: { ...response, schema_name: 'PrivatemodeDocument' },
     structuredElements: elements,
     chunks,
     warnings: [],

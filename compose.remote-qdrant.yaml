@@ -1,4 +1,4 @@
-# Experimental GLM SDK + Qdrant contributor stack. Use a separate Compose project.
+# Experimental Privatemode + Qdrant contributor stack. Use a separate Compose project.
 #
 # This file intentionally builds Arkivra from the current checkout and exposes
 # PostgreSQL to the host. Public deployments should use compose.production.yaml.
@@ -61,21 +61,17 @@ services:
       ARKIVRA_EMAIL_FROM: ${ARKIVRA_EMAIL_FROM:-noreply@localhost}
       ARKIVRA_EMAIL_FROM_NAME: ${ARKIVRA_EMAIL_FROM_NAME:-Arkivra}
 
-      # External services running on your Mac.
-      # Use host.docker.internal, not localhost or 127.0.0.1.
-      ARKIVRA_INGESTION_ENGINE: glm-ocr
-      ARKIVRA_GLM_OCR_URL: http://glm-ocr:5002
-      ARKIVRA_GLM_OCR_ENGINE_VERSION: glmocr-0.1.5
-      ARKIVRA_GLM_OCR_MAX_CHUNK_CHARACTERS: ${ARKIVRA_GLM_OCR_MAX_CHUNK_CHARACTERS:-4000}
+      # Remote model inference through the trusted encryption proxy.
+      ARKIVRA_INGESTION_ENGINE: privatemode
+      ARKIVRA_PRIVATEMODE_PROXY_URL: http://privatemode-proxy:8080/v1
+      PRIVATEMODE_API_KEY: ${PRIVATEMODE_API_KEY:?Set PRIVATEMODE_API_KEY}
+      ARKIVRA_REMOTE_STRUCTURE_MODEL: ${ARKIVRA_REMOTE_STRUCTURE_MODEL:-glm-5.3-flash}
+      ARKIVRA_REMOTE_MAX_CHUNK_CHARACTERS: ${ARKIVRA_REMOTE_MAX_CHUNK_CHARACTERS:-3200}
       ARKIVRA_QDRANT_URL: http://qdrant:6333
       ARKIVRA_QDRANT_API_KEY: ${ARKIVRA_QDRANT_API_KEY:?Set a Qdrant API key}
       ARKIVRA_QDRANT_COLLECTION_PREFIX: arkivra_experiment
 
-      ARKIVRA_OLLAMA_HOST: ${ARKIVRA_OLLAMA_HOST:-http://host.docker.internal:11434}
-      ARKIVRA_OLLAMA_IMAGE_CAPTIONING_ENABLED: ${ARKIVRA_OLLAMA_IMAGE_CAPTIONING_ENABLED:-false}
-      ARKIVRA_OLLAMA_IMAGE_CAPTIONING_MODEL: ${ARKIVRA_OLLAMA_IMAGE_CAPTIONING_MODEL:-}
-
-      ARKIVRA_GOTENBERG_URL: ${ARKIVRA_GOTENBERG_URL:-}
+      ARKIVRA_GOTENBERG_URL: http://gotenberg:3000
 
       ARKIVRA_RESTORE_BOOTSTRAP_TOKEN: ${ARKIVRA_RESTORE_BOOTSTRAP_TOKEN:-}
 
@@ -88,6 +84,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      privatemode-proxy:
+        condition: service_started
+      gotenberg:
+        condition: service_started
+      qdrant:
+        condition: service_started
 
     healthcheck:
       test: ['CMD-SHELL', 'curl -f "http://localhost:$${ARKIVRA_PORT:-3210}/api/health"']
@@ -106,20 +108,22 @@ services:
     volumes:
       - qdrant-data:/qdrant/storage
 
-  glm-ocr:
-    build:
-      context: ./docker/glm-ocr
+  privatemode-proxy:
+    image: ${PRIVATEMODE_PROXY_IMAGE:-ghcr.io/edgelesssys/privatemode/privatemode-proxy:latest}
     restart: unless-stopped
-    volumes:
-      - glm-model-cache:/root/.cache
-    extra_hosts:
-      - 'host.docker.internal:host-gateway'
-    # This SDK service performs layout detection on CPU and calls an external
-    # self-hosted GLM model server at host.docker.internal:8080.
-    # It is private to the Compose network; no documents go to a cloud API.
+    command: ['--api-key-fallback=never', '--disable-prompt-cache=true']
+    ports:
+      - '127.0.0.1:${ARKIVRA_PRIVATEMODE_PROXY_PORT:-8081}:8080'
+    security_opt:
+      - no-new-privileges:true
+
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:${ARKIVRA_GOTENBERG_PORT:-3001}:3000'
 
 volumes:
   qdrant-data:
-  glm-model-cache:
   postgres-data:
   arkivra-data:

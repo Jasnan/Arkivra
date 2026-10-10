@@ -7,11 +7,14 @@ export function createEmbeddingProviderRegistry({
   fetchImpl = fetch,
   ollamaBatchSize,
   geminiBatchSize,
+  remoteOnly = false,
 }: {
   fetchImpl?: typeof fetch;
   ollamaBatchSize?: number;
   geminiBatchSize?: number;
+  remoteOnly?: boolean;
 } = {}): EmbeddingProviderRegistry {
+  if (remoteOnly) return { privatemode: createPrivatemodeEmbeddingProvider({ fetchImpl }) };
   return {
     privatemode: createPrivatemodeEmbeddingProvider({ fetchImpl }),
     ollama: createOllamaEmbeddingProvider({

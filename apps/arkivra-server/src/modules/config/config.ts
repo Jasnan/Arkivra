@@ -189,35 +189,35 @@ export const configDefinition = {
   ingestion: {
     engine: {
       doc: 'Document extraction engine.',
-      schema: z.enum(['docling', 'glm-ocr']),
+      schema: z.enum(['docling', 'privatemode']),
       default: 'docling' as const,
       env: 'ARKIVRA_INGESTION_ENGINE',
     },
   },
-  glmOcr: {
+  remoteParsing: {
     timeoutMs: {
-      doc: 'Maximum duration of a complete GLM document extraction request.',
+      doc: 'Deadline for complete remote document parsing and chunking.',
       schema: z.coerce.number().int().min(1000).max(7_200_000),
       default: 1_800_000,
-      env: 'ARKIVRA_GLM_OCR_TIMEOUT_MS',
+      env: 'ARKIVRA_REMOTE_PARSING_TIMEOUT_MS',
     },
-    url: {
-      doc: 'GLM SDK service base URL; never a bare model endpoint.',
-      schema: z.string().url().optional(),
-      default: undefined,
-      env: 'ARKIVRA_GLM_OCR_URL',
+    ocrModel: {
+      doc: 'Privatemode grounded OCR model.',
+      schema: z.literal('deepseek-ocr-2'),
+      default: 'deepseek-ocr-2' as const,
+      env: 'ARKIVRA_REMOTE_OCR_MODEL',
     },
-    engineVersion: {
-      doc: 'GLM SDK/model version recorded for provenance.',
-      schema: z.string().min(1),
-      default: 'glmocr-0.1.5',
-      env: 'ARKIVRA_GLM_OCR_ENGINE_VERSION',
+    structureModel: {
+      doc: 'Privatemode model for source parsing and semantic chunk plans.',
+      schema: z.enum(['glm-5.3-flash', 'glm-5.3', 'gpt-oss-120b']),
+      default: 'glm-5.3-flash' as const,
+      env: 'ARKIVRA_REMOTE_STRUCTURE_MODEL',
     },
     maxChunkCharacters: {
-      doc: 'Maximum characters per GLM block slice; original region boxes are retained.',
-      schema: z.coerce.number().int().min(256).max(32000),
-      default: 4000,
-      env: 'ARKIVRA_GLM_OCR_MAX_CHUNK_CHARACTERS',
+      doc: 'Maximum characters in a remotely planned retrieval chunk.',
+      schema: z.coerce.number().int().min(256).max(3200),
+      default: 3200,
+      env: 'ARKIVRA_REMOTE_MAX_CHUNK_CHARACTERS',
     },
   },
   qdrant: {
@@ -563,7 +563,7 @@ export function parseConfig({ env }: { env: Record<string, string | undefined> }
     'ARKIVRA_ENCRYPTION_KEYS',
     'ARKIVRA_ENCRYPTION_KEYS is required. Generate a key with `openssl rand -hex 32` and configure it as `ARKIVRA_ENCRYPTION_KEYS=1:<key>`.',
   );
-  if (env.ARKIVRA_INGESTION_ENGINE !== 'glm-ocr')
+  if (env.ARKIVRA_INGESTION_ENGINE !== 'privatemode')
     requireEnvValue(
       env,
       'ARKIVRA_DOCLING_URL',
@@ -574,8 +574,28 @@ export function parseConfig({ env }: { env: Record<string, string | undefined> }
     envSource: env,
   });
 
-  if (config.ingestion.engine === 'glm-ocr' && !config.glmOcr.url) {
-    throw new Error('ARKIVRA_GLM_OCR_URL is required for GLM ingestion.');
+  if (config.ingestion.engine === 'privatemode') {
+    requireEnvValue(
+      env,
+      'ARKIVRA_PRIVATEMODE_PROXY_URL',
+      'ARKIVRA_PRIVATEMODE_PROXY_URL is required for remote ingestion.',
+    );
+    requireEnvValue(
+      env,
+      'PRIVATEMODE_API_KEY',
+      'PRIVATEMODE_API_KEY is required for remote ingestion.',
+    );
+    const proxy = new URL(env.ARKIVRA_PRIVATEMODE_PROXY_URL!);
+    if (
+      !['http:', 'https:'].includes(proxy.protocol) ||
+      proxy.hostname === 'api.privatemode.ai' ||
+      proxy.username ||
+      proxy.password ||
+      proxy.search ||
+      proxy.hash
+    ) {
+      throw new Error('Remote ingestion requires a trusted Privatemode encryption proxy URL.');
+    }
   }
 
   if (hasEnvValue(env, 'ARKIVRA_DOCLING_VLM_MODEL') && config.docling.vlmPipeline !== 'enabled') {

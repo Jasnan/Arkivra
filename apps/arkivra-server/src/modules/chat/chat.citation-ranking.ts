@@ -28,7 +28,7 @@ import {
 import type { ChatContextExpansionChunk, CitationProvenanceElement } from './chat.citation-utils.js';
 
 export function isFineGrainedDoclingRepresentation(representation: string | null | undefined) {
-  return representation === 'glm_block' || representation === 'docling_element' || representation === 'docling_element_pair';
+  return representation === 'remote_block' || representation === 'docling_element' || representation === 'docling_element_pair';
 }
 
 export function getContextQueryTermMatchScore(chunk: ChatContextExpansionChunk, terms: string[]) {

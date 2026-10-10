@@ -7,6 +7,7 @@ function normalizeProvider(provider: string): EmbeddingProviderKind | null {
     case 'ollama':
     case 'openrouter':
     case 'gemini':
+    case 'privatemode':
     case 'voyage':
     case 'custom':
       return provider;

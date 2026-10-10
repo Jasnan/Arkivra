@@ -271,28 +271,29 @@ describe('parseConfig', () => {
   });
 });
 
-describe('experimental GLM/Qdrant config', () => {
-  it('runs without Docling when GLM is selected', () => {
+describe('experimental Privatemode/Qdrant config', () => {
+  it('runs without Docling when Privatemode is selected', () => {
     const { config } = parseConfig({
       env: {
         ARKIVRA_ENCRYPTION_KEYS: requiredEnv.ARKIVRA_ENCRYPTION_KEYS,
-        ARKIVRA_INGESTION_ENGINE: 'glm-ocr',
-        ARKIVRA_GLM_OCR_URL: 'http://sdk:5002',
+        ARKIVRA_INGESTION_ENGINE: 'privatemode',
+        ARKIVRA_PRIVATEMODE_PROXY_URL: 'http://proxy:8080/v1',
+        PRIVATEMODE_API_KEY: 'test',
         ARKIVRA_QDRANT_URL: 'http://qdrant:6333',
       },
     });
     expect(config.docling.url).toBeUndefined();
-    expect(config.ingestion.engine).toBe('glm-ocr');
+    expect(config.ingestion.engine).toBe('privatemode');
     expect(config.qdrant.url).toBe('http://qdrant:6333');
   });
-  it('requires the SDK URL in GLM mode', () => {
+  it('requires the proxy URL in remote mode', () => {
     expect(() =>
       parseConfig({
         env: {
           ARKIVRA_ENCRYPTION_KEYS: requiredEnv.ARKIVRA_ENCRYPTION_KEYS,
-          ARKIVRA_INGESTION_ENGINE: 'glm-ocr',
+          ARKIVRA_INGESTION_ENGINE: 'privatemode',
         },
       }),
-    ).toThrow('ARKIVRA_GLM_OCR_URL is required');
+    ).toThrow('ARKIVRA_PRIVATEMODE_PROXY_URL is required');
   });
 });

@@ -1,5 +1,5 @@
 import { createQdrantClient } from './modules/search/qdrant.client.js';
-import { createGlmOcrParser } from './modules/parsing/adapters/glm-ocr.parser.js';
+import { createPrivatemodeParser } from './modules/parsing/adapters/privatemode.parser.js';
 import process from 'node:process';
 import { serve } from '@hono/node-server';
 import { parseConfig } from './modules/config/config.js';
@@ -115,13 +115,12 @@ export async function startApp() {
       },
     });
     const parser =
-      config.ingestion.engine === 'glm-ocr'
-        ? createGlmOcrParser({
-            baseUrl: config.glmOcr.url!,
-            engineVersion: config.glmOcr.engineVersion,
-            maxChunkCharacters: config.glmOcr.maxChunkCharacters,
-            timeoutMs: config.glmOcr.timeoutMs,
-            imageCaptioner,
+      config.ingestion.engine === 'privatemode'
+        ? createPrivatemodeParser({
+            ocrModel: config.remoteParsing.ocrModel,
+            structureModel: config.remoteParsing.structureModel,
+            maxChunkCharacters: config.remoteParsing.maxChunkCharacters,
+            timeoutMs: config.remoteParsing.timeoutMs,
           })
         : createDoclingParser({
             doclingClient: createDoclingClient({ baseUrl: config.docling.url! }),
@@ -199,6 +198,7 @@ export async function startApp() {
       pauseWhen: backupServices.isMaintenanceModeEnabled,
       embeddingProviders: createEmbeddingProviderRegistry({
         ollamaBatchSize: config.ollama.embeddingBatchSize,
+        remoteOnly: config.ingestion.engine === 'privatemode',
       }),
     });
     try {

@@ -98,7 +98,11 @@ function getTextLocatorSource(input: ParseInput): TextLocatorSource | null {
     return { sourceType: 'rawText', text: decodeUtf8Source(input.fileData) };
   }
 
-  if (isJsonSource(input)) {
+  if (
+    isJsonSource(input) ||
+    input.mimeType.startsWith('text/') ||
+    /\.(?:csv|xml|yaml|yml|jsonl|html|htm|log)$/i.test(input.fileName)
+  ) {
     return { sourceType: 'rawText', text: decodeUtf8Source(input.fileData) };
   }
 
@@ -485,11 +489,12 @@ export function createParsePipeline({
     hooks?: ParsePipelineRunHooks,
   ): Promise<ParsedDocument> {
     const canonical = await cleaner.clean({ text: raw.text, markdown: raw.markdown });
-    const canonicalText = prefersParserTextAsCanonical(raw.rawStructuredOutput)
-      ? canonical.text
-      : canonical.markdown.length > 0
-        ? markdownToPlainText(canonical.markdown)
-        : canonical.text;
+    const canonicalText =
+      raw.engine === 'privatemode' || prefersParserTextAsCanonical(raw.rawStructuredOutput)
+        ? canonical.text
+        : canonical.markdown.length > 0
+          ? markdownToPlainText(canonical.markdown)
+          : canonical.text;
 
     await hooks?.onStageChange?.('chunking');
 
@@ -575,7 +580,10 @@ export function createParsePipeline({
   async function run(input: ParseInput, hooks?: ParsePipelineRunHooks): Promise<ParsedDocument> {
     const parser = engine !== undefined ? parserRegistry.get(engine) : parserRegistry.getDefault();
 
-    const raw = isJsonSource(input) ? buildJsonParserOutput(input) : await parser.parse(input);
+    const raw =
+      isJsonSource(input) && parser.engine !== 'privatemode'
+        ? buildJsonParserOutput(input)
+        : await parser.parse(input);
 
     const parsed = await buildParsedDocumentFromRawOutput(
       raw,

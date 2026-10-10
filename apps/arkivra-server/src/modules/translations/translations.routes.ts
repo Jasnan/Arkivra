@@ -213,6 +213,7 @@ export function registerTranslationRoutes({
         targetLanguage: parsed.data.targetLanguage,
         source: parsed.data.source,
         signal: context.req.raw.signal,
+        cacheScope: ['translation', context.get('userId') ?? '', vaultId, document.id],
       });
 
       return context.json({ translation });

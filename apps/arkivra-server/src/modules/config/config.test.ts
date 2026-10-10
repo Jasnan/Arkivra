@@ -277,7 +277,7 @@ describe('experimental Privatemode/Qdrant config', () => {
       env: {
         ARKIVRA_ENCRYPTION_KEYS: requiredEnv.ARKIVRA_ENCRYPTION_KEYS,
         ARKIVRA_INGESTION_ENGINE: 'privatemode',
-        ARKIVRA_PRIVATEMODE_PROXY_URL: 'http://proxy:8080/v1',
+        ARKIVRA_PRIVATEMODE_PROXY_URL: 'http://127.0.0.1:8080/v1',
         PRIVATEMODE_API_KEY: 'test',
         ARKIVRA_QDRANT_URL: 'http://qdrant:6333',
       },

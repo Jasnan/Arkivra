@@ -64,8 +64,10 @@ services:
       # Remote model inference through the trusted encryption proxy.
       ARKIVRA_INGESTION_ENGINE: privatemode
       ARKIVRA_PRIVATEMODE_PROXY_URL: http://privatemode-proxy:8080/v1
+      ARKIVRA_PRIVATEMODE_ALLOW_PRIVATE_HTTP: 'true'
       PRIVATEMODE_API_KEY: ${PRIVATEMODE_API_KEY:?Set PRIVATEMODE_API_KEY}
-      ARKIVRA_REMOTE_STRUCTURE_MODEL: ${ARKIVRA_REMOTE_STRUCTURE_MODEL:-glm-5.3-flash}
+      ARKIVRA_PRIVATEMODE_CACHE_SECRET: ${ARKIVRA_PRIVATEMODE_CACHE_SECRET:?Generate with openssl rand -hex 32}
+      ARKIVRA_REMOTE_STRUCTURE_MODEL: ${ARKIVRA_REMOTE_STRUCTURE_MODEL:-gpt-oss-120b}
       ARKIVRA_REMOTE_MAX_CHUNK_CHARACTERS: ${ARKIVRA_REMOTE_MAX_CHUNK_CHARACTERS:-3200}
       ARKIVRA_QDRANT_URL: http://qdrant:6333
       ARKIVRA_QDRANT_API_KEY: ${ARKIVRA_QDRANT_API_KEY:?Set a Qdrant API key}
@@ -109,9 +111,22 @@ services:
       - qdrant-data:/qdrant/storage
 
   privatemode-proxy:
-    image: ${PRIVATEMODE_PROXY_IMAGE:-ghcr.io/edgelesssys/privatemode/privatemode-proxy:latest}
+    image: ${PRIVATEMODE_PROXY_IMAGE:-ghcr.io/edgelesssys/privatemode/privatemode-proxy@sha256:5e8f549169c4288c24c902eadc4c6ebfaaf05c06e5605449c34469257929b143}
     restart: unless-stopped
-    command: ['--api-key-fallback=never', '--disable-prompt-cache=true']
+    # Arkivra enables caching via isolated request salts; unsalted requests stay isolated.
+    command:
+      - --api-key=@/run/secrets/privatemode_api_key
+      - --api-key-fallback=never
+      - --disable-prompt-cache=true
+      - --nvidia-ocsp-allow-unknown=false
+      - --nvidia-ocsp-revoked-grace-period=0
+      - --workspace=/app/privatemode-proxy
+    volumes:
+      - privatemode-manifests:/app/privatemode-proxy
+    cap_drop:
+      - ALL
+    secrets:
+      - privatemode_api_key
     ports:
       - '127.0.0.1:${ARKIVRA_PRIVATEMODE_PROXY_PORT:-8081}:8080'
     security_opt:
@@ -124,6 +139,11 @@ services:
       - '127.0.0.1:${ARKIVRA_GOTENBERG_PORT:-3001}:3000'
 
 volumes:
+  privatemode-manifests:
   qdrant-data:
   postgres-data:
   arkivra-data:
+
+secrets:
+  privatemode_api_key:
+    environment: PRIVATEMODE_API_KEY

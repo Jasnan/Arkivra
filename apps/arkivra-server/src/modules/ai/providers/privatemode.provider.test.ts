@@ -28,7 +28,7 @@ function completion(text: string) {
 }
 
 beforeEach(() => {
-  vi.stubEnv('ARKIVRA_PRIVATEMODE_PROXY_URL', 'http://privatemode-proxy:8080');
+  vi.stubEnv('ARKIVRA_PRIVATEMODE_PROXY_URL', 'http://127.0.0.1:8080');
   vi.stubEnv('PRIVATEMODE_API_KEY', 'test-key');
 });
 afterEach(() => {
@@ -67,7 +67,7 @@ describe('privatemode provider through the encryption proxy', () => {
     ]);
     expect(models[1]?.embeddingDimensions).toBe(1024);
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://privatemode-proxy:8080/v1/models',
+      'http://127.0.0.1:8080/v1/models',
       expect.objectContaining({
         redirect: 'error',
         headers: expect.objectContaining({ Authorization: 'Bearer test-key' }),
@@ -103,7 +103,7 @@ describe('privatemode provider through the encryption proxy', () => {
     expect(body.input).toEqual(['first', 'second']);
     expect(body.dimensions).toBe(1024);
     expect(
-      fetchMock.mock.calls.every(([url]) => url === 'http://privatemode-proxy:8080/v1/embeddings'),
+      fetchMock.mock.calls.every(([url]) => url === 'http://127.0.0.1:8080/v1/embeddings'),
     ).toBe(true);
   });
 
@@ -184,7 +184,7 @@ describe('privatemode provider through the encryption proxy', () => {
     expect(settings.chat.provider).toBe('privatemode');
     expect(settings.translation.provider).toBe('privatemode');
     expect(settings.embedding.provider).toBe('privatemode');
-    expect(settings.chat.baseUrl).toBe('http://privatemode-proxy:8080/v1');
+    expect(settings.chat.baseUrl).toBe('http://127.0.0.1:8080/v1');
     expect(settings.chat.apiKeySecretRef).toBe('PRIVATEMODE_API_KEY');
     expect(settings.chat.allowedModels).toContain('gemini:gemini-test');
     expect(
@@ -265,21 +265,24 @@ describe('privatemode provider through the encryption proxy', () => {
   });
 
   test('generates through the proxy without Ollama-specific request fields', async () => {
+    vi.stubEnv('ARKIVRA_PRIVATEMODE_CACHE_SECRET', 'a'.repeat(64));
     const fetchMock = vi.fn<typeof fetch>(async () => completion('Answer'));
     vi.stubGlobal('fetch', fetchMock);
     const result = await generateText({
       model: createChatModel({
-        settings: { provider: 'privatemode', baseUrl: 'https://untrusted.test' },
+        settings: { provider: 'privatemode', baseUrl: 'https://untrusted.test', cacheScope: ['chat', 'user_a', 'vault_a'] },
         model: 'glm-flash-latest',
       }),
       prompt: 'Question',
     });
     expect(result.text).toBe('Answer');
     expect(String(fetchMock.mock.calls[0]![0])).toBe(
-      'http://privatemode-proxy:8080/v1/chat/completions',
+      'http://127.0.0.1:8080/v1/chat/completions',
     );
     const body = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string);
     expect(body.think).toBeUndefined();
+    expect(body.cache_salt).toMatch(/^[a-f\d]{64}$/);
+    expect(body.cache_salt).not.toContain('user_a');
   });
 
   test('streams answers through the proxy', async () => {
@@ -316,8 +319,8 @@ describe('privatemode provider through the encryption proxy', () => {
         resolveSettings: async () => ({
           enabled: true,
           provider: 'privatemode',
-          host: 'http://privatemode-proxy:8080/v1',
-          model: 'glm-flash-latest',
+          host: 'http://127.0.0.1:8080/v1',
+          model: 'gpt-oss-120b',
         }),
       });
       const source =
@@ -331,7 +334,7 @@ describe('privatemode provider through the encryption proxy', () => {
               rect: { x: 0, y: 0, width: 1, height: 1 },
             };
       const result = await provider.translate({ targetLanguage: 'en', source });
-      expect(result).toMatchObject({ text: 'Hello world', provider: 'privatemode' });
+      expect(result).toMatchObject({ text: 'Hello world', provider: 'privatemode', model: type === 'text' ? 'gpt-oss-120b' : 'glm-5.3-flash' });
       const body = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string);
       expect(body.messages[0].content).toContain('translation, not transcription');
       if (type !== 'text')

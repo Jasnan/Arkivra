@@ -652,6 +652,7 @@ export function createDocumentWorker(deps: DocumentWorkerDeps) {
       const parsed = await parsePipeline.run(
         {
           documentId,
+          vaultId,
           documentVersionId,
           fileName: parseFileName,
           displayFileName: doc.originalName,

@@ -25,7 +25,7 @@ try {
       provider: 'privatemode',
       baseUrl,
       apiKeySecretRef: 'PRIVATEMODE_API_KEY',
-      model: 'glm-5.3-flash',
+      model: 'gpt-oss-120b',
       allowedModels: [
         'privatemode:glm-5.3-flash',
         'privatemode:glm-5.3',
@@ -36,7 +36,7 @@ try {
       provider: 'privatemode',
       baseUrl,
       apiKeySecretRef: 'PRIVATEMODE_API_KEY',
-      model: 'glm-5.3-flash',
+      model: 'gpt-oss-120b',
     },
     embedding: {
       provider: 'privatemode',

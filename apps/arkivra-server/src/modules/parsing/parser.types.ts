@@ -4,6 +4,7 @@ export type ParserEngine = 'docling' | 'privatemode';
 
 export type ParseInput = {
   documentId: string;
+  vaultId?: string;
   documentVersionId?: string;
   fileName: string;
   displayFileName?: string;

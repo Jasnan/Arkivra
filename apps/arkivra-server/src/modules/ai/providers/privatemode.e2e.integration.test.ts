@@ -8,7 +8,7 @@ import { createAdminAiServices } from '../../admin/ai/ai.services.js';
 // Use an explicitly selected test database. Every write is rolled back.
 describe.skipIf(!process.env.ARKIVRA_TEST_DATABASE_URL)('privatemode database integration', () => {
   test('persists selections and creates a provider-specific embedding index with existing schema', async () => {
-    vi.stubEnv('ARKIVRA_PRIVATEMODE_PROXY_URL', 'http://privatemode-proxy:8080/v1');
+    vi.stubEnv('ARKIVRA_PRIVATEMODE_PROXY_URL', 'http://127.0.0.1:8080/v1');
     vi.stubEnv('PRIVATEMODE_API_KEY', 'integration-test-key');
     const config = {
       database: { url: process.env.ARKIVRA_TEST_DATABASE_URL! },
@@ -31,20 +31,20 @@ describe.skipIf(!process.env.ARKIVRA_TEST_DATABASE_URL)('privatemode database in
             aiFeaturesEnabled: true,
             chat: {
               provider: 'privatemode',
-              baseUrl: 'http://privatemode-proxy:8080/v1',
+              baseUrl: 'http://127.0.0.1:8080/v1',
               apiKeySecretRef: null,
               model: 'glm-latest',
               allowedModels: ['privatemode:glm-latest', 'gemini:gemini-test'],
             },
             translation: {
               provider: 'privatemode',
-              baseUrl: 'http://privatemode-proxy:8080/v1',
+              baseUrl: 'http://127.0.0.1:8080/v1',
               apiKeySecretRef: null,
               model: 'glm-flash-latest',
             },
             embedding: {
               provider: 'privatemode',
-              baseUrl: 'http://privatemode-proxy:8080/v1',
+              baseUrl: 'http://127.0.0.1:8080/v1',
               apiKeySecretRef: null,
               model: 'qwen3-embedding-4b',
               dimensions: null,
@@ -61,7 +61,11 @@ describe.skipIf(!process.env.ARKIVRA_TEST_DATABASE_URL)('privatemode database in
             dimensions: 1024,
             apiKeySecretRef: 'PRIVATEMODE_API_KEY',
           });
-          const indexId = enqueueOrchestrateIndex.mock.calls[0]?.[0].embeddingIndexId;
+          // Configuring the same model reuses an existing index on an already configured instance.
+          const existingIndexes = await tx.execute<{ id: string }>(
+            sql`SELECT id FROM embedding_indexes WHERE provider = 'privatemode' AND model = 'qwen3-embedding-4b' AND dimensions = 1024 AND status IN ('active', 'ready', 'building') ORDER BY is_active DESC, created_at DESC`,
+          );
+          const indexId = enqueueOrchestrateIndex.mock.calls[0]?.[0].embeddingIndexId ?? existingIndexes.rows[0]?.id;
           expect(indexId).toBeTruthy();
           const result = await tx.execute(
             sql`SELECT provider, model, dimensions FROM embedding_indexes WHERE id = ${indexId}`,

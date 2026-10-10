@@ -3,6 +3,7 @@ import {
   privatemodeProxyBaseUrl,
 } from '../ai/providers/privatemode.provider.js';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { privatemodeCacheSalt } from '../ai/providers/privatemode-cache.js';
 import type { LanguageModel, LanguageModelUsage } from 'ai';
 import type { ChatGenerationMetrics } from './chat.types.js';
 
@@ -13,6 +14,7 @@ export type ChatAiRuntimeSettings = {
   provider: 'ollama' | 'gemini' | 'privatemode';
   baseUrl: string;
   apiKey?: string;
+  cacheScope?: readonly string[];
 };
 
 export function buildChatGenerationMetrics({
@@ -141,6 +143,11 @@ export function createChatModel({
         : {}),
     includeUsage: true,
     supportsStructuredOutputs: false,
+    ...(settings.provider === 'privatemode'
+      ? { transformRequestBody: (body: Record<string, unknown>) => ({
+          ...body, cache_salt: privatemodeCacheSalt(settings.cacheScope),
+        }) }
+      : {}),
     ...(settings.provider === 'ollama'
       ? { transformRequestBody: transformOllamaChatRequestBody }
       : {}),

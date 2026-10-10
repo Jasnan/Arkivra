@@ -217,7 +217,7 @@ describe.sequential('remote fixture persistence and live Qdrant integration', ()
         .set({ currentVersionId: versionId })
         .where(eq(documentsTable.id, documentId));
       const parser = createPrivatemodeParser({
-        baseUrl: 'http://fixture-proxy/v1',
+        baseUrl: 'http://127.0.0.1:8080/v1',
         apiKey: 'fixture',
         fetchImpl: async (_url, options) =>
           fixtureCompletion(options!, {
@@ -368,7 +368,7 @@ describe.sequential('remote fixture persistence and live Qdrant integration', ()
       mimeType: 'application/pdf',
     });
     const parser = createPrivatemodeParser({
-      baseUrl: 'http://fixture-proxy/v1',
+      baseUrl: 'http://127.0.0.1:8080/v1',
       apiKey: 'fixture',
       fetchImpl: async (_url, options) =>
         fixtureCompletion(options!, {

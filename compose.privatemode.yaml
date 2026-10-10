@@ -2,16 +2,37 @@
 # Set PRIVATEMODE_API_KEY in .env. The proxy is reachable only on the Compose network.
 services:
   privatemode-proxy:
-    image: ${PRIVATEMODE_PROXY_IMAGE:-ghcr.io/edgelesssys/privatemode/privatemode-proxy:latest}
+    image: ${PRIVATEMODE_PROXY_IMAGE:-ghcr.io/edgelesssys/privatemode/privatemode-proxy@sha256:5e8f549169c4288c24c902eadc4c6ebfaaf05c06e5605449c34469257929b143}
     restart: unless-stopped
-    command: ['--api-key-fallback=never', '--disable-prompt-cache=true']
+    command:
+      - --api-key=@/run/secrets/privatemode_api_key
+      - --api-key-fallback=never
+      - --disable-prompt-cache=true
+      - --nvidia-ocsp-allow-unknown=false
+      - --nvidia-ocsp-revoked-grace-period=0
+      - --workspace=/app/privatemode-proxy
+    volumes:
+      - privatemode-manifests:/app/privatemode-proxy
+    cap_drop:
+      - ALL
+    secrets:
+      - privatemode_api_key
     security_opt:
       - no-new-privileges:true
 
   arkivra:
     environment:
       ARKIVRA_PRIVATEMODE_PROXY_URL: http://privatemode-proxy:8080/v1
+      ARKIVRA_PRIVATEMODE_ALLOW_PRIVATE_HTTP: 'true'
       PRIVATEMODE_API_KEY: ${PRIVATEMODE_API_KEY:?Set PRIVATEMODE_API_KEY in .env}
+      ARKIVRA_PRIVATEMODE_CACHE_SECRET: ${ARKIVRA_PRIVATEMODE_CACHE_SECRET:-}
     depends_on:
       privatemode-proxy:
         condition: service_started
+
+volumes:
+  privatemode-manifests:
+
+secrets:
+  privatemode_api_key:
+    environment: PRIVATEMODE_API_KEY

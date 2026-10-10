@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { EmbeddingProvider } from './types.js';
+import { validatePrivatemodeProxyUrl } from './privatemode-transport.js';
 
 export const PRIVATEMODE_API_KEY_SECRET_REF = 'PRIVATEMODE_API_KEY';
 
@@ -7,21 +8,7 @@ export const PRIVATEMODE_API_KEY_SECRET_REF = 'PRIVATEMODE_API_KEY';
 export function privatemodeProxyBaseUrl() {
   const value = process.env.ARKIVRA_PRIVATEMODE_PROXY_URL?.trim();
   if (!value) throw new Error('Privatemode encryption proxy is not configured on the API server.');
-  const url = new URL(value);
-  if (
-    !['http:', 'https:'].includes(url.protocol) ||
-    url.username ||
-    url.password ||
-    url.search ||
-    url.hash
-  ) {
-    throw new Error(
-      'Privatemode proxy URL must be an HTTP(S) URL without credentials, query, or fragment.',
-    );
-  }
-  if (url.hostname === 'api.privatemode.ai') {
-    throw new Error('Configure a local Privatemode encryption proxy, not api.privatemode.ai.');
-  }
+  validatePrivatemodeProxyUrl(value);
   const base = value.replace(/\/+$/, '');
   return base.endsWith('/v1') ? base : `${base}/v1`;
 }

@@ -1,5 +1,6 @@
 import { defineConfig } from 'figue';
 import { z } from 'zod';
+import { validatePrivatemodeProxyUrl } from '../ai/providers/privatemode-transport.js';
 
 function isValidBackupArchiveEncryptionKey(value: string) {
   const trimmed = value.trim();
@@ -210,7 +211,7 @@ export const configDefinition = {
     structureModel: {
       doc: 'Privatemode model for source parsing and semantic chunk plans.',
       schema: z.enum(['glm-5.3-flash', 'glm-5.3', 'gpt-oss-120b']),
-      default: 'glm-5.3-flash' as const,
+      default: 'gpt-oss-120b' as const,
       env: 'ARKIVRA_REMOTE_STRUCTURE_MODEL',
     },
     maxChunkCharacters: {
@@ -585,17 +586,7 @@ export function parseConfig({ env }: { env: Record<string, string | undefined> }
       'PRIVATEMODE_API_KEY',
       'PRIVATEMODE_API_KEY is required for remote ingestion.',
     );
-    const proxy = new URL(env.ARKIVRA_PRIVATEMODE_PROXY_URL!);
-    if (
-      !['http:', 'https:'].includes(proxy.protocol) ||
-      proxy.hostname === 'api.privatemode.ai' ||
-      proxy.username ||
-      proxy.password ||
-      proxy.search ||
-      proxy.hash
-    ) {
-      throw new Error('Remote ingestion requires a trusted Privatemode encryption proxy URL.');
-    }
+    validatePrivatemodeProxyUrl(env.ARKIVRA_PRIVATEMODE_PROXY_URL!, env);
   }
 
   if (hasEnvValue(env, 'ARKIVRA_DOCLING_VLM_MODEL') && config.docling.vlmPipeline !== 'enabled') {

@@ -1,5 +1,8 @@
 import { createCanvas, loadImage } from '@napi-rs/canvas';
+import { privatemodeCacheSalt } from '../../ai/providers/privatemode-cache.js';
+import { validatePrivatemodeProxyUrl } from '../../ai/providers/privatemode-transport.js';
 import { z } from 'zod';
+import { zodSchema } from 'ai';
 import {
   privatemodeApiKey,
   privatemodeProxyBaseUrl,
@@ -141,7 +144,7 @@ export async function prepareOcrImage(image: { data: Buffer; mimeType: string })
 
 export function createPrivatemodeParser({
   ocrModel = 'deepseek-ocr-2',
-  structureModel = 'glm-5.3-flash',
+  structureModel = 'gpt-oss-120b',
   timeoutMs = 1_800_000,
   maxChunkCharacters = 3200,
   fetchImpl = fetch,
@@ -160,8 +163,9 @@ export function createPrivatemodeParser({
   async function parseDocument(input: ParseInput) {
     const signal = AbortSignal.timeout(timeoutMs);
     const url = baseUrl ?? privatemodeProxyBaseUrl();
+    validatePrivatemodeProxyUrl(url);
     const key = apiKey ?? privatemodeApiKey();
-    async function request(model: string, content: unknown, json = false) {
+    async function request(model: string, content: unknown, json = false, schema?: unknown) {
       signal.throwIfAborted();
       const response = await fetchImpl(`${url.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
@@ -170,10 +174,15 @@ export function createPrivatemodeParser({
         headers: { 'content-type': 'application/json', Authorization: `Bearer ${key}` },
         body: JSON.stringify({
           model,
+          cache_salt: privatemodeCacheSalt([
+            'ingestion', input.vaultId ?? input.documentId, input.documentId,
+          ]),
           messages: [{ role: 'user', content }],
           max_completion_tokens: model === ocrModel ? 7000 : 8192,
           ...(model === ocrModel ? {} : { reasoning_effort: 'low' }),
-          ...(json ? { response_format: { type: 'json_object' } } : {}),
+          ...(json ? { response_format: schema
+            ? { type: 'json_schema', json_schema: { name: 'arkivra_structure', strict: true, schema } }
+            : { type: 'json_object' } } : {}),
         }),
       });
       if (!response.ok)
@@ -197,7 +206,7 @@ export function createPrivatemodeParser({
     }
     async function jsonRequest<T>(prompt: string, schema: z.ZodType<T>) {
       let value: unknown;
-      const content = await request(structureModel, prompt, true);
+      const content = await request(structureModel, prompt, true, zodSchema(schema).jsonSchema);
       try {
         value = JSON.parse(content);
       } catch {

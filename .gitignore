@@ -58,3 +58,6 @@ drizzle/meta/
 *.tgz
 .cache/
 tsconfig.tsbuildinfo
+
+# Local Privatemode proxy credentials (never commit).
+/.privatemode-secrets/

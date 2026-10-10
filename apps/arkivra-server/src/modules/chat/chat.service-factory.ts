@@ -692,9 +692,21 @@ export function createChatServices({
             effectiveSelection.provider === defaultSettings.provider
               ? defaultSettings
               : await resolveAiSettings({ provider: effectiveSelection.provider });
-          const chatModel = createChatModel({ settings, model: effectiveSelection.model });
+          const generationModel = settings.provider === 'privatemode' && includeImages && effectiveSelection.model === 'gpt-oss-120b'
+            ? 'glm-5.3-flash'
+            : effectiveSelection.model;
+          if (!availableModelValues.has(formatChatModelValue({ provider: effectiveSelection.provider, model: generationModel }))) {
+            throw new Error('The configured chat providers do not allow a model that supports this input.');
+          }
+          const chatModel = createChatModel({
+            settings: {
+              ...settings,
+              cacheScope: ['chat', userId, conversationId, JSON.stringify(generationScope)],
+            },
+            model: generationModel,
+          });
           assistantMetadata = {
-            model: effectiveSelection.value,
+            model: formatChatModelValue({ provider: effectiveSelection.provider, model: generationModel }),
             conversationId,
             vaultId: scopeValues.vaultId,
             documentId: scopeValues.documentId,

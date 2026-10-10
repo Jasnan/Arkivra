@@ -54,6 +54,7 @@ export interface TranslationProvider {
     targetLanguage: TranslationTargetLanguage;
     source: TranslationSource;
     signal?: AbortSignal;
+    cacheScope?: readonly string[];
   }) => Promise<{
     text: string;
     model: string;
@@ -138,7 +139,7 @@ export function createRuntimeConfiguredOllamaTranslationProvider({
 
   return {
     name: 'ollama',
-    async translate({ targetLanguage, source, signal }) {
+    async translate({ targetLanguage, source, signal, cacheScope }) {
       const settings = await resolveSettings();
       if (settings.enabled === false) {
         throw new Error('AI features are disabled for this Arkivra instance.');
@@ -146,9 +147,12 @@ export function createRuntimeConfiguredOllamaTranslationProvider({
       const provider = settings.provider ?? 'ollama';
       const prompt = buildPrompt({ targetLanguage, source });
       if (provider === 'gemini' || provider === 'privatemode') {
+        const selectedModel = provider === 'privatemode' && source.type !== 'text' && settings.model === 'gpt-oss-120b'
+          ? 'glm-5.3-flash'
+          : settings.model;
         if (settings.logRequests) {
           console.info(
-            `[translation:${provider}] translating ${source.type} with model=${settings.model} target=${targetLanguage}`,
+            `[translation:${provider}] translating ${source.type} with model=${selectedModel} target=${targetLanguage}`,
           );
         }
 
@@ -157,8 +161,9 @@ export function createRuntimeConfiguredOllamaTranslationProvider({
             provider,
             baseUrl: settings.host,
             apiKey: settings.apiKey,
+            cacheScope,
           },
-          model: settings.model,
+          model: selectedModel,
         });
 
         const result = await generateText({
@@ -181,7 +186,7 @@ export function createRuntimeConfiguredOllamaTranslationProvider({
 
         return {
           text,
-          model: settings.model,
+          model: selectedModel,
           provider,
         };
       }
@@ -238,12 +243,14 @@ export function createDocumentTranslationServices({
       targetLanguage,
       source,
       signal,
+      cacheScope,
     }: {
       targetLanguage: TranslationTargetLanguage;
       source: TranslationSource;
       signal?: AbortSignal;
+      cacheScope?: readonly string[];
     }): Promise<DocumentTranslation> {
-      const result = await provider.translate({ targetLanguage, source, signal });
+      const result = await provider.translate({ targetLanguage, source, signal, cacheScope });
 
       return {
         targetLanguage,

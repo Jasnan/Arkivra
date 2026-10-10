@@ -12,12 +12,37 @@ import { createParserRegistry } from '../parser.registry.js';
 import { createNoopTextCleaner } from '../text-cleaner.js';
 
 const grounding = '<|ref|>text<|/ref|><|det|>[[100,200,900,300]]<|/det|>Reference ZX987654';
+
 const input = {
   documentId: 'doc_remote',
   fileName: 'source.txt',
   mimeType: 'text/plain',
   fileData: Buffer.from('Reference\nZX987654'),
 };
+it('uses isolated, stable request caching for OCR and chunking without changing text', async () => {
+  vi.stubEnv('ARKIVRA_PRIVATEMODE_CACHE_SECRET', 'a'.repeat(64));
+  try {
+    const fetchImpl = mockProvider();
+    const adapter = parser(fetchImpl);
+    const source = { ...input, vaultId: 'vault_a', fileName: 'source.pdf', mimeType: 'application/pdf', fileData: await pdf(1) };
+    const first = await adapter.parse(source);
+    const requests = () => fetchImpl.mock.calls.map(([, init]) => JSON.parse(init!.body as string));
+    const salt = requests()[0].cache_salt;
+    expect(salt).toMatch(/^[a-f\d]{64}$/);
+    expect(requests().map((body) => body.model)).toContain('deepseek-ocr-2');
+    expect(requests().map((body) => body.model)).toContain('gpt-oss-120b');
+    expect(requests().filter((body) => body.model === 'gpt-oss-120b').every((body) => body.response_format.type === 'json_schema' && body.response_format.json_schema.strict)).toBe(true);
+    expect(requests().every((body) => body.cache_salt === salt)).toBe(true);
+    fetchImpl.mockClear();
+    expect((await adapter.parse(source)).text).toBe(first.text);
+    expect(requests()[0].cache_salt).toBe(salt);
+    fetchImpl.mockClear();
+    await adapter.parse({ ...source, vaultId: 'vault_b' });
+    expect(requests()[0].cache_salt).not.toBe(salt);
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
 function response(content: string, finish_reason = 'stop') {
   return Response.json({ choices: [{ finish_reason, message: { content } }] });
 }
@@ -45,7 +70,7 @@ function mockProvider(ocr = grounding) {
 }
 function parser(fetchImpl = mockProvider(), options = {}) {
   return createPrivatemodeParser({
-    baseUrl: 'http://trusted-proxy/v1',
+    baseUrl: 'http://127.0.0.1:8080/v1',
     apiKey: 'fixture',
     fetchImpl,
     ...options,
@@ -90,7 +115,8 @@ describe('privatemode remote ingestion', () => {
         });
       const body = JSON.parse(fetchImpl.mock.calls[0]![1]!.body as string);
       expect(body.reasoning_effort).toBe('low');
-      expect(body.response_format.type).toBe('json_object');
+      expect(body.response_format.type).toBe('json_schema');
+      expect(body.response_format.json_schema.strict).toBe(true);
     },
   );
   it('sends every digital PDF page to remote OCR, including pages beyond the former sample limit', async () => {
